@@ -75,4 +75,10 @@ model Message {
   status         String       @default("sent") // sent, delivered, read, failed
   senderName     String?      // "Bot" or Agent's Name
   createdAt      DateTime     @default(now())
+
+  // Quote reply relations
+  quotedMessageId String?
+  quotedMessage   Message?    @relation("MessageReplies", fields: [quotedMessageId], references: [id])
+  replies         Message[]   @relation("MessageReplies")
 }
+

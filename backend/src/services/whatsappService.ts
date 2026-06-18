@@ -1,4 +1,6 @@
 import axios from "axios";
+import fs from "fs";
+import path from "path";
 
 interface ButtonItem {
   id: string;
@@ -17,6 +19,76 @@ interface ListSection {
 }
 
 export class WhatsAppService {
+  // Download Media from Meta API and save it locally. Returns the relative local URL path (e.g. "/uploads/abc.jpg")
+  public static async downloadMedia(
+    phoneNumberId: string,
+    accessToken: string,
+    mediaId: string,
+    mimeType: string
+  ): Promise<string> {
+    if (this.isMock(phoneNumberId, accessToken)) {
+      // In mock mode, return a realistic unsplash or dummy placeholder URL
+      if (mimeType.startsWith("image/")) {
+        return `https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300`;
+      } else if (mimeType.startsWith("video/")) {
+        return `https://www.w3schools.com/html/mov_bbb.mp4`;
+      } else if (mimeType.startsWith("audio/")) {
+        return `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3`;
+      } else {
+        return `https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf`;
+      }
+    }
+
+    try {
+      // Step 1: Get Media details from Meta
+      const detailsUrl = `https://graph.facebook.com/v19.0/${mediaId}`;
+      const detailsRes = await axios.get(detailsUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const downloadUrl = detailsRes.data.url;
+      if (!downloadUrl) throw new Error("Media download URL not found in Meta response");
+
+      // Step 2: Download the binary file
+      const downloadRes = await axios.get(downloadUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        responseType: "arraybuffer"
+      });
+
+      // Step 3: Determine file extension from mime type
+      let ext = "bin";
+      if (mimeType.includes("jpeg") || mimeType.includes("jpg")) ext = "jpg";
+      else if (mimeType.includes("png")) ext = "png";
+      else if (mimeType.includes("gif")) ext = "gif";
+      else if (mimeType.includes("pdf")) ext = "pdf";
+      else if (mimeType.includes("mp4")) ext = "mp4";
+      else if (mimeType.includes("mpeg") || mimeType.includes("mp3")) ext = "mp3";
+      else if (mimeType.includes("ogg")) ext = "ogg";
+      else if (mimeType.includes("wav")) ext = "wav";
+      else if (mimeType.includes("webp")) ext = "webp";
+
+      const filename = `${mediaId}.${ext}`;
+      const uploadsDir = path.join(process.cwd(), "uploads");
+      
+      // Ensure uploads directory exists
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const filePath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filePath, Buffer.from(downloadRes.data));
+
+      return `/uploads/${filename}`;
+    } catch (err: any) {
+      console.error(`Error downloading media from Meta (${mediaId}):`, err.message);
+      return `https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300`;
+    }
+  }
+  private static isMock(phoneNumberId: string, accessToken: string): boolean {
+    const isTokenPlaceholder = !accessToken || accessToken === "EAAG..." || accessToken.startsWith("EAAG") || accessToken.length < 20;
+    const isPhonePlaceholder = !phoneNumberId || phoneNumberId === "100000000000000" || phoneNumberId.length < 5;
+    return isTokenPlaceholder || isPhonePlaceholder;
+  }
+
   private static getApiUrl(phoneNumberId: string): string {
     return `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
   }
@@ -33,10 +105,15 @@ export class WhatsAppService {
     phoneNumberId: string,
     accessToken: string,
     to: string,
-    text: string
+    text: string,
+    contextMessageId?: string
   ) {
+    if (this.isMock(phoneNumberId, accessToken)) {
+      console.log(`[MOCK WHATSAPP SEND TEXT] to ${to}: "${text}"${contextMessageId ? ` (replying to ${contextMessageId})` : ""}`);
+      return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
+    }
     const url = this.getApiUrl(phoneNumberId);
-    const data = {
+    const data: any = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to,
@@ -46,6 +123,10 @@ export class WhatsAppService {
         body: text,
       },
     };
+
+    if (contextMessageId) {
+      data.context = { message_id: contextMessageId };
+    }
 
     const response = await axios.post(url, data, {
       headers: this.getHeaders(accessToken),
@@ -59,8 +140,13 @@ export class WhatsAppService {
     accessToken: string,
     to: string,
     text: string,
-    buttons: ButtonItem[]
+    buttons: ButtonItem[],
+    contextMessageId?: string
   ) {
+    if (this.isMock(phoneNumberId, accessToken)) {
+      console.log(`[MOCK WHATSAPP SEND BUTTONS] to ${to}: "${text}" [${buttons.map(b => b.title).join(", ")}]${contextMessageId ? ` (replying to ${contextMessageId})` : ""}`);
+      return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
+    }
     const url = this.getApiUrl(phoneNumberId);
     
     // Format buttons for Meta API
@@ -72,7 +158,7 @@ export class WhatsAppService {
       },
     }));
 
-    const data = {
+    const data: any = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to,
@@ -87,6 +173,10 @@ export class WhatsAppService {
         },
       },
     };
+
+    if (contextMessageId) {
+      data.context = { message_id: contextMessageId };
+    }
 
     const response = await axios.post(url, data, {
       headers: this.getHeaders(accessToken),
@@ -103,8 +193,13 @@ export class WhatsAppService {
     buttonText: string,
     sections: ListSection[],
     headerText?: string,
-    footerText?: string
+    footerText?: string,
+    contextMessageId?: string
   ) {
+    if (this.isMock(phoneNumberId, accessToken)) {
+      console.log(`[MOCK WHATSAPP SEND LIST] to ${to}: "${bodyText}" - Button: "${buttonText}"${contextMessageId ? ` (replying to ${contextMessageId})` : ""}`);
+      return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
+    }
     const url = this.getApiUrl(phoneNumberId);
 
     // Format action sections
@@ -147,6 +242,10 @@ export class WhatsAppService {
       };
     }
 
+    if (contextMessageId) {
+      data.context = { message_id: contextMessageId };
+    }
+
     const response = await axios.post(url, data, {
       headers: this.getHeaders(accessToken),
     });
@@ -160,8 +259,14 @@ export class WhatsAppService {
     to: string,
     mediaType: "image" | "document" | "video" | "audio",
     mediaUrlOrId: string,
-    filename?: string
+    filename?: string,
+    caption?: string,
+    contextMessageId?: string
   ) {
+    if (this.isMock(phoneNumberId, accessToken)) {
+      console.log(`[MOCK WHATSAPP SEND MEDIA] to ${to}: Type: "${mediaType}" - Url/Id: "${mediaUrlOrId}"${caption ? ` - Caption: "${caption}"` : ""}${contextMessageId ? ` (replying to ${contextMessageId})` : ""}`);
+      return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
+    }
     const url = this.getApiUrl(phoneNumberId);
 
     // Check if mediaUrlOrId is a URL or a Meta Media ID
@@ -178,13 +283,21 @@ export class WhatsAppService {
       mediaObject.filename = filename;
     }
 
-    const data = {
+    if (caption && ["image", "document", "video"].includes(mediaType)) {
+      mediaObject.caption = caption;
+    }
+
+    const data: any = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to,
       type: mediaType,
       [mediaType]: mediaObject,
     };
+
+    if (contextMessageId) {
+      data.context = { message_id: contextMessageId };
+    }
 
     const response = await axios.post(url, data, {
       headers: this.getHeaders(accessToken),

@@ -14,6 +14,7 @@ interface FlowNode {
     mediaUrl?: string;
     mediaType?: "image" | "document" | "video" | "audio";
     filename?: string;
+    caption?: string;
     buttons?: { id: string; title: string }[];
     listButtonText?: string;
     listSections?: {
@@ -87,31 +88,37 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           // Interactive Nodes: Match user selection
           const userResponseText = message.content.toLowerCase().trim();
           
-          // Check if there's an edge from current node matching user input
-          const matchingEdge = graph.edges.find((edge) => {
-            if (edge.source !== currentNode.id) return false;
-            
-            // Match by button ID (sourceHandle) or button title
-            if (currentNode.type === "buttonsNode") {
-              const matchingBtn = currentNode.data.buttons?.find(
-                (btn) => btn.id === edge.sourceHandle || btn.title.toLowerCase().trim() === userResponseText
+          if (currentNode.type === "buttonsNode") {
+            const matchingBtn = currentNode.data.buttons?.find(
+              (btn) => btn.title.toLowerCase().trim() === userResponseText
+            );
+            if (matchingBtn) {
+              const matchingEdge = graph.edges.find(
+                (edge) => edge.source === currentNode.id && edge.sourceHandle === matchingBtn.id
               );
-              return matchingBtn?.id === edge.sourceHandle;
-            } else {
-              // List menu item matching
-              const allRows = currentNode.data.listSections?.flatMap((sec) => sec.rows) || [];
-              const matchingRow = allRows.find(
-                (row) => row.id === edge.sourceHandle || row.title.toLowerCase().trim() === userResponseText
-              );
-              return matchingRow?.id === edge.sourceHandle;
+              if (matchingEdge) {
+                nextNodeId = matchingEdge.target;
+              }
             }
-          });
-
-          if (matchingEdge) {
-            nextNodeId = matchingEdge.target;
           } else {
+            // List menu item matching
+            const allRows = currentNode.data.listSections?.flatMap((sec) => sec.rows) || [];
+            const matchingRow = allRows.find(
+              (row) => row.title.toLowerCase().trim() === userResponseText
+            );
+            if (matchingRow) {
+              const matchingEdge = graph.edges.find(
+                (edge) => edge.source === currentNode.id && edge.sourceHandle === matchingRow.id
+              );
+              if (matchingEdge) {
+                nextNodeId = matchingEdge.target;
+              }
+            }
+          }
+
+          if (!nextNodeId) {
             // Did not match options, re-send options (optionally notify client)
-            await sendNodeMessage(waConfig.phoneNumberId, waConfig.accessToken, conversation.customerPhone, currentNode);
+            await sendNodeMessage(waConfig.phoneNumberId, waConfig.accessToken, conversation.customerPhone, currentNode, conversationId, conversation.organizationId);
             return;
           }
         } else if (currentNode.type === "questionNode") {
@@ -139,7 +146,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
 
     // 4. Execute Next Node
     if (nextNodeId) {
-      await executeNodeChain(waConfig.phoneNumberId, waConfig.accessToken, conversation.customerPhone, nextNodeId, graph, conversationId);
+      await executeNodeChain(waConfig.phoneNumberId, waConfig.accessToken, conversation.customerPhone, nextNodeId, graph, conversationId, conversation.organizationId);
     }
   } catch (error) {
     console.error("Error in flow engine execution:", error);
@@ -153,7 +160,8 @@ async function executeNodeChain(
   customerPhone: string,
   nodeId: string,
   graph: FlowGraph,
-  conversationId: string
+  conversationId: string,
+  organizationId: string
 ) {
   const node = graph.nodes.find((n) => n.id === nodeId);
   if (!node) return;
@@ -165,7 +173,7 @@ async function executeNodeChain(
   });
 
   // Send the node's configured message
-  await sendNodeMessage(phoneNumberId, accessToken, customerPhone, node);
+  await sendNodeMessage(phoneNumberId, accessToken, customerPhone, node, conversationId, organizationId);
 
   // If node type is static (Text or Media node), we can transition immediately
   if (node.type === "textNode" || node.type === "mediaNode" || node.type === "welcomeNode") {
@@ -173,7 +181,7 @@ async function executeNodeChain(
     if (outgoingEdge) {
       // Small delay for natural pacing
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      await executeNodeChain(phoneNumberId, accessToken, customerPhone, outgoingEdge.target, graph, conversationId);
+      await executeNodeChain(phoneNumberId, accessToken, customerPhone, outgoingEdge.target, graph, conversationId, organizationId);
     }
   }
 }
@@ -189,31 +197,90 @@ function findRootNode(graph: FlowGraph): FlowNode | null {
   return orphanNode || graph.nodes[0] || null;
 }
 
-// Call WhatsAppService based on node configuration
+// Call WhatsAppService based on node configuration and save message to DB
 async function sendNodeMessage(
   phoneNumberId: string,
   accessToken: string,
   to: string,
-  node: FlowNode
+  node: FlowNode,
+  conversationId: string,
+  organizationId: string
 ) {
   const data = node.data;
-  
-  if (node.type === "textNode" || node.type === "welcomeNode" || node.type === "questionNode") {
-    const text = data.text || "No text defined.";
-    await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, text);
-  } else if (node.type === "mediaNode") {
-    const text = data.text || "";
-    const mediaUrl = data.mediaUrl || "";
-    const mediaType = data.mediaType || "image";
-    await WhatsAppService.sendMediaMessage(phoneNumberId, accessToken, to, mediaType, mediaUrl, data.filename);
-  } else if (node.type === "buttonsNode") {
-    const text = data.text || "Select an option:";
-    const buttons = data.buttons || [];
-    await WhatsAppService.sendButtonMessage(phoneNumberId, accessToken, to, text, buttons);
-  } else if (node.type === "listNode") {
-    const text = data.text || "Choose from the menu:";
-    const buttonText = data.listButtonText || "View Menu";
-    const sections = data.listSections || [];
-    await WhatsAppService.sendListMessage(phoneNumberId, accessToken, to, text, buttonText, sections);
+  let content = "";
+  let messageType = "text";
+  let responseData: any = null;
+
+  try {
+    if (node.type === "textNode" || node.type === "welcomeNode" || node.type === "questionNode") {
+      content = data.text || "No text defined.";
+      messageType = "text";
+      responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, content);
+    } else if (node.type === "mediaNode") {
+      const type = data.mediaType || "image";
+      const url = data.mediaUrl || "";
+      const filename = data.filename || "";
+      const caption = data.caption || "";
+      
+      messageType = type;
+      responseData = await WhatsAppService.sendMediaMessage(
+        phoneNumberId,
+        accessToken,
+        to,
+        type as any,
+        url,
+        filename,
+        caption
+      );
+      
+      // Construct content format for database saving
+      if (type === "document") {
+        content = `${filename || "document.pdf"}|${url}`;
+      } else {
+        content = url;
+      }
+      if (caption) {
+        content += `|caption:${caption}`;
+      }
+    } else if (node.type === "buttonsNode") {
+      content = data.text || "Select an option:";
+      messageType = "buttonsNode";
+      const buttons = data.buttons || [];
+      responseData = await WhatsAppService.sendButtonMessage(phoneNumberId, accessToken, to, content, buttons);
+      // Format content to include button info for frontend rendering
+      const btnTitles = buttons.map(b => b.title).join(", ");
+      content = `${content}|buttons:${btnTitles}`;
+    } else if (node.type === "listNode") {
+      content = data.text || "Choose from the menu:";
+      messageType = "listNode";
+      const buttonText = data.listButtonText || "View Menu";
+      const sections = data.listSections || [];
+      responseData = await WhatsAppService.sendListMessage(phoneNumberId, accessToken, to, content, buttonText, sections);
+      content = `${content}|list:${buttonText}`;
+    }
+
+    const waMessageId = responseData?.messages?.[0]?.id || null;
+
+    // Save outbound message to Database
+    const savedMsg = await prisma.message.create({
+      data: {
+        conversationId,
+        direction: "outbound",
+        messageType,
+        content,
+        waMessageId,
+        status: "sent",
+        senderName: "Bot",
+      },
+    });
+
+    // Lazy load socket server to emit to client dashboard instantly
+    const { io } = require("../index");
+    io.to(organizationId).emit("new-message", {
+      conversationId,
+      message: savedMsg,
+    });
+  } catch (err: any) {
+    console.error(`Failed to send flow node message ${node.id} to ${to}:`, err.message);
   }
 }

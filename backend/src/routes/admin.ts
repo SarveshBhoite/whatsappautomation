@@ -37,7 +37,10 @@ router.get("/conversations/:id/messages", async (req: Request, res: Response) =>
     const { id } = req.params;
 
     const messages = await prisma.message.findMany({
-      where: { conversationId: id },
+      where: { conversationId: id as string },
+      include: {
+        quotedMessage: true,
+      },
       orderBy: { createdAt: "asc" },
     });
 
@@ -169,6 +172,31 @@ router.post("/config", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error updating config:", error);
     return res.status(500).json({ error: "Failed to update config", details: error.message });
+  }
+});
+
+// POST: Upload visual builder node media file
+router.post("/upload", async (req: Request, res: Response) => {
+  try {
+    const { filename, fileBase64 } = req.body;
+    if (!filename || !fileBase64) {
+      return res.status(400).json({ error: "Missing filename or fileBase64" });
+    }
+    const path = require("path");
+    const fs = require("fs");
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const cleanFilename = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+    const filePath = path.join(uploadsDir, cleanFilename);
+    const fileBuffer = Buffer.from(fileBase64, "base64");
+    fs.writeFileSync(filePath, fileBuffer);
+    const fileUrl = `/uploads/${cleanFilename}`;
+    return res.status(200).json({ url: fileUrl });
+  } catch (error: any) {
+    console.error("Error writing upload to storage:", error);
+    return res.status(500).json({ error: "Failed to upload file", details: error.message });
   }
 });
 

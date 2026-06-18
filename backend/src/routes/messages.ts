@@ -8,7 +8,7 @@ const router = Router();
 // POST: Send Manual Message (from Sales Agent)
 router.post("/send", async (req: Request, res: Response) => {
   try {
-    const { conversationId, messageType, content, filename } = req.body;
+    const { conversationId, messageType, content, filename, quotedMessageId } = req.body;
 
     if (!conversationId || !messageType || !content) {
       return res.status(400).json({ error: "Missing required fields: conversationId, messageType, content" });
@@ -31,6 +31,44 @@ router.post("/send", async (req: Request, res: Response) => {
 
     const customerPhone = conversation.customerPhone;
     let responseData;
+    let mediaUrlOrId = content;
+
+    // Decode base64 file upload if provided by client
+    const { fileBase64 } = req.body;
+    if (fileBase64 && filename) {
+      try {
+        const path = require("path");
+        const fs = require("fs");
+        const uploadsDir = path.join(process.cwd(), "uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        // Clean filename and make unique
+        const cleanFilename = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+        const filePath = path.join(uploadsDir, cleanFilename);
+        const fileBuffer = Buffer.from(fileBase64, "base64");
+        
+        fs.writeFileSync(filePath, fileBuffer);
+        mediaUrlOrId = `/uploads/${cleanFilename}`;
+      } catch (err: any) {
+        console.error("Error writing base64 file to storage:", err.message);
+      }
+    }
+
+    // Resolve contextMessageId if quoting a message
+    let contextMessageId: string | undefined = undefined;
+    if (quotedMessageId) {
+      const qMsg = await prisma.message.findUnique({
+        where: { id: quotedMessageId }
+      });
+      if (qMsg?.waMessageId) {
+        contextMessageId = qMsg.waMessageId;
+      }
+    }
+
+    const { caption } = req.body;
+    let contentForDb = mediaUrlOrId;
 
     // 2. Call WhatsApp Cloud API via WhatsAppService
     if (messageType === "text") {
@@ -38,17 +76,31 @@ router.post("/send", async (req: Request, res: Response) => {
         waConfig.phoneNumberId,
         waConfig.accessToken,
         customerPhone,
-        content
+        mediaUrlOrId,
+        contextMessageId
       );
+      contentForDb = mediaUrlOrId;
     } else if (["image", "document", "video", "audio"].includes(messageType)) {
       responseData = await WhatsAppService.sendMediaMessage(
         waConfig.phoneNumberId,
         waConfig.accessToken,
         customerPhone,
         messageType,
-        content,
-        filename
+        mediaUrlOrId,
+        filename,
+        caption,
+        contextMessageId
       );
+      
+      // Format content for database
+      if (messageType === "document") {
+        contentForDb = `${filename || "document.pdf"}|${mediaUrlOrId}`;
+      } else {
+        contentForDb = mediaUrlOrId;
+      }
+      if (caption) {
+        contentForDb += `|caption:${caption}`;
+      }
     } else {
       return res.status(400).json({ error: "Unsupported message type for manual sending" });
     }
@@ -73,10 +125,19 @@ router.post("/send", async (req: Request, res: Response) => {
         conversationId,
         direction: "outbound",
         messageType,
-        content,
+        content: contentForDb,
         waMessageId,
         status: "sent",
         senderName: "Agent", // Default for manual chat
+        quotedMessageId: quotedMessageId || null,
+      },
+    });
+
+    // Fetch the saved message with quotedMessage relation
+    const fullMessage = await prisma.message.findUnique({
+      where: { id: savedMessage.id },
+      include: {
+        quotedMessage: true,
       },
     });
 
@@ -85,7 +146,7 @@ router.post("/send", async (req: Request, res: Response) => {
     // 5. Broadcast to Agents via Socket.io
     io.to(orgId).emit("new-message", {
       conversationId,
-      message: savedMessage,
+      message: fullMessage,
     });
 
     // Notify agents of the bot pause state update

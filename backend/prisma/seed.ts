@@ -129,6 +129,222 @@ async function main() {
   });
   console.log(`Created and Activated Default Chatbot Flow: "${flow.name}"`);
 
+  // =============================================================
+  // 5. Seed Mock Conversations and Messages for CRM Demo
+  // =============================================================
+  console.log("Seeding mock conversations and messages...");
+
+  // Conversation 1: Active Bot Flow (Rahul Sharma)
+  const conv1 = await prisma.conversation.upsert({
+    where: { organizationId_customerPhone: { organizationId: org.id, customerPhone: "+919876543210" } },
+    update: {},
+    create: {
+      organizationId: org.id,
+      customerPhone: "+919876543210",
+      customerName: "Rahul Sharma",
+      isBotPaused: false,
+      currentNodeId: "buttons_1",
+    },
+  });
+
+  await prisma.message.deleteMany({ where: { conversationId: conv1.id } });
+  await prisma.message.createMany({
+    data: [
+      {
+        conversationId: conv1.id,
+        direction: "inbound",
+        messageType: "text",
+        content: "Hello there!",
+        status: "read",
+        createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10 mins ago
+      },
+      {
+        conversationId: conv1.id,
+        direction: "outbound",
+        messageType: "text",
+        content: "Hello! Welcome to our automated WhatsApp system.",
+        status: "read",
+        senderName: "Bot",
+        createdAt: new Date(Date.now() - 9.5 * 60 * 1000),
+      },
+      {
+        conversationId: conv1.id,
+        direction: "outbound",
+        messageType: "buttonsNode",
+        content: "How can we help you today? Please choose an option below:|buttons:View Pricing, Support Menu",
+        status: "delivered",
+        senderName: "Bot",
+        createdAt: new Date(Date.now() - 9 * 60 * 1000),
+      },
+    ],
+  });
+
+  // Conversation 2: Manual Control Paused Bot (Priya Patel)
+  const conv2 = await prisma.conversation.upsert({
+    where: { organizationId_customerPhone: { organizationId: org.id, customerPhone: "+918765432109" } },
+    update: {},
+    create: {
+      organizationId: org.id,
+      customerPhone: "+918765432109",
+      customerName: "Priya Patel",
+      isBotPaused: true,
+      botPausedUntil: new Date(Date.now() + 23 * 60 * 60 * 1000), // paused for next 23 hours
+      currentNodeId: "pricing_reply",
+    },
+  });
+
+  await prisma.message.deleteMany({ where: { conversationId: conv2.id } });
+  await prisma.message.createMany({
+    data: [
+      {
+        conversationId: conv2.id,
+        direction: "inbound",
+        messageType: "text",
+        content: "Hi, I have a query about the custom app development packages.",
+        status: "read",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000), // 1 hour ago
+      },
+      {
+        conversationId: conv2.id,
+        direction: "outbound",
+        messageType: "text",
+        content: "Hello! Welcome to our automated WhatsApp system.",
+        status: "read",
+        senderName: "Bot",
+        createdAt: new Date(Date.now() - 59 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "outbound",
+        messageType: "text",
+        content: "How can we help you today? Please choose an option below:\n- View Pricing\n- Support Menu",
+        status: "read",
+        senderName: "Bot",
+        createdAt: new Date(Date.now() - 58 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "inbound",
+        messageType: "interactive",
+        content: "View Pricing",
+        status: "read",
+        createdAt: new Date(Date.now() - 57 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "outbound",
+        messageType: "text",
+        content: "Our subscriptions start at $49/mo for the starter plan and $99/mo for professional. We will notify a rep to reach out to you.",
+        status: "read",
+        senderName: "Bot",
+        createdAt: new Date(Date.now() - 56 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "inbound",
+        messageType: "text",
+        content: "Can you build a custom dashboard for real estate listing?",
+        status: "read",
+        createdAt: new Date(Date.now() - 50 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "outbound",
+        messageType: "text",
+        content: "Yes, Priya! We specialize in custom real estate dashboards. I have paused our chatbot helper so I can chat with you directly. Here is a PDF brochure of our portfolio.",
+        status: "read",
+        senderName: "Agent",
+        createdAt: new Date(Date.now() - 48 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "outbound",
+        messageType: "document",
+        content: "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        status: "read",
+        senderName: "Agent",
+        createdAt: new Date(Date.now() - 47 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "inbound",
+        messageType: "text",
+        content: "That looks great, thank you. Let's schedule a call tomorrow.",
+        status: "read",
+        createdAt: new Date(Date.now() - 40 * 60 * 1000),
+      },
+      {
+        conversationId: conv2.id,
+        direction: "outbound",
+        messageType: "text",
+        content: "Awesome! Does tomorrow at 11 AM work for you? I will send a Google Meet invite.",
+        status: "delivered", // double ticks
+        senderName: "Agent",
+        createdAt: new Date(Date.now() - 38 * 60 * 1000),
+      },
+    ],
+  });
+
+  // Conversation 3: SEO Lead (John Smith)
+  const conv3 = await prisma.conversation.upsert({
+    where: { organizationId_customerPhone: { organizationId: org.id, customerPhone: "+15550199" } },
+    update: {},
+    create: {
+      organizationId: org.id,
+      customerPhone: "+15550199",
+      customerName: "John Smith",
+      isBotPaused: true,
+      botPausedUntil: new Date(Date.now() + 12 * 60 * 60 * 1000),
+    },
+  });
+
+  await prisma.message.deleteMany({ where: { conversationId: conv3.id } });
+  await prisma.message.createMany({
+    data: [
+      {
+        conversationId: conv3.id,
+        direction: "inbound",
+        messageType: "text",
+        content: "Hey, interested in your digital marketing SEO campaigns for my store.",
+        status: "read",
+        createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
+      },
+      {
+        conversationId: conv3.id,
+        direction: "outbound",
+        messageType: "text",
+        content: "Hello John! I've paused our automation bot. Our SEO packages start from $499/mo. Here is a screenshot of our case study results.",
+        status: "read",
+        senderName: "Agent",
+        createdAt: new Date(Date.now() - 2.8 * 60 * 60 * 1000),
+      },
+      {
+        conversationId: conv3.id,
+        direction: "outbound",
+        messageType: "image",
+        content: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600",
+        status: "read",
+        senderName: "Agent",
+        createdAt: new Date(Date.now() - 2.7 * 60 * 60 * 1000),
+      },
+    ],
+  });
+
+  // Link a quoted message in Priya Patel's conversation to demonstrate UI
+  const parentMsg = await prisma.message.findFirst({
+    where: { conversationId: conv2.id, content: "Can you build a custom dashboard for real estate listing?" }
+  });
+  const childMsg = await prisma.message.findFirst({
+    where: { conversationId: conv2.id, content: { startsWith: "Yes, Priya! We specialize" } }
+  });
+  if (parentMsg && childMsg) {
+    await prisma.message.update({
+      where: { id: childMsg.id },
+      data: { quotedMessageId: parentMsg.id }
+    });
+    console.log("Linked mock quoted message relation in Priya Patel's conversation.");
+  }
+
   console.log("Seeding complete successfully.");
 }
 
