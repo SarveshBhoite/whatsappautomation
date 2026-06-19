@@ -55,9 +55,13 @@ router.get("/conversations/:id/messages", async (req: Request, res: Response) =>
 router.get("/flows", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const { platform } = req.query;
 
     const flows = await prisma.flow.findMany({
-      where: { organizationId },
+      where: { 
+        organizationId,
+        platform: platform ? (platform as string) : undefined
+      },
       orderBy: { isActive: "desc" }, // Active first
     });
 
@@ -72,18 +76,19 @@ router.get("/flows", async (req: Request, res: Response) => {
 router.post("/flows", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { id, name, description, graphJson, isActive } = req.body;
+    const { id, name, description, graphJson, isActive, platform } = req.body;
 
     if (!name || !graphJson) {
       return res.status(400).json({ error: "Missing required fields: name, graphJson" });
     }
 
+    const flowPlatform = platform || "whatsapp";
     let flow;
 
     if (isActive) {
-      // Deactivate other flows if setting this one to active
+      // Deactivate other flows OF THE SAME PLATFORM if setting this one to active
       await prisma.flow.updateMany({
-        where: { organizationId, isActive: true },
+        where: { organizationId, platform: flowPlatform, isActive: true },
         data: { isActive: false },
       });
     }
@@ -96,6 +101,7 @@ router.post("/flows", async (req: Request, res: Response) => {
           name,
           description,
           graphJson,
+          platform: flowPlatform,
           isActive: !!isActive,
         },
       });
@@ -106,6 +112,7 @@ router.post("/flows", async (req: Request, res: Response) => {
           name,
           description,
           graphJson,
+          platform: flowPlatform,
           isActive: !!isActive,
           organizationId,
         },
@@ -172,6 +179,62 @@ router.post("/config", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error updating config:", error);
     return res.status(500).json({ error: "Failed to update config", details: error.message });
+  }
+});
+
+// GET: Fetch Instagram Config credentials
+router.get("/instagram/config", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+
+    let config = await prisma.instagramConfig.findUnique({
+      where: { organizationId },
+    });
+
+    if (!config) {
+      // Create empty config if not existing
+      config = await prisma.instagramConfig.create({
+        data: {
+          organizationId,
+          instagramAccountId: "",
+          pageId: "",
+          pageAccessToken: "",
+        },
+      });
+    }
+
+    return res.status(200).json(config);
+  } catch (error: any) {
+    console.error("Error fetching Instagram config:", error);
+    return res.status(500).json({ error: "Failed to fetch Instagram config", details: error.message });
+  }
+});
+
+// POST: Update Instagram Config credentials
+router.post("/instagram/config", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { instagramAccountId, pageId, pageAccessToken } = req.body;
+
+    const config = await prisma.instagramConfig.upsert({
+      where: { organizationId },
+      update: {
+        instagramAccountId,
+        pageId,
+        pageAccessToken,
+      },
+      create: {
+        organizationId,
+        instagramAccountId: instagramAccountId || "",
+        pageId: pageId || "",
+        pageAccessToken: pageAccessToken || "",
+      },
+    });
+
+    return res.status(200).json({ message: "Instagram configuration updated successfully", data: config });
+  } catch (error: any) {
+    console.error("Error updating Instagram config:", error);
+    return res.status(500).json({ error: "Failed to update Instagram config", details: error.message });
   }
 });
 

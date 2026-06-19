@@ -41,6 +41,25 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
+// Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
+const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
+
 // -------------------------------------------------------------
 // WhatsApp Styled Flow Builder Custom Nodes
 // -------------------------------------------------------------
@@ -196,6 +215,7 @@ interface Conversation {
   isBotPaused: boolean;
   botPausedUntil?: string;
   messages?: Message[];
+  platform?: string;
   updatedAt: string;
 }
 
@@ -206,8 +226,14 @@ interface WhatsAppConfig {
   webhookVerifyToken: string;
 }
 
+interface InstagramConfig {
+  instagramAccountId: string;
+  pageId: string;
+  pageAccessToken: string;
+}
+
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<"chats" | "flows" | "settings">("chats");
+  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("chats_whatsapp");
   
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -218,6 +244,15 @@ export default function Dashboard() {
   const socketRef = useRef<Socket | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Instagram Config
+  const [igConfig, setIgConfig] = useState<InstagramConfig>({
+    instagramAccountId: "",
+    pageId: "",
+    pageAccessToken: ""
+  });
+  const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -361,7 +396,8 @@ export default function Dashboard() {
   const addOptionButton = () => {
     if (!selectedNode) return;
     const currentBtns = selectedNode.data.buttons || [];
-    if (currentBtns.length >= 3) return;
+    const limit = selectedPlatform === "whatsapp" ? 3 : 13;
+    if (currentBtns.length >= limit) return;
     const nextBtns = [...currentBtns, { id: `btn_${Date.now()}`, title: `New Button` }];
     updateSelectedNode({ buttons: nextBtns });
   };
@@ -421,47 +457,80 @@ export default function Dashboard() {
     setShowSimulator(false);
 
     try {
-      const mockPayload = {
-        object: "whatsapp_business_account",
-        entry: [
-          {
-            id: "123456789",
-            changes: [
-              {
-                value: {
-                  messaging_product: "whatsapp",
-                  metadata: {
-                    display_phone_number: "15550000000",
-                    phone_number_id: config.phoneNumberId || "100000000000000",
-                  },
-                  contacts: [
-                    {
-                      profile: {
-                        name: activeConv.customerName || "Simulated Customer",
-                      },
-                      wa_id: activeConv.customerPhone,
-                    },
-                  ],
-                  messages: [
-                    {
-                      from: activeConv.customerPhone,
-                      id: `wamid.Simulated_${Date.now()}`,
-                      timestamp: Math.floor(Date.now() / 1000).toString(),
-                      text: {
-                        body: text,
-                      },
-                      type: "text",
-                    },
-                  ],
-                },
-                field: "messages",
-              },
-            ],
-          },
-        ],
-      };
+      const isWhatsApp = (activeConv.platform || "whatsapp") === "whatsapp";
+      let mockPayload;
+      let endpoint;
 
-      const res = await fetch(`${BACKEND_URL}/api/webhook/whatsapp`, {
+      if (isWhatsApp) {
+        endpoint = `${BACKEND_URL}/api/webhook/whatsapp`;
+        mockPayload = {
+          object: "whatsapp_business_account",
+          entry: [
+            {
+              id: "123456789",
+              changes: [
+                {
+                  value: {
+                    messaging_product: "whatsapp",
+                    metadata: {
+                      display_phone_number: "15550000000",
+                      phone_number_id: config.phoneNumberId || "100000000000000",
+                    },
+                    contacts: [
+                      {
+                        profile: {
+                          name: activeConv.customerName || "Simulated Customer",
+                        },
+                        wa_id: activeConv.customerPhone,
+                      },
+                    ],
+                    messages: [
+                      {
+                        from: activeConv.customerPhone,
+                        id: `wamid.Simulated_${Date.now()}`,
+                        timestamp: Math.floor(Date.now() / 1000).toString(),
+                        text: {
+                          body: text,
+                        },
+                        type: "text",
+                      },
+                    ],
+                  },
+                  field: "messages",
+                },
+              ],
+            },
+          ],
+        };
+      } else {
+        endpoint = `${BACKEND_URL}/api/webhook/instagram`;
+        mockPayload = {
+          object: "page",
+          entry: [
+            {
+              id: igConfig.pageId || "100000000000000_ig",
+              time: Date.now(),
+              messaging: [
+                {
+                  sender: {
+                    id: activeConv.customerPhone,
+                  },
+                  recipient: {
+                    id: igConfig.pageId || "100000000000000_ig",
+                  },
+                  timestamp: Date.now(),
+                  message: {
+                    mid: `m_Simulated_${Date.now()}`,
+                    text: text,
+                  },
+                },
+              ],
+            },
+          ],
+        };
+      }
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(mockPayload),
@@ -549,7 +618,8 @@ export default function Dashboard() {
     // Initial Fetch
     fetchConversations();
     fetchConfig();
-    fetchActiveFlow();
+    fetchInstagramConfig();
+    fetchActiveFlow("whatsapp");
 
     return () => {
       socket.disconnect();
@@ -560,6 +630,24 @@ export default function Dashboard() {
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Reset active conversation if it belongs to a different channel than the active tab
+  useEffect(() => {
+    if (activeConv) {
+      const expectedPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
+      if ((activeConv.platform || "whatsapp") !== expectedPlatform) {
+        setActiveConv(null);
+        setMessages([]);
+      }
+    }
+  }, [activeTab]);
+
+  // Refetch flows when selected platform changes
+  useEffect(() => {
+    if (activeTab === "flows") {
+      fetchActiveFlow(selectedPlatform);
+    }
+  }, [selectedPlatform, activeTab]);
 
   // 2. HTTP API Calls
   const fetchConversations = async () => {
@@ -625,9 +713,46 @@ export default function Dashboard() {
     }
   };
 
-  const fetchActiveFlow = async () => {
+  const fetchInstagramConfig = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/flows`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      const data = await res.json();
+      if (data) {
+        setIgConfig(data);
+      }
+    } catch (err) {
+      console.error("Error fetching Instagram config:", err);
+    }
+  };
+
+  const saveInstagramConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIgSaveStatus("saving");
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify(igConfig)
+      });
+      if (res.ok) {
+        setIgSaveStatus("success");
+        setTimeout(() => setIgSaveStatus("idle"), 3000);
+      } else {
+        setIgSaveStatus("error");
+      }
+    } catch (err) {
+      setIgSaveStatus("error");
+    }
+  };
+
+  const fetchActiveFlow = async (platform: "whatsapp" | "instagram" = "whatsapp") => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/flows?platform=${platform}`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       const data = await res.json();
@@ -644,27 +769,22 @@ export default function Dashboard() {
           setEdges(graph.edges || []);
         }
       } else {
-        // Initialize flow template if database is empty
+        // Initialize default graph when empty
         initializeDefaultGraph();
+        setFlowId(null);
       }
     } catch (err) {
       console.error("Error fetching flows:", err);
       initializeDefaultGraph();
+      setFlowId(null);
     }
   };
 
   const initializeDefaultGraph = () => {
     setNodes([
-      { id: "welcome_1", type: "input", data: { label: "1. Welcome (Inbound trigger)" }, position: { x: 250, y: 50 } },
-      { id: "buttons_1", type: "default", data: { label: "2. Selection Buttons:\n- Pricing\n- Support" }, position: { x: 250, y: 150 } },
-      { id: "pricing_reply", type: "output", data: { label: "3. Pricing info text response" }, position: { x: 100, y: 280 } },
-      { id: "support_menu", type: "output", data: { label: "4. Show list options menu" }, position: { x: 400, y: 280 } },
+      { id: "welcome_1", type: "welcomeNode", data: { text: "Welcome to our support desk! How can we help you today?" }, position: { x: 250, y: 50 } }
     ] as any);
-    setEdges([
-      { id: "e1-2", source: "welcome_1", target: "buttons_1" },
-      { id: "e2-3", source: "buttons_1", target: "pricing_reply", label: "Option: Pricing" },
-      { id: "e2-4", source: "buttons_1", target: "support_menu", label: "Option: Support" }
-    ]);
+    setEdges([]);
   };
 
   const saveFlow = async () => {
@@ -681,7 +801,8 @@ export default function Dashboard() {
           name: flowName,
           description: flowDesc,
           graphJson: { nodes, edges },
-          isActive: true
+          isActive: true,
+          platform: selectedPlatform
         })
       });
       if (res.ok) {
@@ -803,11 +924,19 @@ export default function Dashboard() {
           </div>
           
           <button 
-            onClick={() => setActiveTab("chats")}
-            className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "chats" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
+            onClick={() => setActiveTab("chats_whatsapp")}
+            className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "chats_whatsapp" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
           >
             <MessageSquare className="h-5 w-5" />
-            <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Chats</span>
+            <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">WhatsApp Chats</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab("chats_instagram")}
+            className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "chats_instagram" ? "bg-pink-500/10 text-pink-400" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
+          >
+            <Instagram className="h-5 w-5" />
+            <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Instagram Chats</span>
           </button>
 
           <button 
@@ -832,458 +961,509 @@ export default function Dashboard() {
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900">
         
         {/* TAB 1: REAL-TIME CHATS PANEL */}
-        {activeTab === "chats" && (
-          <div className="flex h-full w-full overflow-hidden">
-            {/* Conversations Sidebar */}
-            <div className="w-80 border-r border-slate-800 bg-slate-950/40 flex flex-col h-full">
-              <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
-                  Inbox
-                  <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-normal">
-                    {conversations.length} active
-                  </span>
-                </h2>
-              </div>
-              
-              {/* Conversation items list */}
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
-                {conversations.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
-                    <MessageSquare className="h-8 w-8 stroke-1" />
-                    <p className="text-xs">No active chats found.</p>
-                  </div>
-                ) : (
-                  conversations.map((conv) => {
-                    const lastMsg = conv.messages?.[0];
-                    const isSelected = activeConv?.id === conv.id;
+        {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
+          const currentPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
+          const filteredConversations = conversations.filter(c => (c.platform || "whatsapp") === currentPlatform);
+          const isInstagramTab = activeTab === "chats_instagram";
 
-                    return (
-                      <div
-                        key={conv.id}
-                        onClick={() => handleSelectConversation(conv)}
-                        className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-2 ${isSelected ? "bg-slate-800/40 border-emerald-500" : "hover:bg-slate-850/50 border-transparent"}`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold text-slate-200 text-sm truncate">
-                            {conv.customerName || conv.customerPhone}
-                          </span>
-                          <span className="text-[10px] text-slate-500">
-                            {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-slate-400 truncate max-w-[180px]">
-                            {lastMsg?.content || "No messages yet"}
-                          </p>
-                          {conv.isBotPaused ? (
-                            <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
-                              <User className="h-2.5 w-2.5" /> Manual
-                            </span>
-                          ) : (
-                            <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
-                              <Bot className="h-2.5 w-2.5" /> Auto
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Chat Conversation Pane */}
-            <div className="flex-1 flex flex-col h-full bg-slate-900 relative">
-              {activeConv ? (
-                <>
-                  {/* Chat header */}
-                  <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-6 flex items-center justify-between z-10">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700">
-                        {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-sm text-slate-200">
-                          {activeConv.customerName || "WhatsApp User"}
-                        </span>
-                        <span className="text-xs text-slate-400 flex items-center gap-1">
-                          <Phone className="h-3 w-3 text-slate-500" /> {activeConv.customerPhone}
-                        </span>
-                      </div>
+          return (
+            <div className="flex h-full w-full overflow-hidden">
+              {/* Conversations Sidebar */}
+              <div className="w-80 border-r border-slate-800 bg-slate-950/40 flex flex-col h-full">
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                  <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
+                    {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                      {filteredConversations.length} active
+                    </span>
+                  </h2>
+                </div>
+                
+                {/* Conversation items list */}
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
+                  {filteredConversations.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                      {isInstagramTab ? (
+                        <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
+                      ) : (
+                        <MessageSquare className="h-8 w-8 stroke-1 text-emerald-400/60" />
+                      )}
+                      <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
                     </div>
-
-                    {/* Bot active / pause controllers */}
-                    <div className="flex items-center gap-3">
-                      <div className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 border transition-all ${activeConv.isBotPaused ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"}`}>
-                        {activeConv.isBotPaused ? (
-                          <>
-                            <User className="h-3.5 w-3.5" />
-                            <span>Bot is Paused (Manual Control)</span>
-                          </>
-                        ) : (
-                          <>
-                            <Bot className="h-3.5 w-3.5" />
-                            <span>Bot is Active (Automating Replies)</span>
-                          </>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                        className={`text-xs font-semibold px-4 py-1.5 rounded-lg border transition-all ${activeConv.isBotPaused ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"}`}
-                      >
-                        {activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowSimulator(!showSimulator)}
-                        className="text-xs font-semibold px-4 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 flex items-center gap-1.5"
-                      >
-                        <User className="h-3.5 w-3.5 text-emerald-400 animate-pulse" /> Simulate Reply
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Customer Input Simulator Overlay Bar */}
-                  {showSimulator && (
-                    <form onSubmit={handleSimulateInbound} className="bg-slate-950/90 border-b border-slate-850 p-3 flex gap-2 items-center z-10 shrink-0">
-                      <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">Simulator Mode</span>
-                      <input
-                        type="text"
-                        value={simulateText}
-                        onChange={(e) => setSimulateText(e.target.value)}
-                        placeholder="Type a message to simulate the customer replying..."
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                        autoFocus
-                      />
-                      <button type="submit" className="bg-emerald-500 text-slate-950 font-bold px-3 py-1.5 rounded text-xs hover:bg-emerald-400 shrink-0">
-                        Inbound Send
-                      </button>
-                      <button type="button" onClick={() => setShowSimulator(false)} className="text-slate-400 hover:text-slate-200 text-xs px-2 shrink-0">
-                        Cancel
-                      </button>
-                    </form>
-                  )}
-                  {/* Messages list container */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
-                    {messages.map((msg) => {
-                      const isInbound = msg.direction === "inbound";
-                      
-                      // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
-                      const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
-                      let quoteText = "";
-                      let messageBody = msg.content;
-                      
-                      if (msg.quotedMessage) {
-                        const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
-                        const contentSnippet = msg.quotedMessage.content.split("|")[0];
-                        quoteText = `${sender}: ${contentSnippet}`;
-                      } else if (msg.content.startsWith("[Reply to: ")) {
-                        const closeBracketIndex = msg.content.indexOf("] ");
-                        if (closeBracketIndex !== -1) {
-                          quoteText = msg.content.substring(11, closeBracketIndex);
-                          messageBody = msg.content.substring(closeBracketIndex + 2);
-                        }
-                      }
-
-                      // Check if message has interactive buttons data
-                      const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
-                      let buttonsArray: string[] = [];
-                      if (hasButtons) {
-                        const parts = msg.content.split("|buttons:");
-                        messageBody = parts[0];
-                        buttonsArray = parts[1]?.split(", ") || [];
-                      }
+                  ) : (
+                    filteredConversations.map((conv) => {
+                      const lastMsg = conv.messages?.[0];
+                      const isSelected = activeConv?.id === conv.id;
+                      const isInstagram = (conv.platform || "whatsapp") === "instagram";
 
                       return (
                         <div
-                          key={msg.id}
-                          className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
+                          key={conv.id}
+                          onClick={() => handleSelectConversation(conv)}
+                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-2 ${isSelected ? (isInstagram ? "bg-slate-800/40 border-pink-500" : "bg-slate-800/40 border-emerald-500") : "hover:bg-slate-850/50 border-transparent"}`}
                         >
-                          <div className="relative max-w-[70%]">
-                            {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
-                            <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
-                              <button
-                                type="button"
-                                onClick={() => setQuotedMessage(msg)}
-                                className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-2 rounded-full border border-slate-700 shadow-lg transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
-                                title="Quote Reply"
-                              >
-                                <CornerUpLeft className="h-3.5 w-3.5" />
-                              </button>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {isInstagram ? (
+                                <Instagram className="h-3.5 w-3.5 text-pink-400 shrink-0" />
+                              ) : (
+                                <MessageSquare className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              )}
+                              <span className="font-semibold text-slate-200 text-sm truncate">
+                                {conv.customerName || conv.customerPhone}
+                              </span>
                             </div>
-
-                            {/* Message Bubble */}
-                            <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${isInbound ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none" : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none"}`}>
-                              {msg.senderName && !isInbound && (
-                                <span className="text-[9px] uppercase tracking-wider text-slate-800/70 font-semibold mb-0.5">
-                                  {msg.senderName}
-                                </span>
-                              )}
-                              
-                              {/* Render Quoted Reply Box inside Bubble */}
-                              {hasQuote && (
-                                <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${isInbound ? "bg-slate-900/40 border-slate-500 text-slate-400" : "bg-emerald-600/30 border-emerald-950 text-slate-900"}`}>
-                                  {quoteText}
-                                </div>
-                              )}
-
-                              {/* Render media content or plain text */}
-                              {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
-                                // Parse structured media content
-                                let mediaUrl = msg.content;
-                                let displayFilename = "document.pdf";
-                                let captionText = "";
-
-                                if (msg.messageType === "document") {
-                                  const parts = msg.content.split("|");
-                                  displayFilename = parts[0] || "document.pdf";
-                                  mediaUrl = parts[1] || "";
-                                  const capPart = parts.find(p => p.startsWith("caption:"));
-                                  if (capPart) {
-                                    captionText = capPart.substring(8);
-                                  }
-                                } else {
-                                  const parts = msg.content.split("|");
-                                  mediaUrl = parts[0] || "";
-                                  const capPart = parts.find(p => p.startsWith("caption:"));
-                                  if (capPart) {
-                                    captionText = capPart.substring(8);
-                                  }
-                                }
-
-                                return (
-                                  <div className="flex flex-col gap-2">
-                                    {msg.messageType === "image" ? (
-                                      <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                        <img 
-                                          src={getMediaUrl(mediaUrl)} 
-                                          alt="Sent Media" 
-                                          className="object-cover w-full h-32 hover:scale-105 transition-all duration-300 cursor-zoom-in"
-                                          onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
-                                        />
-                                      </div>
-                                    ) : msg.messageType === "video" ? (
-                                      <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                        <video 
-                                          src={getMediaUrl(mediaUrl)} 
-                                          controls 
-                                          className="object-cover w-full h-36"
-                                        />
-                                      </div>
-                                    ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
-                                      <div className="max-w-[240px] py-1">
-                                        <audio 
-                                          src={getMediaUrl(mediaUrl)} 
-                                          controls 
-                                          className="w-full h-10"
-                                        />
-                                      </div>
-                                    ) : (
-                                      <a 
-                                        href={getMediaUrl(mediaUrl)} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
-                                      >
-                                        <FileText className="h-8 w-8 stroke-1" />
-                                        <div className="flex flex-col min-w-0">
-                                          <span className="text-xs font-semibold truncate max-w-[150px]">
-                                            {displayFilename}
-                                          </span>
-                                          <span className="text-[10px] text-slate-500">Document File</span>
-                                        </div>
-                                      </a>
-                                    )}
-                                    {captionText && (
-                                      <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
-                                    )}
-                                  </div>
-                                );
-                              })() : (
-                                <div className="flex flex-col gap-2">
-                                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
-                                  
-                                  {/* Render Clickable WhatsApp-styled buttons in chat logs */}
-                                  {hasButtons && (
-                                    <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
-                                      {buttonsArray.map((btnTitle, index) => (
-                                        <button
-                                          key={index}
-                                          type="button"
-                                          onClick={() => {
-                                            setSimulateText(btnTitle);
-                                            setShowSimulator(true);
-                                          }}
-                                          className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 text-emerald-600 border border-slate-200 shadow-sm text-xs font-bold py-2 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-center gap-1.5 cursor-pointer"
-                                        >
-                                          <Bot className="h-3 w-3 text-emerald-500" />
-                                          {btnTitle}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Ticks status and time */}
-                              <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${isInbound ? "text-slate-500" : "text-slate-800/80"}`}>
-                                <span>
-                                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                {!isInbound && (
-                                  <span>
-                                    {msg.status === "sent" && <Check className="h-3 w-3 text-slate-700" />}
-                                    {msg.status === "delivered" && <CheckCheck className="h-3 w-3 text-slate-700" />}
-                                    {msg.status === "read" && <CheckCheck className="h-3 w-3 text-emerald-950" />}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                            <span className="text-[10px] text-slate-500">
+                              {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                              {lastMsg?.content || "No messages yet"}
+                            </p>
+                            {conv.isBotPaused ? (
+                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
+                                <User className="h-2.5 w-2.5" /> Manual
+                              </span>
+                            ) : (
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                                <Bot className="h-2.5 w-2.5" /> Auto
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
-                    })}
-                    <div ref={messageEndRef} />
-                  </div>
-
-                  {/* Quoted Message Preview Header above input bar */}
-                  {quotedMessage && (
-                    <div className="bg-slate-950 border-t border-slate-800 p-2.5 flex justify-between items-center text-[11px] text-slate-300 w-full animate-fadeIn shrink-0">
-                      <div className="flex flex-col truncate border-l-2 border-emerald-500 pl-2">
-                        <span className="font-bold text-emerald-400 text-[9px] uppercase tracking-wider">
-                          Quoting {quotedMessage.direction === "inbound" ? "Customer" : "Agent/Bot"}
-                        </span>
-                        <span className="truncate text-xs text-slate-400 font-sans italic">
-                          {quotedMessage.content.split("|")[0]}
-                        </span>
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => setQuotedMessage(null)} 
-                        className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
-                      >
-                        ×
-                      </button>
-                    </div>
+                    })
                   )}
+                </div>
+              </div>
 
-                  {/* Message input bar */}
-                  <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
-                    
-                    {/* EMOJI PICKER POPUP */}
-                    {showEmojiPicker && (
-                      <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
-                        {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
+              {/* Chat Conversation Pane */}
+              <div className="flex-1 flex flex-col h-full bg-slate-900 relative">
+                {activeConv ? (
+                  <>
+                    {/* Chat header */}
+                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-6 flex items-center justify-between z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700">
+                          {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            {activeConv.platform === "instagram" ? (
+                              <Instagram className="h-4 w-4 text-pink-400" />
+                            ) : (
+                              <MessageSquare className="h-4 w-4 text-emerald-400" />
+                            )}
+                            <span className="font-semibold text-sm text-slate-200">
+                              {activeConv.customerName || (activeConv.platform === "instagram" ? "Instagram User" : "WhatsApp User")}
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-400 flex items-center gap-1">
+                            {activeConv.platform === "instagram" ? (
+                              <><span>Instagram ID:</span> {activeConv.customerPhone}</>
+                            ) : (
+                              <><Phone className="h-3 w-3 text-slate-500" /> {activeConv.customerPhone}</>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bot active / pause controllers */}
+                      <div className="flex items-center gap-3">
+                        <div className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 border transition-all ${activeConv.isBotPaused ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"}`}>
+                          {activeConv.isBotPaused ? (
+                            <>
+                              <User className="h-3.5 w-3.5" />
+                              <span>Bot is Paused (Manual Control)</span>
+                            </>
+                          ) : (
+                            <>
+                              <Bot className="h-3.5 w-3.5" />
+                              <span>Bot is Active (Automating Replies)</span>
+                            </>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBot(!activeConv.isBotPaused)}
+                          className={`text-xs font-semibold px-4 py-1.5 rounded-lg border transition-all ${activeConv.isBotPaused ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"}`}
+                        >
+                          {activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowSimulator(!showSimulator)}
+                          className="text-xs font-semibold px-4 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 flex items-center gap-1.5"
+                        >
+                          <User className="h-3.5 w-3.5 text-emerald-400 animate-pulse" /> Simulate Reply
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Customer Input Simulator Overlay Bar */}
+                    {showSimulator && (
+                      <form onSubmit={handleSimulateInbound} className="bg-slate-950/90 border-b border-slate-850 p-3 flex gap-2 items-center z-10 shrink-0">
+                        <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">Simulator Mode</span>
+                        <input
+                          type="text"
+                          value={simulateText}
+                          onChange={(e) => setSimulateText(e.target.value)}
+                          placeholder="Type a message to simulate the customer replying..."
+                          className="flex-1 bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                          autoFocus
+                        />
+                        <button type="submit" className="bg-emerald-500 text-slate-950 font-bold px-3 py-1.5 rounded text-xs hover:bg-emerald-400 shrink-0">
+                          Inbound Send
+                        </button>
+                        <button type="button" onClick={() => setShowSimulator(false)} className="text-slate-400 hover:text-slate-200 text-xs px-2 shrink-0">
+                          Cancel
+                        </button>
+                      </form>
+                    )}
+                    {/* Messages list container */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
+                      {messages.map((msg) => {
+                        const isInbound = msg.direction === "inbound";
+                        
+                        // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
+                        const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
+                        let quoteText = "";
+                        let messageBody = msg.content;
+                        
+                        if (msg.quotedMessage) {
+                          const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
+                          const contentSnippet = msg.quotedMessage.content.split("|")[0];
+                          quoteText = `${sender}: ${contentSnippet}`;
+                        } else if (msg.content.startsWith("[Reply to: ")) {
+                          const closeBracketIndex = msg.content.indexOf("] ");
+                          if (closeBracketIndex !== -1) {
+                            quoteText = msg.content.substring(11, closeBracketIndex);
+                            messageBody = msg.content.substring(closeBracketIndex + 2);
+                          }
+                        }
+
+                        // Check if message has interactive buttons data
+                        const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
+                        let buttonsArray: string[] = [];
+                        if (hasButtons) {
+                          const parts = msg.content.split("|buttons:");
+                          messageBody = parts[0];
+                          buttonsArray = parts[1]?.split(", ") || [];
+                        }
+
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
+                          >
+                            <div className="relative max-w-[70%]">
+                              {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
+                              <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => setQuotedMessage(msg)}
+                                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-2 rounded-full border border-slate-700 shadow-lg transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+                                  title="Quote Reply"
+                                >
+                                  <CornerUpLeft className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Message Bubble */}
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${
+                                isInbound 
+                                  ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none" 
+                                  : activeConv?.platform === "instagram"
+                                    ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
+                                    : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
+                              }`}>
+                                {msg.senderName && !isInbound && (
+                                  <span className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/80" : "text-slate-800/70"}`}>
+                                    {msg.senderName}
+                                  </span>
+                                )}
+                                
+                                {/* Render Quoted Reply Box inside Bubble */}
+                                {hasQuote && (
+                                  <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${
+                                    isInbound 
+                                      ? "bg-slate-900/40 border-slate-500 text-slate-400" 
+                                      : activeConv?.platform === "instagram"
+                                        ? "bg-violet-950/40 border-violet-400 text-violet-200"
+                                        : "bg-emerald-600/30 border-emerald-950 text-slate-900"
+                                  }`}>
+                                    {quoteText}
+                                  </div>
+                                )}
+
+                                {/* Render media content or plain text */}
+                                {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
+                                  // Parse structured media content
+                                  let mediaUrl = msg.content;
+                                  let displayFilename = "document.pdf";
+                                  let captionText = "";
+
+                                  if (msg.messageType === "document") {
+                                    const parts = msg.content.split("|");
+                                    displayFilename = parts[0] || "document.pdf";
+                                    mediaUrl = parts[1] || "";
+                                    const capPart = parts.find(p => p.startsWith("caption:"));
+                                    if (capPart) {
+                                      captionText = capPart.substring(8);
+                                    }
+                                  } else {
+                                    const parts = msg.content.split("|");
+                                    mediaUrl = parts[0] || "";
+                                    const capPart = parts.find(p => p.startsWith("caption:"));
+                                    if (capPart) {
+                                      captionText = capPart.substring(8);
+                                    }
+                                  }
+
+                                  return (
+                                    <div className="flex flex-col gap-2">
+                                      {msg.messageType === "image" ? (
+                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                          <img 
+                                            src={getMediaUrl(mediaUrl)} 
+                                            alt="Sent Media" 
+                                            className="object-cover w-full h-32 hover:scale-105 transition-all duration-300 cursor-zoom-in"
+                                            onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
+                                          />
+                                        </div>
+                                      ) : msg.messageType === "video" ? (
+                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                          <video 
+                                            src={getMediaUrl(mediaUrl)} 
+                                            controls 
+                                            className="object-cover w-full h-36"
+                                          />
+                                        </div>
+                                      ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
+                                        <div className="max-w-[240px] py-1">
+                                          <audio 
+                                            src={getMediaUrl(mediaUrl)} 
+                                            controls 
+                                            className="w-full h-10"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <a 
+                                          href={getMediaUrl(mediaUrl)} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer" 
+                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
+                                        >
+                                          <FileText className="h-8 w-8 stroke-1" />
+                                          <div className="flex flex-col min-w-0">
+                                            <span className="text-xs font-semibold truncate max-w-[150px]">
+                                              {displayFilename}
+                                            </span>
+                                            <span className="text-[10px] text-slate-500">Document File</span>
+                                          </div>
+                                        </a>
+                                      )}
+                                      {captionText && (
+                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
+                                      )}
+                                    </div>
+                                  );
+                                })() : (
+                                  <div className="flex flex-col gap-2">
+                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
+                                    
+                                    {/* Render Clickable WhatsApp-styled buttons in chat logs */}
+                                    {hasButtons && (
+                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                        {buttonsArray.map((btnTitle, index) => (
+                                          <button
+                                            key={index}
+                                            type="button"
+                                            onClick={() => {
+                                              setSimulateText(btnTitle);
+                                              setShowSimulator(true);
+                                            }}
+                                            className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 text-emerald-600 border border-slate-200 shadow-sm text-xs font-bold py-2 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                                          >
+                                            <Bot className="h-3 w-3 text-emerald-500" />
+                                            {btnTitle}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Ticks status and time */}
+                                <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${
+                                  isInbound 
+                                    ? "text-slate-500" 
+                                    : activeConv?.platform === "instagram"
+                                      ? "text-pink-100/85"
+                                      : "text-slate-800/80"
+                                }`}>
+                                  <span>
+                                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                  {!isInbound && (
+                                    <span>
+                                      {msg.status === "sent" && <Check className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
+                                      {msg.status === "delivered" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
+                                      {msg.status === "read" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-white" : "text-emerald-950"}`} />}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={messageEndRef} />
+                    </div>
+
+                    {/* Quoted Message Preview Header above input bar */}
+                    {quotedMessage && (
+                      <div className="bg-slate-950 border-t border-slate-800 p-2.5 flex justify-between items-center text-[11px] text-slate-300 w-full animate-fadeIn shrink-0">
+                        <div className="flex flex-col truncate border-l-2 border-emerald-500 pl-2">
+                          <span className="font-bold text-emerald-400 text-[9px] uppercase tracking-wider">
+                            Quoting {quotedMessage.direction === "inbound" ? "Customer" : "Agent/Bot"}
+                          </span>
+                          <span className="truncate text-xs text-slate-400 font-sans italic">
+                            {quotedMessage.content.split("|")[0]}
+                          </span>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => setQuotedMessage(null)} 
+                          className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Message input bar */}
+                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
+                      
+                      {/* EMOJI PICKER POPUP */}
+                      {showEmojiPicker && (
+                        <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
+                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => {
+                                setInputText((prev) => prev + emoji);
+                                setShowEmojiPicker(false);
+                              }}
+                              className="text-lg hover:scale-125 transition-transform p-1.5"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* MEDIA/PAPERCLIP POPUP */}
+                      {showMediaMenu && (
+                        <div className="absolute bottom-16 left-12 bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xl z-50 text-[11px] min-w-[170px]">
                           <button
-                            key={emoji}
                             type="button"
                             onClick={() => {
-                              setInputText((prev) => prev + emoji);
-                              setShowEmojiPicker(false);
+                              setShowMediaMenu(false);
+                              fileInputRef.current?.click();
                             }}
-                            className="text-lg hover:scale-125 transition-transform p-1.5"
+                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 cursor-pointer"
                           >
-                            {emoji}
+                            <Paperclip className="h-4 w-4 text-emerald-400" /> Upload & Send File
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
+                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 border-t border-slate-850 pt-1.5"
+                          >
+                            <ImageIcon className="h-4 w-4 text-emerald-400/80" /> Mock Case Study (Image)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
+                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300"
+                          >
+                            <FileText className="h-4 w-4 text-sky-400/80" /> Mock Portfolio (PDF)
+                          </button>
+                        </div>
+                      )}
+
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileChange} 
+                        className="hidden" 
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                      />
+
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setShowEmojiPicker(!showEmojiPicker);
+                          setShowMediaMenu(false);
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${showEmojiPicker ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                      >
+                        <Smile className="h-5 w-5" />
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setShowMediaMenu(!showMediaMenu);
+                          setShowEmojiPicker(false);
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${showMediaMenu ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                      >
+                        <Paperclip className="h-5 w-5" />
+                      </button>
+                      
+                      <input
+                        type="text"
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        placeholder="Type a message..."
+                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={!inputText.trim()}
+                        className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition-all shadow-md shadow-emerald-500/15 disabled:opacity-40 disabled:hover:bg-emerald-500"
+                      >
+                        <Send className="h-4.5 w-4.5 fill-slate-950" />
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
+                    <div className="max-w-md flex flex-col items-center gap-4">
+                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-xl border ${isInstagramTab ? "bg-pink-500/10 text-pink-400 border-pink-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}`}>
+                        {isInstagramTab ? (
+                          <Instagram className="h-10 w-10 stroke-1" />
+                        ) : (
+                          <Bot className="h-10 w-10 stroke-1" />
+                        )}
                       </div>
-                    )}
-
-                    {/* MEDIA/PAPERCLIP POPUP */}
-                    {showMediaMenu && (
-                      <div className="absolute bottom-16 left-12 bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xl z-50 text-[11px] min-w-[170px]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowMediaMenu(false);
-                            fileInputRef.current?.click();
-                          }}
-                          className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 cursor-pointer"
-                        >
-                          <Paperclip className="h-4 w-4 text-emerald-400" /> Upload & Send File
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
-                          className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 border-t border-slate-850 pt-1.5"
-                        >
-                          <ImageIcon className="h-4 w-4 text-emerald-400/80" /> Mock Case Study (Image)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
-                          className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300"
-                        >
-                          <FileText className="h-4 w-4 text-sky-400/80" /> Mock Portfolio (PDF)
-                        </button>
-                      </div>
-                    )}
-
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleFileChange} 
-                      className="hidden" 
-                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                    />
-
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setShowEmojiPicker(!showEmojiPicker);
-                        setShowMediaMenu(false);
-                      }}
-                      className={`p-2 rounded-lg transition-colors ${showEmojiPicker ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
-                    >
-                      <Smile className="h-5 w-5" />
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setShowMediaMenu(!showMediaMenu);
-                        setShowEmojiPicker(false);
-                      }}
-                      className={`p-2 rounded-lg transition-colors ${showMediaMenu ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
-                    >
-                      <Paperclip className="h-5 w-5" />
-                    </button>
-                    
-                    <input
-                      type="text"
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                    />
-
-                    <button
-                      type="submit"
-                      disabled={!inputText.trim()}
-                      className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition-all shadow-md shadow-emerald-500/15 disabled:opacity-40 disabled:hover:bg-emerald-500"
-                    >
-                      <Send className="h-4.5 w-4.5 fill-slate-950" />
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
-                  <div className="max-w-md flex flex-col items-center gap-4">
-                    <div className="h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shadow-xl border border-emerald-500/20">
-                      <Bot className="h-10 w-10 stroke-1" />
+                      <h3 className="text-xl font-bold text-slate-100">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales & Support CRM</h3>
+                      <p className="text-sm text-slate-400">
+                        Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
+                      </p>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-100">WhatsApp Sales & Support CRM</h3>
-                    <p className="text-sm text-slate-400">
-                      Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
-                    </p>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 2: VISUAL FLOW BUILDER */}
         {activeTab === "flows" && (
@@ -1297,6 +1477,17 @@ export default function Dashboard() {
                   onChange={(e) => setFlowName(e.target.value)}
                   className="bg-transparent font-bold text-sm text-slate-200 border-b border-transparent hover:border-slate-700 focus:border-emerald-500 focus:outline-none py-1"
                 />
+                
+                <div className="h-6 w-px bg-slate-800 mx-2" />
+                
+                <select
+                  value={selectedPlatform}
+                  onChange={(e) => setSelectedPlatform(e.target.value as "whatsapp" | "instagram")}
+                  className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="whatsapp">WhatsApp Flow</option>
+                  <option value="instagram">Instagram Flow</option>
+                </select>
               </div>
 
               {/* Node tools */}
@@ -1474,12 +1665,33 @@ export default function Dashboard() {
                     </div>
                   )}
 
+                  {/* If list node, manage list menu properties */}
+                  {selectedNode.type === "listNode" && (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 font-semibold">Menu Button Text</label>
+                        <input 
+                          type="text" 
+                          value={selectedNode.data.listButtonText || ""}
+                          onChange={(e) => updateSelectedNode({ listButtonText: e.target.value })}
+                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                          placeholder="e.g. View Menu"
+                        />
+                      </div>
+                      
+                      {/* Warning banner for Instagram fallback */}
+                      <div className="bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 p-2.5 rounded-lg leading-relaxed mt-2">
+                        <strong>Note:</strong> Instagram does not support native List menus; they will fallback to Quick Reply buttons.
+                      </div>
+                    </div>
+                  )}
+
                   {/* If buttons node, manage button options */}
                   {selectedNode.type === "buttonsNode" && (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between items-center">
-                        <label className="text-slate-400 font-semibold">Options (Max 3 Buttons)</label>
-                        {(!selectedNode.data.buttons || selectedNode.data.buttons.length < 3) && (
+                        <label className="text-slate-400 font-semibold">Options (Max {selectedPlatform === "whatsapp" ? 3 : 13} Buttons)</label>
+                        {(!selectedNode.data.buttons || selectedNode.data.buttons.length < (selectedPlatform === "whatsapp" ? 3 : 13)) && (
                           <button 
                             type="button"
                             onClick={addOptionButton}
@@ -1534,15 +1746,17 @@ export default function Dashboard() {
         {activeTab === "settings" && (
           <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full">
             <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3 mb-6">
-              <Settings className="h-6 w-6 text-emerald-400" /> Settings & WhatsApp Onboarding
+              <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Configuration Inputs */}
               <div className="md:col-span-2 space-y-6">
-                <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4">
+                
+                {/* WhatsApp Credentials Form */}
+                <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
                   <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Key className="h-4.5 w-4.5 text-emerald-400" /> Meta Developer Credentials
+                    <Key className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp API Credentials
                   </h3>
 
                   <div className="flex flex-col gap-1">
@@ -1585,7 +1799,7 @@ export default function Dashboard() {
                       className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10"
                     >
                       <Save className="h-4 w-4" />
-                      {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
+                      {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
                     </button>
                     
                     {saveStatus === "error" && (
@@ -1594,10 +1808,65 @@ export default function Dashboard() {
                   </div>
                 </form>
 
-                {/* Webhook parameters display */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4">
+                {/* Instagram Credentials Form */}
+                <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
                   <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Database className="h-4.5 w-4.5 text-emerald-400" /> Webhook Integration
+                    <Instagram className="h-4.5 w-4.5 text-pink-500" /> Instagram DM Credentials
+                  </h3>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Instagram Business Account ID</label>
+                    <input
+                      type="text"
+                      value={igConfig.instagramAccountId}
+                      onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
+                      placeholder="e.g. 17841401234567890"
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Facebook Page ID</label>
+                    <input
+                      type="text"
+                      value={igConfig.pageId}
+                      onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
+                      placeholder="e.g. 10203040506070"
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Page Access Token (Permanent)</label>
+                    <textarea
+                      value={igConfig.pageAccessToken}
+                      onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
+                      placeholder="Paste Page Access Token here"
+                      rows={4}
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-between">
+                    <button
+                      type="submit"
+                      disabled={igSaveStatus === "saving"}
+                      className="bg-pink-500 hover:bg-pink-400 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-pink-500/10"
+                    >
+                      <Save className="h-4 w-4" />
+                      {igSaveStatus === "saving" ? "Saving..." : igSaveStatus === "success" ? "Saved Successfully!" : "Save Instagram Credentials"}
+                    </button>
+                    
+                    {igSaveStatus === "error" && (
+                      <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
+                    )}
+                  </div>
+                </form>
+
+                {/* WhatsApp Webhook Integration */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+                  <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Database className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp Webhook Configuration
                   </h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
                     Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
@@ -1623,6 +1892,36 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* Instagram Webhook Integration */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+                  <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Database className="h-4.5 w-4.5 text-pink-400" /> Instagram Webhook Configuration
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>Instagram Webhook</strong> product parameters list.
+                  </p>
+
+                  <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                    <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
+                    <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
+                  </div>
+
+                  <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                    <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
+                    <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
+                  </div>
+
+                  <div className="bg-pink-500/5 border border-pink-500/10 rounded-xl p-3.5 flex gap-3">
+                    <Bot className="h-5 w-5 text-pink-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-pink-300">Important Webhook Fields</span>
+                      <span className="text-[11px] text-slate-400">
+                        In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>messaging_postbacks</strong> webhook fields under the <strong>Instagram</strong> section.
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Quick instructions sidebar */}
@@ -1636,16 +1935,19 @@ export default function Dashboard() {
                       Create a Meta Developer app under your Meta developer account.
                     </li>
                     <li>
-                      Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 rounded px-1">whatsapp_business_messaging</code>.
+                      Add both <strong>WhatsApp</strong> and <strong>Messenger</strong> products to your Meta Developer app.
                     </li>
                     <li>
-                      Copy the <strong>Phone Number ID</strong> and <strong>Account ID</strong> from WhatsApp API settings page.
+                      Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">whatsapp_business_messaging</code> and <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code>.
                     </li>
                     <li>
-                      Paste credentials on the left configuration panel and click <strong>Save</strong>.
+                      Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>Account ID</strong> to paste here.
                     </li>
                     <li>
-                      Register your unique Callback URL and Verify Token in your Meta Dashboard.
+                      Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
+                    </li>
+                    <li>
+                      Register your unique Callback URLs and Verify Token in your Meta Dashboard under Webhooks settings.
                     </li>
                   </ul>
                 </div>

@@ -13,6 +13,7 @@ model Organization {
   createdAt     DateTime       @default(now())
   users         User[]
   waConfig      WhatsAppConfig?
+  igConfig      InstagramConfig?
   flows         Flow[]
   conversations Conversation[]
 }
@@ -41,6 +42,7 @@ model Flow {
   id             String       @id @default(uuid())
   name           String
   description    String?
+  platform       String       @default("whatsapp")
   graphJson      Json         // Native JSON field to store React Flow graph
   isActive       Boolean      @default(false)
   organizationId String
@@ -51,6 +53,7 @@ model Conversation {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
+  platform       String       @default("whatsapp")
   customerPhone  String       
   customerName   String?
   currentNodeId  String?      // State tracker in visual flow
@@ -60,7 +63,17 @@ model Conversation {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  @@unique([organizationId, customerPhone])
+  @@unique([organizationId, platform, customerPhone])
+}
+
+model InstagramConfig {
+  id                    String       @id @default(uuid())
+  organizationId        String       @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  instagramAccountId    String?      
+  pageId                String?      
+  pageAccessToken       String?      
+  webhookVerifyToken    String       @default(uuid())
 }
 
 model Message {

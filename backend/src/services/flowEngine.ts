@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "./whatsappService";
+import { InstagramService } from "./instagramService";
 
 interface FlowGraph {
   nodes: FlowNode[];
@@ -38,7 +39,14 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     // 1. Fetch Conversation and Message
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      include: { organization: { include: { waConfig: true } } },
+      include: {
+        organization: {
+          include: {
+            waConfig: true,
+            igConfig: true,
+          },
+        },
+      },
     });
 
     const message = await prisma.message.findUnique({
@@ -49,19 +57,33 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
       return;
     }
 
+    const isWhatsApp = conversation.platform === "whatsapp";
     const waConfig = conversation.organization.waConfig;
-    if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
-      console.warn(`WhatsApp credentials missing for conversation ${conversationId}`);
-      return;
+    const igConfig = conversation.organization.igConfig;
+
+    if (isWhatsApp) {
+      if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
+        console.warn(`WhatsApp credentials missing for conversation ${conversationId}`);
+        return;
+      }
+    } else {
+      if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
+        console.warn(`Instagram credentials missing for conversation ${conversationId}`);
+        return;
+      }
     }
 
-    // 2. Fetch the Active Flow for the Organization
+    // 2. Fetch the Active Flow for the Organization and Platform
     const activeFlow = await prisma.flow.findFirst({
-      where: { organizationId: conversation.organizationId, isActive: true },
+      where: { 
+        organizationId: conversation.organizationId, 
+        platform: conversation.platform,
+        isActive: true 
+      },
     });
 
     if (!activeFlow) {
-      console.log(`No active flow found for organization ${conversation.organizationId}`);
+      console.log(`No active flow found for organization ${conversation.organizationId} on platform ${conversation.platform}`);
       return;
     }
 
@@ -118,7 +140,9 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
 
           if (!nextNodeId) {
             // Did not match options, re-send options (optionally notify client)
-            await sendNodeMessage(waConfig.phoneNumberId, waConfig.accessToken, conversation.customerPhone, currentNode, conversationId, conversation.organizationId);
+            const sendToken = isWhatsApp ? waConfig!.accessToken! : igConfig!.pageAccessToken!;
+            const sendId = isWhatsApp ? waConfig!.phoneNumberId! : igConfig!.pageId!;
+            await sendNodeMessage(sendId, sendToken, conversation.customerPhone, currentNode, conversationId, conversation.organizationId, conversation.platform);
             return;
           }
         } else if (currentNode.type === "questionNode") {
@@ -146,7 +170,9 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
 
     // 4. Execute Next Node
     if (nextNodeId) {
-      await executeNodeChain(waConfig.phoneNumberId, waConfig.accessToken, conversation.customerPhone, nextNodeId, graph, conversationId, conversation.organizationId);
+      const sendToken = isWhatsApp ? waConfig!.accessToken! : igConfig!.pageAccessToken!;
+      const sendId = isWhatsApp ? waConfig!.phoneNumberId! : igConfig!.pageId!;
+      await executeNodeChain(sendId, sendToken, conversation.customerPhone, nextNodeId, graph, conversationId, conversation.organizationId, conversation.platform);
     }
   } catch (error) {
     console.error("Error in flow engine execution:", error);
@@ -155,13 +181,14 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
 
 // Recursively execute nodes that do not wait for input (e.g. TextNode -> MediaNode -> ButtonsNode)
 async function executeNodeChain(
-  phoneNumberId: string,
+  phoneNumberIdOrPageId: string,
   accessToken: string,
   customerPhone: string,
   nodeId: string,
   graph: FlowGraph,
   conversationId: string,
-  organizationId: string
+  organizationId: string,
+  platform: string
 ) {
   const node = graph.nodes.find((n) => n.id === nodeId);
   if (!node) return;
@@ -173,7 +200,7 @@ async function executeNodeChain(
   });
 
   // Send the node's configured message
-  await sendNodeMessage(phoneNumberId, accessToken, customerPhone, node, conversationId, organizationId);
+  await sendNodeMessage(phoneNumberIdOrPageId, accessToken, customerPhone, node, conversationId, organizationId, platform);
 
   // If node type is static (Text or Media node), we can transition immediately
   if (node.type === "textNode" || node.type === "mediaNode" || node.type === "welcomeNode") {
@@ -181,7 +208,7 @@ async function executeNodeChain(
     if (outgoingEdge) {
       // Small delay for natural pacing
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      await executeNodeChain(phoneNumberId, accessToken, customerPhone, outgoingEdge.target, graph, conversationId, organizationId);
+      await executeNodeChain(phoneNumberIdOrPageId, accessToken, customerPhone, outgoingEdge.target, graph, conversationId, organizationId, platform);
     }
   }
 }
@@ -197,25 +224,31 @@ function findRootNode(graph: FlowGraph): FlowNode | null {
   return orphanNode || graph.nodes[0] || null;
 }
 
-// Call WhatsAppService based on node configuration and save message to DB
+// Call WhatsAppService or InstagramService based on node configuration and save message to DB
 async function sendNodeMessage(
   phoneNumberId: string,
   accessToken: string,
   to: string,
   node: FlowNode,
   conversationId: string,
-  organizationId: string
+  organizationId: string,
+  platform: string
 ) {
   const data = node.data;
   let content = "";
   let messageType = "text";
   let responseData: any = null;
+  const isWhatsApp = platform === "whatsapp";
 
   try {
     if (node.type === "textNode" || node.type === "welcomeNode" || node.type === "questionNode") {
       content = data.text || "No text defined.";
       messageType = "text";
-      responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, content);
+      if (isWhatsApp) {
+        responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, content);
+      } else {
+        responseData = await InstagramService.sendTextMessage(accessToken, to, content);
+      }
     } else if (node.type === "mediaNode") {
       const type = data.mediaType || "image";
       const url = data.mediaUrl || "";
@@ -223,15 +256,26 @@ async function sendNodeMessage(
       const caption = data.caption || "";
       
       messageType = type;
-      responseData = await WhatsAppService.sendMediaMessage(
-        phoneNumberId,
-        accessToken,
-        to,
-        type as any,
-        url,
-        filename,
-        caption
-      );
+      if (isWhatsApp) {
+        responseData = await WhatsAppService.sendMediaMessage(
+          phoneNumberId,
+          accessToken,
+          to,
+          type as any,
+          url,
+          filename,
+          caption
+        );
+      } else {
+        responseData = await InstagramService.sendMediaMessage(
+          accessToken,
+          to,
+          type as any,
+          url,
+          filename,
+          caption
+        );
+      }
       
       // Construct content format for database saving
       if (type === "document") {
@@ -246,7 +290,11 @@ async function sendNodeMessage(
       content = data.text || "Select an option:";
       messageType = "buttonsNode";
       const buttons = data.buttons || [];
-      responseData = await WhatsAppService.sendButtonMessage(phoneNumberId, accessToken, to, content, buttons);
+      if (isWhatsApp) {
+        responseData = await WhatsAppService.sendButtonMessage(phoneNumberId, accessToken, to, content, buttons);
+      } else {
+        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+      }
       // Format content to include button info for frontend rendering
       const btnTitles = buttons.map(b => b.title).join(", ");
       content = `${content}|buttons:${btnTitles}`;
@@ -255,11 +303,18 @@ async function sendNodeMessage(
       messageType = "listNode";
       const buttonText = data.listButtonText || "View Menu";
       const sections = data.listSections || [];
-      responseData = await WhatsAppService.sendListMessage(phoneNumberId, accessToken, to, content, buttonText, sections);
+      if (isWhatsApp) {
+        responseData = await WhatsAppService.sendListMessage(phoneNumberId, accessToken, to, content, buttonText, sections);
+      } else {
+        // Map list options to Instagram quick replies format
+        const rows = sections.flatMap((sec) => sec.rows) || [];
+        const buttons = rows.map((row) => ({ id: row.id, title: row.title }));
+        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+      }
       content = `${content}|list:${buttonText}`;
     }
 
-    const waMessageId = responseData?.messages?.[0]?.id || null;
+    const waMessageId = responseData?.message_id || responseData?.messages?.[0]?.id || null;
 
     // Save outbound message to Database
     const savedMsg = await prisma.message.create({

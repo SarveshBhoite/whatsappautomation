@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "../services/whatsappService";
+import { InstagramService } from "../services/instagramService";
 import { io } from "../index";
 
 const router = Router();
@@ -14,19 +15,35 @@ router.post("/send", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields: conversationId, messageType, content" });
     }
 
-    // 1. Fetch Conversation and WABA Config
+    // 1. Fetch Conversation and Configs
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      include: { organization: { include: { waConfig: true } } },
+      include: {
+        organization: {
+          include: {
+            waConfig: true,
+            igConfig: true,
+          },
+        },
+      },
     });
 
     if (!conversation) {
       return res.status(404).json({ error: "Conversation not found" });
     }
 
+    const isWhatsApp = conversation.platform === "whatsapp";
     const waConfig = conversation.organization.waConfig;
-    if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
-      return res.status(400).json({ error: "WhatsApp credentials not configured for this organization" });
+    const igConfig = conversation.organization.igConfig;
+
+    if (isWhatsApp) {
+      if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
+        return res.status(400).json({ error: "WhatsApp credentials not configured for this organization" });
+      }
+    } else {
+      if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
+        return res.status(400).json({ error: "Instagram credentials not configured for this organization" });
+      }
     }
 
     const customerPhone = conversation.customerPhone;
@@ -70,42 +87,74 @@ router.post("/send", async (req: Request, res: Response) => {
     const { caption } = req.body;
     let contentForDb = mediaUrlOrId;
 
-    // 2. Call WhatsApp Cloud API via WhatsAppService
-    if (messageType === "text") {
-      responseData = await WhatsAppService.sendTextMessage(
-        waConfig.phoneNumberId,
-        waConfig.accessToken,
-        customerPhone,
-        mediaUrlOrId,
-        contextMessageId
-      );
-      contentForDb = mediaUrlOrId;
-    } else if (["image", "document", "video", "audio"].includes(messageType)) {
-      responseData = await WhatsAppService.sendMediaMessage(
-        waConfig.phoneNumberId,
-        waConfig.accessToken,
-        customerPhone,
-        messageType,
-        mediaUrlOrId,
-        filename,
-        caption,
-        contextMessageId
-      );
-      
-      // Format content for database
-      if (messageType === "document") {
-        contentForDb = `${filename || "document.pdf"}|${mediaUrlOrId}`;
-      } else {
+    // 2. Call WhatsApp or Instagram APIs
+    if (isWhatsApp) {
+      if (messageType === "text") {
+        responseData = await WhatsAppService.sendTextMessage(
+          waConfig!.phoneNumberId!,
+          waConfig!.accessToken!,
+          customerPhone,
+          mediaUrlOrId,
+          contextMessageId
+        );
         contentForDb = mediaUrlOrId;
-      }
-      if (caption) {
-        contentForDb += `|caption:${caption}`;
+      } else if (["image", "document", "video", "audio"].includes(messageType)) {
+        responseData = await WhatsAppService.sendMediaMessage(
+          waConfig!.phoneNumberId!,
+          waConfig!.accessToken!,
+          customerPhone,
+          messageType,
+          mediaUrlOrId,
+          filename,
+          caption,
+          contextMessageId
+        );
+        
+        // Format content for database
+        if (messageType === "document") {
+          contentForDb = `${filename || "document.pdf"}|${mediaUrlOrId}`;
+        } else {
+          contentForDb = mediaUrlOrId;
+        }
+        if (caption) {
+          contentForDb += `|caption:${caption}`;
+        }
+      } else {
+        return res.status(400).json({ error: "Unsupported message type for manual sending" });
       }
     } else {
-      return res.status(400).json({ error: "Unsupported message type for manual sending" });
+      if (messageType === "text") {
+        responseData = await InstagramService.sendTextMessage(
+          igConfig!.pageAccessToken!,
+          customerPhone,
+          mediaUrlOrId
+        );
+        contentForDb = mediaUrlOrId;
+      } else if (["image", "document", "video", "audio"].includes(messageType)) {
+        responseData = await InstagramService.sendMediaMessage(
+          igConfig!.pageAccessToken!,
+          customerPhone,
+          messageType,
+          mediaUrlOrId,
+          filename,
+          caption
+        );
+        
+        // Format content for database
+        if (messageType === "document") {
+          contentForDb = `${filename || "document.pdf"}|${mediaUrlOrId}`;
+        } else {
+          contentForDb = mediaUrlOrId;
+        }
+        if (caption) {
+          contentForDb += `|caption:${caption}`;
+        }
+      } else {
+        return res.status(400).json({ error: "Unsupported message type for manual sending" });
+      }
     }
 
-    const waMessageId = responseData?.messages?.[0]?.id || null;
+    const waMessageId = isWhatsApp ? (responseData?.messages?.[0]?.id || null) : (responseData?.message_id || null);
 
     // 3. Pause the Chatbot (Sending manual message automatically pauses chatbot for 24h)
     const pauseDuration = 24 * 60 * 60 * 1000; // 24 hours

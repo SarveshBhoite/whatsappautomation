@@ -31,7 +31,143 @@ export const handleWebhook = async (req: Request, res: Response) => {
   try {
     const body = req.body;
 
-    // Check if this is a WhatsApp API webhook
+    // Handle Instagram Webhook Events
+    if (body.object === "page") {
+      const entry = body.entry?.[0];
+      const messagingObj = entry?.messaging?.[0];
+      if (!messagingObj) {
+        return res.sendStatus(200);
+      }
+
+      const senderId = messagingObj.sender?.id;
+      const recipientId = messagingObj.recipient?.id;
+      const message = messagingObj.message;
+
+      if (!message || !senderId || !recipientId) {
+        return res.sendStatus(200);
+      }
+
+      const mid = message.mid;
+      const isEcho = message.is_echo === true;
+      const timestamp = new Date(messagingObj.timestamp || Date.now());
+
+      const pageId = isEcho ? senderId : recipientId;
+      const customerPhone = isEcho ? recipientId : senderId;
+
+      // 1. Resolve InstagramConfig by pageId
+      const igConfig = await prisma.instagramConfig.findFirst({
+        where: { pageId },
+        include: { organization: true }
+      });
+
+      if (!igConfig) {
+        console.warn(`No Instagram configuration found for Page ID: ${pageId}`);
+        return res.sendStatus(200);
+      }
+
+      const organizationId = igConfig.organizationId;
+
+      // 2. Determine message type and content
+      let messageType = "text";
+      let content = "";
+      let mimeType: string | undefined = undefined;
+
+      if (message.quick_reply) {
+        content = message.text || message.quick_reply.payload || "";
+        messageType = "text";
+      } else if (message.text) {
+        content = message.text;
+        messageType = "text";
+      } else if (message.attachments && message.attachments.length > 0) {
+        const attachment = message.attachments[0];
+        messageType = attachment.type;
+        if (messageType === "file") {
+          messageType = "document";
+        }
+        
+        const mediaUrl = attachment.payload?.url || "";
+        if (messageType === "document") {
+          content = `instagram_file.pdf|${mediaUrl}`;
+        } else {
+          content = mediaUrl;
+        }
+      }
+
+      // Find or create conversation
+      let conversation = await prisma.conversation.findUnique({
+        where: {
+          organizationId_platform_customerPhone: {
+            organizationId,
+            platform: "instagram",
+            customerPhone,
+          },
+        },
+      });
+
+      const contactName = "Instagram User";
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            organizationId,
+            platform: "instagram",
+            customerPhone,
+            customerName: contactName,
+            isBotPaused: isEcho,
+            botPausedUntil: isEcho ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
+          },
+        });
+      } else if (isEcho) {
+        const pauseDuration = 24 * 60 * 60 * 1000;
+        const botPausedUntil = new Date(Date.now() + pauseDuration);
+        conversation = await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            isBotPaused: true,
+            botPausedUntil,
+          },
+        });
+
+        // Broadcast bot status update
+        io.to(organizationId).emit("bot-status-change", {
+          conversationId: conversation.id,
+          isBotPaused: true,
+          botPausedUntil,
+        });
+      }
+
+      // Save message in DB
+      const savedMessage = await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: isEcho ? "outbound" : "inbound",
+          messageType,
+          content,
+          mediaMimeType: mimeType,
+          waMessageId: mid,
+          status: isEcho ? "sent" : "read",
+          createdAt: timestamp,
+          senderName: isEcho ? "Agent" : null,
+        },
+      });
+
+      // Broadcast message to clients
+      io.to(organizationId).emit("new-message", {
+        conversationId: conversation.id,
+        message: savedMessage,
+      });
+
+      // Trigger chatbot flow
+      if (!isEcho && !conversation.isBotPaused) {
+        processChatbotFlow(conversation.id, savedMessage.id).catch((err) => {
+          console.error("Error executing Instagram chatbot flow engine:", err);
+        });
+      }
+
+      return res.sendStatus(200);
+    }
+
+    // Handle WhatsApp Webhook Events
     if (body.object !== "whatsapp_business_account") {
       return res.sendStatus(404);
     }
@@ -150,11 +286,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
           content = `Unsupported message type: ${type}`;
         }
 
-        // Find or create the conversation
+        // Find or create the conversation using unique index organizationId_platform_customerPhone
         let conversation = await prisma.conversation.findUnique({
           where: {
-            organizationId_customerPhone: {
+            organizationId_platform_customerPhone: {
               organizationId,
+              platform: "whatsapp",
               customerPhone,
             },
           },
@@ -164,6 +301,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           conversation = await prisma.conversation.create({
             data: {
               organizationId,
+              platform: "whatsapp",
               customerPhone,
               customerName: contactName,
               isBotPaused: false,
@@ -219,8 +357,6 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // 4. Trigger Chatbot Flow Logic (if bot is not paused)
         if (!conversation.isBotPaused) {
-          // We will implement the flow execution engine in a separate service
-          // For now, let's call the function asynchronously
           processChatbotFlow(conversation.id, savedMessage.id).catch((err) => {
             console.error("Error executing chatbot flow engine:", err);
           });
