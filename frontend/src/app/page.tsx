@@ -134,21 +134,44 @@ const ListNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
   const textColor = isIg ? "text-pink-400" : "text-emerald-400";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
+  const handleBgLight = isIg ? "!bg-pink-400" : "!bg-emerald-400";
+  const borderL = isIg ? "border-l-pink-500" : "border-l-emerald-500";
+
+  // Flat array of all rows across all sections
+  const sections = data.listSections || [];
+  const rows = sections.flatMap((sec: any) => sec.rows || []) || [];
 
   return (
-    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
         <FileText className={`h-3 w-3 ${textColor}`} />
         {isIg ? "Instagram Menu (Quick Replies)" : "WhatsApp List Menu"}
       </div>
-      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans mb-2">
+      <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans whitespace-pre-wrap">
         {data.text || <span className="text-slate-500 italic">No description text</span>}
       </div>
-      <div className="bg-slate-900 border border-slate-800 rounded py-1 px-3 text-center text-[10px] text-slate-300 font-semibold">
-        {isIg ? "Instagram Quick Replies Fallback" : `Menu: ${data.listButtonText || "View Menu"}`}
+      <div className="bg-slate-950 border border-slate-850 rounded py-1 px-3 text-center text-[10px] text-slate-400 font-semibold mb-1">
+        Button: {data.listButtonText || "View Menu"}
       </div>
-      <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
+
+      <div className="flex flex-col gap-1.5 mt-1">
+        {rows.map((row: any) => (
+          <div key={row.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-left text-[10px] text-slate-200 font-semibold shadow-sm border-l-2 ${borderL}`}>
+            <div className="truncate font-medium">{row.title}</div>
+            {row.description && <div className="text-[8px] text-slate-500 font-normal truncate mt-0.5">{row.description}</div>}
+            <Handle 
+              type="source" 
+              position={Position.Right} 
+              id={row.id} 
+              className={`${handleBgLight} !w-2 !h-2 -mr-1`} 
+            />
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <span className="text-[9px] text-slate-500 italic text-center">Add menu options on the right</span>
+        )}
+      </div>
     </div>
   );
 };
@@ -409,6 +432,7 @@ export default function Dashboard() {
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
   const [simulateText, setSimulateText] = useState("");
+  const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
 
   // Settings States
   const [config, setConfig] = useState<WhatsAppConfig>({
@@ -475,6 +499,52 @@ export default function Dashboard() {
     if (!selectedNode) return;
     const nextBtns = selectedNode.data.buttons?.filter((btn: any) => btn.id !== btnId) || [];
     updateSelectedNode({ buttons: nextBtns });
+  };
+
+  const addListOptionRow = () => {
+    if (!selectedNode) return;
+    const sections = selectedNode.data.listSections || [];
+    if (sections.length === 0) {
+      sections.push({ title: "Options", rows: [] });
+    }
+    const limit = selectedPlatform === "whatsapp" ? 10 : 13;
+    const totalRows = sections.flatMap((sec: any) => sec.rows || []).length;
+    if (totalRows >= limit) return;
+
+    sections[0].rows = [
+      ...(sections[0].rows || []),
+      { id: `row_${Date.now()}`, title: `Option ${totalRows + 1}`, description: "" }
+    ];
+    updateSelectedNode({ listSections: [...sections] });
+  };
+
+  const updateListOptionRow = (rowId: string, newTitle: string, newDesc?: string) => {
+    if (!selectedNode) return;
+    const sections = selectedNode.data.listSections || [];
+    const updatedSections = sections.map((sec: any) => {
+      const updatedRows = sec.rows?.map((row: any) => {
+        if (row.id === rowId) {
+          return { 
+            ...row, 
+            title: newTitle, 
+            description: newDesc !== undefined ? newDesc : row.description 
+          };
+        }
+        return row;
+      }) || [];
+      return { ...sec, rows: updatedRows };
+    });
+    updateSelectedNode({ listSections: updatedSections });
+  };
+
+  const removeListOptionRow = (rowId: string) => {
+    if (!selectedNode) return;
+    const sections = selectedNode.data.listSections || [];
+    const updatedSections = sections.map((sec: any) => {
+      const updatedRows = sec.rows?.filter((row: any) => row.id !== rowId) || [];
+      return { ...sec, rows: updatedRows };
+    });
+    updateSelectedNode({ listSections: updatedSections });
   };
 
   const deleteSelectedNode = () => {
@@ -965,7 +1035,10 @@ export default function Dashboard() {
     } else if (type === "listNode") {
       label = "Pop-up list options menu";
       data.listButtonText = "View Menu";
-      data.listSections = [];
+      data.listSections = [{ 
+        title: "Options", 
+        rows: [{ id: `row_${Date.now()}`, title: "Option 1", description: "" }] 
+      }];
     } else if (type === "questionNode") {
       label = "Collect Text input question";
       data.variableName = "user_input";
@@ -1225,9 +1298,41 @@ export default function Dashboard() {
                         const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
                         let buttonsArray: string[] = [];
                         if (hasButtons) {
-                          const parts = msg.content.split("|buttons:");
+                          const parts = messageBody.split("|buttons:");
                           messageBody = parts[0];
                           buttonsArray = parts[1]?.split(", ") || [];
+                        }
+
+                        // Check if message is a WhatsApp list menu
+                        const hasList = msg.messageType === "listNode" || msg.content.includes("|list:");
+                        let listButtonText = "View Menu";
+                        let listRowsArray: string[] = [];
+                        if (hasList) {
+                          const parts = messageBody.split("|list:");
+                          messageBody = parts[0];
+                          const listParts = parts[1]?.split("|rows:");
+                          listButtonText = listParts?.[0] || "View Menu";
+                          const rowsString = listParts?.[1];
+                          listRowsArray = rowsString ? rowsString.split(", ") : [];
+
+                          // Fallback to active flow graph listNode options if rows array is empty
+                          if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
+                            const matchingNode = nodes.find(
+                              (n: any) =>
+                                n.type === "listNode" &&
+                                (n.data?.listButtonText === listButtonText ||
+                                  n.data?.text === messageBody)
+                            );
+                            if (matchingNode) {
+                              const fallbackSections = matchingNode.data?.listSections || [];
+                              const fallbackRows = fallbackSections
+                                .flatMap((s: any) => s.rows || [])
+                                .map((r: any) => r.title);
+                              if (fallbackRows.length > 0) {
+                                listRowsArray = fallbackRows;
+                              }
+                            }
+                          }
                         }
 
                         return (
@@ -1368,6 +1473,54 @@ export default function Dashboard() {
                                             {btnTitle}
                                           </button>
                                         ))}
+                                      </div>
+                                    )}
+
+                                    {/* Render Clickable WhatsApp-styled List Menus in chat logs */}
+                                    {hasList && (
+                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveListMenuMsgId(
+                                              activeListMenuMsgId === msg.id ? null : msg.id
+                                            );
+                                          }}
+                                          className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 text-emerald-600 border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer"
+                                        >
+                                          <span className="flex items-center gap-1.5">
+                                            <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                                            {listButtonText}
+                                          </span>
+                                          <span className="text-[10px] text-slate-400 font-normal">Select</span>
+                                        </button>
+
+                                        {/* Dropdown popup of options */}
+                                        {activeListMenuMsgId === msg.id && (
+                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
+                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
+                                              <span>Menu Options</span>
+                                              <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                              {listRowsArray.map((rowText, index) => (
+                                                <button
+                                                  key={index}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setSimulateText(rowText);
+                                                    setShowSimulator(true);
+                                                    setActiveListMenuMsgId(null);
+                                                  }}
+                                                  className="w-full text-left bg-slate-900 hover:bg-slate-850 text-slate-200 text-xs py-2 px-3 rounded-lg border border-slate-800/60 hover:border-emerald-500/50 transition-all duration-150 flex items-center justify-between cursor-pointer"
+                                                >
+                                                  <span className="truncate pr-2">{rowText}</span>
+                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -1742,25 +1895,82 @@ export default function Dashboard() {
                   )}
 
                   {/* If list node, manage list menu properties */}
-                  {selectedNode.type === "listNode" && (
-                    <div className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 font-semibold">Menu Button Text</label>
-                        <input 
-                          type="text" 
-                          value={selectedNode.data.listButtonText || ""}
-                          onChange={(e) => updateSelectedNode({ listButtonText: e.target.value })}
-                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
-                          placeholder="e.g. View Menu"
-                        />
+                  {selectedNode.type === "listNode" && (() => {
+                    const sections = selectedNode.data.listSections || [];
+                    const rows = sections.flatMap((sec: any) => sec.rows || []) || [];
+                    const limit = selectedPlatform === "whatsapp" ? 10 : 13;
+
+                    return (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-slate-400 font-semibold">Menu Button Text</label>
+                          <input 
+                            type="text" 
+                            value={selectedNode.data.listButtonText || ""}
+                            onChange={(e) => updateSelectedNode({ listButtonText: e.target.value })}
+                            className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                            placeholder="e.g. View Menu"
+                          />
+                        </div>
+
+                        <div className="flex justify-between items-center mt-2">
+                          <label className="text-slate-400 font-semibold">Menu Options (Max {limit} Items)</label>
+                          {rows.length < limit && (
+                            <button 
+                              type="button"
+                              onClick={addListOptionRow}
+                              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                            >
+                              + Add Option
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="space-y-3">
+                          {rows.map((row: any, index: number) => (
+                            <div key={row.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1.5 relative">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] text-slate-500 font-semibold">Option {index + 1}</span>
+                                <button 
+                                  type="button"
+                                  onClick={() => removeListOptionRow(row.id)}
+                                  className="text-red-400 hover:text-red-300 font-bold text-xs"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <input 
+                                  type="text" 
+                                  value={row.title}
+                                  onChange={(e) => updateListOptionRow(row.id, e.target.value, row.description)}
+                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
+                                  placeholder="Option Title"
+                                  maxLength={24}
+                                />
+                                <input 
+                                  type="text" 
+                                  value={row.description || ""}
+                                  onChange={(e) => updateListOptionRow(row.id, row.title, e.target.value)}
+                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-450 text-[10px] focus:outline-none focus:border-emerald-500"
+                                  placeholder="Optional description (WhatsApp only)"
+                                  maxLength={72}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                          {rows.length === 0 && (
+                            <span className="text-[10px] text-slate-500 italic block text-center mt-1">No options added yet. Click Add Option.</span>
+                          )}
+                        </div>
+                        
+                        {/* Warning banner for Instagram fallback */}
+                        <div className="bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 p-2.5 rounded-lg leading-relaxed mt-2">
+                          <strong>Note:</strong> Instagram does not support native List menus; they will fallback to Quick Reply buttons.
+                        </div>
                       </div>
-                      
-                      {/* Warning banner for Instagram fallback */}
-                      <div className="bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 p-2.5 rounded-lg leading-relaxed mt-2">
-                        <strong>Note:</strong> Instagram does not support native List menus; they will fallback to Quick Reply buttons.
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* If buttons node, manage button options */}
                   {selectedNode.type === "buttonsNode" && (

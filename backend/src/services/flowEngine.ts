@@ -321,7 +321,9 @@ async function sendNodeMessage(
         const buttons = rows.map((row) => ({ id: row.id, title: row.title }));
         responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
       }
-      content = `${content}|list:${buttonText}`;
+      const allRows = sections.flatMap((sec) => sec.rows) || [];
+      const rowTitles = allRows.map((r) => r.title).join(", ");
+      content = `${content}|list:${buttonText}|rows:${rowTitles}`;
     }
 
     const waMessageId = responseData?.message_id || responseData?.messages?.[0]?.id || null;
