@@ -21,10 +21,12 @@ import {
   HelpCircle,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   Database,
   CornerUpLeft,
   Video,
-  Headphones
+  Headphones,
+  ArrowLeft
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import ReactFlow, { 
@@ -314,6 +316,8 @@ interface InstagramConfig {
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("chats_whatsapp");
+  // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -969,6 +973,7 @@ export default function Dashboard() {
   const handleSelectConversation = (conv: Conversation) => {
     setActiveConv(conv);
     fetchMessages(conv.id);
+    setMobileChatOpen(true); // On mobile, open the chat panel
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -1064,9 +1069,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans">
-      {/* 1. SIDEBAR NAVIGATION */}
-      <aside className="w-16 flex flex-col items-center py-6 border-r border-slate-800 bg-slate-950 gap-8 justify-between">
+    <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans">
+      {/* 1. SIDEBAR NAVIGATION — hidden on mobile, shown on sm+ */}
+      <aside className="hidden sm:flex w-16 flex-col items-center py-6 border-r border-slate-800 bg-slate-950 gap-8 justify-between shrink-0">
         <div className="flex flex-col gap-6 items-center w-full">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-green-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-slate-950 font-bold text-lg">
             Ω
@@ -1106,8 +1111,48 @@ export default function Dashboard() {
         </button>
       </aside>
 
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-slate-800 flex items-center justify-around safe-bottom">
+        <button
+          onClick={() => { setActiveTab("chats_whatsapp"); setMobileChatOpen(false); }}
+          className={`flex flex-col items-center gap-0.5 py-3 px-4 flex-1 transition-all ${
+            activeTab === "chats_whatsapp" ? "text-emerald-400" : "text-slate-500"
+          }`}
+        >
+          <MessageSquare className="h-5 w-5" />
+          <span className="text-[9px] font-semibold tracking-wide">WhatsApp</span>
+        </button>
+        <button
+          onClick={() => { setActiveTab("chats_instagram"); setMobileChatOpen(false); }}
+          className={`flex flex-col items-center gap-0.5 py-3 px-4 flex-1 transition-all ${
+            activeTab === "chats_instagram" ? "text-pink-400" : "text-slate-500"
+          }`}
+        >
+          <Instagram className="h-5 w-5" />
+          <span className="text-[9px] font-semibold tracking-wide">Instagram</span>
+        </button>
+        <button
+          onClick={() => { setActiveTab("flows"); setMobileChatOpen(false); }}
+          className={`flex flex-col items-center gap-0.5 py-3 px-4 flex-1 transition-all ${
+            activeTab === "flows" ? "text-emerald-400" : "text-slate-500"
+          }`}
+        >
+          <GitMerge className="h-5 w-5" />
+          <span className="text-[9px] font-semibold tracking-wide">Flows</span>
+        </button>
+        <button
+          onClick={() => { setActiveTab("settings"); setMobileChatOpen(false); }}
+          className={`flex flex-col items-center gap-0.5 py-3 px-4 flex-1 transition-all ${
+            activeTab === "settings" ? "text-emerald-400" : "text-slate-500"
+          }`}
+        >
+          <Settings className="h-5 w-5" />
+          <span className="text-[9px] font-semibold tracking-wide">Settings</span>
+        </button>
+      </nav>
+
       {/* 2. MAIN CONTENT BODY */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
@@ -1117,8 +1162,10 @@ export default function Dashboard() {
 
           return (
             <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar */}
-              <div className="w-80 border-r border-slate-800 bg-slate-950/40 flex flex-col h-full">
+              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
+              <div className={`${
+                mobileChatOpen ? "hidden" : "flex"
+              } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
                 <div className="p-4 border-b border-slate-800 flex justify-between items-center">
                   <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
@@ -1187,67 +1234,89 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Chat Conversation Pane */}
-              <div className="flex-1 flex flex-col h-full bg-slate-900 relative">
+              {/* Chat Conversation Pane — full screen on mobile when chat open */}
+              <div className={`${
+                mobileChatOpen ? "flex" : "hidden"
+              } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
                 {activeConv ? (
                   <>
                     {/* Chat header */}
-                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-6 flex items-center justify-between z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700">
+                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-3 sm:px-6 flex items-center justify-between z-10 gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setMobileChatOpen(false)}
+                          className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 shrink-0 transition-all"
+                        >
+                          <ArrowLeft className="h-5 w-5" />
+                        </button>
+                        <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700 shrink-0">
                           {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
                         </div>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2">
                             {activeConv.platform === "instagram" ? (
-                              <Instagram className="h-4 w-4 text-pink-400" />
+                              <Instagram className="h-4 w-4 text-pink-400 shrink-0" />
                             ) : (
-                              <MessageSquare className="h-4 w-4 text-emerald-400" />
+                              <MessageSquare className="h-4 w-4 text-emerald-400 shrink-0" />
                             )}
-                            <span className="font-semibold text-sm text-slate-200">
+                            <span className="font-semibold text-sm text-slate-200 truncate">
                               {activeConv.customerName || (activeConv.platform === "instagram" ? "Instagram User" : "WhatsApp User")}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-400 flex items-center gap-1">
+                          <span className="text-xs text-slate-400 flex items-center gap-1 truncate">
                             {activeConv.platform === "instagram" ? (
                               <><span>Instagram ID:</span> {activeConv.customerPhone}</>
                             ) : (
-                              <><Phone className="h-3 w-3 text-slate-500" /> {activeConv.customerPhone}</>
+                              <><Phone className="h-3 w-3 text-slate-500 shrink-0" /> {activeConv.customerPhone}</>
                             )}
                           </span>
                         </div>
                       </div>
 
                       {/* Bot active / pause controllers */}
-                      <div className="flex items-center gap-3">
-                        <div className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 border transition-all ${activeConv.isBotPaused ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"}`}>
+                      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                        {/* Bot status badge — hidden on very small screens, visible on sm+ */}
+                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${
+                          activeConv.isBotPaused 
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        }`}>
                           {activeConv.isBotPaused ? (
-                            <>
-                              <User className="h-3.5 w-3.5" />
-                              <span>Bot is Paused (Manual Control)</span>
-                            </>
+                            <><User className="h-3.5 w-3.5" /><span>Bot Paused</span></>
                           ) : (
-                            <>
-                              <Bot className="h-3.5 w-3.5" />
-                              <span>Bot is Active (Automating Replies)</span>
-                            </>
+                            <><Bot className="h-3.5 w-3.5" /><span>Bot Active</span></>
                           )}
+                        </div>
+                        {/* Compact bot status icon — mobile only */}
+                        <div className={`sm:hidden p-2 rounded-xl border transition-all ${
+                          activeConv.isBotPaused 
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        }`}>
+                          {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                         </div>
 
                         <button
                           type="button"
                           onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-semibold px-4 py-1.5 rounded-lg border transition-all ${activeConv.isBotPaused ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"}`}
+                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${
+                            activeConv.isBotPaused 
+                              ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" 
+                              : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
+                          }`}
                         >
-                          {activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}
+                          <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
+                          <span className="sm:hidden">{activeConv.isBotPaused ? "Resume" : "Pause"}</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setShowSimulator(!showSimulator)}
-                          className="text-xs font-semibold px-4 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 flex items-center gap-1.5"
+                          className="text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 flex items-center gap-1.5"
                         >
-                          <User className="h-3.5 w-3.5 text-emerald-400 animate-pulse" /> Simulate Reply
+                          <User className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+                          <span className="hidden sm:inline">Simulate Reply</span>
                         </button>
                       </div>
                     </div>
