@@ -106,7 +106,17 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
       const currentNode = graph.nodes.find((n) => n.id === currentNodeId);
       
       if (currentNode) {
-        if (currentNode.type === "buttonsNode" || currentNode.type === "listNode") {
+        const userText = message.content.toLowerCase().trim();
+        const isStartKeyword = ["hi", "hello", "hey", "menu", "start", "restart"].includes(userText);
+        const hasOutgoingEdges = graph.edges.some((e) => e.source === currentNode.id);
+
+        if (isStartKeyword || !hasOutgoingEdges) {
+          console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: ${isStartKeyword ? "keyword" : "terminal node"})`);
+          const rootNode = findRootNode(graph);
+          if (rootNode) {
+            nextNodeId = rootNode.id;
+          }
+        } else if (currentNode.type === "buttonsNode" || currentNode.type === "listNode") {
           // Interactive Nodes: Match user selection
           const userResponseText = message.content.toLowerCase().trim();
           

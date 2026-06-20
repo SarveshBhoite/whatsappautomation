@@ -64,105 +64,162 @@ const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
 // WhatsApp Styled Flow Builder Custom Nodes
 // -------------------------------------------------------------
 
-const TextNodeComponent = ({ data }: any) => (
-  <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs">
-    <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-      <MessageSquare className="h-3 w-3 text-emerald-400" /> Text Response
-    </div>
-    <div className="text-slate-200 line-clamp-3 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans whitespace-pre-wrap">
-      {data.text || <span className="text-slate-500 italic">No text message defined</span>}
-    </div>
-    <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-  </div>
-);
+const TextNodeComponent = ({ data }: any) => {
+  const isIg = data.platform === "instagram";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
 
-const ButtonsNodeComponent = ({ data }: any) => (
-  <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[220px] text-xs flex flex-col gap-2">
-    <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-      <Bot className="h-3 w-3 text-emerald-400" /> WhatsApp Buttons
+  return (
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+      <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+        {isIg ? (
+          <Instagram className={`h-3 w-3 ${textColor}`} />
+        ) : (
+          <MessageSquare className={`h-3 w-3 ${textColor}`} />
+        )}
+        {isIg ? "Instagram Text DM" : "WhatsApp Text Msg"}
+      </div>
+      <div className="text-slate-200 line-clamp-3 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans whitespace-pre-wrap">
+        {data.text || <span className="text-slate-500 italic">No text message defined</span>}
+      </div>
+      <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
-    <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 whitespace-pre-wrap">
-      {data.text || <span className="text-slate-500 italic">Type button header message...</span>}
-    </div>
-    
-    <div className="flex flex-col gap-1.5 mt-1">
-      {data.buttons?.map((btn: any) => (
-        <div key={btn.id} className="relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-center text-[10px] text-emerald-400 font-semibold shadow-sm border-l-2 border-l-emerald-500">
-          {btn.title}
-          <Handle 
-            type="source" 
-            position={Position.Right} 
-            id={btn.id} 
-            className="!bg-emerald-400 !w-2 !h-2 -mr-1" 
-          />
-        </div>
-      ))}
-      {(!data.buttons || data.buttons.length === 0) && (
-        <span className="text-[9px] text-slate-500 italic text-center">Add options buttons on the right</span>
-      )}
-    </div>
-  </div>
-);
+  );
+};
 
-const ListNodeComponent = ({ data }: any) => (
-  <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs">
-    <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-      <FileText className="h-3 w-3 text-emerald-400" /> List Menu Options
-    </div>
-    <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans mb-2">
-      {data.text || <span className="text-slate-500 italic">No description text</span>}
-    </div>
-    <div className="bg-slate-900 border border-slate-800 rounded py-1 px-3 text-center text-[10px] text-slate-300 font-semibold">
-      Menu: {data.listButtonText || "View Menu"}
-    </div>
-    <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-  </div>
-);
+const ButtonsNodeComponent = ({ data }: any) => {
+  const isIg = data.platform === "instagram";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
+  const handleBgLight = isIg ? "!bg-pink-400" : "!bg-emerald-400";
+  const borderL = isIg ? "border-l-pink-500" : "border-l-emerald-500";
 
-const QuestionNodeComponent = ({ data }: any) => (
-  <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs">
-    <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-      <User className="h-3 w-3 text-emerald-400" /> Collect Input Question
+  return (
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn">
+      <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+        {isIg ? (
+          <Instagram className={`h-3 w-3 ${textColor}`} />
+        ) : (
+          <Bot className={`h-3 w-3 ${textColor}`} />
+        )}
+        {isIg ? "Instagram Quick Replies" : "WhatsApp Buttons"}
+      </div>
+      <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 whitespace-pre-wrap">
+        {data.text || <span className="text-slate-500 italic">Type button header message...</span>}
+      </div>
+      
+      <div className="flex flex-col gap-1.5 mt-1">
+        {data.buttons?.map((btn: any) => (
+          <div key={btn.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-center text-[10px] ${textColor} font-semibold shadow-sm border-l-2 ${borderL}`}>
+            {btn.title}
+            <Handle 
+              type="source" 
+              position={Position.Right} 
+              id={btn.id} 
+              className={`${handleBgLight} !w-2 !h-2 -mr-1`} 
+            />
+          </div>
+        ))}
+        {(!data.buttons || data.buttons.length === 0) && (
+          <span className="text-[9px] text-slate-500 italic text-center">Add options buttons on the right</span>
+        )}
+      </div>
     </div>
-    <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans mb-2">
-      {data.text || <span className="text-slate-500 italic">No question defined</span>}
-    </div>
-    <div className="bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20 text-[9px] text-amber-400 font-mono flex items-center gap-1 justify-center">
-      <Database className="h-3 w-3 text-amber-500" /> Save: {data.variableName || "user_input"}
-    </div>
-    <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-  </div>
-);
+  );
+};
 
-const WelcomeNodeComponent = ({ data }: any) => (
-  <div className="bg-slate-800 border-2 border-emerald-500 rounded-xl p-3 shadow-lg min-w-[200px] text-xs">
-    <div className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-      <Bot className="h-3.5 w-3.5" /> Welcome Node (Root)
+const ListNodeComponent = ({ data }: any) => {
+  const isIg = data.platform === "instagram";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
+
+  return (
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+      <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+        <FileText className={`h-3 w-3 ${textColor}`} />
+        {isIg ? "Instagram Menu (Quick Replies)" : "WhatsApp List Menu"}
+      </div>
+      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans mb-2">
+        {data.text || <span className="text-slate-500 italic">No description text</span>}
+      </div>
+      <div className="bg-slate-900 border border-slate-800 rounded py-1 px-3 text-center text-[10px] text-slate-300 font-semibold">
+        {isIg ? "Instagram Quick Replies Fallback" : `Menu: ${data.listButtonText || "View Menu"}`}
+      </div>
+      <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
-    <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans">
-      {data.text || <span className="text-slate-500 italic">No welcome greeting defined</span>}
+  );
+};
+
+const QuestionNodeComponent = ({ data }: any) => {
+  const isIg = data.platform === "instagram";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
+
+  return (
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+      <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+        {isIg ? (
+          <Instagram className={`h-3 w-3 ${textColor}`} />
+        ) : (
+          <User className={`h-3 w-3 ${textColor}`} />
+        )}
+        Collect Input Question
+      </div>
+      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans mb-2">
+        {data.text || <span className="text-slate-500 italic">No question defined</span>}
+      </div>
+      <div className="bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20 text-[9px] text-amber-400 font-mono flex items-center gap-1 justify-center">
+        <Database className="h-3 w-3 text-amber-500" /> Save: {data.variableName || "user_input"}
+      </div>
+      <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
-    <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-2.5 !h-2.5" />
-  </div>
-);
+  );
+};
+
+const WelcomeNodeComponent = ({ data }: any) => {
+  const isIg = data.platform === "instagram";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const border = isIg ? "border-pink-500" : "border-emerald-500";
+  const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
+
+  return (
+    <div className={`bg-slate-800 border-2 ${border} rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn`}>
+      <div className={`text-[9px] ${textColor} font-bold uppercase tracking-wider mb-1 flex items-center gap-1`}>
+        {isIg ? (
+          <Instagram className="h-3.5 w-3.5" />
+        ) : (
+          <Bot className="h-3.5 w-3.5" />
+        )}
+        {isIg ? "Instagram Welcome Node (Root)" : "Welcome Node (Root)"}
+      </div>
+      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans">
+        {data.text || <span className="text-slate-500 italic">No welcome greeting defined</span>}
+      </div>
+      <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
+    </div>
+  );
+};
 
 const MediaNodeComponent = ({ data }: any) => {
+  const isIg = data.platform === "instagram";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
   const isVideo = data.mediaType === "video";
   const isAudio = data.mediaType === "audio";
   const isDoc = data.mediaType === "document";
 
   return (
-    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs">
-      <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-2.5 !h-2.5" />
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+      <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
       <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-        {isDoc ? <FileText className="h-3 w-3 text-emerald-400" /> :
-         isVideo ? <Video className="h-3 w-3 text-emerald-400" /> :
-         isAudio ? <Headphones className="h-3 w-3 text-emerald-400" /> :
-         <ImageIcon className="h-3 w-3 text-emerald-400" />}
+        {isDoc ? <FileText className={`h-3 w-3 ${textColor}`} /> :
+         isVideo ? <Video className={`h-3 w-3 ${textColor}`} /> :
+         isAudio ? <Headphones className={`h-3 w-3 ${textColor}`} /> :
+         <ImageIcon className={`h-3 w-3 ${textColor}`} />}
         Media response ({data.mediaType || "image"})
       </div>
       <div className="text-[10px] text-slate-300 font-semibold truncate bg-slate-900/40 p-1.5 rounded border border-slate-850/60 font-mono mb-1.5 max-w-[180px]">
@@ -173,7 +230,7 @@ const MediaNodeComponent = ({ data }: any) => {
           "{data.caption}"
         </div>
       )}
-      <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-2.5 !h-2.5" />
+      <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
   );
 };
@@ -253,6 +310,7 @@ export default function Dashboard() {
   });
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
+  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram">("whatsapp");
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -765,7 +823,14 @@ export default function Dashboard() {
         // Parse and set Graph JSON
         const graph = active.graphJson;
         if (graph && graph.nodes) {
-          setNodes(graph.nodes);
+          const mappedNodes = graph.nodes.map((node: any) => ({
+            ...node,
+            data: {
+              ...node.data,
+              platform: node.data?.platform || active.platform || "whatsapp"
+            }
+          }));
+          setNodes(mappedNodes);
           setEdges(graph.edges || []);
         }
       } else {
@@ -782,7 +847,17 @@ export default function Dashboard() {
 
   const initializeDefaultGraph = () => {
     setNodes([
-      { id: "welcome_1", type: "welcomeNode", data: { text: "Welcome to our support desk! How can we help you today?" }, position: { x: 250, y: 50 } }
+      { 
+        id: "welcome_1", 
+        type: "welcomeNode", 
+        data: { 
+          text: selectedPlatform === "instagram" 
+            ? "Welcome to our Instagram DM channel! How can we help you today?"
+            : "Welcome to our support desk! How can we help you today?",
+          platform: selectedPlatform
+        }, 
+        position: { x: 250, y: 50 } 
+      }
     ] as any);
     setEdges([]);
   };
@@ -908,6 +983,7 @@ export default function Dashboard() {
       position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
       data: { 
         ...data,
+        platform: selectedPlatform,
         label: `${nodes.length + 1}. ${label}` 
       }
     };
@@ -1745,211 +1821,254 @@ export default function Dashboard() {
         {/* TAB 3: SETTINGS & ONBOARDING */}
         {activeTab === "settings" && (
           <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full">
-            <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3 mb-6">
-              <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
-            </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
+              <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
+                <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
+              </h2>
+              
+              {/* Secondary sub-tabs selector */}
+              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start sm:self-auto shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("whatsapp")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Setup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("instagram")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-pink-500 text-white shadow-md shadow-pink-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  <Instagram className="h-3.5 w-3.5" /> Instagram Setup
+                </button>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Configuration Inputs */}
               <div className="md:col-span-2 space-y-6">
-                
-                {/* WhatsApp Credentials Form */}
-                <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-                  <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Key className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp API Credentials
-                  </h3>
+                {settingsSubTab === "whatsapp" ? (
+                  <>
+                    {/* WhatsApp Credentials Form */}
+                    <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <Key className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp API Credentials
+                      </h3>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
-                    <input
-                      type="text"
-                      value={config.phoneNumberId}
-                      onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
-                      placeholder="e.g. 1048473820293"
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
+                        <input
+                          type="text"
+                          value={config.phoneNumberId}
+                          onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
+                          placeholder="e.g. 1048473820293"
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
-                    <input
-                      type="text"
-                      value={config.wabaId}
-                      onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
-                      placeholder="e.g. 1048473820999"
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
+                        <input
+                          type="text"
+                          value={config.wabaId}
+                          onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
+                          placeholder="e.g. 1048473820999"
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
-                    <textarea
-                      value={config.accessToken}
-                      onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
-                      placeholder="Paste EAAG... permanent access token here"
-                      rows={4}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
-                    />
-                  </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
+                        <textarea
+                          value={config.accessToken}
+                          onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
+                          placeholder="Paste EAAG... permanent access token here"
+                          rows={4}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
+                        />
+                      </div>
 
-                  <div className="pt-2 flex items-center justify-between">
-                    <button
-                      type="submit"
-                      disabled={saveStatus === "saving"}
-                      className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10"
-                    >
-                      <Save className="h-4 w-4" />
-                      {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
-                    </button>
-                    
-                    {saveStatus === "error" && (
-                      <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
-                    )}
-                  </div>
-                </form>
+                      <div className="pt-2 flex items-center justify-between">
+                        <button
+                          type="submit"
+                          disabled={saveStatus === "saving"}
+                          className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                        >
+                          <Save className="h-4 w-4" />
+                          {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
+                        </button>
+                        
+                        {saveStatus === "error" && (
+                          <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
+                        )}
+                      </div>
+                    </form>
 
-                {/* Instagram Credentials Form */}
-                <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-                  <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Instagram className="h-4.5 w-4.5 text-pink-500" /> Instagram DM Credentials
-                  </h3>
+                    {/* WhatsApp Webhook Integration */}
+                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <Database className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp Webhook Configuration
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
+                      </p>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-400 font-semibold">Instagram Business Account ID</label>
-                    <input
-                      type="text"
-                      value={igConfig.instagramAccountId}
-                      onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
-                      placeholder="e.g. 17841401234567890"
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
-                    />
-                  </div>
+                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
+                        <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
+                      </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-400 font-semibold">Facebook Page ID</label>
-                    <input
-                      type="text"
-                      value={igConfig.pageId}
-                      onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
-                      placeholder="e.g. 10203040506070"
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
-                    />
-                  </div>
+                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
+                        <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
+                      </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-slate-400 font-semibold">Page Access Token (Permanent)</label>
-                    <textarea
-                      value={igConfig.pageAccessToken}
-                      onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
-                      placeholder="Paste Page Access Token here"
-                      rows={4}
-                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono text-xs"
-                    />
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-between">
-                    <button
-                      type="submit"
-                      disabled={igSaveStatus === "saving"}
-                      className="bg-pink-500 hover:bg-pink-400 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-pink-500/10"
-                    >
-                      <Save className="h-4 w-4" />
-                      {igSaveStatus === "saving" ? "Saving..." : igSaveStatus === "success" ? "Saved Successfully!" : "Save Instagram Credentials"}
-                    </button>
-                    
-                    {igSaveStatus === "error" && (
-                      <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
-                    )}
-                  </div>
-                </form>
-
-                {/* WhatsApp Webhook Integration */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-                  <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Database className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp Webhook Configuration
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
-                  </p>
-
-                  <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                    <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                    <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
-                  </div>
-
-                  <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                    <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                    <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
-                  </div>
-
-                  <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 flex gap-3">
-                    <Bot className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-emerald-300">Important Webhook Fields</span>
-                      <span className="text-[11px] text-slate-400">
-                        In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>message_deliveries</strong> webhook fields.
-                      </span>
+                      <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 flex gap-3">
+                        <Bot className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-emerald-300">Important Webhook Fields</span>
+                          <span className="text-[11px] text-slate-400">
+                            In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>message_deliveries</strong> webhook fields.
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Instagram Credentials Form */}
+                    <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <Instagram className="h-4.5 w-4.5 text-pink-500" /> Instagram DM Credentials
+                      </h3>
 
-                {/* Instagram Webhook Integration */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-                  <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Database className="h-4.5 w-4.5 text-pink-400" /> Instagram Webhook Configuration
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>Instagram Webhook</strong> product parameters list.
-                  </p>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">Instagram Business Account ID</label>
+                        <input
+                          type="text"
+                          value={igConfig.instagramAccountId}
+                          onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
+                          placeholder="e.g. 17841401234567890"
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                        />
+                      </div>
 
-                  <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                    <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                    <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
-                  </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">Facebook Page ID</label>
+                        <input
+                          type="text"
+                          value={igConfig.pageId}
+                          onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
+                          placeholder="e.g. 10203040506070"
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                        />
+                      </div>
 
-                  <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                    <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                    <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
-                  </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">Page Access Token (Permanent)</label>
+                        <textarea
+                          value={igConfig.pageAccessToken}
+                          onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
+                          placeholder="Paste Page Access Token here"
+                          rows={4}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono text-xs"
+                        />
+                      </div>
 
-                  <div className="bg-pink-500/5 border border-pink-500/10 rounded-xl p-3.5 flex gap-3">
-                    <Bot className="h-5 w-5 text-pink-400 shrink-0 mt-0.5" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-pink-300">Important Webhook Fields</span>
-                      <span className="text-[11px] text-slate-400">
-                        In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>messaging_postbacks</strong> webhook fields under the <strong>Instagram</strong> section.
-                      </span>
+                      <div className="pt-2 flex items-center justify-between">
+                        <button
+                          type="submit"
+                          disabled={igSaveStatus === "saving"}
+                          className="bg-pink-500 hover:bg-pink-400 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-pink-500/10 cursor-pointer"
+                        >
+                          <Save className="h-4 w-4" />
+                          {igSaveStatus === "saving" ? "Saving..." : igSaveStatus === "success" ? "Saved Successfully!" : "Save Instagram Credentials"}
+                        </button>
+                        
+                        {igSaveStatus === "error" && (
+                          <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
+                        )}
+                      </div>
+                    </form>
+
+                    {/* Instagram Webhook Integration */}
+                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <Database className="h-4.5 w-4.5 text-pink-400" /> Instagram Webhook Configuration
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>Instagram Webhook</strong> product parameters list.
+                      </p>
+
+                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
+                        <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
+                      </div>
+
+                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
+                        <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
+                      </div>
+
+                      <div className="bg-pink-500/5 border border-pink-500/10 rounded-xl p-3.5 flex gap-3">
+                        <Bot className="h-5 w-5 text-pink-400 shrink-0 mt-0.5" />
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-pink-300">Important Webhook Fields</span>
+                          <span className="text-[11px] text-slate-400">
+                            In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>messaging_postbacks</strong> webhook fields under the <strong>Instagram</strong> section.
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
 
               {/* Quick instructions sidebar */}
               <div className="space-y-6">
-                <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-5 space-y-4">
+                <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-5 space-y-4 shadow-xl">
                   <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <HelpCircle className="h-4 w-4 text-emerald-400" /> Meta Config Guide
+                    <HelpCircle className="h-4 w-4 text-emerald-400" /> Setup Instructions
                   </h4>
-                  <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-emerald-500 marker:font-bold">
-                    <li>
-                      Create a Meta Developer app under your Meta developer account.
-                    </li>
-                    <li>
-                      Add both <strong>WhatsApp</strong> and <strong>Messenger</strong> products to your Meta Developer app.
-                    </li>
-                    <li>
-                      Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">whatsapp_business_messaging</code> and <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code>.
-                    </li>
-                    <li>
-                      Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>Account ID</strong> to paste here.
-                    </li>
-                    <li>
-                      Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
-                    </li>
-                    <li>
-                      Register your unique Callback URLs and Verify Token in your Meta Dashboard under Webhooks settings.
-                    </li>
-                  </ul>
+                  
+                  {settingsSubTab === "whatsapp" ? (
+                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-emerald-500 marker:font-bold animate-fadeIn">
+                      <li>
+                        Create a Meta Developer app under your Meta developer account.
+                      </li>
+                      <li>
+                        Add the <strong>WhatsApp</strong> product to your Meta Developer app.
+                      </li>
+                      <li>
+                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permission: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">whatsapp_business_messaging</code>.
+                      </li>
+                      <li>
+                        Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>WhatsApp Business Account ID</strong> and paste them on the credentials form.
+                      </li>
+                      <li>
+                        Register the unique WhatsApp Callback URL and Verify Token in your Meta Dashboard.
+                      </li>
+                    </ul>
+                  ) : (
+                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-pink-500 marker:font-bold animate-fadeIn">
+                      <li>
+                        Create a Meta Developer app under your Meta developer account.
+                      </li>
+                      <li>
+                        Add the <strong>Messenger</strong> product to your Meta Developer app.
+                      </li>
+                      <li>
+                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code>.
+                      </li>
+                      <li>
+                        Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
+                      </li>
+                      <li>
+                        Register the unique Instagram Callback URL and Verify Token in your Meta Dashboard under Webhook settings.
+                      </li>
+                    </ul>
+                  )}
                 </div>
               </div>
             </div>
