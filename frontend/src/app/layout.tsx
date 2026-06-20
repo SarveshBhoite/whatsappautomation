@@ -17,6 +17,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Jisnu CRM Automation Portal",
   description: "Automated WhatsApp and Instagram flow management system.",
+  icons: {
+    icon: "/icon.jpeg",
+    apple: "/icon.jpeg",
+  },
 };
 
 export default function RootLayout({

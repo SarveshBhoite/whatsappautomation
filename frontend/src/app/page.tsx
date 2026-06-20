@@ -62,6 +62,19 @@ const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+// Native SVG representation of WhatsApp icon for a premium custom look
+const WhatsApp = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    {...props}
+  >
+    <path d="M12.012 2c-5.506 0-9.988 4.482-9.988 9.988 0 1.76.46 3.473 1.332 4.977l-1.417 5.176 5.3-.1389a9.92 9.92 0 0 0 4.773 1.218h.004c5.504 0 9.988-4.484 9.988-9.99A9.957 9.957 0 0 0 12.012 2zm5.727 14.17c-.25.7-1.442 1.272-1.992 1.353-.48.072-.942.348-3.048-.52-2.532-1.045-4.14-3.626-4.266-3.794-.124-.168-.948-1.258-.948-2.398 0-1.14.595-1.704.82-1.93.226-.226.495-.282.66-.282.164 0 .328.003.472.01.148.007.348-.056.545.422.2.488.683 1.662.743 1.78.06.12.098.26.018.42-.08.16-.118.26-.237.4-.118.14-.253.31-.36.42-.12.12-.244.25-.104.49.14.24.62 1.022 1.33 1.652.915.816 1.685 1.07 1.925 1.19.24.12.378.1.517-.06.14-.16.596-.694.755-.93.16-.236.32-.2.538-.12.217.08 1.378.65 1.616.77.238.12.396.18.455.28.06.1.06.58-.19 1.28z"/>
+  </svg>
+);
+
 // -------------------------------------------------------------
 // WhatsApp Styled Flow Builder Custom Nodes
 // -------------------------------------------------------------
@@ -78,7 +91,7 @@ const TextNodeComponent = ({ data }: any) => {
         {isIg ? (
           <Instagram className={`h-3 w-3 ${textColor}`} />
         ) : (
-          <MessageSquare className={`h-3 w-3 ${textColor}`} />
+          <WhatsApp className={`h-3 w-3 ${textColor}`} />
         )}
         {isIg ? "Instagram Text DM" : "WhatsApp Text Msg"}
       </div>
@@ -1073,15 +1086,15 @@ export default function Dashboard() {
       {/* 1. SIDEBAR NAVIGATION — hidden on mobile, shown on sm+ */}
       <aside className="hidden sm:flex w-16 flex-col items-center py-6 border-r border-slate-800 bg-slate-950 gap-8 justify-between shrink-0">
         <div className="flex flex-col gap-6 items-center w-full">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 text-slate-950 font-bold text-lg">
-            Ω
+          <div className="h-10 w-10 rounded-xl overflow-hidden shadow-lg shadow-primary/20 border border-slate-800 flex items-center justify-center bg-slate-950">
+            <img src="/icon.jpeg" alt="Jisnu Logo" className="h-full w-full object-cover" />
           </div>
           
           <button 
             onClick={() => setActiveTab("chats_whatsapp")}
             className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "chats_whatsapp" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
           >
-            <MessageSquare className="h-5 w-5" />
+            <WhatsApp className="h-5 w-5" />
             <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">WhatsApp Chats</span>
           </button>
 
@@ -1119,7 +1132,7 @@ export default function Dashboard() {
             activeTab === "chats_whatsapp" ? "text-emerald-400" : "text-slate-500"
           }`}
         >
-          <MessageSquare className="h-5 w-5" />
+          <WhatsApp className="h-5 w-5" />
           <span className="text-[9px] font-semibold tracking-wide">WhatsApp</span>
         </button>
         <button
@@ -1182,7 +1195,7 @@ export default function Dashboard() {
                       {isInstagramTab ? (
                         <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
                       ) : (
-                        <MessageSquare className="h-8 w-8 stroke-1 text-emerald-400/60" />
+                        <WhatsApp className="h-8 w-8 text-emerald-400/60" />
                       )}
                       <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
                     </div>
@@ -1203,7 +1216,7 @@ export default function Dashboard() {
                               {isInstagram ? (
                                 <Instagram className="h-3.5 w-3.5 text-pink-400 shrink-0" />
                               ) : (
-                                <MessageSquare className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                <WhatsApp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                               )}
                               <span className="font-semibold text-slate-200 text-sm truncate">
                                 {conv.customerName || conv.customerPhone}
@@ -1258,7 +1271,7 @@ export default function Dashboard() {
                             {activeConv.platform === "instagram" ? (
                               <Instagram className="h-4 w-4 text-pink-400 shrink-0" />
                             ) : (
-                              <MessageSquare className="h-4 w-4 text-emerald-400 shrink-0" />
+                              <WhatsApp className="h-4 w-4 text-emerald-400 shrink-0" />
                             )}
                             <span className="font-semibold text-sm text-slate-200 truncate">
                               {activeConv.customerName || (activeConv.platform === "instagram" ? "Instagram User" : "WhatsApp User")}
@@ -2123,7 +2136,7 @@ export default function Dashboard() {
                   onClick={() => setSettingsSubTab("whatsapp")}
                   className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
                 >
-                  <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Setup
+                  <WhatsApp className="h-3.5 w-3.5" /> WhatsApp Setup
                 </button>
                 <button
                   type="button"
