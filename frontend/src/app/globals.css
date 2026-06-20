@@ -1,23 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f172a;
-  --foreground: #f1f5f9;
+  /* Brand Theme Colors (Dark Mode) from jisnusite */
+  --background: oklch(0.12 0 0);
+  --foreground: oklch(0.98 0 0);
+
+  --card: oklch(0.15 0 0);
+  --card-foreground: oklch(0.98 0 0);
+
+  /* Brand Teal/Cyan Accent Colors */
+  --primary: oklch(0.55 0.14 195);      /* Deep Teal */
+  --secondary: oklch(0.7 0.16 190);    /* Cyan */
+  --accent: oklch(0.72 0.17 185);       /* Aqua */
+
+  --muted: oklch(0.3 0 0);
+  --muted-foreground: oklch(0.7 0 0);
+
+  --border: oklch(0.25 0.01 199);
+  --input: oklch(0.2 0.01 199);
+  --ring: oklch(0.55 0.14 195);
+  
+  --radius: 0.75rem;
+}
+
+@theme {
+  --font-sans: var(--font-sans), sans-serif;
+  --font-display: var(--font-display), sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Map standard slate colors to brand dark equivalents to instantly style page.tsx layout */
+  --color-slate-950: var(--background);
+  --color-slate-900: var(--card);
+  --color-slate-850: oklch(0.18 0.01 199);
+  --color-slate-800: var(--border);
+  --color-slate-700: oklch(0.28 0.01 199);
+  --color-slate-600: oklch(0.34 0.01 199);
+  --color-slate-500: oklch(0.48 0.01 199);
+  --color-slate-400: var(--muted-foreground);
+  --color-slate-300: oklch(0.8 0 0);
+  --color-slate-200: var(--foreground);
+  --color-slate-100: oklch(0.99 0 0);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
 }
 
+/* Custom Selection styling matching brand */
+::selection {
+  background: var(--primary);
+  color: var(--background);
+}
+
 /* Smooth scrollbars */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: var(--border) transparent;
 }
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
@@ -27,7 +80,7 @@ body {
   background: transparent;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--border);
   border-radius: 999px;
 }
 
@@ -39,7 +92,7 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Slide-in animation */
+/* Slide-in animations */
 @keyframes slideInRight {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
@@ -69,3 +122,4 @@ body {
     overflow: hidden;
   }
 }
+

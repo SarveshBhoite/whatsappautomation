@@ -1073,7 +1073,7 @@ export default function Dashboard() {
       {/* 1. SIDEBAR NAVIGATION — hidden on mobile, shown on sm+ */}
       <aside className="hidden sm:flex w-16 flex-col items-center py-6 border-r border-slate-800 bg-slate-950 gap-8 justify-between shrink-0">
         <div className="flex flex-col gap-6 items-center w-full">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-green-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-slate-950 font-bold text-lg">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 text-slate-950 font-bold text-lg">
             Ω
           </div>
           
@@ -1095,7 +1095,7 @@ export default function Dashboard() {
 
           <button 
             onClick={() => setActiveTab("flows")}
-            className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "flows" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
+            className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "flows" ? "bg-primary/10 text-primary" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
           >
             <GitMerge className="h-5 w-5" />
             <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Flows</span>
@@ -1104,7 +1104,7 @@ export default function Dashboard() {
 
         <button 
           onClick={() => setActiveTab("settings")}
-          className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "settings" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
+          className={`p-3 rounded-xl transition-all duration-200 relative group ${activeTab === "settings" ? "bg-primary/10 text-primary" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
         >
           <Settings className="h-5 w-5" />
           <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Settings</span>
@@ -1134,7 +1134,7 @@ export default function Dashboard() {
         <button
           onClick={() => { setActiveTab("flows"); setMobileChatOpen(false); }}
           className={`flex flex-col items-center gap-0.5 py-3 px-4 flex-1 transition-all ${
-            activeTab === "flows" ? "text-emerald-400" : "text-slate-500"
+            activeTab === "flows" ? "text-primary" : "text-slate-500"
           }`}
         >
           <GitMerge className="h-5 w-5" />
@@ -1143,7 +1143,7 @@ export default function Dashboard() {
         <button
           onClick={() => { setActiveTab("settings"); setMobileChatOpen(false); }}
           className={`flex flex-col items-center gap-0.5 py-3 px-4 flex-1 transition-all ${
-            activeTab === "settings" ? "text-emerald-400" : "text-slate-500"
+            activeTab === "settings" ? "text-primary" : "text-slate-500"
           }`}
         >
           <Settings className="h-5 w-5" />
@@ -1528,20 +1528,25 @@ export default function Dashboard() {
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
                                       <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
-                                        {buttonsArray.map((btnTitle, index) => (
-                                          <button
-                                            key={index}
-                                            type="button"
-                                            onClick={() => {
-                                              setSimulateText(btnTitle);
-                                              setShowSimulator(true);
-                                            }}
-                                            className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 text-emerald-600 border border-slate-200 shadow-sm text-xs font-bold py-2 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-center gap-1.5 cursor-pointer"
-                                          >
-                                            <Bot className="h-3 w-3 text-emerald-500" />
-                                            {btnTitle}
-                                          </button>
-                                        ))}
+                                        {buttonsArray.map((btnTitle, index) => {
+                                          const isIg = activeConv?.platform === "instagram";
+                                          const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
+                                          const btnIconColor = isIg ? "text-pink-500" : "text-emerald-500";
+                                          return (
+                                            <button
+                                              key={index}
+                                              type="button"
+                                              onClick={() => {
+                                                setSimulateText(btnTitle);
+                                                setShowSimulator(true);
+                                              }}
+                                              className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${btnTextColor} border border-slate-200 shadow-sm text-xs font-bold py-2 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-center gap-1.5 cursor-pointer`}
+                                            >
+                                              <Bot className={`h-3 w-3 ${btnIconColor}`} />
+                                              {btnTitle}
+                                            </button>
+                                          );
+                                        })}
                                       </div>
                                     )}
 
@@ -1555,10 +1560,14 @@ export default function Dashboard() {
                                               activeListMenuMsgId === msg.id ? null : msg.id
                                             );
                                           }}
-                                          className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 text-emerald-600 border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer"
+                                          className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${
+                                            activeConv?.platform === "instagram" ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500"
+                                          } border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer`}
                                         >
                                           <span className="flex items-center gap-1.5">
-                                            <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                                            <FileText className={`h-3.5 w-3.5 ${
+                                              activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-500"
+                                            }`} />
                                             {listButtonText}
                                           </span>
                                           <span className="text-[10px] text-slate-400 font-normal">Select</span>
@@ -1581,7 +1590,9 @@ export default function Dashboard() {
                                                     setShowSimulator(true);
                                                     setActiveListMenuMsgId(null);
                                                   }}
-                                                  className="w-full text-left bg-slate-900 hover:bg-slate-850 text-slate-200 text-xs py-2 px-3 rounded-lg border border-slate-800/60 hover:border-emerald-500/50 transition-all duration-150 flex items-center justify-between cursor-pointer"
+                                                  className={`w-full text-left bg-slate-900 hover:bg-slate-850 text-slate-200 text-xs py-2 px-3 rounded-lg border border-slate-800/60 ${
+                                                    activeConv?.platform === "instagram" ? "hover:border-pink-500/50" : "hover:border-emerald-500/50"
+                                                  } transition-all duration-150 flex items-center justify-between cursor-pointer`}
                                                 >
                                                   <span className="truncate pr-2">{rowText}</span>
                                                   <ChevronRight className="h-3.5 w-3.5 text-slate-500 shrink-0" />
@@ -1827,7 +1838,7 @@ export default function Dashboard() {
                 <button
                   onClick={saveFlow}
                   disabled={flowSaveStatus === "saving"}
-                  className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5"
+                  className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Save className="h-3.5 w-3.5" /> 
                   {flowSaveStatus === "saving" ? "Saving..." : flowSaveStatus === "success" ? "Saved!" : "Save Flow"}
@@ -2099,7 +2110,7 @@ export default function Dashboard() {
 
         {/* TAB 3: SETTINGS & ONBOARDING */}
         {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto p-8 w-full">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
               <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
                 <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
