@@ -26,8 +26,11 @@ import {
   CornerUpLeft,
   Video,
   Headphones,
-  ArrowLeft
+  ArrowLeft,
+  Star,
+  RefreshCw
 } from "lucide-react";
+import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 import ReactFlow, { 
   MiniMap, 
@@ -331,6 +334,29 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("chats_whatsapp");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab === "chats_whatsapp" || tab === "chats_instagram" || tab === "flows" || tab === "settings") {
+        setActiveTab(tab as any);
+      }
+
+      const oauth = params.get("oauth");
+      if (oauth === "success") {
+        setSettingsSubTab("google");
+        setGoogleOauthStatus("success");
+        setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
+      } else if (oauth === "error") {
+        setSettingsSubTab("google");
+        setGoogleOauthStatus("error");
+        setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
+      }
+    }
+  }, []);
   
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -350,7 +376,23 @@ export default function Dashboard() {
   });
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
-  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram">("whatsapp");
+  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google">("whatsapp");
+
+  // Google GMB Config
+  const [googleConfig, setGoogleConfig] = useState({
+    locationName: "",
+    googlePlaceId: "",
+    googleReviewUrl: "",
+    googleLocationId: "",
+    googleClientId: "",
+    googleClientSecret: "",
+    googleRefreshToken: "",
+    autoReplyEnabled: false,
+    autoReplyMinRating: 4,
+    autoReplyTemplate: "",
+  });
+  const [googleSaveStatus, setGoogleSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [googleOauthStatus, setGoogleOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -764,6 +806,7 @@ export default function Dashboard() {
     fetchConversations();
     fetchConfig();
     fetchInstagramConfig();
+    fetchGoogleConfig();
     fetchActiveFlow("whatsapp");
 
     return () => {
@@ -892,6 +935,50 @@ export default function Dashboard() {
       }
     } catch (err) {
       setIgSaveStatus("error");
+    }
+  };
+
+  const fetchGoogleConfig = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGoogleConfig(data);
+      }
+    } catch (err) {
+      console.error("Error fetching Google GMB config:", err);
+    }
+  };
+
+  const saveGoogleConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGoogleSaveStatus("saving");
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({ orgId: DEFAULT_ORG_ID, ...googleConfig })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGoogleConfig(data);
+        setGoogleSaveStatus("success");
+        setTimeout(() => setGoogleSaveStatus("idle"), 3000);
+      } else {
+        setGoogleSaveStatus("error");
+      }
+    } catch (err) {
+      setGoogleSaveStatus("error");
+    }
+  };
+
+  const handleGoogleOAuthConnect = () => {
+    setGoogleOauthStatus("connecting");
+    if (typeof window !== "undefined") {
+      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${DEFAULT_ORG_ID}`;
     }
   };
 
@@ -1113,6 +1200,14 @@ export default function Dashboard() {
             <GitMerge className="h-5 w-5" />
             <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Flows</span>
           </button>
+
+          <Link 
+            href="/reviews"
+            className="p-3 rounded-xl transition-all duration-200 relative group text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
+          >
+            <Star className="h-5 w-5" />
+            <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Google Reviews</span>
+          </Link>
         </div>
 
         <button 
@@ -1162,6 +1257,13 @@ export default function Dashboard() {
           <Settings className="h-5 w-5" />
           <span className="text-[9px] font-semibold tracking-wide">Settings</span>
         </button>
+        <Link
+          href="/reviews"
+          className="flex flex-col items-center gap-0.5 py-3 px-4 flex-1 transition-all text-slate-500 hover:text-slate-200"
+        >
+          <Star className="h-5 w-5" />
+          <span className="text-[9px] font-semibold tracking-wide">Reviews</span>
+        </Link>
       </nav>
 
       {/* 2. MAIN CONTENT BODY */}
@@ -2130,7 +2232,7 @@ export default function Dashboard() {
               </h2>
               
               {/* Secondary sub-tabs selector */}
-              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start sm:self-auto shadow-inner">
+              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start sm:self-auto shadow-inner gap-1">
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("whatsapp")}
@@ -2144,6 +2246,13 @@ export default function Dashboard() {
                   className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-pink-500 text-white shadow-md shadow-pink-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
                 >
                   <Instagram className="h-3.5 w-3.5" /> Instagram Setup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("google")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-primary text-slate-950 shadow-md shadow-primary/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  <Star className="h-3.5 w-3.5 text-slate-950" /> Google Setup
                 </button>
               </div>
             </div>
@@ -2238,7 +2347,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </>
-                ) : (
+                ) : settingsSubTab === "instagram" ? (
                   <>
                     {/* Instagram Credentials Form */}
                     <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
@@ -2325,6 +2434,114 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </>
+                ) : (
+                  <>
+                    {/* Google GMB Credentials Form */}
+                    <form onSubmit={saveGoogleConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <Star className="h-4.5 w-4.5 text-primary" /> Google Business Configuration
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">Location / Business Name</label>
+                          <input
+                            type="text"
+                            value={googleConfig.locationName}
+                            onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
+                            placeholder="e.g. Jisnu Digitals Pune"
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">Google Place ID (Link redirection)</label>
+                          <input
+                            type="text"
+                            value={googleConfig.googlePlaceId}
+                            onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
+                            placeholder="e.g. ChIJK7R7jG-5wjsR..."
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">Live Google Business Review Redirect URL</label>
+                        <input
+                          type="text"
+                          value={googleConfig.googleReviewUrl}
+                          onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
+                          placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
+                        <input
+                          type="text"
+                          value={googleConfig.googleLocationId}
+                          onChange={(e) => setGoogleConfig({ ...googleConfig, googleLocationId: e.target.value })}
+                          placeholder="e.g. locations/1048273892019"
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <button
+                          type="submit"
+                          disabled={googleSaveStatus === "saving"}
+                          className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                        >
+                          <Save className="h-4 w-4" />
+                          {googleSaveStatus === "saving" ? "Saving..." : googleSaveStatus === "success" ? "Saved Config Successfully!" : "Save Google Configurations"}
+                        </button>
+                        {googleSaveStatus === "error" && (
+                          <span className="text-xs text-red-400 font-medium">Failed to save Google config.</span>
+                        )}
+                      </div>
+                    </form>
+
+                    {/* Google OAuth Live Connection Panel */}
+                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <Database className="h-4.5 w-4.5 text-primary" /> Google Business Profile Authorization
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Connect your live Google Business Profile account so the system can automatically monitor reviews and post automated replies on your behalf.
+                      </p>
+
+                      <div className="flex items-center gap-3.5 bg-slate-900/50 border border-slate-850 p-4 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={handleGoogleOAuthConnect}
+                          disabled={googleOauthStatus === "connecting"}
+                          className="bg-primary hover:bg-secondary text-slate-950 font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-4.5 w-4.5 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
+                          {googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect Google Account"}
+                        </button>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-slate-200">
+                            {googleConfig.googleRefreshToken ? "Status: CONNECTED" : "Google Login (OAuth)"}
+                          </span>
+                          <span className="text-[10px] text-slate-500 leading-normal">
+                            {googleConfig.googleRefreshToken 
+                              ? "Your Google Business account token is active. Ready to manage reviews."
+                              : "Click to authorize GMB review API access via Google's secure portal."}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {googleOauthStatus === "success" && (
+                        <span className="text-xs text-emerald-400 font-medium block animate-fadeIn">Google profile connected successfully!</span>
+                      )}
+                      {googleOauthStatus === "error" && (
+                        <span className="text-xs text-red-400 font-medium block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -2353,7 +2570,7 @@ export default function Dashboard() {
                         Register the unique WhatsApp Callback URL and Verify Token in your Meta Dashboard.
                       </li>
                     </ul>
-                  ) : (
+                  ) : settingsSubTab === "instagram" ? (
                     <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-pink-500 marker:font-bold animate-fadeIn">
                       <li>
                         Create a Meta Developer app under your Meta developer account.
@@ -2369,6 +2586,21 @@ export default function Dashboard() {
                       </li>
                       <li>
                         Register the unique Instagram Callback URL and Verify Token in your Meta Dashboard under Webhook settings.
+                      </li>
+                    </ul>
+                  ) : (
+                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
+                      <li>
+                        Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
+                      </li>
+                      <li>
+                        Input the Live Google Review URL so positive review selections can easily redirect consumers to the listing page.
+                      </li>
+                      <li>
+                        Obtain the <strong>Location ID</strong> directly from your GMB profile parameters.
+                      </li>
+                      <li>
+                        Click the <strong>Connect Google Account</strong> button and follow instructions on the screen to authenticate.
                       </li>
                     </ul>
                   )}

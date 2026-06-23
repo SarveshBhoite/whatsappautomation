@@ -14,8 +14,10 @@ model Organization {
   users         User[]
   waConfig      WhatsAppConfig?
   igConfig      InstagramConfig?
+  gmbConfig     GoogleBusinessConfig?
   flows         Flow[]
   conversations Conversation[]
+  googleReviews GoogleReview[]
 }
 
 model User {
@@ -93,5 +95,38 @@ model Message {
   quotedMessageId String?
   quotedMessage   Message?    @relation("MessageReplies", fields: [quotedMessageId], references: [id])
   replies         Message[]   @relation("MessageReplies")
+}
+
+model GoogleBusinessConfig {
+  id                    String       @id @default(uuid())
+  organizationId        String       @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  locationName          String?      
+  googlePlaceId         String?      
+  googleReviewUrl       String?      
+  googleLocationId      String?      
+  googleClientId        String?      
+  googleClientSecret    String?      
+  googleRefreshToken    String?      
+  autoReplyEnabled      Boolean      @default(false)
+  autoReplyMinRating    Int          @default(4)
+  autoReplyTemplate     String?      
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model GoogleReview {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  customerName   String
+  rating         Int
+  comment        String?
+  status         String       @default("PENDING") // PENDING, APPROVED, DECLINED
+  replyText      String?
+  replyStatus    String       @default("UNREPLIED") // UNREPLIED, REPLIED
+  source         String       @default("FUNNEL") // FUNNEL, GOOGLE
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
