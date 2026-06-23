@@ -402,13 +402,6 @@ export default function ReviewsDashboard() {
             <Star className="h-5 w-5 text-primary" />
             <h1 className="text-base font-bold text-slate-100">GMB Review Automation & Protection</h1>
           </div>
-          
-          <button
-            onClick={triggerMockReview}
-            className="hidden sm:flex bg-slate-850 hover:bg-slate-800 border border-slate-800 text-[10px] text-primary font-bold px-3 py-1.5 rounded-lg items-center gap-1.5 transition-all cursor-pointer shadow-md"
-          >
-            <RefreshCw className="h-3 w-3 animate-spin-slow" /> Simulate Direct GMB Review
-          </button>
         </header>
 
         {/* Dashboard Panels Scroll Area */}

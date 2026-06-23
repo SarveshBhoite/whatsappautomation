@@ -67,11 +67,20 @@ export default function PublicReviewSubmit() {
         setRedirectUrl(data.redirect);
         setSubmitted(true);
         
+        // Auto-copy text to clipboard for easy pasting on Google Maps
+        if (data.redirect && comment && comment.trim()) {
+          try {
+            await navigator.clipboard.writeText(comment);
+          } catch (clipErr) {
+            console.warn("Could not copy review text to clipboard:", clipErr);
+          }
+        }
+        
         // Auto-redirect if it is a positive review and redirect URL is present
         if (data.redirect) {
           setTimeout(() => {
             window.location.href = data.redirect;
-          }, 2000);
+          }, 3500); // 3.5 seconds to let them read the clipboard message
         }
       }
     } catch (err) {
@@ -197,6 +206,11 @@ export default function PublicReviewSubmit() {
             {redirectUrl ? (
               <div className="w-full border border-slate-800 bg-slate-950/30 p-5 rounded-2xl space-y-3.5 mt-2 shadow-inner">
                 <span className="text-[10px] uppercase text-primary font-bold tracking-wider block">Support us on Google</span>
+                {comment && comment.trim() && (
+                  <p className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/5 border border-emerald-500/10 p-2.5 rounded-xl text-center leading-normal">
+                    ✓ Your review text has been copied to your clipboard! Just paste it (Ctrl+V / Long Tap) when the Google page opens.
+                  </p>
+                )}
                 <p className="text-[11px] text-slate-500 leading-normal">
                   We are redirecting you to our Google Business listing review page so you can share your rating with everyone! If it doesn't open automatically, click below.
                 </p>

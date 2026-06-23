@@ -255,9 +255,12 @@ async function executeAutoReplyIfApplicable(review: any, config: any) {
   }
 
   try {
+    const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
     // If we have live credentials, try to submit it to Google
-    if (config.googleClientId && config.googleClientSecret && config.googleRefreshToken && config.googleLocationId && config.googleLocationId !== "mock_loc_123456") {
-      const token = await getGoogleAccessToken(config.googleClientId, config.googleClientSecret, config.googleRefreshToken);
+    if (clientId && clientSecret && config.googleRefreshToken && config.googleLocationId && config.googleLocationId !== "mock_loc_123456") {
+      const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
       
       // Call Google My Business / Business Profile API to reply to review
       const replyUrl = `https://mybusiness.googleapis.com/v4/accounts/${config.googleLocationId.split('/')[0] || 'accounts'}/${config.googleLocationId}/reviews/${review.id}/reply`;
@@ -390,9 +393,12 @@ router.post("/reviews/reply", async (req, res) => {
       where: { organizationId: orgId }
     });
 
+    const clientId = config?.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
     // If live credentials exist, write reply to Google GBP API
-    if (config && config.googleClientId && config.googleClientSecret && config.googleRefreshToken && config.googleLocationId && config.googleLocationId !== "mock_loc_123456") {
-      const token = await getGoogleAccessToken(config.googleClientId, config.googleClientSecret, config.googleRefreshToken);
+    if (config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId && config.googleLocationId !== "mock_loc_123456") {
+      const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
       
       const replyUrl = `https://mybusiness.googleapis.com/v4/accounts/${config.googleLocationId.split('/')[0] || 'accounts'}/${config.googleLocationId}/reviews/${reviewId}/reply`;
       await axios.put(replyUrl, {
