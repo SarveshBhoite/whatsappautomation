@@ -2447,7 +2447,7 @@ export default function Dashboard() {
                           <label className="text-xs text-slate-400 font-semibold">Location / Business Name</label>
                           <input
                             type="text"
-                            value={googleConfig.locationName}
+                            value={googleConfig.locationName || ""}
                             onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
                             placeholder="e.g. Jisnu Digitals Pune"
                             className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
@@ -2458,7 +2458,7 @@ export default function Dashboard() {
                           <label className="text-xs text-slate-400 font-semibold">Google Place ID (Link redirection)</label>
                           <input
                             type="text"
-                            value={googleConfig.googlePlaceId}
+                            value={googleConfig.googlePlaceId || ""}
                             onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
                             placeholder="e.g. ChIJK7R7jG-5wjsR..."
                             className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
@@ -2470,7 +2470,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-400 font-semibold">Live Google Business Review Redirect URL</label>
                         <input
                           type="text"
-                          value={googleConfig.googleReviewUrl}
+                          value={googleConfig.googleReviewUrl || ""}
                           onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
                           placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
@@ -2481,7 +2481,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
                         <input
                           type="text"
-                          value={googleConfig.googleLocationId}
+                          value={googleConfig.googleLocationId || ""}
                           onChange={(e) => setGoogleConfig({ ...googleConfig, googleLocationId: e.target.value })}
                           placeholder="e.g. locations/1048273892019"
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
