@@ -393,6 +393,8 @@ export default function Dashboard() {
   });
   const [googleSaveStatus, setGoogleSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [googleOauthStatus, setGoogleOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
+  const [formGoogleAccountId, setFormGoogleAccountId] = useState("");
+  const [formGoogleLocationId, setFormGoogleLocationId] = useState("");
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -944,6 +946,17 @@ export default function Dashboard() {
       if (res.ok) {
         const data = await res.json();
         setGoogleConfig(data);
+
+        // Parse Google location path into split fields
+        let accountId = "";
+        let locationId = data.googleLocationId || "";
+        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
+          const parts = locationId.split("/");
+          accountId = parts[1] || "";
+          locationId = parts[3] || "";
+        }
+        setFormGoogleAccountId(accountId);
+        setFormGoogleLocationId(locationId);
       }
     } catch (err) {
       console.error("Error fetching Google GMB config:", err);
@@ -954,17 +967,37 @@ export default function Dashboard() {
     e.preventDefault();
     setGoogleSaveStatus("saving");
     try {
+      // Build location path string
+      const finalLocationId = formGoogleAccountId.trim()
+        ? `accounts/${formGoogleAccountId.trim()}/locations/${formGoogleLocationId.trim()}`
+        : formGoogleLocationId.trim();
+
       const res = await fetch(`${BACKEND_URL}/api/gmb/config`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-organization-id": DEFAULT_ORG_ID
         },
-        body: JSON.stringify({ orgId: DEFAULT_ORG_ID, ...googleConfig })
+        body: JSON.stringify({ 
+          orgId: DEFAULT_ORG_ID, 
+          ...googleConfig,
+          googleLocationId: finalLocationId
+        })
       });
       if (res.ok) {
         const data = await res.json();
         setGoogleConfig(data);
+
+        let accountId = "";
+        let locationId = data.googleLocationId || "";
+        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
+          const parts = locationId.split("/");
+          accountId = parts[1] || "";
+          locationId = parts[3] || "";
+        }
+        setFormGoogleAccountId(accountId);
+        setFormGoogleLocationId(locationId);
+
         setGoogleSaveStatus("success");
         setTimeout(() => setGoogleSaveStatus("idle"), 3000);
       } else {
@@ -2477,15 +2510,28 @@ export default function Dashboard() {
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
-                        <input
-                          type="text"
-                          value={googleConfig.googleLocationId || ""}
-                          onChange={(e) => setGoogleConfig({ ...googleConfig, googleLocationId: e.target.value })}
-                          placeholder="e.g. locations/1048273892019"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">Google Business Account ID (Optional)</label>
+                          <input
+                            type="text"
+                            value={formGoogleAccountId}
+                            onChange={(e) => setFormGoogleAccountId(e.target.value)}
+                            placeholder="e.g. 1048273892019"
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
+                          <input
+                            type="text"
+                            value={formGoogleLocationId}
+                            onChange={(e) => setFormGoogleLocationId(e.target.value)}
+                            placeholder="e.g. 15154699825689004204"
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                          />
+                        </div>
                       </div>
 
                       <div className="pt-2 flex items-center justify-between">

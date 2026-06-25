@@ -112,6 +112,33 @@ export default function ReviewsDashboard() {
   const publicFunnelUrl = `${FRONTEND_URL}/reviews/submit?org=${DEFAULT_ORG_ID}`;
   const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicFunnelUrl)}`;
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const handleSyncReviews = async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/sync?orgId=${DEFAULT_ORG_ID}`);
+      const data = await res.json();
+      if (res.ok) {
+        setSyncMessage({ text: data.message || "Google reviews synced successfully!", isError: false });
+        if (data.reviews) {
+          setReviews(data.reviews);
+        } else {
+          fetchData();
+        }
+      } else {
+        setSyncMessage({ text: data.error || "Failed to sync Google reviews.", isError: true });
+      }
+    } catch (err: any) {
+      setSyncMessage({ text: err.message || "Failed to connect to backend server.", isError: true });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMessage(null), 5000);
+    }
+  };
+
   // Fetch initial config and reviews
   const fetchData = async () => {
     try {
@@ -182,23 +209,7 @@ export default function ReviewsDashboard() {
     }
   };
 
-  // Mock OAuth connection flow
-  const handleOAuthConnect = async () => {
-    setOauthStatus("connecting");
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/oauth/mock-connect?orgId=${DEFAULT_ORG_ID}`);
-      if (res.ok) {
-        const data = await res.json();
-        setConfig(data);
-        setOauthStatus("success");
-        setTimeout(() => setOauthStatus("idle"), 2500);
-      } else {
-        setOauthStatus("error");
-      }
-    } catch (err) {
-      setOauthStatus("error");
-    }
-  };
+
 
   // Moderate Review (Approve or Decline)
   const handleReviewAction = async (reviewId: string, action: "approve" | "decline") => {
@@ -262,35 +273,7 @@ export default function ReviewsDashboard() {
     }
   };
 
-  // Trigger Fake Google Webhook Direct Review
-  const triggerMockReview = async () => {
-    try {
-      const names = ["Aarav Sharma", "Pooja Patel", "Rohan Mehta", "Sneha Rao", "Kabir Sen"];
-      const comments = [
-        "Incredible service! The team was super professional and delivered on time.",
-        "Really loved working with them. Highly recommended for marketing needs.",
-        "Very nice experience, helpful support staff.",
-        "Great quality of work. Will definitely connect again.",
-        "Super response time and premium results."
-      ];
-      const randomName = names[Math.floor(Math.random() * names.length)];
-      const randomComment = comments[Math.floor(Math.random() * comments.length)];
-      const randomRating = Math.floor(Math.random() * 2) + 4; // 4 or 5 stars
 
-      await fetch(`${BACKEND_URL}/api/gmb/reviews/mock-webhook`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: randomName,
-          rating: randomRating,
-          comment: randomComment,
-          orgId: DEFAULT_ORG_ID
-        }),
-      });
-    } catch (err) {
-      console.error("Mock webhook failed:", err);
-    }
-  };
 
   // Filter reviews locally
   const filteredReviews = reviews.filter((r) => {
@@ -402,10 +385,30 @@ export default function ReviewsDashboard() {
             <Star className="h-5 w-5 text-primary" />
             <h1 className="text-base font-bold text-slate-100">GMB Review Automation & Protection</h1>
           </div>
+          <button
+            onClick={handleSyncReviews}
+            disabled={syncing}
+            className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md cursor-pointer animate-fadeIn"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing..." : "Sync Live Reviews"}
+          </button>
         </header>
 
         {/* Dashboard Panels Scroll Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8 w-full max-w-full">
+
+          {/* Sync Status Banner */}
+          {syncMessage && (
+            <div className={`p-4 rounded-xl border flex items-center gap-2 text-xs font-semibold animate-fadeIn ${
+              syncMessage.isError 
+                ? "bg-red-500/10 border-red-500/20 text-red-400" 
+                : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+            }`}>
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>{syncMessage.text}</span>
+            </div>
+          )}
 
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

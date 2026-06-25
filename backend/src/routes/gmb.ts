@@ -21,6 +21,49 @@ async function getGoogleAccessToken(clientId: string, clientSecret: string, refr
     throw new Error("Failed to authenticate with Google APIs");
   }
 }
+// Helper to resolve the correct GMB location path (accounts/{accountId}/locations/{locationId})
+async function getGmbLocationPath(accessToken: string, locationIdInput: string): Promise<string> {
+  const cleanLoc = (locationIdInput || "").trim();
+  
+  // If it's already a full path (e.g. accounts/X/locations/Y), use it directly
+  if (cleanLoc.startsWith("accounts/") && cleanLoc.includes("/locations/")) {
+    return cleanLoc;
+  }
+  
+  // Extract clean numeric ID
+  const locId = cleanLoc.replace("locations/", "");
+  
+  // Try to query GMB accounts using Google's API to construct the path
+  try {
+    const accountsRes = await axios.get("https://mybusinessaccountmanagement.googleapis.com/v1/accounts", {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const accounts = accountsRes.data.accounts || [];
+    if (accounts.length > 0) {
+      const accountId = accounts[0].name.split("/")[1]; // accounts/{accountId}
+      return `accounts/${accountId}/locations/${locId}`;
+    }
+  } catch (err: any) {
+    console.warn("getGmbLocationPath failed to auto-discover GMB Account ID:", err?.response?.data || err.message);
+  }
+  
+  // If no account ID can be resolved, log warning and use location ID only as fallback
+  console.warn("Unable to resolve full GMB location path. Using raw location ID as fallback.");
+  return `accounts/accounts/locations/${locId}`;
+}
+
+// Helper to map starRating string from Google to number
+function mapStarRatingToNumber(rating: any): number {
+  if (typeof rating === "number") return rating;
+  if (!rating) return 5;
+  const str = String(rating).toUpperCase();
+  if (str.includes("FIVE") || str === "5") return 5;
+  if (str.includes("FOUR") || str === "4") return 4;
+  if (str.includes("THREE") || str === "3") return 3;
+  if (str.includes("TWO") || str === "2") return 2;
+  if (str.includes("ONE") || str === "1") return 1;
+  return 5;
+}
 
 // 1. GET GMB Configuration
 router.get("/config", async (req, res) => {
@@ -154,8 +197,8 @@ router.get("/oauth/callback", async (req, res) => {
 
     const { refresh_token, access_token } = tokenRes.data;
 
-    let locationName = "Jisnu Digitals Pune (Connected)";
-    let googleLocationId = "mock_loc_123456";
+    let locationName = "";
+    let googleLocationId = "";
 
     // Attempt to automatically discover locations using the obtained access token
     try {
@@ -183,12 +226,12 @@ router.get("/oauth/callback", async (req, res) => {
       where: { organizationId: orgId },
       update: {
         googleRefreshToken: refresh_token || undefined,
-        locationName,
-        googleLocationId
+        locationName: locationName || undefined,
+        googleLocationId: googleLocationId || undefined
       },
       create: {
         organizationId: orgId,
-        googleRefreshToken: refresh_token || "mock_refresh_token_fallback",
+        googleRefreshToken: refresh_token || "",
         locationName,
         googleLocationId,
         autoReplyEnabled: true,
@@ -201,36 +244,6 @@ router.get("/oauth/callback", async (req, res) => {
   } catch (error: any) {
     console.error("OAuth Token Exchange Error:", error?.response?.data || error.message);
     res.redirect("http://localhost:3000/?tab=settings&oauth=error");
-  }
-});
-
-// Mock OAuth connect connector (Kept as fallback or simulation)
-router.get("/oauth/mock-connect", async (req, res) => {
-  try {
-    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
-    
-    // Simulate updating config with mock OAuth details
-    const config = await prisma.googleBusinessConfig.upsert({
-      where: { organizationId: orgId },
-      update: {
-        googleLocationId: "mock_loc_123456",
-        googleRefreshToken: "mock_refresh_token_xyz987654321",
-        locationName: "Jisnu Digitals Pune (Connected)"
-      },
-      create: {
-        organizationId: orgId,
-        locationName: "Jisnu Digitals Pune (Connected)",
-        googleLocationId: "mock_loc_123456",
-        googleRefreshToken: "mock_refresh_token_xyz987654321",
-        autoReplyEnabled: true,
-        autoReplyMinRating: 4,
-        autoReplyTemplate: "Thank you so much for your rating! We're glad you liked our service."
-      }
-    });
-
-    res.status(200).json(config);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
   }
 });
 
@@ -248,6 +261,108 @@ router.get("/reviews", async (req, res) => {
   }
 });
 
+// 3.1 GET Sync Live GMB Reviews
+router.get("/reviews/sync", async (req, res) => {
+  try {
+    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    
+    // Fetch Google configurations
+    const config = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: orgId }
+    });
+
+    if (!config) {
+      return res.status(404).json({ error: "Google Business Configuration not found." });
+    }
+
+    const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
+      return res.status(400).json({ error: "Google Business account is not authorized or Location ID is not configured." });
+    }
+
+    // Refresh token to get latest access token
+    const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+
+    // Get the location resource path
+    const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+
+    // Call GMB API to fetch reviews
+    const reviewsUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/reviews`;
+    console.log(`[SYNC REVIEWS] Fetching from Google Business API: ${reviewsUrl}`);
+
+    const response = await axios.get(reviewsUrl, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const gmbReviews = response.data.reviews || [];
+    console.log(`[SYNC REVIEWS] Found ${gmbReviews.length} reviews from Google.`);
+
+    let syncedCount = 0;
+
+    for (const gmbReview of gmbReviews) {
+      // Find existing review in database using Google's reviewId
+      const existingReview = await prisma.googleReview.findUnique({
+        where: { id: gmbReview.reviewId }
+      });
+
+      if (!existingReview) {
+        // Create new Google review record
+        const newReview = await prisma.googleReview.create({
+          data: {
+            id: gmbReview.reviewId,
+            organizationId: orgId,
+            customerName: gmbReview.reviewer?.displayName || "Google Maps Reviewer",
+            rating: mapStarRatingToNumber(gmbReview.starRating),
+            comment: gmbReview.comment || "",
+            status: "APPROVED", // Direct GMB reviews are auto-approved
+            source: "GOOGLE",
+            replyText: gmbReview.reviewReply?.comment || null,
+            replyStatus: gmbReview.reviewReply?.comment ? "REPLIED" : "UNREPLIED",
+            createdAt: gmbReview.createTime ? new Date(gmbReview.createTime) : new Date(),
+          }
+        });
+
+        syncedCount++;
+
+        // Trigger auto-reply if applicable and review is unreplied
+        if (!gmbReview.reviewReply?.comment) {
+          await executeAutoReplyIfApplicable(newReview, config);
+        }
+      } else {
+        // If it exists, update reply status if it changed on Google
+        await prisma.googleReview.update({
+          where: { id: gmbReview.reviewId },
+          data: {
+            replyText: gmbReview.reviewReply?.comment || existingReview.replyText,
+            replyStatus: gmbReview.reviewReply?.comment ? "REPLIED" : existingReview.replyStatus,
+          }
+        });
+      }
+    }
+
+    // Retrieve full updated list
+    const updatedReviews = await prisma.googleReview.findMany({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: "desc" }
+    });
+
+    // Notify clients via socket
+    io.to(orgId).emit("reviews-synced", updatedReviews);
+
+    res.status(200).json({
+      message: `Successfully synchronized reviews. Added ${syncedCount} new reviews.`,
+      reviews: updatedReviews
+    });
+
+  } catch (error: any) {
+    console.error("GMB Reviews Sync failed:", error?.response?.data || error.message);
+    const apiErrorMessage = error?.response?.data?.error?.message || error.message;
+    res.status(error?.response?.status || 500).json({ error: apiErrorMessage });
+  }
+});
+
 // Helper function to handle auto-replies
 async function executeAutoReplyIfApplicable(review: any, config: any) {
   if (!config.autoReplyEnabled || review.rating < config.autoReplyMinRating || !config.autoReplyTemplate) {
@@ -258,12 +373,15 @@ async function executeAutoReplyIfApplicable(review: any, config: any) {
     const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
     const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
 
-    // If we have live credentials, try to submit it to Google
-    if (clientId && clientSecret && config.googleRefreshToken && config.googleLocationId && config.googleLocationId !== "mock_loc_123456") {
+    // If we have live credentials, try to submit it to Google (only for real Google reviews)
+    if (review.source === "GOOGLE" && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
       const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
       
+      // Get the verified location path
+      const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+      
       // Call Google My Business / Business Profile API to reply to review
-      const replyUrl = `https://mybusiness.googleapis.com/v4/accounts/${config.googleLocationId.split('/')[0] || 'accounts'}/${config.googleLocationId}/reviews/${review.id}/reply`;
+      const replyUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/reviews/${review.id}/reply`;
       await axios.put(replyUrl, {
         comment: config.autoReplyTemplate
       }, {
@@ -272,7 +390,7 @@ async function executeAutoReplyIfApplicable(review: any, config: any) {
       
       console.log(`[LIVE GMB AUTO-REPLY] Submitted to Google for Review ID ${review.id}`);
     } else {
-      console.log(`[MOCK GMB AUTO-REPLY] Template: "${config.autoReplyTemplate}" to ${review.customerName}`);
+      console.log(`[LOCAL AUTO-REPLY] Saved locally for ${review.source} review ID ${review.id}`);
     }
 
     // Save reply to local DB
@@ -284,7 +402,7 @@ async function executeAutoReplyIfApplicable(review: any, config: any) {
       }
     });
   } catch (error: any) {
-    console.error("Auto reply failed:", error.message);
+    console.error("Auto reply failed:", error?.response?.data || error.message);
     await prisma.googleReview.update({
       where: { id: review.id },
       data: {
@@ -389,6 +507,14 @@ router.post("/reviews/reply", async (req, res) => {
       return res.status(400).json({ error: "Review ID and Reply Text are required" });
     }
 
+    const review = await prisma.googleReview.findUnique({
+      where: { id: reviewId }
+    });
+
+    if (!review) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
     const config = await prisma.googleBusinessConfig.findUnique({
       where: { organizationId: orgId }
     });
@@ -396,11 +522,14 @@ router.post("/reviews/reply", async (req, res) => {
     const clientId = config?.googleClientId || process.env.GOOGLE_CLIENT_ID;
     const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
 
-    // If live credentials exist, write reply to Google GBP API
-    if (config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId && config.googleLocationId !== "mock_loc_123456") {
+    // If live credentials exist and it's a real Google review, write reply to Google GBP API
+    if (review.source === "GOOGLE" && config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
       const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
       
-      const replyUrl = `https://mybusiness.googleapis.com/v4/accounts/${config.googleLocationId.split('/')[0] || 'accounts'}/${config.googleLocationId}/reviews/${reviewId}/reply`;
+      // Get the verified location path
+      const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+      
+      const replyUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/reviews/${reviewId}/reply`;
       await axios.put(replyUrl, {
         comment: replyText
       }, {
@@ -409,10 +538,10 @@ router.post("/reviews/reply", async (req, res) => {
 
       console.log(`[LIVE GMB REPLY] Replied review ID ${reviewId}`);
     } else {
-      console.log(`[MOCK GMB REPLY] Reply: "${replyText}" for review ID ${reviewId}`);
+      console.log(`[LOCAL REPLY] Saved reply locally for review ID ${reviewId} (Source: ${review.source})`);
     }
 
-    const review = await prisma.googleReview.update({
+    const updatedReview = await prisma.googleReview.update({
       where: { id: reviewId },
       data: {
         replyText,
@@ -420,48 +549,11 @@ router.post("/reviews/reply", async (req, res) => {
       }
     });
 
-    io.to(orgId).emit("review-updated", review);
+    io.to(orgId).emit("review-updated", updatedReview);
 
-    res.status(200).json(review);
+    res.status(200).json(updatedReview);
   } catch (error: any) {
     console.error("Failed to reply to review:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 7. POST Mock Webhook Trigger (Simulate Google GBP Direct Review Webhook Event)
-router.post("/reviews/mock-webhook", async (req, res) => {
-  try {
-    const { orgId = DEFAULT_ORG_ID, customerName = "Google Maps Reviewer", rating = 5, comment = "Excellent local shop!" } = req.body;
-
-    // Direct reviews left on Google are always APPROVED immediately
-    const review = await prisma.googleReview.create({
-      data: {
-        organizationId: orgId,
-        customerName,
-        rating: Number(rating),
-        comment,
-        status: "APPROVED",
-        source: "GOOGLE" // Mock direct review source
-      }
-    });
-
-    const config = await prisma.googleBusinessConfig.findUnique({
-      where: { organizationId: orgId }
-    });
-
-    if (config) {
-      await executeAutoReplyIfApplicable(review, config);
-    }
-
-    const updatedReview = await prisma.googleReview.findUnique({ where: { id: review.id } });
-    io.to(orgId).emit("new-review", updatedReview || review);
-
-    res.status(200).json({
-      message: "Webhook event simulated successfully",
-      review: updatedReview || review
-    });
-  } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
