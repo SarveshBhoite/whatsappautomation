@@ -197,28 +197,38 @@ router.get("/oauth/callback", async (req, res) => {
 
     const { refresh_token, access_token } = tokenRes.data;
 
-    let locationName = "";
-    let googleLocationId = "";
+    // Fetch existing configuration if any, to avoid overwriting manually entered IDs
+    const existingConfig = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: orgId }
+    });
 
-    // Attempt to automatically discover locations using the obtained access token
-    try {
-      const accountsRes = await axios.get("https://mybusinessaccountmanagement.googleapis.com/v1/accounts", {
-        headers: { Authorization: `Bearer ${access_token}` }
-      });
-      const accounts = accountsRes.data.accounts || [];
-      if (accounts.length > 0) {
-        const accountName = accounts[0].name; // accounts/{accountId}
-        const locationsRes = await axios.get(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title`, {
+    let locationName = existingConfig?.locationName || "";
+    let googleLocationId = existingConfig?.googleLocationId || "";
+
+    // Attempt to automatically discover locations only if not already configured in DB
+    if (!googleLocationId) {
+      try {
+        const accountsRes = await axios.get("https://mybusinessaccountmanagement.googleapis.com/v1/accounts", {
           headers: { Authorization: `Bearer ${access_token}` }
         });
-        const locations = locationsRes.data.locations || [];
-        if (locations.length > 0) {
-          googleLocationId = locations[0].name; // accounts/{accountId}/locations/{locationId}
-          locationName = locations[0].title || locationName;
+        const accounts = accountsRes.data.accounts || [];
+        if (accounts.length > 0) {
+          const accountName = accounts[0].name; // accounts/{accountId}
+          const accountId = accountName.split("/")[1];
+          const locationsRes = await axios.get(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title`, {
+            headers: { Authorization: `Bearer ${access_token}` }
+          });
+          const locations = locationsRes.data.locations || [];
+          if (locations.length > 0) {
+            const rawLocName = locations[0].name; // could be locations/{locationId} or accounts/{accountId}/locations/{locationId}
+            const locId = rawLocName.includes("/") ? rawLocName.split("/").pop() : rawLocName;
+            googleLocationId = `accounts/${accountId}/locations/${locId}`;
+            locationName = locations[0].title || locationName;
+          }
         }
+      } catch (apiErr: any) {
+        console.warn("Could not automatically discover GMB Locations. Saving credentials only.", apiErr?.response?.data || apiErr.message);
       }
-    } catch (apiErr: any) {
-      console.warn("Could not automatically discover GMB Locations. Saving credentials only.", apiErr?.response?.data || apiErr.message);
     }
 
     // Update config in database

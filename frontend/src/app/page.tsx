@@ -954,6 +954,8 @@ export default function Dashboard() {
           const parts = locationId.split("/");
           accountId = parts[1] || "";
           locationId = parts[3] || "";
+        } else if (locationId.includes("locations/")) {
+          locationId = locationId.replace("locations/", "");
         }
         setFormGoogleAccountId(accountId);
         setFormGoogleLocationId(locationId);
@@ -967,10 +969,14 @@ export default function Dashboard() {
     e.preventDefault();
     setGoogleSaveStatus("saving");
     try {
+      // Clean inputs to remove any accidental prefixes
+      const cleanAccountId = formGoogleAccountId.replace("accounts/", "").trim();
+      const cleanLocationId = formGoogleLocationId.replace("locations/", "").trim();
+
       // Build location path string
-      const finalLocationId = formGoogleAccountId.trim()
-        ? `accounts/${formGoogleAccountId.trim()}/locations/${formGoogleLocationId.trim()}`
-        : formGoogleLocationId.trim();
+      const finalLocationId = cleanAccountId
+        ? `accounts/${cleanAccountId}/locations/${cleanLocationId}`
+        : cleanLocationId;
 
       const res = await fetch(`${BACKEND_URL}/api/gmb/config`, {
         method: "POST",
@@ -994,6 +1000,8 @@ export default function Dashboard() {
           const parts = locationId.split("/");
           accountId = parts[1] || "";
           locationId = parts[3] || "";
+        } else if (locationId.includes("locations/")) {
+          locationId = locationId.replace("locations/", "");
         }
         setFormGoogleAccountId(accountId);
         setFormGoogleLocationId(locationId);
