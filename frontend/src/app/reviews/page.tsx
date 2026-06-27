@@ -103,15 +103,14 @@ export default function ReviewsDashboard() {
   });
 
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [activeFilter, setActiveFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DECLINED">("ALL");
+  const [activeFilter, setActiveFilter] = useState<"ALL" | "GOOD" | "BAD">("ALL");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [oauthStatus, setOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
   const [replyTextMap, setReplyTextMap] = useState<{ [reviewId: string]: string }>({});
   const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null);
   
-  // Public funnel link
-  const publicFunnelUrl = `${FRONTEND_URL}/reviews/submit?org=${DEFAULT_ORG_ID}`;
-  const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicFunnelUrl)}`;
+  const [publicFunnelUrl, setPublicFunnelUrl] = useState("");
+  const [qrCodeImageUrl, setQrCodeImageUrl] = useState("");
 
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ text: string; isError: boolean } | null>(null);
@@ -162,6 +161,11 @@ export default function ReviewsDashboard() {
   };
 
   useEffect(() => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const url = `${origin}/reviews/submit?org=${DEFAULT_ORG_ID}`;
+    setPublicFunnelUrl(url);
+    setQrCodeImageUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`);
+
     fetchData();
 
     // Setup WebSockets for real-time review notifications
@@ -279,14 +283,27 @@ export default function ReviewsDashboard() {
   // Filter reviews locally
   const filteredReviews = reviews.filter((r) => {
     if (activeFilter === "ALL") return true;
-    return r.status === activeFilter;
+    if (activeFilter === "GOOD") return r.rating >= 3;
+    if (activeFilter === "BAD") return r.rating < 3;
+    return true;
   });
 
   const pendingCount = reviews.filter((r) => r.status === "PENDING").length;
   const approvedCount = reviews.filter((r) => r.status === "APPROVED").length;
-  const averageRating = reviews.length 
-    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1) 
+  
+  // Calculate average score and total count using only live Google reviews
+  const liveReviews = reviews.filter((r) => r.source === "GOOGLE");
+  const liveAverageRating = liveReviews.length 
+    ? (liveReviews.reduce((acc, r) => acc + r.rating, 0) / liveReviews.length).toFixed(1) 
     : "0.0";
+  const liveTotalReviews = liveReviews.length;
+
+  // Public approval rate is a metric of the feedback funnel performance (approved funnel feedbacks / total funnel feedbacks)
+  const funnelReviews = reviews.filter((r) => r.source === "FUNNEL");
+  const approvedFunnel = funnelReviews.filter((r) => r.status === "APPROVED").length;
+  const approvalRate = funnelReviews.length 
+    ? ((approvedFunnel / funnelReviews.length) * 100).toFixed(0) 
+    : "100";
 
   return (
     <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans">
@@ -431,22 +448,22 @@ export default function ReviewsDashboard() {
             <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
               <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Average Rating</span>
               <div className="flex items-baseline gap-1.5 mt-1.5">
-                <span className="text-3xl font-extrabold text-slate-100">{averageRating}</span>
+                <span className="text-3xl font-extrabold text-slate-100">{liveAverageRating}</span>
                 <div className="flex text-amber-500">
                   <Star className="h-3.5 w-3.5 fill-current" />
                 </div>
               </div>
-              <span className="text-[9px] text-slate-400 mt-1">Direct & Funnel reviews combined</span>
+              <span className="text-[9px] text-slate-400 mt-1">Live Google Business rating</span>
             </div>
 
             <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
               <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Total Reviews</span>
-              <span className="text-3xl font-extrabold text-slate-100 mt-1.5">{reviews.length}</span>
-              <span className="text-[9px] text-slate-400 mt-1">Reviews captured in system</span>
+              <span className="text-3xl font-extrabold text-slate-100 mt-1.5">{liveTotalReviews}</span>
+              <span className="text-[9px] text-slate-400 mt-1">Live reviews on business profile</span>
             </div>
 
             <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
-              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Pending Approvals</span>
+              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Pending Feedback</span>
               <div className="flex items-center justify-between mt-1.5">
                 <span className={`text-3xl font-extrabold ${pendingCount > 0 ? "text-amber-500" : "text-slate-100"}`}>
                   {pendingCount}
@@ -457,15 +474,15 @@ export default function ReviewsDashboard() {
                   </span>
                 )}
               </div>
-              <span className="text-[9px] text-slate-400 mt-1">Reviews rated &lt; 3 stars</span>
+              <span className="text-[9px] text-slate-400 mt-1">Internal negative feedback pending</span>
             </div>
 
             <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
-              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Public Approval Rate</span>
+              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Funnel Promotion Rate</span>
               <span className="text-3xl font-extrabold text-slate-100 mt-1.5">
-                {reviews.length ? ((approvedCount / reviews.length) * 100).toFixed(0) : "0"}%
+                {approvalRate}%
               </span>
-              <span className="text-[9px] text-slate-400 mt-1">Filtered ratio posted to maps</span>
+              <span className="text-[9px] text-slate-400 mt-1">Ratio of funnel submissions approved</span>
             </div>
           </div>
 
@@ -593,7 +610,7 @@ export default function ReviewsDashboard() {
 
               {/* local search and tabs */}
               <div className="flex border border-slate-800 bg-slate-950/60 p-0.5 rounded-xl shrink-0">
-                {(["ALL", "PENDING", "APPROVED", "DECLINED"] as const).map((filter) => (
+                {(["ALL", "GOOD", "BAD"] as const).map((filter) => (
                   <button
                     key={filter}
                     onClick={() => setActiveFilter(filter)}
@@ -604,9 +621,8 @@ export default function ReviewsDashboard() {
                     }`}
                   >
                     {filter === "ALL" && "All Reviews"}
-                    {filter === "PENDING" && `Moderation Queue (${pendingCount})`}
-                    {filter === "APPROVED" && "Approved"}
-                    {filter === "DECLINED" && "Declined"}
+                    {filter === "GOOD" && "Good Reviews (3★+)"}
+                    {filter === "BAD" && "Bad Reviews (<3★)"}
                   </button>
                 ))}
               </div>
@@ -630,13 +646,7 @@ export default function ReviewsDashboard() {
                   return (
                     <div 
                       key={review.id}
-                      className={`bg-slate-950/30 border rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-xl transition-all ${
-                        isPending 
-                          ? "border-amber-500/20 bg-amber-500/2" 
-                          : isDeclined 
-                            ? "border-red-500/10" 
-                            : "border-slate-800"
-                      }`}
+                      className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-xl transition-all"
                     >
                       <div className="space-y-2">
                         {/* Rating stars and header */}
@@ -674,47 +684,18 @@ export default function ReviewsDashboard() {
                               }`}>
                                 {isGmbDirect ? "Google Direct" : "QR Funnel"}
                               </span>
-
-                              <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded font-extrabold ${
-                                isApproved 
-                                  ? "bg-emerald-500/10 text-emerald-400" 
-                                  : isDeclined 
-                                    ? "bg-red-500/10 text-red-400" 
-                                    : "bg-amber-500/10 text-amber-500"
-                              }`}>
-                                {review.status}
-                              </span>
                             </div>
                           </div>
                         </div>
-
+ 
                         {/* Comment text */}
                         <p className="text-xs text-slate-300 leading-relaxed font-sans bg-slate-900/40 p-3 rounded-xl border border-slate-850/60 min-h-[48px] whitespace-pre-wrap">
                           {hasComment ? review.comment : <span className="text-slate-500 italic">No comment text submitted.</span>}
                         </p>
                       </div>
-
-                      {/* Moderation Actions for pending funnel reviews */}
-                      {isPending && (
-                        <div className="flex gap-2 bg-amber-500/5 p-2 rounded-xl border border-amber-500/10 animate-fadeIn">
-                          <button
-                            onClick={() => handleReviewAction(review.id, "approve")}
-                            className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[10px] py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Post to Google Maps
-                          </button>
-                          
-                          <button
-                            onClick={() => handleReviewAction(review.id, "decline")}
-                            className="flex-1 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-slate-950 border border-red-500/20 hover:border-transparent font-bold text-[10px] py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <XCircle className="h-3.5 w-3.5" /> Decline Review
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Reply Section for approved reviews */}
-                      {isApproved && (
+ 
+                      {/* Reply Section for live Google reviews */}
+                      {isGmbDirect && (
                         <div className="border-t border-slate-800/80 pt-3.5 space-y-2">
                           {review.replyText ? (
                             <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-xl space-y-1 relative group">

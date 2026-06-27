@@ -198,10 +198,12 @@ router.get("/oauth/callback", async (req, res) => {
       }
     });
 
-    res.redirect("http://localhost:3000/?tab=settings&oauth=success");
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}/?tab=settings&oauth=success`);
   } catch (error: any) {
     console.error("OAuth Token Exchange Error:", error?.response?.data || error.message);
-    res.redirect("http://localhost:3000/?tab=settings&oauth=error");
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}/?tab=settings&oauth=error`);
   }
 });
 
