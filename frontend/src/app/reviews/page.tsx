@@ -574,11 +574,15 @@ export default function ReviewsDashboard() {
 
               {/* QR Image Box */}
               <div className="bg-white p-4 rounded-2xl shadow-inner border border-slate-200 flex items-center justify-center h-48 w-48 shrink-0 relative group">
-                <img 
-                  src={qrCodeImageUrl} 
-                  alt="Feedback QR code URL" 
-                  className="h-full w-full" 
-                />
+                {qrCodeImageUrl ? (
+                  <img 
+                    src={qrCodeImageUrl} 
+                    alt="Feedback QR code URL" 
+                    className="h-full w-full animate-fadeIn" 
+                  />
+                ) : (
+                  <div className="h-full w-full bg-slate-100 animate-pulse rounded-lg" />
+                )}
               </div>
 
               <div className="w-full space-y-2">
