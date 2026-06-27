@@ -64,10 +64,54 @@ io.on("connection", (socket) => {
   });
 });
 
+import prisma from "./utils/prisma";
+import { syncGmbReviews } from "./services/gmbSyncService";
+
+// Background Google Business Profile Reviews Sync Scheduler
+async function runBackgroundGmbSync() {
+  console.log("[BACKGROUND SCHEDULER] Running auto-sync for active Google locations...");
+  try {
+    const configs = await prisma.googleBusinessConfig.findMany({
+      where: {
+        googleRefreshToken: { not: null },
+        googleLocationId: { not: null }
+      }
+    });
+
+    console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active configurations to sync.`);
+
+    for (const config of configs) {
+      if (!config.googleRefreshToken || !config.googleLocationId) continue;
+      try {
+        console.log(`[BACKGROUND SCHEDULER] Syncing Organization ID: ${config.organizationId}`);
+        const result = await syncGmbReviews(config.organizationId, io);
+        console.log(`[BACKGROUND SCHEDULER] Sync successful for ${config.organizationId}. Synced ${result.syncedCount} new reviews.`);
+      } catch (err: any) {
+        console.error(`[BACKGROUND SCHEDULER] Sync failed for Organization ${config.organizationId}:`, err.message);
+      }
+    }
+  } catch (err: any) {
+    console.error("[BACKGROUND SCHEDULER] Main scheduler execution error:", err.message);
+  }
+}
+
+function startGmbSyncScheduler() {
+  // Initial run after 10 seconds to allow backend server to fully boot up
+  setTimeout(() => {
+    runBackgroundGmbSync();
+  }, 10000);
+
+  // Sync every 15 minutes
+  setInterval(() => {
+    runBackgroundGmbSync();
+  }, 15 * 60 * 1000);
+}
+
 // Start Server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
+  startGmbSyncScheduler();
 });
 
 export { io };
