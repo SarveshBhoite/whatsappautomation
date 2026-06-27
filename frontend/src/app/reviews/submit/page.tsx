@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Star, Send, CheckCircle2, MessageSquare, ShieldCheck, ExternalLink } from "lucide-react";
 
-const BACKEND_URL = "http://localhost:5000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
 export default function PublicReviewSubmit() {
