@@ -415,9 +415,15 @@ export default function GmbPerformanceDashboard() {
             </div>
 
             {data && (
-              <div className="inline-flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400">
-                <Calendar className="h-4 w-4 text-primary" />
-                <span>{data.range.startDate} to {data.range.endDate}</span>
+              <div className="flex flex-col sm:items-end gap-1">
+                <div className="inline-flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span className="font-bold text-slate-200">{(data as any).range.label}</span>
+                  <span className="text-[10px] text-slate-550">({data.range.startDate} to {data.range.endDate})</span>
+                </div>
+                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                  Compared to {(data as any).range.previousLabel}
+                </span>
               </div>
             )}
           </div>
