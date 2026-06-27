@@ -95,8 +95,11 @@ interface PerformanceData {
   range: {
     startDate: string;
     endDate: string;
+    label: string;
+    previousLabel: string;
   };
   summary: PerformanceSummary;
+  previousSummary: PerformanceSummary;
   growth: {
     totalViews: string;
     websiteClicks: string;
@@ -112,6 +115,24 @@ export default function GmbPerformanceDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PerformanceData | null>(null);
   const [activeMetricTab, setActiveMetricTab] = useState<"actions" | "views">("actions");
+
+  // Determine standard default months based on 3-day data delay
+  const latestDate = new Date();
+  latestDate.setDate(latestDate.getDate() - 3);
+  const defaultAMonth = latestDate.getMonth() + 1;
+  const defaultAYear = latestDate.getFullYear();
+
+  let defaultBMonth = latestDate.getMonth();
+  let defaultBYear = latestDate.getFullYear();
+  if (defaultBMonth === 0) {
+    defaultBMonth = 12;
+    defaultBYear -= 1;
+  }
+
+  const [selectedAMonth, setSelectedAMonth] = useState(defaultAMonth);
+  const [selectedAYear, setSelectedAYear] = useState(defaultAYear);
+  const [selectedBMonth, setSelectedBMonth] = useState(defaultBMonth);
+  const [selectedBYear, setSelectedBYear] = useState(defaultBYear);
   
   // Extract org query parameter in useEffect client-side
   useEffect(() => {
@@ -124,11 +145,16 @@ export default function GmbPerformanceDashboard() {
     }
   }, []);
 
-  const fetchPerformance = async () => {
+  const fetchPerformance = async (
+    aM = selectedAMonth, 
+    aY = selectedAYear, 
+    bM = selectedBMonth, 
+    bY = selectedBYear
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/performance?orgId=${orgId}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/performance?orgId=${orgId}&aMonth=${aM}&aYear=${aY}&bMonth=${bM}&bYear=${bY}`);
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.error || "Failed to load GMB performance metrics.");
@@ -144,7 +170,7 @@ export default function GmbPerformanceDashboard() {
   };
 
   useEffect(() => {
-    fetchPerformance();
+    fetchPerformance(defaultAMonth, defaultAYear, defaultBMonth, defaultBYear);
   }, [orgId]);
 
   // Render SVG Chart based on fetched timeline
@@ -428,6 +454,68 @@ export default function GmbPerformanceDashboard() {
             )}
           </div>
 
+          {/* Calendar Month Selectors Panel */}
+          {(() => {
+            const list = [];
+            const listCursor = new Date();
+            for (let i = 0; i < 12; i++) {
+              const d = new Date(listCursor.getFullYear(), listCursor.getMonth() - i, 1);
+              const m = d.getMonth() + 1;
+              const y = d.getFullYear();
+              const name = d.toLocaleString("default", { month: "long" });
+              list.push({ month: m, year: y, label: `${name} ${y}`, value: `${m}-${y}` });
+            }
+
+            return (
+              <div className="bg-slate-900/40 border border-slate-900 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Target Period (A)</label>
+                    <select
+                      value={`${selectedAMonth}-${selectedAYear}`}
+                      onChange={(e) => {
+                        const [m, y] = e.target.value.split("-").map(Number);
+                        setSelectedAMonth(m);
+                        setSelectedAYear(y);
+                      }}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-primary transition-all cursor-pointer"
+                    >
+                      {list.map(item => (
+                        <option key={`a-${item.value}`} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <span className="text-slate-600 text-xs font-bold mt-5">vs</span>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Comparison Period (B)</label>
+                    <select
+                      value={`${selectedBMonth}-${selectedBYear}`}
+                      onChange={(e) => {
+                        const [m, y] = e.target.value.split("-").map(Number);
+                        setSelectedBMonth(m);
+                        setSelectedBYear(y);
+                      }}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-primary transition-all cursor-pointer"
+                    >
+                      {list.map(item => (
+                        <option key={`b-${item.value}`} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => fetchPerformance(selectedAMonth, selectedAYear, selectedBMonth, selectedBYear)}
+                  className="w-full sm:w-auto bg-primary hover:bg-secondary text-slate-950 text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md shrink-0 cursor-pointer"
+                >
+                  Compare Months
+                </button>
+              </div>
+            );
+          })()}
+
           {/* LOADING STATE */}
           {loading && (
             <div className="flex-1 flex flex-col items-center justify-center py-20 gap-4">
@@ -451,7 +539,7 @@ export default function GmbPerformanceDashboard() {
               </div>
               <div className="flex justify-center gap-4">
                 <button 
-                  onClick={fetchPerformance}
+                  onClick={() => fetchPerformance()}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
                 >
                   Retry Request
@@ -665,6 +753,98 @@ export default function GmbPerformanceDashboard() {
                       <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Impressions (Search + Maps)</span>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Performance Comparison Table */}
+              <div className="bg-slate-900/30 border border-slate-900 rounded-3xl p-6 space-y-4">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-bold text-slate-200">Month-over-Month Performance Comparison</h3>
+                  <p className="text-[10px] text-slate-500">Detailed metrics comparison between the selected months</p>
+                </div>
+
+                <div className="overflow-x-auto pt-2">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                        <th className="py-3 px-4">Metric</th>
+                        <th className="py-3 px-4 text-right">{data.range.label}</th>
+                        <th className="py-3 px-4 text-right">{data.range.previousLabel}</th>
+                        <th className="py-3 px-4 text-right">Growth / Change %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-850">
+                      
+                      {/* Row 1: Search & Maps Views */}
+                      {(() => {
+                        const growth = data.growth.totalViews;
+                        const isNeg = growth.startsWith("-");
+                        return (
+                          <tr className="hover:bg-slate-800/20 transition-colors">
+                            <td className="py-3.5 px-4 font-medium text-slate-250">Search & Maps Views (Impressions)</td>
+                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.totalViews.toLocaleString()}</td>
+                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.totalViews ?? 0).toLocaleString()}</td>
+                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
+                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                              <span>{growth}</span>
+                            </td>
+                          </tr>
+                        );
+                      })()}
+
+                      {/* Row 2: Website Clicks */}
+                      {(() => {
+                        const growth = data.growth.websiteClicks;
+                        const isNeg = growth.startsWith("-");
+                        return (
+                          <tr className="hover:bg-slate-800/20 transition-colors">
+                            <td className="py-3.5 px-4 font-medium text-slate-250">Website Clicks</td>
+                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.websiteClicks.toLocaleString()}</td>
+                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.websiteClicks ?? 0).toLocaleString()}</td>
+                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
+                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                              <span>{growth}</span>
+                            </td>
+                          </tr>
+                        );
+                      })()}
+
+                      {/* Row 3: Call button clicks */}
+                      {(() => {
+                        const growth = data.growth.callClicks;
+                        const isNeg = growth.startsWith("-");
+                        return (
+                          <tr className="hover:bg-slate-800/20 transition-colors">
+                            <td className="py-3.5 px-4 font-medium text-slate-250">Call Button Clicks</td>
+                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.callClicks.toLocaleString()}</td>
+                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.callClicks ?? 0).toLocaleString()}</td>
+                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
+                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                              <span>{growth}</span>
+                            </td>
+                          </tr>
+                        );
+                      })()}
+
+                      {/* Row 4: Direction Requests */}
+                      {(() => {
+                        const growth = data.growth.directionsRequests;
+                        const isNeg = growth.startsWith("-");
+                        return (
+                          <tr className="hover:bg-slate-800/20 transition-colors">
+                            <td className="py-3.5 px-4 font-medium text-slate-250">Direction Requests</td>
+                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.directionsRequests.toLocaleString()}</td>
+                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.directionsRequests ?? 0).toLocaleString()}</td>
+                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
+                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                              <span>{growth}</span>
+                            </td>
+                          </tr>
+                        );
+                      })()}
+
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
