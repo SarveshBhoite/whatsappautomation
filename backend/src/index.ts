@@ -9,6 +9,7 @@ import webhookRouter from "./routes/webhook";
 import messagesRouter from "./routes/messages";
 import adminRouter from "./routes/admin";
 import gmbRouter from "./routes/gmb";
+import gmbPerformanceRouter from "./routes/gmbPerformance";
 
 dotenv.config();
 
@@ -43,6 +44,9 @@ app.use("/api/admin", adminRouter);
 
 // GMB/Google Business Profile Review Router
 app.use("/api/gmb", gmbRouter);
+
+// GMB Performance Analytics Router
+app.use("/api/gmb/performance", gmbPerformanceRouter);
 
 // Health check endpoint
 app.get("/health", (req, res) => {

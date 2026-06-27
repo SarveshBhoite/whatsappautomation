@@ -22,7 +22,8 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  FileText
+  FileText,
+  Store
 } from "lucide-react";
 import Link from "next/link";
 import { io } from "socket.io-client";
@@ -327,6 +328,14 @@ export default function ReviewsDashboard() {
             <Star className="h-5 w-5" />
             <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Google Reviews</span>
           </div>
+
+          <Link 
+            href="/gmb"
+            className="p-3 rounded-xl transition-all duration-200 relative group text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"
+          >
+            <Store className="h-5 w-5" />
+            <span className="absolute left-16 scale-0 bg-slate-950 text-xs text-slate-200 py-1 px-2 rounded-md group-hover:scale-100 transition-all shadow-md z-50">Google Listing</span>
+          </Link>
         </div>
 
         <Link 
@@ -374,6 +383,13 @@ export default function ReviewsDashboard() {
           <Star className="h-5 w-5" />
           <span className="text-[9px] font-semibold tracking-wide">Reviews</span>
         </div>
+        <Link
+          href="/gmb"
+          className="flex flex-col items-center gap-0.5 py-3 px-4 flex-1 text-slate-500 hover:text-slate-200"
+        >
+          <Store className="h-5 w-5" />
+          <span className="text-[9px] font-semibold tracking-wide">Listing</span>
+        </Link>
       </nav>
 
       {/* 2. REVIEWS MAIN WORKSPACE */}
