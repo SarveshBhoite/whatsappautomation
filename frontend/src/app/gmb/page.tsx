@@ -115,6 +115,7 @@ export default function GmbPerformanceDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PerformanceData | null>(null);
   const [activeMetricTab, setActiveMetricTab] = useState<"actions" | "views">("actions");
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   // Determine standard default months based on 3-day data delay
   const latestDate = new Date();
@@ -202,119 +203,208 @@ export default function GmbPerformanceDashboard() {
     const stepX = chartWidth / (pointsCount - 1 || 1);
 
     return (
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
-        {/* Y Axis Gridlines & Labels */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
-          const yVal = Math.round(maxVal * ratio);
-          const yPos = paddingTop + chartHeight * (1 - ratio);
-          return (
-            <g key={idx} className="opacity-40">
-              <line 
-                x1={paddingLeft} 
-                y1={yPos} 
-                x2={width - paddingRight} 
-                y2={yPos} 
-                stroke="#334155" 
-                strokeWidth={1} 
-                strokeDasharray="4 4" 
+      <div className="relative w-full h-full">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+          {/* Y Axis Gridlines & Labels */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+            const yVal = Math.round(maxVal * ratio);
+            const yPos = paddingTop + chartHeight * (1 - ratio);
+            return (
+              <g key={idx} className="opacity-40">
+                <line 
+                  x1={paddingLeft} 
+                  y1={yPos} 
+                  x2={width - paddingRight} 
+                  y2={yPos} 
+                  stroke="#334155" 
+                  strokeWidth={1} 
+                  strokeDasharray="4 4" 
+                />
+                <text 
+                  x={paddingLeft - 8} 
+                  y={yPos + 3} 
+                  fill="#94a3b8" 
+                  fontSize={8} 
+                  textAnchor="end"
+                  className="font-medium"
+                >
+                  {yVal}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* X Axis Date Labels (every 7 days to avoid congestion) */}
+          {timeline.map((d, idx) => {
+            if (idx % 7 !== 0 && idx !== pointsCount - 1) return null;
+            const xPos = paddingLeft + idx * stepX;
+            const displayDate = d.date.substring(5); // MM-DD
+            return (
+              <g key={idx} className="opacity-60">
+                <line 
+                  x1={xPos} 
+                  y1={paddingTop} 
+                  x2={xPos} 
+                  y2={paddingTop + chartHeight} 
+                  stroke="#1e293b" 
+                  strokeWidth={1} 
+                />
+                <text 
+                  x={xPos} 
+                  y={height - 8} 
+                  fill="#94a3b8" 
+                  fontSize={8} 
+                  textAnchor="middle"
+                  className="font-medium"
+                >
+                  {displayDate}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Chart Lines and Area Paths */}
+          {metrics.map((metric, metricIdx) => {
+            const color = colors[metricIdx];
+            const pathPoints = timeline.map((d, idx) => {
+              const val = Number(d[metric] || 0);
+              const x = paddingLeft + idx * stepX;
+              const y = paddingTop + chartHeight * (1 - val / maxVal);
+              return `${x},${y}`;
+            });
+
+            if (pathPoints.length === 0) return null;
+
+            const linePath = `M ${pathPoints.join(" L ")}`;
+            const areaPath = `${linePath} L ${paddingLeft + (pointsCount - 1) * stepX},${paddingTop + chartHeight} L ${paddingLeft},${paddingTop + chartHeight} Z`;
+
+            return (
+              <g key={metric}>
+                {/* Fill Area */}
+                <path 
+                  d={areaPath} 
+                  fill={color} 
+                  opacity={0.06} 
+                />
+                {/* Line */}
+                <path 
+                  d={linePath} 
+                  fill="none" 
+                  stroke={color} 
+                  strokeWidth={2} 
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {/* Dot Markers at key intervals */}
+                {timeline.map((d, idx) => {
+                  if (idx % 5 !== 0 && idx !== pointsCount - 1) return null;
+                  const val = Number(d[metric] || 0);
+                  const x = paddingLeft + idx * stepX;
+                  const y = paddingTop + chartHeight * (1 - val / maxVal);
+                  return (
+                    <circle 
+                      key={idx} 
+                      cx={x} 
+                      cy={y} 
+                      r={3} 
+                      fill={color} 
+                      stroke="#0f172a" 
+                      strokeWidth={1} 
+                    />
+                  );
+                })}
+              </g>
+            );
+          })}
+
+          {/* Hover guidelines and point markers overlay */}
+          {hoveredIndex !== null && (
+            <g pointerEvents="none">
+              {/* Vertical line indicator */}
+              <line
+                x1={paddingLeft + hoveredIndex * stepX}
+                y1={paddingTop}
+                x2={paddingLeft + hoveredIndex * stepX}
+                y2={paddingTop + chartHeight}
+                stroke="#64748b"
+                strokeWidth={1.5}
+                strokeDasharray="3 3"
               />
-              <text 
-                x={paddingLeft - 8} 
-                y={yPos + 4} 
-                fill="#94a3b8" 
-                fontSize={9} 
-                textAnchor="end"
-                className="font-medium"
-              >
-                {yVal}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* X Axis Date Labels (every 7 days to avoid congestion) */}
-        {timeline.map((d, idx) => {
-          if (idx % 7 !== 0 && idx !== pointsCount - 1) return null;
-          const xPos = paddingLeft + idx * stepX;
-          const displayDate = d.date.substring(5); // MM-DD
-          return (
-            <g key={idx} className="opacity-60">
-              <line 
-                x1={xPos} 
-                y1={paddingTop} 
-                x2={xPos} 
-                y2={paddingTop + chartHeight} 
-                stroke="#1e293b" 
-                strokeWidth={1} 
-              />
-              <text 
-                x={xPos} 
-                y={height - 10} 
-                fill="#94a3b8" 
-                fontSize={9} 
-                textAnchor="middle"
-                className="font-medium"
-              >
-                {displayDate}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Chart Lines and Area Paths */}
-        {metrics.map((metric, metricIdx) => {
-          const color = colors[metricIdx];
-          const pathPoints = timeline.map((d, idx) => {
-            const val = Number(d[metric] || 0);
-            const x = paddingLeft + idx * stepX;
-            const y = paddingTop + chartHeight * (1 - val / maxVal);
-            return `${x},${y}`;
-          });
-
-          if (pathPoints.length === 0) return null;
-
-          const linePath = `M ${pathPoints.join(" L ")}`;
-          const areaPath = `${linePath} L ${paddingLeft + (pointsCount - 1) * stepX},${paddingTop + chartHeight} L ${paddingLeft},${paddingTop + chartHeight} Z`;
-
-          return (
-            <g key={metric}>
-              {/* Fill Area */}
-              <path 
-                d={areaPath} 
-                fill={color} 
-                opacity={0.06} 
-              />
-              {/* Line */}
-              <path 
-                d={linePath} 
-                fill="none" 
-                stroke={color} 
-                strokeWidth={2} 
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {/* Dot Markers at key intervals */}
-              {timeline.map((d, idx) => {
-                if (idx % 5 !== 0 && idx !== pointsCount - 1) return null;
-                const val = Number(d[metric] || 0);
-                const x = paddingLeft + idx * stepX;
+              
+              {/* Target dots on line intersections */}
+              {metrics.map((metric, metricIdx) => {
+                const val = Number(timeline[hoveredIndex][metric] || 0);
+                const x = paddingLeft + hoveredIndex * stepX;
                 const y = paddingTop + chartHeight * (1 - val / maxVal);
                 return (
-                  <circle 
-                    key={idx} 
-                    cx={x} 
-                    cy={y} 
-                    r={3} 
-                    fill={color} 
-                    stroke="#0f172a" 
-                    strokeWidth={1} 
+                  <circle
+                    key={`hover-dot-${metric}`}
+                    cx={x}
+                    cy={y}
+                    r={5.5}
+                    fill={colors[metricIdx]}
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
                   />
                 );
               })}
             </g>
-          );
-        })}
-      </svg>
+          )}
+
+          {/* Invisible interactive hover rects mapping the X timeline points */}
+          {timeline.map((d, idx) => {
+            const colWidth = chartWidth / (pointsCount - 1 || 1);
+            const colX = paddingLeft + idx * stepX - colWidth / 2;
+            return (
+              <rect
+                key={`hitbox-${idx}`}
+                x={colX}
+                y={paddingTop}
+                width={colWidth}
+                height={chartHeight}
+                fill="transparent"
+                className="cursor-pointer"
+                onMouseEnter={() => setHoveredIndex(idx)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              />
+            );
+          })}
+        </svg>
+
+        {/* Hover Tooltip Box Overlay */}
+        {hoveredIndex !== null && (
+          <div 
+            className="absolute bg-slate-950/95 border border-slate-800 p-2.5 rounded-xl shadow-xl pointer-events-none text-[10px] space-y-1 z-30 text-left font-sans animate-fadeIn"
+            style={{
+              left: `${((paddingLeft + hoveredIndex * stepX) / width) * 100}%`,
+              top: "-5px",
+              transform: "translate(-50%, -100%)",
+            }}
+          >
+            <div className="font-bold text-slate-300 border-b border-slate-900 pb-1 mb-1.5 whitespace-nowrap">
+              {timeline[hoveredIndex].date}
+            </div>
+            <div className="space-y-1">
+              {metrics.map((metric, metricIdx) => {
+                let label = "Views";
+                if (metric === "WEBSITE_CLICKS") label = "Website Clicks";
+                if (metric === "CALL_CLICKS") label = "Calls";
+                if (metric === "BUSINESS_DIRECTION_REQUESTS") label = "Directions";
+                const val = Number(timeline[hoveredIndex][metric] || 0);
+                return (
+                  <div key={metric} className="flex items-center gap-4 justify-between">
+                    <span className="flex items-center gap-1.5 text-slate-400">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors[metricIdx] }} />
+                      {label}
+                    </span>
+                    <span className="font-bold text-slate-200">{val}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -860,34 +950,80 @@ export default function GmbPerformanceDashboard() {
 
                   <div className="space-y-4 pt-2">
                     {/* Row 1: Search */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-                        <span className="inline-flex items-center gap-1.5"><Search className="h-3.5 w-3.5 text-primary" /> Google Search</span>
-                        <span className="font-bold text-slate-200">
-                          {data.summary.searchViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.searchViews / data.summary.totalViews) * 100) : 0}%)
-                        </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+                        <Search className="h-3.5 w-3.5 text-primary" /> Google Search
                       </div>
-                      <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full transition-all duration-300"
-                          style={{ width: `${data.summary.totalViews > 0 ? (data.summary.searchViews / data.summary.totalViews) * 100 : 0}%` }}
-                        />
+                      
+                      {/* Period A */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>{data.range.label}</span>
+                          <span className="font-bold text-slate-200">
+                            {data.summary.searchViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.searchViews / data.summary.totalViews) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary rounded-full transition-all duration-300"
+                            style={{ width: `${data.summary.totalViews > 0 ? (data.summary.searchViews / data.summary.totalViews) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Period B */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-550">
+                          <span>{data.range.previousLabel}</span>
+                          <span className="font-bold text-slate-350">
+                            {(data.previousSummary?.searchViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.searchViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary/40 rounded-full transition-all duration-300"
+                            style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.searchViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
 
                     {/* Row 2: Maps */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-                        <span className="inline-flex items-center gap-1.5"><Map className="h-3.5 w-3.5 text-secondary" /> Google Maps</span>
-                        <span className="font-bold text-slate-200">
-                          {data.summary.mapsViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.mapsViews / data.summary.totalViews) * 100) : 0}%)
-                        </span>
+                    <div className="space-y-2 pt-2 border-t border-slate-850/50">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+                        <Map className="h-3.5 w-3.5 text-secondary" /> Google Maps
                       </div>
-                      <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-secondary rounded-full transition-all duration-300"
-                          style={{ width: `${data.summary.totalViews > 0 ? (data.summary.mapsViews / data.summary.totalViews) * 100 : 0}%` }}
-                        />
+                      
+                      {/* Period A */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>{data.range.label}</span>
+                          <span className="font-bold text-slate-200">
+                            {data.summary.mapsViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.mapsViews / data.summary.totalViews) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-secondary rounded-full transition-all duration-300"
+                            style={{ width: `${data.summary.totalViews > 0 ? (data.summary.mapsViews / data.summary.totalViews) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Period B */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-550">
+                          <span>{data.range.previousLabel}</span>
+                          <span className="font-bold text-slate-350">
+                            {(data.previousSummary?.mapsViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.mapsViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-secondary/40 rounded-full transition-all duration-300"
+                            style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.mapsViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -902,39 +1038,84 @@ export default function GmbPerformanceDashboard() {
 
                   <div className="space-y-4 pt-2">
                     {/* Row 1: Mobile */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-                        <span className="inline-flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5 text-sky-400" /> Mobile Devices</span>
-                        <span className="font-bold text-slate-200">
-                          {data.summary.mobileViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.mobileViews / data.summary.totalViews) * 100) : 0}%)
-                        </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+                        <Smartphone className="h-3.5 w-3.5 text-sky-400" /> Mobile Devices
                       </div>
-                      <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-sky-400 rounded-full transition-all duration-300"
-                          style={{ width: `${data.summary.totalViews > 0 ? (data.summary.mobileViews / data.summary.totalViews) * 100 : 0}%` }}
-                        />
+                      
+                      {/* Period A */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>{data.range.label}</span>
+                          <span className="font-bold text-slate-200">
+                            {data.summary.mobileViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.mobileViews / data.summary.totalViews) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-sky-400 rounded-full transition-all duration-300"
+                            style={{ width: `${data.summary.totalViews > 0 ? (data.summary.mobileViews / data.summary.totalViews) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Period B */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-555">
+                          <span>{data.range.previousLabel}</span>
+                          <span className="font-bold text-slate-350">
+                            {(data.previousSummary?.mobileViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.mobileViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-sky-400/40 rounded-full transition-all duration-300"
+                            style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.mobileViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
 
                     {/* Row 2: Desktop */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-                        <span className="inline-flex items-center gap-1.5"><Monitor className="h-3.5 w-3.5 text-amber-400" /> Desktop Devices</span>
-                        <span className="font-bold text-slate-200">
-                          {data.summary.desktopViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.desktopViews / data.summary.totalViews) * 100) : 0}%)
-                        </span>
+                    <div className="space-y-2 pt-2 border-t border-slate-850/50">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+                        <Monitor className="h-3.5 w-3.5 text-amber-400" /> Desktop Devices
                       </div>
-                      <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-amber-400 rounded-full transition-all duration-300"
-                          style={{ width: `${data.summary.totalViews > 0 ? (data.summary.desktopViews / data.summary.totalViews) * 100 : 0}%` }}
-                        />
+                      
+                      {/* Period A */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>{data.range.label}</span>
+                          <span className="font-bold text-slate-200">
+                            {data.summary.desktopViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.desktopViews / data.summary.totalViews) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                            style={{ width: `${data.summary.totalViews > 0 ? (data.summary.desktopViews / data.summary.totalViews) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Period B */}
+                      <div className="space-y-1 pl-5">
+                        <div className="flex justify-between text-[10px] text-slate-555">
+                          <span>{data.range.previousLabel}</span>
+                          <span className="font-bold text-slate-350">
+                            {(data.previousSummary?.desktopViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.desktopViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-amber-400/40 rounded-full transition-all duration-300"
+                            style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.desktopViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-
               </div>
 
               {/* 4. Action Cards for GMB Listing */}
@@ -954,14 +1135,6 @@ export default function GmbPerformanceDashboard() {
                   >
                     Configure GMB Setup
                   </Link>
-                  <a 
-                    href={`https://maps.google.com/?cid=${data.googleLocationId.split("/")[3] || ""}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-primary hover:bg-secondary text-slate-950 text-xs font-bold px-4 py-2.5 rounded-xl transition-all inline-flex items-center gap-1.5"
-                  >
-                    Open in Google Maps <ArrowUpRight className="h-3.5 w-3.5" />
-                  </a>
                 </div>
               </div>
 
