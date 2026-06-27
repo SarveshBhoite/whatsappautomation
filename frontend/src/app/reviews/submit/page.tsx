@@ -16,6 +16,7 @@ export default function PublicReviewSubmit() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+  const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
 
   // Extract org query parameter in useEffect client-side
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function PublicReviewSubmit() {
         setOrgId(orgParam);
       }
       
-      // Fetch GMB config to get the correct business name
+      // Fetch GMB config to get the correct business name and redirect link
       const fetchConfig = async () => {
         try {
           const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${orgParam || DEFAULT_ORG_ID}`);
@@ -35,9 +36,12 @@ export default function PublicReviewSubmit() {
             if (config.locationName) {
               setBusinessName(config.locationName);
             }
+            if (config.googleReviewUrl) {
+              setGoogleReviewUrl(config.googleReviewUrl);
+            }
           }
         } catch (err) {
-          console.error("Failed to load business name:", err);
+          console.error("Failed to load business config:", err);
         }
       };
       
@@ -90,6 +94,18 @@ export default function PublicReviewSubmit() {
     }
   };
 
+  const handleRatingSelect = (val: number) => {
+    setRating(val);
+  };
+
+  const handleGoogleRedirect = () => {
+    setSubmitted(true);
+    setRedirectUrl(googleReviewUrl);
+    if (googleReviewUrl) {
+      window.location.href = googleReviewUrl;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
       
@@ -127,7 +143,7 @@ export default function PublicReviewSubmit() {
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => setRating(ratingValue)}
+                      onClick={() => handleRatingSelect(ratingValue)}
                       onMouseEnter={() => setHoverRating(ratingValue)}
                       onMouseLeave={() => setHoverRating(0)}
                       className="p-1 transition-all duration-150 hover:scale-125 focus:outline-none cursor-pointer"
@@ -145,7 +161,7 @@ export default function PublicReviewSubmit() {
               </div>
               {rating > 0 && (
                 <span className="text-[10px] bg-slate-850 px-2 py-0.5 rounded-full text-amber-500 font-bold border border-slate-800/40">
-                  {rating === 1 && "Terrrible"}
+                  {rating === 1 && "Terrible"}
                   {rating === 2 && "Could be better"}
                   {rating === 3 && "Good"}
                   {rating === 4 && "Great!"}
@@ -154,41 +170,61 @@ export default function PublicReviewSubmit() {
               )}
             </div>
 
-            {/* Inputs */}
-            <div className="space-y-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold">Your Name</label>
-                <input
-                  type="text"
-                  required
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Enter your name"
-                  className="bg-slate-950/40 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full"
-                />
+            {/* If rating >= 3, show a clean submit button to redirect to Google directly */}
+            {rating >= 3 && (
+              <div className="space-y-4 animate-fadeIn">
+                <p className="text-xs text-slate-400 text-center leading-relaxed">
+                  Thank you for the {rating}-star rating! Click below to share your experience on our Google Business page.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGoogleRedirect}
+                  className="w-full bg-primary hover:bg-secondary text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-md shadow-primary/10 flex items-center justify-center gap-2 cursor-pointer text-sm"
+                >
+                  <Send className="h-4 w-4" />
+                  Post Review on Google
+                </button>
               </div>
+            )}
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold">Your Review / Comments</label>
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Tell us about your experience..."
-                  rows={4}
-                  className="bg-slate-950/40 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed w-full"
-                />
+            {/* Inputs (Only shown for negative ratings to capture private feedback) */}
+            {rating > 0 && rating < 3 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Your Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Enter your name"
+                      className="bg-slate-950/40 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Your Review / Comments</label>
+                    <textarea
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Tell us about your experience..."
+                      rows={4}
+                      className="bg-slate-950/40 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed w-full"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-primary hover:bg-secondary disabled:opacity-40 text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-md shadow-primary/10 flex items-center justify-center gap-2 cursor-pointer text-sm"
+                >
+                  <Send className="h-4 w-4" />
+                  {submitting ? "Submitting..." : "Submit Feedback"}
+                </button>
               </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={submitting || rating === 0}
-              className="w-full bg-primary hover:bg-secondary disabled:opacity-40 text-slate-950 font-bold py-3 rounded-xl transition-all shadow-md shadow-primary/10 flex items-center justify-center gap-2 cursor-pointer text-sm"
-            >
-              <Send className="h-4 w-4" />
-              {submitting ? "Submitting..." : "Submit Feedback"}
-            </button>
+            )}
           </form>
         ) : (
           /* SUCCESS VIEW */
@@ -197,26 +233,27 @@ export default function PublicReviewSubmit() {
             
             <div className="space-y-2">
               <h2 className="text-xl font-bold text-slate-100">Feedback Submitted!</h2>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-                Thank you for your valuable feedback, <strong>{customerName}</strong>. Your comments help us maintain the highest standard of service.
-              </p>
+              {redirectUrl ? (
+                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto animate-pulse">
+                  Thank you for the {rating}-star rating! We are redirecting you to Google to share your experience...
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+                  Thank you for your valuable feedback, <strong>{customerName}</strong>. Your comments help us maintain the highest standard of service.
+                </p>
+              )}
             </div>
 
             {/* Positive review: Google redirection card */}
             {redirectUrl ? (
               <div className="w-full border border-slate-800 bg-slate-950/30 p-5 rounded-2xl space-y-3.5 mt-2 shadow-inner">
                 <span className="text-[10px] uppercase text-primary font-bold tracking-wider block">Support us on Google</span>
-                {comment && comment.trim() && (
-                  <p className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/5 border border-emerald-500/10 p-2.5 rounded-xl text-center leading-normal">
-                    ✓ Your review text has been copied to your clipboard! Just paste it (Ctrl+V / Long Tap) when the Google page opens.
-                  </p>
-                )}
                 <p className="text-[11px] text-slate-500 leading-normal">
                   We are redirecting you to our Google Business listing review page so you can share your rating with everyone! If it doesn't open automatically, click below.
                 </p>
                 <a
                   href={redirectUrl}
-                  className="inline-flex items-center gap-1.5 bg-primary hover:bg-secondary text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition-all"
+                  className="inline-flex items-center gap-1.5 bg-primary hover:bg-secondary text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition-all animate-bounce"
                 >
                   Post Review on Google <ExternalLink className="h-3.5 w-3.5" />
                 </a>
