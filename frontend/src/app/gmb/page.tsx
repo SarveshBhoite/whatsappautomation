@@ -97,6 +97,12 @@ interface PerformanceData {
     endDate: string;
   };
   summary: PerformanceSummary;
+  growth: {
+    totalViews: string;
+    websiteClicks: string;
+    callClicks: string;
+    directionsRequests: string;
+  };
   timeline: TimelineDay[];
 }
 
@@ -117,24 +123,6 @@ export default function GmbPerformanceDashboard() {
       }
     }
   }, []);
-
-  const getGrowthPercentage = (key: keyof TimelineDay) => {
-    if (!data || !data.timeline || data.timeline.length < 2) return "+0.0%";
-    const timeline = data.timeline;
-    const mid = Math.floor(timeline.length / 2);
-    const olderHalf = timeline.slice(0, mid);
-    const recentHalf = timeline.slice(mid);
-
-    const sumOlder = olderHalf.reduce((sum, d) => sum + Number(d[key] || 0), 0);
-    const sumRecent = recentHalf.reduce((sum, d) => sum + Number(d[key] || 0), 0);
-
-    if (sumOlder === 0) {
-      return sumRecent > 0 ? "+100%" : "0%";
-    }
-
-    const pct = ((sumRecent - sumOlder) / sumOlder) * 100;
-    return pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
-  };
 
   const fetchPerformance = async () => {
     setLoading(true);
@@ -481,7 +469,7 @@ export default function GmbPerformanceDashboard() {
                 
                 {/* Card 1: Total Views */}
                 {(() => {
-                  const growth = getGrowthPercentage("totalViews");
+                  const growth = data.growth.totalViews;
                   const isNeg = growth.startsWith("-");
                   return (
                     <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">
@@ -492,7 +480,7 @@ export default function GmbPerformanceDashboard() {
                       </div>
                       <div className="space-y-1">
                         <h3 className="text-2xl font-black text-slate-100">{data.summary.totalViews.toLocaleString()}</h3>
-                        <div className={`flex items-center gap-1 text-[10px] font-bold ${isNeg ? "text-rose-450" : "text-emerald-400"}`}>
+                        <div className={`flex items-center gap-1 text-[10px] font-bold ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
                           {isNeg ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />} {growth} MoM
                         </div>
                       </div>
@@ -502,7 +490,7 @@ export default function GmbPerformanceDashboard() {
 
                 {/* Card 2: Website Clicks */}
                 {(() => {
-                  const growth = getGrowthPercentage("WEBSITE_CLICKS");
+                  const growth = data.growth.websiteClicks;
                   const isNeg = growth.startsWith("-");
                   return (
                     <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">
@@ -531,7 +519,7 @@ export default function GmbPerformanceDashboard() {
 
                 {/* Card 3: Call button clicks */}
                 {(() => {
-                  const growth = getGrowthPercentage("CALL_CLICKS");
+                  const growth = data.growth.callClicks;
                   const isNeg = growth.startsWith("-");
                   return (
                     <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">
@@ -558,7 +546,7 @@ export default function GmbPerformanceDashboard() {
 
                 {/* Card 4: Direction Requests */}
                 {(() => {
-                  const growth = getGrowthPercentage("BUSINESS_DIRECTION_REQUESTS");
+                  const growth = data.growth.directionsRequests;
                   const isNeg = growth.startsWith("-");
                   return (
                     <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">

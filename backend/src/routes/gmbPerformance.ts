@@ -35,12 +35,13 @@ router.get("/", async (req, res) => {
     }
 
     // Google Performance API usually has a 3-day data latency. 
-    // We query a 30-day window from 33 days ago to 3 days ago.
+    // To calculate a true Month-over-Month (30 days vs 30 days) comparison, 
+    // we query a 60-day timeline starting from 63 days ago to 3 days ago.
     const endDate = new Date();
     endDate.setDate(endDate.getDate() - 3);
 
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 33);
+    startDate.setDate(startDate.getDate() - 63);
 
     const startYear = startDate.getFullYear();
     const startMonth = startDate.getMonth() + 1;
@@ -154,29 +155,66 @@ router.get("/", async (req, res) => {
       return day;
     });
 
-    // Calculate total summary KPIs for the entire range
+    // Sort parsed timeline by date asc
+    parsedTimeline.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Split the 60-day timeline into previous 30 days and current 30 days
+    const midPoint = Math.floor(parsedTimeline.length / 2);
+    const previousTimeline = parsedTimeline.slice(0, midPoint);
+    const currentTimeline = parsedTimeline.slice(midPoint);
+
+    // Calculate aggregates for current 30 days
     const summary = {
-      totalViews: parsedTimeline.reduce((sum, d) => sum + d.totalViews, 0),
-      totalActions: parsedTimeline.reduce((sum, d) => sum + d.totalActions, 0),
-      websiteClicks: parsedTimeline.reduce((sum, d) => sum + d.WEBSITE_CLICKS, 0),
-      callClicks: parsedTimeline.reduce((sum, d) => sum + d.CALL_CLICKS, 0),
-      directionsRequests: parsedTimeline.reduce((sum, d) => sum + d.BUSINESS_DIRECTION_REQUESTS, 0),
-      conversations: parsedTimeline.reduce((sum, d) => sum + d.BUSINESS_CONVERSATIONS, 0),
-      desktopViews: parsedTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH + d.BUSINESS_IMPRESSIONS_DESKTOP_MAPS, 0),
-      mobileViews: parsedTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_MOBILE_SEARCH + d.BUSINESS_IMPRESSIONS_MOBILE_MAPS, 0),
-      searchViews: parsedTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH + d.BUSINESS_IMPRESSIONS_MOBILE_SEARCH, 0),
-      mapsViews: parsedTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_DESKTOP_MAPS + d.BUSINESS_IMPRESSIONS_MOBILE_MAPS, 0),
+      totalViews: currentTimeline.reduce((sum, d) => sum + d.totalViews, 0),
+      totalActions: currentTimeline.reduce((sum, d) => sum + d.totalActions, 0),
+      websiteClicks: currentTimeline.reduce((sum, d) => sum + d.WEBSITE_CLICKS, 0),
+      callClicks: currentTimeline.reduce((sum, d) => sum + d.CALL_CLICKS, 0),
+      directionsRequests: currentTimeline.reduce((sum, d) => sum + d.BUSINESS_DIRECTION_REQUESTS, 0),
+      conversations: currentTimeline.reduce((sum, d) => sum + d.BUSINESS_CONVERSATIONS, 0),
+      desktopViews: currentTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH + d.BUSINESS_IMPRESSIONS_DESKTOP_MAPS, 0),
+      mobileViews: currentTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_MOBILE_SEARCH + d.BUSINESS_IMPRESSIONS_MOBILE_MAPS, 0),
+      searchViews: currentTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH + d.BUSINESS_IMPRESSIONS_MOBILE_SEARCH, 0),
+      mapsViews: currentTimeline.reduce((sum, d) => sum + d.BUSINESS_IMPRESSIONS_DESKTOP_MAPS + d.BUSINESS_IMPRESSIONS_MOBILE_MAPS, 0),
     };
+
+    // Calculate aggregates for previous 30 days
+    const previousSummary = {
+      totalViews: previousTimeline.reduce((sum, d) => sum + d.totalViews, 0),
+      websiteClicks: previousTimeline.reduce((sum, d) => sum + d.WEBSITE_CLICKS, 0),
+      callClicks: previousTimeline.reduce((sum, d) => sum + d.CALL_CLICKS, 0),
+      directionsRequests: previousTimeline.reduce((sum, d) => sum + d.BUSINESS_DIRECTION_REQUESTS, 0),
+    };
+
+    // Calculate true Month-over-Month growth rates
+    const getMoMGrowth = (curr: number, prev: number) => {
+      if (prev === 0) {
+        return curr > 0 ? "+100%" : "0%";
+      }
+      const pct = ((curr - prev) / prev) * 100;
+      return pct >= 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
+    };
+
+    const growth = {
+      totalViews: getMoMGrowth(summary.totalViews, previousSummary.totalViews),
+      websiteClicks: getMoMGrowth(summary.websiteClicks, previousSummary.websiteClicks),
+      callClicks: getMoMGrowth(summary.callClicks, previousSummary.callClicks),
+      directionsRequests: getMoMGrowth(summary.directionsRequests, previousSummary.directionsRequests),
+    };
+
+    // Calculate dynamic current range start/end date strings
+    const currentStartDate = currentTimeline[0]?.date || formatDateString(new Date());
+    const currentEndDate = currentTimeline[currentTimeline.length - 1]?.date || formatDateString(new Date());
 
     res.status(200).json({
       locationName: config.locationName || "Google Listing",
       googleLocationId: config.googleLocationId,
       range: {
-        startDate: formatDateString(startDate),
-        endDate: formatDateString(endDate)
+        startDate: currentStartDate,
+        endDate: currentEndDate
       },
       summary,
-      timeline: parsedTimeline
+      growth,
+      timeline: currentTimeline // Only send current 30 days to keep the chart representation clean
     });
   } catch (error: any) {
     console.error("GMB Performance Insights failed:", error?.response?.data || error.message);
