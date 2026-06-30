@@ -6,6 +6,12 @@ import { Star, Send, CheckCircle2, MessageSquare, ShieldCheck, ExternalLink } fr
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const TEMPLATE_REVIEWS = [
+  "Excellent service, prompt response, and very professional team. Highly recommended!",
+  "Amazing experience! The staff was extremely friendly and the quality was top-notch.",
+  "Very satisfied with the service. Transparent, reliable, and exceeded my expectations!"
+];
+
 export default function PublicReviewSubmit() {
   const [orgId, setOrgId] = useState(DEFAULT_ORG_ID);
   const [businessName, setBusinessName] = useState("Our Business");
@@ -17,6 +23,30 @@ export default function PublicReviewSubmit() {
   const [submitted, setSubmitted] = useState(false);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
+  
+  const [copiedMessage, setCopiedMessage] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+
+  const handleTemplateSelect = async (text: string) => {
+    setSelectedTemplate(text);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessage(true);
+      setTimeout(() => {
+        setCopiedMessage(false);
+        // Open Google Review URL after copying
+        if (googleReviewUrl) {
+          window.location.href = googleReviewUrl;
+        }
+      }, 2000);
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+      // Fallback redirect anyway
+      if (googleReviewUrl) {
+        window.location.href = googleReviewUrl;
+      }
+    }
+  };
 
   // Extract org query parameter in useEffect client-side
   useEffect(() => {
@@ -170,19 +200,55 @@ export default function PublicReviewSubmit() {
               )}
             </div>
 
-            {/* If rating >= 3, show a clean submit button to redirect to Google directly */}
+            {/* If rating >= 3, show template review suggestions */}
             {rating >= 3 && (
-              <div className="space-y-4 animate-fadeIn">
-                <p className="text-xs text-slate-400 text-center leading-relaxed">
-                  Thank you for the {rating}-star rating! Click below to share your experience on our Google Business page.
-                </p>
+              <div className="space-y-4 animate-fadeIn border-t border-slate-800/60 pt-4">
+                <div className="text-center">
+                  <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                    Select a quick review suggestion
+                  </label>
+                  <p className="text-[10px] text-slate-500">
+                    We will copy it to your clipboard so you can easily paste it on Google Maps.
+                  </p>
+                </div>
+                
+                <div className="space-y-2.5">
+                  {TEMPLATE_REVIEWS.map((text, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleTemplateSelect(text)}
+                      className="w-full text-left bg-slate-950/40 hover:bg-primary/5 active:bg-primary/10 border border-slate-800/80 hover:border-primary/30 p-3 rounded-xl transition-all flex items-start gap-2.5 group cursor-pointer text-xs"
+                    >
+                      <span className="h-5 w-5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0 group-hover:text-primary group-hover:border-primary/20">
+                        {idx + 1}
+                      </span>
+                      <p className="text-slate-350 leading-relaxed group-hover:text-slate-200">
+                        "{text}"
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                {copiedMessage && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl p-3 text-[11px] font-semibold text-center animate-pulse">
+                    Review text copied to clipboard! Redirecting to Google Maps...
+                  </div>
+                )}
+
+                <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-slate-800/60"></div>
+                  <span className="flex-shrink mx-3 text-[9px] text-slate-500 uppercase tracking-widest font-bold">Or write your own</span>
+                  <div className="flex-grow border-t border-slate-800/60"></div>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleGoogleRedirect}
-                  className="w-full bg-primary hover:bg-secondary text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-md shadow-primary/10 flex items-center justify-center gap-2 cursor-pointer text-sm"
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
                 >
-                  <Send className="h-4 w-4" />
-                  Post Review on Google
+                  <Send className="h-4 w-4 text-primary" />
+                  Write Custom Review on Google
                 </button>
               </div>
             )}
