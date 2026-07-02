@@ -489,11 +489,9 @@ export default function Dashboard() {
     reader.readAsDataURL(file);
   };
 
-  // Interactive UI pickers and Simulation States
+  // Interactive UI pickers
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
-  const [showSimulator, setShowSimulator] = useState(false);
-  const [simulateText, setSimulateText] = useState("");
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
 
   // Settings States
@@ -638,102 +636,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleSimulateInbound = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!simulateText.trim() || !activeConv) return;
-    
-    const text = simulateText;
-    setSimulateText("");
-    setShowSimulator(false);
 
-    try {
-      const isWhatsApp = (activeConv.platform || "whatsapp") === "whatsapp";
-      let mockPayload;
-      let endpoint;
-
-      if (isWhatsApp) {
-        endpoint = `${BACKEND_URL}/api/webhook/whatsapp`;
-        mockPayload = {
-          object: "whatsapp_business_account",
-          entry: [
-            {
-              id: "123456789",
-              changes: [
-                {
-                  value: {
-                    messaging_product: "whatsapp",
-                    metadata: {
-                      display_phone_number: "15550000000",
-                      phone_number_id: config.phoneNumberId || "100000000000000",
-                    },
-                    contacts: [
-                      {
-                        profile: {
-                          name: activeConv.customerName || "Simulated Customer",
-                        },
-                        wa_id: activeConv.customerPhone,
-                      },
-                    ],
-                    messages: [
-                      {
-                        from: activeConv.customerPhone,
-                        id: `wamid.Simulated_${Date.now()}`,
-                        timestamp: Math.floor(Date.now() / 1000).toString(),
-                        text: {
-                          body: text,
-                        },
-                        type: "text",
-                      },
-                    ],
-                  },
-                  field: "messages",
-                },
-              ],
-            },
-          ],
-        };
-      } else {
-        endpoint = `${BACKEND_URL}/api/webhook/instagram`;
-        mockPayload = {
-          object: "page",
-          entry: [
-            {
-              id: igConfig.pageId || "100000000000000_ig",
-              time: Date.now(),
-              messaging: [
-                {
-                  sender: {
-                    id: activeConv.customerPhone,
-                  },
-                  recipient: {
-                    id: igConfig.pageId || "100000000000000_ig",
-                  },
-                  timestamp: Date.now(),
-                  message: {
-                    mid: `m_Simulated_${Date.now()}`,
-                    text: text,
-                  },
-                },
-              ],
-            },
-          ],
-        };
-      }
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mockPayload),
-      });
-
-      if (res.ok) {
-        fetchConversations();
-        fetchMessages(activeConv.id);
-      }
-    } catch (err) {
-      console.error("Failed to simulate inbound message:", err);
-    }
-  };
 
   const activeConvRef = useRef<Conversation | null>(null);
   useEffect(() => {
@@ -1482,37 +1385,8 @@ export default function Dashboard() {
                           <span className="sm:hidden">{activeConv.isBotPaused ? "Resume" : "Pause"}</span>
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setShowSimulator(!showSimulator)}
-                          className="text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-750 text-slate-200 flex items-center gap-1.5"
-                        >
-                          <User className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
-                          <span className="hidden sm:inline">Simulate Reply</span>
-                        </button>
                       </div>
                     </div>
-
-                    {/* Customer Input Simulator Overlay Bar */}
-                    {showSimulator && (
-                      <form onSubmit={handleSimulateInbound} className="bg-slate-950/90 border-b border-slate-850 p-3 flex gap-2 items-center z-10 shrink-0">
-                        <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">Simulator Mode</span>
-                        <input
-                          type="text"
-                          value={simulateText}
-                          onChange={(e) => setSimulateText(e.target.value)}
-                          placeholder="Type a message to simulate the customer replying..."
-                          className="flex-1 bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                          autoFocus
-                        />
-                        <button type="submit" className="bg-emerald-500 text-slate-950 font-bold px-3 py-1.5 rounded text-xs hover:bg-emerald-400 shrink-0">
-                          Inbound Send
-                        </button>
-                        <button type="button" onClick={() => setShowSimulator(false)} className="text-slate-400 hover:text-slate-200 text-xs px-2 shrink-0">
-                          Cancel
-                        </button>
-                      </form>
-                    )}
                     {/* Messages list container */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
                       {messages.map((msg) => {
@@ -1705,18 +1579,13 @@ export default function Dashboard() {
                                           const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
                                           const btnIconColor = isIg ? "text-pink-500" : "text-emerald-500";
                                           return (
-                                            <button
+                                            <div
                                               key={index}
-                                              type="button"
-                                              onClick={() => {
-                                                setSimulateText(btnTitle);
-                                                setShowSimulator(true);
-                                              }}
-                                              className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${btnTextColor} border border-slate-200 shadow-sm text-xs font-bold py-2 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-center gap-1.5 cursor-pointer`}
+                                              className="w-full bg-white text-slate-700 border border-slate-200/80 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
                                             >
                                               <Bot className={`h-3 w-3 ${btnIconColor}`} />
                                               {btnTitle}
-                                            </button>
+                                            </div>
                                           );
                                         })}
                                       </div>
@@ -1754,21 +1623,13 @@ export default function Dashboard() {
                                             </div>
                                             <div className="flex flex-col gap-1">
                                               {listRowsArray.map((rowText, index) => (
-                                                <button
+                                                <div
                                                   key={index}
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setSimulateText(rowText);
-                                                    setShowSimulator(true);
-                                                    setActiveListMenuMsgId(null);
-                                                  }}
-                                                  className={`w-full text-left bg-slate-900 hover:bg-slate-850 text-slate-200 text-xs py-2 px-3 rounded-lg border border-slate-800/60 ${
-                                                    activeConv?.platform === "instagram" ? "hover:border-pink-500/50" : "hover:border-emerald-500/50"
-                                                  } transition-all duration-150 flex items-center justify-between cursor-pointer`}
+                                                  className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
                                                 >
                                                   <span className="truncate pr-2">{rowText}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                                                </button>
+                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                                                </div>
                                               ))}
                                             </div>
                                           </div>

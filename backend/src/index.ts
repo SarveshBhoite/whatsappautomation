@@ -75,12 +75,18 @@ import { syncGmbReviews } from "./services/gmbSyncService";
 async function runBackgroundGmbSync() {
   console.log("[BACKGROUND SCHEDULER] Running auto-sync for active Google locations...");
   try {
-    const configs = await prisma.googleBusinessConfig.findMany({
-      where: {
-        googleRefreshToken: { not: null },
-        googleLocationId: { not: null }
-      }
-    });
+    let configs = [];
+    try {
+      configs = await prisma.googleBusinessConfig.findMany({
+        where: {
+          googleRefreshToken: { not: null },
+          googleLocationId: { not: null }
+        }
+      });
+    } catch (dbErr: any) {
+      console.error("[BACKGROUND SCHEDULER] Database query failed (Prisma/DB Schema warning):", dbErr.message);
+      return; // Exit scheduler gracefully, keeping the server online
+    }
 
     console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active configurations to sync.`);
 
@@ -100,11 +106,7 @@ async function runBackgroundGmbSync() {
 }
 
 function startGmbSyncScheduler() {
-  // Initial run after 10 seconds to allow backend server to fully boot up
-  setTimeout(() => {
-    runBackgroundGmbSync();
-  }, 10000);
-
+  console.log("[BACKGROUND SCHEDULER] Scheduled auto-sync to run every 15 minutes.");
   // Sync every 15 minutes
   setInterval(() => {
     runBackgroundGmbSync();

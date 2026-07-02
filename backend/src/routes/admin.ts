@@ -245,6 +245,36 @@ router.post("/upload", async (req: Request, res: Response) => {
     if (!filename || !fileBase64) {
       return res.status(400).json({ error: "Missing filename or fileBase64" });
     }
+
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+    const urlEndpoint = process.env.IMAGEKIT_URL_ENDPOINT;
+
+    // 1. If ImageKit is configured, upload directly to cloud CDN
+    if (privateKey && urlEndpoint) {
+      console.log("Uploading file to ImageKit cloud storage...");
+      
+      // Construct native FormData for multipart/form-data upload
+      const formData = new FormData();
+      formData.append("file", fileBase64); // ImageKit accepts raw base64 strings in multipart form
+      formData.append("fileName", filename);
+      formData.append("useUniqueFileName", "true");
+
+      const axios = require("axios");
+      const token = Buffer.from(`${privateKey}:`).toString("base64");
+      
+      const response = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
+        headers: {
+          Authorization: `Basic ${token}`,
+          // Axios automatically manages multipart boundary when receiving a FormData instance
+        }
+      });
+
+      console.log("ImageKit upload success. Public URL:", response.data.url);
+      return res.status(200).json({ url: response.data.url });
+    }
+
+    // 2. Fallback: upload locally but dynamically construct an absolute public URL
+    console.log("ImageKit credentials not configured. Falling back to local upload.");
     const path = require("path");
     const fs = require("fs");
     const uploadsDir = path.join(process.cwd(), "uploads");
@@ -255,10 +285,17 @@ router.post("/upload", async (req: Request, res: Response) => {
     const filePath = path.join(uploadsDir, cleanFilename);
     const fileBuffer = Buffer.from(fileBase64, "base64");
     fs.writeFileSync(filePath, fileBuffer);
-    const fileUrl = `/uploads/${cleanFilename}`;
+
+    // Resolve host dynamically (e.g. ngrok tunnel URL or production domain)
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    const fileUrl = `${proto}://${host}/uploads/${cleanFilename}`;
+    
+    console.log("Local upload success. Public URL:", fileUrl);
     return res.status(200).json({ url: fileUrl });
   } catch (error: any) {
-    console.error("Error writing upload to storage:", error);
+    const errorResponse = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+    console.error("Error writing upload to storage:", errorResponse);
     return res.status(500).json({ error: "Failed to upload file", details: error.message });
   }
 });

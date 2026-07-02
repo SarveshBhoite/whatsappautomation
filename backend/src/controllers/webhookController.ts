@@ -172,11 +172,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
       return res.sendStatus(404);
     }
 
+    console.log("=== INCOMING WHATSAPP WEBHOOK PAYLOAD ===");
+    console.log(JSON.stringify(body, null, 2));
+
     const entry = body.entry?.[0];
     const changes = entry?.changes?.[0];
     const value = changes?.value;
 
     if (!value) {
+      console.log("Webhook received but 'changes.value' is empty.");
       return res.sendStatus(200); // Acknowledge so Meta doesn't retry
     }
 
@@ -184,8 +188,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
     const phoneNumberId = metadata?.phone_number_id;
 
     if (!phoneNumberId) {
+      console.log("Webhook changes.value received but 'phone_number_id' is missing from metadata.");
       return res.sendStatus(200);
     }
+
+    console.log(`Searching database for Phone Number ID: "${phoneNumberId}"`);
 
     // 1. Find Organization matching the Phone Number ID
     const waConfig = await prisma.whatsAppConfig.findFirst({
@@ -194,14 +201,17 @@ export const handleWebhook = async (req: Request, res: Response) => {
     });
 
     if (!waConfig) {
-      console.warn(`No organization configuration found for Phone Number ID: ${phoneNumberId}`);
+      console.warn(`❌ No organization configuration found for Phone Number ID: ${phoneNumberId}`);
       return res.sendStatus(200); // return 200 to acknowledge
     }
+
+    console.log(`✅ Found organization match: "${waConfig.organization.name}" (${waConfig.organizationId})`);
 
     const organizationId = waConfig.organizationId;
 
     // 2. Handle Message Status Updates (Sent, Delivered, Read, Failed)
     if (value.statuses && value.statuses.length > 0) {
+      console.log(`Processing ${value.statuses.length} message status updates...`);
       for (const statusObj of value.statuses) {
         const { id: waMessageId, status, recipient_id } = statusObj;
 
@@ -210,6 +220,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
           where: { waMessageId },
           data: { status },
         });
+
+        console.log(`Updated status of message ${waMessageId} to "${status}". DB Count: ${updatedMessage.count}`);
 
         // If updated, notify the agents in real-time
         if (updatedMessage.count > 0) {
@@ -225,6 +237,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
     // 3. Handle Incoming Messages
     if (value.messages && value.messages.length > 0) {
+      console.log(`Processing ${value.messages.length} incoming messages...`);
       const contactName = value.contacts?.[0]?.profile?.name || "WhatsApp User";
       
       for (const message of value.messages) {
@@ -326,6 +339,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           }
         }
 
+        console.log(`Saving message to database: direction=inbound, type=${type}, content="${content}"`);
         // Save incoming message in database
         const savedMessage = await prisma.message.create({
           data: {
@@ -340,6 +354,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
             quotedMessageId: quotedMessageId || null,
           },
         });
+        console.log(`Saved message in database successfully. Message ID: "${savedMessage.id}"`);
 
         // Fetch populated message with the quoted relation
         const fullMessage = await prisma.message.findUnique({
@@ -350,6 +365,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
         });
 
         // Broadcast new message to UI agents
+        console.log(`Broadcasting new-message event via Socket.IO to Room: "${organizationId}"`);
         io.to(organizationId).emit("new-message", {
           conversationId: conversation.id,
           message: fullMessage,
@@ -357,9 +373,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // 4. Trigger Chatbot Flow Logic (if bot is not paused)
         if (!conversation.isBotPaused) {
-          processChatbotFlow(conversation.id, savedMessage.id).catch((err) => {
-            console.error("Error executing chatbot flow engine:", err);
+          console.log(`Triggering processChatbotFlow for conversation: "${conversation.id}"...`);
+          processChatbotFlow(conversation.id, savedMessage.id).then(() => {
+            console.log(`processChatbotFlow execution complete for message: "${savedMessage.id}"`);
+          }).catch((err) => {
+            console.error("❌ Error executing chatbot flow engine:", err);
           });
+        } else {
+          console.log(`Chatbot flow skipped because bot is paused for conversation: "${conversation.id}"`);
         }
       }
     }
