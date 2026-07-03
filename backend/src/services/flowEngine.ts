@@ -175,6 +175,14 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             nextNodeId = outgoingEdge.target;
           }
         }
+      } else {
+        // The node ID stored in the conversation belongs to an old/deleted flow configuration.
+        // Self-heal and reset the customer back to the welcome node of the new active flow.
+        console.log(`Current node ID "${currentNodeId}" not found in active graph. Resetting to root welcome node.`);
+        const rootNode = findRootNode(graph);
+        if (rootNode) {
+          nextNodeId = rootNode.id;
+        }
       }
     }
 
