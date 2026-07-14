@@ -960,8 +960,52 @@ router.post("/media/upload", async (req, res) => {
     const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
 
     // Convert base64 data to binary buffer
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
+    const matches = image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    let buffer: Buffer;
+    let mimeType = "image/jpeg";
+    if (matches && matches.length === 3) {
+      mimeType = matches[1];
+      buffer = Buffer.from(matches[2], "base64");
+    } else {
+      buffer = Buffer.from(image, "base64");
+    }
+
+    // Normalize category to GMB valid enums
+    let googleCategory = category.toUpperCase();
+    if (googleCategory === "PROFILE") {
+      googleCategory = "LOGO";
+    }
+    const validCategories = ["COVER", "LOGO", "EXTERIOR", "INTERIOR", "PRODUCT", "ADDITIONAL", "AT_WORK", "FOOD_AND_DRINK"];
+    if (!validCategories.includes(googleCategory)) {
+      googleCategory = "ADDITIONAL";
+    }
+
+    // 1. If ImageKit is configured, upload to ImageKit first to get a public URL
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+    const urlEndpoint = process.env.IMAGEKIT_URL_ENDPOINT;
+    let publicUrl = "";
+
+    if (privateKey && urlEndpoint) {
+      try {
+        console.log("[GMB PHOTO UPLOAD] ImageKit credentials detected. Uploading to ImageKit CDN first...");
+        const formData = new FormData();
+        formData.append("file", image); // ImageKit accepts the base64 data URL directly
+        formData.append("fileName", `gmb_upload_${Date.now()}.jpg`);
+        formData.append("useUniqueFileName", "true");
+
+        const authHeader = Buffer.from(`${privateKey}:`).toString("base64");
+        const imagekitRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
+          headers: {
+            Authorization: `Basic ${authHeader}`
+          }
+        });
+        
+        publicUrl = imagekitRes.data.url;
+        console.log(`[GMB PHOTO UPLOAD] ImageKit upload success. Public URL: ${publicUrl}`);
+      } catch (ikErr: any) {
+        console.error("[GMB PHOTO UPLOAD] ImageKit upload failed, falling back to direct binary byte upload:", ikErr?.response?.data || ikErr.message);
+      }
+    }
 
     // If live credentials are connected, upload to Google API
     if (config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
@@ -969,42 +1013,97 @@ router.post("/media/upload", async (req, res) => {
         const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
         const locationPath = await getGmbLocationPath(token, config.googleLocationId);
 
-        // Step 1: Register media item to get uploadUrl
-        const registerUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/media`;
-        const registerPayload = {
-          mediaFormat: "PHOTO",
-          locationAssociation: {
-            category: category
+        if (publicUrl) {
+          // Approach A: Register photo via public sourceUrl (Simpler & highly recommended)
+          console.log(`[GMB PHOTO UPLOAD] Registering photo via sourceUrl to Google: ${publicUrl}`);
+          const createMetadataUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/media`;
+          const createResponse = await axios.post(createMetadataUrl, {
+            mediaFormat: "PHOTO",
+            locationAssociation: {
+              category: googleCategory
+            },
+            sourceUrl: publicUrl
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          console.log(`[LIVE GMB MEDIA UPLOAD] Successfully registered photo via sourceUrl: ${createResponse.data?.name}`);
+          
+          return res.status(201).json({
+            message: "Photo uploaded to Google Business listing successfully.",
+            name: createResponse.data?.name,
+            category: googleCategory,
+            googleUrl: publicUrl
+          });
+        } else {
+          // Approach B: Fallback to 3-step byte upload if ImageKit failed/not configured
+          console.log("[GMB PHOTO UPLOAD] ImageKit CDN not available. Falling back to 3-step binary byte upload...");
+          
+          // Step 1: Initiate upload session (startUpload)
+          console.log(`[GMB PHOTO UPLOAD] Step 1: Initiating startUpload at v4/${locationPath}/media:startUpload...`);
+          const startUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/media:startUpload`;
+          let startResponse;
+          try {
+            startResponse = await axios.post(startUrl, {}, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          } catch (startErr: any) {
+            console.error("Step 1 (startUpload) failed details:", JSON.stringify(startErr?.response?.data || startErr.message, null, 2));
+            throw new Error(`Step 1 (startUpload) failed: ${startErr?.response?.data?.error?.message || startErr.message}`);
           }
-        };
 
-        const registerRes = await axios.post(registerUrl, registerPayload, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+          const resourceName = startResponse.data?.resourceName;
+          if (!resourceName) {
+            throw new Error("Google GMB API startUpload failed to return a resourceName.");
+          }
 
-        const { name: mediaName, uploadUrl } = registerRes.data;
+          // Step 2: Upload photo binary bytes
+          console.log(`[GMB PHOTO UPLOAD] Step 2: Uploading bytes to resource ${resourceName}...`);
+          const uploadUrl = `https://mybusiness.googleapis.com/upload/v1/media/${resourceName}?upload_type=media`;
+          try {
+            await axios.post(uploadUrl, buffer, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": mimeType
+              }
+            });
+          } catch (uploadErr: any) {
+            console.error("Step 2 (byte upload) failed details:", JSON.stringify(uploadErr?.response?.data || uploadErr.message, null, 2));
+            throw new Error(`Step 2 (byte upload) failed: ${uploadErr?.response?.data?.error?.message || uploadErr.message}`);
+          }
 
-        if (!uploadUrl) {
-          throw new Error("Google GMB API did not return an upload URL.");
+          // Step 3: Finalize metadata creation (Register the uploaded media)
+          console.log(`[GMB PHOTO UPLOAD] Step 3: Finalizing media metadata registration...`);
+          const createMetadataUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/media`;
+          let createResponse;
+          try {
+            createResponse = await axios.post(createMetadataUrl, {
+              mediaFormat: "PHOTO",
+              locationAssociation: {
+                category: googleCategory
+              },
+              dataRef: {
+                resourceName: resourceName
+              }
+            }, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          } catch (createErr: any) {
+            console.error("Step 3 (create metadata) failed details:", JSON.stringify(createErr?.response?.data || createErr.message, null, 2));
+            throw new Error(`Step 3 (create metadata) failed: ${createErr?.response?.data?.error?.message || createErr.message}`);
+          }
+
+          console.log(`[LIVE GMB MEDIA UPLOAD] Successfully finished GMB media registration for ${resourceName}`);
+          
+          return res.status(201).json({
+            message: "Photo uploaded to Google Business listing successfully.",
+            name: createResponse.data?.name || resourceName,
+            category: googleCategory
+          });
         }
-
-        // Step 2: Upload photo binary bytes
-        await axios.put(uploadUrl, buffer, {
-          headers: {
-            "Content-Type": "image/jpeg"
-          }
-        });
-
-        console.log(`[LIVE GMB MEDIA UPLOAD] Uploaded photo ${mediaName} to category ${category}`);
-        
-        return res.status(201).json({
-          message: "Photo uploaded to Google Business listing successfully.",
-          name: mediaName,
-          category: category
-        });
       } catch (apiErr: any) {
-        console.error("GMB API Photo upload failed. Falling back to local response.", apiErr?.response?.data || apiErr.message);
-        throw new Error(apiErr?.response?.data?.error?.message || apiErr.message);
+        console.error("GMB API Photo upload final failed details:", apiErr.message);
+        throw apiErr;
       }
     }
 

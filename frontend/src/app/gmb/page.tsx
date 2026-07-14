@@ -31,7 +31,8 @@ import {
   RefreshCw,
   Upload,
   Image as ImageIcon,
-  Clock
+  Clock,
+  X
 } from "lucide-react";
 import Link from "next/link";
 
@@ -209,6 +210,7 @@ export default function GmbPerformanceDashboard() {
   const [mediaCategory, setMediaCategory] = useState("ADDITIONAL");
   const [mediaFileBase64, setMediaFileBase64] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
 
   // Determine standard default months based on 3-day data delay
   const latestDate = new Date();
@@ -2832,10 +2834,15 @@ export default function GmbPerformanceDashboard() {
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {mediaItems.map((item, idx) => (
-                      <div key={item.name || idx} className="group relative aspect-square bg-slate-950/30 border border-slate-800 rounded-2xl overflow-hidden shadow-md flex flex-col justify-end">
+                      <div 
+                        key={item.name || idx} 
+                        onClick={() => setSelectedPhoto(item)}
+                        className="group relative aspect-square bg-slate-950/30 border border-slate-800 rounded-2xl overflow-hidden shadow-md flex flex-col justify-end cursor-pointer transition-all hover:border-primary/40 hover:shadow-lg"
+                      >
                         <img
-                          src={item.googleUrl}
+                          src={item.googleUrl || item.thumbnailUrl}
                           alt="Listing Media"
+                          referrerPolicy="no-referrer"
                           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent opacity-85 p-3 flex flex-col justify-end gap-1 select-none">
@@ -2856,6 +2863,74 @@ export default function GmbPerformanceDashboard() {
 
         </div>
       </div>
+
+      {/* Lightbox Photo Preview Modal */}
+      {selectedPhoto && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <div 
+            className="relative bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden max-w-3xl w-full max-h-[90vh] flex flex-col md:flex-row shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-slate-950/60 border border-slate-800 text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+
+            {/* Left side: Large Image */}
+            <div className="md:w-2/3 bg-slate-950 flex items-center justify-center p-4 relative min-h-[300px] md:min-h-[500px]">
+              <img 
+                src={selectedPhoto.googleUrl || selectedPhoto.thumbnailUrl} 
+                alt="Storefront Preview" 
+                referrerPolicy="no-referrer"
+                className="max-w-full max-h-[80vh] object-contain rounded-xl"
+              />
+            </div>
+
+            {/* Right side: Photo Details Metadata */}
+            <div className="md:w-1/3 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800 bg-slate-900/60">
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Photo Category</h4>
+                  <span className="px-3 py-1 bg-primary/10 border border-primary/20 text-primary text-xs font-bold rounded-xl uppercase tracking-wider block w-max">
+                    {selectedPhoto.category}
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Creation Timestamp</h4>
+                  <p className="text-xs font-semibold text-slate-200">
+                    {new Date(selectedPhoto.createTime).toLocaleString([], { dateStyle: "long", timeStyle: "short" })}
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Resource Path</h4>
+                  <p className="text-[9px] text-slate-400 font-mono break-all bg-slate-950/40 p-2.5 rounded-xl border border-slate-850">
+                    {selectedPhoto.name || "simulated/media/node"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-800">
+                <a 
+                  href={selectedPhoto.googleUrl || selectedPhoto.thumbnailUrl} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-3 rounded-xl transition-all shadow-md text-center block cursor-pointer"
+                >
+                  Open Original URL
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
