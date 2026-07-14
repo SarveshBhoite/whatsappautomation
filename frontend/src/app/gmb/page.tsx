@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Store, 
   Eye, 
@@ -30,7 +30,8 @@ import {
   Camera,
   RefreshCw,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Clock
 } from "lucide-react";
 import Link from "next/link";
 
@@ -127,7 +128,61 @@ export default function GmbPerformanceDashboard() {
   const [activeMetricTab, setActiveMetricTab] = useState<"actions" | "views">("actions");
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const [activeSubTab, setActiveSubTab] = useState<"performance" | "posts" | "qa" | "media">("performance");
+  const [activeSubTab, setActiveSubTab] = useState<"performance" | "profile" | "posts" | "qa" | "media">("performance");
+
+  // GMB Profile Editor States
+  const [profileTitle, setProfileTitle] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileAddPhone1, setProfileAddPhone1] = useState("");
+  const [profileAddPhone2, setProfileAddPhone2] = useState("");
+  const [profileWebsite, setProfileWebsite] = useState("");
+  const [profileDesc, setProfileDesc] = useState("");
+  const [profileCategory, setProfileCategory] = useState("");
+  const [profileAddCategoriesText, setProfileAddCategoriesText] = useState("");
+  const [profileOpeningDate, setProfileOpeningDate] = useState({ year: "", month: "", day: "" });
+  const [profileAddress, setProfileAddress] = useState<any>({
+    addressLines: [""],
+    locality: "",
+    administrativeArea: "",
+    postalCode: "",
+    regionCode: "IN"
+  });
+  const [profileHours, setProfileHours] = useState<any>({ periods: [] });
+  const [profileSpecialHours, setProfileSpecialHours] = useState<any[]>([]);
+  const [profileServiceAreas, setProfileServiceAreas] = useState<any[]>([]);
+  const [newServiceAreaName, setNewServiceAreaName] = useState("");
+  const [placesSuggestions, setPlacesSuggestions] = useState<{ placeId: string; placeName: string }[]>([]);
+  const [searchingPlaces, setSearchingPlaces] = useState(false);
+  const latestSearchQuery = useRef("");
+  const [profileLabelsText, setProfileLabelsText] = useState("");
+  const [profileAttributes, setProfileAttributes] = useState<any>({
+    accessibility: {
+      wheelchair_accessible_toilet: false,
+      wheelchair_accessible_car_park: false,
+      wheelchair_accessible_entrance: false,
+      wheelchair_accessible_seating: false
+    },
+    amenities: {
+      gender_neutral_toilets: false
+    },
+    crowd: {
+      lgqbtq_friendly: false
+    },
+    parking: {
+      free_multistorey_car_park: false,
+      free_parking_lot: false
+    },
+    planning: {
+      appointment_required: false
+    },
+    serviceOptions: {
+      offers_online_appointments: false,
+      onsite_services_available: false
+    }
+  });
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
 
   // GMB Posts States
   const [posts, setPosts] = useState<any[]>([]);
@@ -173,6 +228,283 @@ export default function GmbPerformanceDashboard() {
   const [selectedBMonth, setSelectedBMonth] = useState(defaultBMonth);
   const [selectedBYear, setSelectedBYear] = useState(defaultBYear);
   
+  useEffect(() => {
+    fetchPosts();
+    fetchQuestions();
+    fetchMedia();
+    fetchProfileDetails();
+  }, [orgId]);
+
+  // Fetch GMB Profile Details
+  const fetchProfileDetails = async () => {
+    setLoadingProfile(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/profile?orgId=${orgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProfileTitle(data.title || "");
+        
+        setProfilePhone(data.phoneNumbers?.primaryPhone || "");
+        setProfileAddPhone1(data.phoneNumbers?.additionalPhones?.[0] || "");
+        setProfileAddPhone2(data.phoneNumbers?.additionalPhones?.[1] || "");
+        
+        setProfileWebsite(data.websiteUri || "");
+        setProfileDesc(data.profile?.description || "");
+        
+        const primaryCat = data.categories?.primaryCategory;
+        setProfileCategory(primaryCat ? (primaryCat.displayName || primaryCat.name) : "Internet marketing service");
+        setProfileAddCategoriesText((data.categories?.additionalCategories || []).map((c: any) => c.displayName || c.name).join(", "));
+        
+        if (data.openInfo?.openingDate) {
+          setProfileOpeningDate({
+            year: String(data.openInfo.openingDate.year || ""),
+            month: String(data.openInfo.openingDate.month || ""),
+            day: String(data.openInfo.openingDate.day || "")
+          });
+        } else {
+          setProfileOpeningDate({ year: "", month: "", day: "" });
+        }
+        
+        setProfileAddress(data.storefrontAddress || {
+          addressLines: [""],
+          locality: "",
+          administrativeArea: "",
+          postalCode: "",
+          regionCode: "IN"
+        });
+        
+        const pad = (num: number) => String(num).padStart(2, "0");
+        const mappedPeriods = (data.regularHours?.periods || []).map((p: any) => {
+          const openH = p.openTime ? pad(p.openTime.hours ?? 0) : "09";
+          const openM = p.openTime ? pad(p.openTime.minutes ?? 0) : "30";
+          const closeH = p.closeTime ? pad(p.closeTime.hours ?? 0) : "18";
+          const closeM = p.closeTime ? pad(p.closeTime.minutes ?? 0) : "30";
+          return {
+            openDay: p.openDay,
+            openTime: `${openH}:${openM}`,
+            closeDay: p.closeDay,
+            closeTime: `${closeH}:${closeM}`
+          };
+        });
+        
+        setProfileHours({ periods: mappedPeriods });
+
+        const mappedSpecial = (data.specialHours?.specialHourPeriods || []).map((sh: any) => {
+          const parseDate = (dObj: any) => {
+            if (!dObj) return "";
+            return `${dObj.year}-${pad(dObj.month)}-${pad(dObj.day)}`;
+          };
+          const parseTime = (tObj: any) => {
+            if (!tObj) return "09:00";
+            return `${pad(tObj.hours)}:${pad(tObj.minutes)}`;
+          };
+          return {
+            startDate: parseDate(sh.startDate),
+            endDate: parseDate(sh.endDate || sh.startDate),
+            openTime: parseTime(sh.openTime),
+            closeTime: parseTime(sh.closeTime),
+            closed: !!sh.closed
+          };
+        });
+        setProfileSpecialHours(mappedSpecial);
+
+        setProfileServiceAreas(data.serviceArea?.places?.placeInfos || []);
+        setProfileLabelsText((data.labels || []).join(", "));
+      }
+    } catch (err) {
+      console.error("Failed to fetch GMB profile details:", err);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  // Update GMB Profile Details
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const googlePeriods = (profileHours?.periods || []).map((p: any) => {
+        const [openH, openM] = (p.openTime || "09:30").split(":").map(Number);
+        const [closeH, closeM] = (p.closeTime || "18:30").split(":").map(Number);
+        return {
+          openDay: p.openDay,
+          openTime: { hours: openH, minutes: openM, seconds: 0, nanos: 0 },
+          closeDay: p.closeDay,
+          closeTime: { hours: closeH, minutes: closeM, seconds: 0, nanos: 0 }
+        };
+      });
+
+      const formattedSpecialHours = profileSpecialHours.map((sh: any) => {
+        const parseTime = (timeStr: string) => {
+          if (!timeStr) return { hours: 9, minutes: 0, seconds: 0, nanos: 0 };
+          const [h, m] = timeStr.split(":").map(Number);
+          return { hours: h || 0, minutes: m || 0, seconds: 0, nanos: 0 };
+        };
+        const parseDate = (dateStr: string) => {
+          if (!dateStr) return { year: 2026, month: 1, day: 1 };
+          const [y, m, d] = dateStr.split("-").map(Number);
+          return { year: y || 0, month: m || 0, day: d || 0 };
+        };
+        return {
+          startDate: parseDate(sh.startDate),
+          endDate: parseDate(sh.endDate || sh.startDate),
+          openTime: sh.closed ? undefined : parseTime(sh.openTime),
+          closeTime: sh.closed ? undefined : parseTime(sh.closeTime),
+          closed: !!sh.closed
+        };
+      });
+
+      const additionalPhonesList = [profileAddPhone1, profileAddPhone2].filter(Boolean);
+      const labelsList = profileLabelsText
+        ? profileLabelsText.split(",").map(l => l.trim()).filter(Boolean)
+        : [];
+
+      const locationData: any = {
+        title: profileTitle,
+        phoneNumbers: {
+          primaryPhone: profilePhone,
+          additionalPhones: additionalPhonesList
+        },
+        websiteUri: profileWebsite,
+        profile: {
+          description: profileDesc
+        },
+        storefrontAddress: profileAddress,
+        regularHours: {
+          periods: googlePeriods
+        },
+        specialHours: {
+          specialHourPeriods: formattedSpecialHours
+        },
+        openInfo: {
+          status: "OPEN",
+          openingDate: {
+            year: profileOpeningDate.year ? Number(profileOpeningDate.year) : undefined,
+            month: profileOpeningDate.month ? Number(profileOpeningDate.month) : undefined,
+            day: profileOpeningDate.day ? Number(profileOpeningDate.day) : undefined
+          }
+        },
+        labels: labelsList,
+        serviceArea: {
+          places: {
+            placeInfos: profileServiceAreas
+          }
+        }
+      };
+
+      const res = await fetch(`${BACKEND_URL}/api/gmb/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          updateMask: "title,phoneNumbers,websiteUri,profile.description,storefrontAddress,regularHours,specialHours,openInfo.openingDate,labels,serviceArea",
+          locationData
+        })
+      });
+      if (res.ok) {
+        alert("Business profile details successfully updated!");
+        await fetchProfileDetails();
+      } else {
+        const errData = await res.json();
+        alert(`Failed to save profile: ${errData.error}`);
+      }
+    } catch (err) {
+      console.error("Failed to save GMB profile:", err);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // AI Description Generator (uses Groq backend)
+  const handleGenerateDescription = async () => {
+    setIsGeneratingDesc(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/profile/ai-suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: profileTitle,
+          primaryCategory: profileCategory,
+          additionalCategoriesText: profileAddCategoriesText
+        })
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setProfileDesc(result.suggestion || "");
+      } else {
+        const err = await res.json();
+        alert(`AI Generation failed: ${err.error}`);
+      }
+    } catch (err) {
+      console.error("Failed to generate AI description:", err);
+    } finally {
+      setIsGeneratingDesc(false);
+    }
+  };
+
+  // Autocomplete Service Areas using Google Places API proxy on backend
+  const handlePlacesSearch = async (val: string) => {
+    setNewServiceAreaName(val);
+    latestSearchQuery.current = val;
+    if (!val.trim()) {
+      setPlacesSuggestions([]);
+      return;
+    }
+    setSearchingPlaces(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/places/search?query=${encodeURIComponent(val)}`);
+      if (res.ok) {
+        const list = await res.json();
+        // Prevent race condition: only update suggestions if query matches current value
+        if (latestSearchQuery.current === val) {
+          setPlacesSuggestions(list);
+        }
+      }
+    } catch (err) {
+      console.error("Autocomplete failed:", err);
+    } finally {
+      if (latestSearchQuery.current === val) {
+        setSearchingPlaces(false);
+      }
+    }
+  };
+
+  // Helper to toggle a day open/closed
+  const handleHoursDayToggle = (day: string, checked: boolean) => {
+    const updatedPeriods = [...(profileHours?.periods || [])];
+    if (checked) {
+      // Add default period: 09:30 to 18:30
+      updatedPeriods.push({
+        openDay: day,
+        openTime: "09:30",
+        closeDay: day,
+        closeTime: "18:30"
+      });
+    } else {
+      // Remove all periods for this day
+      const filtered = updatedPeriods.filter((p: any) => p.openDay !== day);
+      setProfileHours({ periods: filtered });
+      return;
+    }
+    setProfileHours({ periods: updatedPeriods });
+  };
+
+  // Helper to update hours for a day
+  const handleHoursTimeChange = (day: string, field: "openTime" | "closeTime", value: string) => {
+    const updatedPeriods = (profileHours?.periods || []).map((p: any) => {
+      if (p.openDay === day) {
+        return {
+          ...p,
+          [field]: value,
+          closeDay: field === "closeTime" ? day : p.closeDay
+        };
+      }
+      return p;
+    });
+    setProfileHours({ periods: updatedPeriods });
+  };
+
   // Extract org query parameter in useEffect client-side
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -820,6 +1152,13 @@ export default function GmbPerformanceDashboard() {
               </button>
               <button
                 type="button"
+                onClick={() => setActiveSubTab("profile")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "profile" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <Settings className="h-3.5 w-3.5" /> Profile Details
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveSubTab("posts")}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "posts" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
               >
@@ -1421,6 +1760,699 @@ export default function GmbPerformanceDashboard() {
           )}
         </>
       )}
+
+          {/* =========================================================
+              SUB-TAB 1.5: PROFILE DETAILS (EDIT PROFILE PANEL)
+              ========================================================= */}
+          {activeSubTab === "profile" && (
+            <div className="bg-slate-950/20 border border-slate-850/80 rounded-3xl p-6 lg:p-10 shadow-2xl max-w-4xl mx-auto space-y-10 animate-fadeIn">
+              <div className="flex justify-between items-center border-b border-slate-850 pb-6">
+                <div className="flex items-center gap-4.5">
+                  <div className="h-12 w-12 bg-primary/10 border border-primary/20 flex items-center justify-center rounded-2xl">
+                    <Store className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="font-black text-slate-100 text-lg tracking-tight">Business Profile Settings</h2>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">Manage storefront categories, primary contact numbers, location coverage, regular & special hours, and listing attributes</p>
+                  </div>
+                </div>
+              </div>
+
+              {loadingProfile ? (
+                <div className="flex justify-center items-center py-24">
+                  <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <form onSubmit={handleSaveProfile} className="space-y-10">
+                  
+                  {/* SECTION 1: ABOUT YOUR BUSINESS */}
+                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-6 shadow-md hover:border-slate-800 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
+                      <Info className="h-5 w-5 text-primary" /> 1. About Your Business
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Business Name</label>
+                        <input
+                          type="text"
+                          value={profileTitle}
+                          onChange={(e) => setProfileTitle(e.target.value)}
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary font-bold transition-all duration-200"
+                          required
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Primary Category</label>
+                        <input
+                          type="text"
+                          value={profileCategory}
+                          disabled
+                          className="bg-slate-900/50 border border-slate-850 rounded-xl px-4.5 py-3 text-sm text-slate-450 outline-none select-none font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Additional Categories (Comma-separated)</label>
+                      <input
+                        type="text"
+                        value={profileAddCategoriesText}
+                        onChange={(e) => setProfileAddCategoriesText(e.target.value)}
+                        placeholder="e.g. Website designer, Social media marketing, SEO agency"
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary transition-all duration-200 font-semibold"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex justify-between items-center">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Business Description</label>
+                        <button
+                          type="button"
+                          onClick={handleGenerateDescription}
+                          disabled={isGeneratingDesc}
+                          className="bg-primary text-slate-950 hover:bg-secondary transition-all font-black text-[10px] uppercase tracking-widest px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50"
+                        >
+                          <Sparkles className={`h-3.5 w-3.5 ${isGeneratingDesc ? "animate-spin" : ""}`} />
+                          {isGeneratingDesc ? "AI Writing..." : "AI Write Description"}
+                        </button>
+                      </div>
+                      <textarea
+                        value={profileDesc}
+                        onChange={(e) => setProfileDesc(e.target.value)}
+                        rows={6}
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        className="bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed font-sans transition-all duration-200 resize-y"
+                        placeholder="Provide details about your business..."
+                        required
+                      />
+                    </div>
+
+                    {/* Opening Date Fields */}
+                    <div className="space-y-2.5">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Opening Date</label>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <input
+                            type="text"
+                            placeholder="Year (e.g. 2025)"
+                            value={profileOpeningDate.year}
+                            onChange={(e) => setProfileOpeningDate({ ...profileOpeningDate, year: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-mono text-center font-bold"
+                          />
+                        </div>
+                        <div>
+                          <select
+                            value={profileOpeningDate.month}
+                            onChange={(e) => setProfileOpeningDate({ ...profileOpeningDate, month: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary cursor-pointer font-semibold"
+                          >
+                            <option value="">Month</option>
+                            {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((m) => (
+                              <option key={m} value={m}>
+                                {new Date(2020, Number(m) - 1).toLocaleString("default", { month: "long" })}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            placeholder="Day (Optional)"
+                            value={profileOpeningDate.day}
+                            onChange={(e) => setProfileOpeningDate({ ...profileOpeningDate, day: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-mono text-center font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 2: CONTACT INFORMATION */}
+                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-6 shadow-md hover:border-slate-800 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
+                      <Phone className="h-5 w-5 text-primary" /> 2. Contact Information
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Primary Phone Number</label>
+                        <input
+                          type="text"
+                          value={profilePhone}
+                          onChange={(e) => setProfilePhone(e.target.value)}
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-bold"
+                          placeholder="e.g. +91 77099 36965"
+                          required
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Additional Phone 1</label>
+                        <input
+                          type="text"
+                          value={profileAddPhone1}
+                          onChange={(e) => setProfileAddPhone1(e.target.value)}
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                          placeholder="Mobile or landline"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Additional Phone 2</label>
+                        <input
+                          type="text"
+                          value={profileAddPhone2}
+                          onChange={(e) => setProfileAddPhone2(e.target.value)}
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                          placeholder="Mobile or landline"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Website URL</label>
+                      <input
+                        type="url"
+                        value={profileWebsite}
+                        onChange={(e) => setProfileWebsite(e.target.value)}
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-mono text-[13px] font-bold"
+                        placeholder="https://www.example.com"
+                      />
+                    </div>
+                  </div>
+
+                  {/* SECTION 3: LOCATION AND AREAS */}
+                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-8 shadow-md hover:border-slate-800 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
+                      <MapPin className="h-5 w-5 text-primary" /> 3. Location and Areas
+                    </h3>
+
+                    {/* Storefront address */}
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Storefront Address</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-3 flex flex-col gap-2">
+                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Street Address Line 1</label>
+                          <input
+                            type="text"
+                            value={profileAddress?.addressLines?.[0] || ""}
+                            onChange={(e) => {
+                              const lines = [...(profileAddress?.addressLines || ["", ""])];
+                              lines[0] = e.target.value;
+                              setProfileAddress({ ...profileAddress, addressLines: lines });
+                            }}
+                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                            placeholder="Street, suite, building"
+                          />
+                        </div>
+                        <div className="md:col-span-3 flex flex-col gap-2">
+                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Street Address Line 2 (Optional)</label>
+                          <input
+                            type="text"
+                            value={profileAddress?.addressLines?.[1] || ""}
+                            onChange={(e) => {
+                              const lines = [...(profileAddress?.addressLines || ["", ""])];
+                              lines[1] = e.target.value;
+                              setProfileAddress({ ...profileAddress, addressLines: lines });
+                            }}
+                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                            placeholder="Floor, landmark, sublocality"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">City / Locality</label>
+                          <input
+                            type="text"
+                            value={profileAddress?.locality || ""}
+                            onChange={(e) => setProfileAddress({ ...profileAddress, locality: e.target.value })}
+                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-bold"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">State / Administrative Area</label>
+                          <input
+                            type="text"
+                            value={profileAddress?.administrativeArea || ""}
+                            onChange={(e) => setProfileAddress({ ...profileAddress, administrativeArea: e.target.value })}
+                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-bold"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Postal / Zip Code</label>
+                          <input
+                            type="text"
+                            value={profileAddress?.postalCode || ""}
+                            onChange={(e) => setProfileAddress({ ...profileAddress, postalCode: e.target.value })}
+                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-mono text-center font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Service Area Place Tags */}
+                    <div className="space-y-4 pt-6 border-t border-slate-850/50">
+                      <label className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Service Areas (Places you serve)</label>
+                      
+                      <div className="flex flex-wrap gap-2.5 py-3">
+                        {profileServiceAreas.length === 0 ? (
+                          <span className="text-sm text-slate-500 italic">No specific service areas added (Storefront operations only)</span>
+                        ) : (
+                          profileServiceAreas.map((item, idx) => (
+                            <div key={idx} className="bg-slate-900 border border-slate-800 hover:border-slate-750 px-4 py-2 rounded-xl text-xs text-slate-200 font-semibold flex items-center gap-2 transition-all">
+                              <span>{item.placeName}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const filtered = profileServiceAreas.filter((_, i) => i !== idx);
+                                  setProfileServiceAreas(filtered);
+                                }}
+                                className="text-slate-400 hover:text-rose-400 font-black cursor-pointer text-base leading-none"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="flex gap-3 relative">
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            placeholder="Search regions, cities, or districts served..."
+                            value={newServiceAreaName}
+                            onChange={(e) => handlePlacesSearch(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold animate-fadeIn"
+                          />
+                          {searchingPlaces && (
+                            <div className="absolute right-3.5 top-3.5">
+                              <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                          
+                          {/* Autocomplete Predictions Dropdown */}
+                          {placesSuggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-850 max-h-60 overflow-y-auto scrollbar-none">
+                              {placesSuggestions.map((sug) => (
+                                <button
+                                  key={sug.placeId}
+                                  type="button"
+                                  onClick={() => {
+                                    // Add suggestion to the listing's service areas
+                                    if (!profileServiceAreas.some(a => a.placeId === sug.placeId)) {
+                                      setProfileServiceAreas([...profileServiceAreas, {
+                                        placeId: sug.placeId,
+                                        placeName: sug.placeName
+                                      }]);
+                                    }
+                                    setNewServiceAreaName("");
+                                    setPlacesSuggestions([]);
+                                  }}
+                                  className="w-full text-left px-5 py-3.5 text-xs font-semibold text-slate-350 hover:text-slate-100 hover:bg-slate-950 transition-all flex items-center gap-2.5 cursor-pointer"
+                                >
+                                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0 animate-pulse" />
+                                  <span className="truncate">{sug.placeName}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!newServiceAreaName.trim()) return;
+                            // Fallback add as manual entry if not selected from suggestions
+                            setProfileServiceAreas([...profileServiceAreas, {
+                              placeId: `manual-${Date.now()}`,
+                              placeName: newServiceAreaName
+                            }]);
+                            setNewServiceAreaName("");
+                            setPlacesSuggestions([]);
+                          }}
+                          className="bg-primary text-slate-950 px-6 rounded-xl text-xs font-extrabold uppercase tracking-widest hover:bg-secondary transition-all cursor-pointer shadow-lg shrink-0"
+                        >
+                          Add Area
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Labels List */}
+                    <div className="space-y-2 pt-6 border-t border-slate-850/50">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Internal Labels (Comma-separated, for sorting)</label>
+                      <input
+                        type="text"
+                        value={profileLabelsText}
+                        onChange={(e) => setProfileLabelsText(e.target.value)}
+                        placeholder="e.g. Pune-Office, Agency-HQ, Solitaire-Hub"
+                        className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* SECTION 4: HOURS & SCHEDULE */}
+                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-8 shadow-md hover:border-slate-800 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
+                      <Clock className="h-5 w-5 text-primary" /> 4. Opening Hours
+                    </h3>
+
+                    {/* Regular Hours Grid */}
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Regular Main Hours</h4>
+                      <div className="space-y-4 pt-2">
+                        {["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"].map((day) => {
+                          const period = (profileHours?.periods || []).find((p: any) => p.openDay === day);
+                          const isOpen = !!period;
+
+                          return (
+                            <div key={day} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-slate-850/50 last:border-b-0">
+                              <span className="text-sm font-bold text-slate-200 w-28 uppercase tracking-wider">
+                                {day.toLowerCase()}
+                              </span>
+
+                              <div className="flex items-center gap-6">
+                                <label className="relative inline-flex items-center cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={isOpen}
+                                    onChange={(e) => handleHoursDayToggle(day, e.target.checked)}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary peer-checked:after:bg-slate-950" />
+                                  <span className="ml-3 text-xs font-extrabold uppercase tracking-widest w-16 text-center text-slate-400">
+                                    {isOpen ? "Open" : "Closed"}
+                                  </span>
+                                </label>
+
+                                {isOpen && (
+                                  <div className="flex items-center gap-3 animate-fadeIn">
+                                    <input
+                                      type="time"
+                                      value={period.openTime || "09:30"}
+                                      onChange={(e) => handleHoursTimeChange(day, "openTime", e.target.value)}
+                                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono font-bold outline-none focus:border-primary"
+                                    />
+                                    <span className="text-xs text-slate-500 font-bold uppercase">To</span>
+                                    <input
+                                      type="time"
+                                      value={period.closeTime || "18:30"}
+                                      onChange={(e) => handleHoursTimeChange(day, "closeTime", e.target.value)}
+                                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono font-bold outline-none focus:border-primary"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Special hours / Holidays */}
+                    <div className="space-y-4 pt-6 border-t border-slate-850/50">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Special Hours (Holiday exceptions)</h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileSpecialHours([
+                              ...profileSpecialHours,
+                              {
+                                startDate: new Date().toISOString().split("T")[0],
+                                endDate: new Date().toISOString().split("T")[0],
+                                openTime: "09:30",
+                                closeTime: "18:30",
+                                closed: false
+                              }
+                            ]);
+                          }}
+                          className="bg-primary text-slate-950 text-[10px] uppercase font-black tracking-widest px-4 py-2.5 rounded-xl hover:bg-secondary transition-all cursor-pointer shadow-md"
+                        >
+                          + Add Holiday Exception
+                        </button>
+                      </div>
+
+                      {profileSpecialHours.length === 0 ? (
+                        <p className="text-xs text-slate-500 italic py-2">No special holiday hours configured.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {profileSpecialHours.map((sh, idx) => (
+                            <div key={idx} className="bg-slate-950 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 animate-fadeIn hover:border-slate-750 transition-all">
+                              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                <div className="flex flex-col gap-1.5">
+                                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider">Start Date</span>
+                                  <input
+                                    type="date"
+                                    value={sh.startDate}
+                                    onChange={(e) => {
+                                      const updated = [...profileSpecialHours];
+                                      updated[idx].startDate = e.target.value;
+                                      setProfileSpecialHours(updated);
+                                    }}
+                                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono outline-none focus:border-primary font-bold"
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                  <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider">End Date</span>
+                                  <input
+                                    type="date"
+                                    value={sh.endDate || sh.startDate}
+                                    onChange={(e) => {
+                                      const updated = [...profileSpecialHours];
+                                      updated[idx].endDate = e.target.value;
+                                      setProfileSpecialHours(updated);
+                                    }}
+                                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono outline-none focus:border-primary font-bold"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-end flex-wrap gap-5">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={sh.closed}
+                                    onChange={(e) => {
+                                      const updated = [...profileSpecialHours];
+                                      updated[idx].closed = e.target.checked;
+                                      setProfileSpecialHours(updated);
+                                    }}
+                                    className="accent-primary h-4.5 w-4.5 rounded"
+                                  />
+                                  <span className="text-xs font-extrabold uppercase text-slate-350 tracking-wider">Closed All-Day</span>
+                                </label>
+
+                                {!sh.closed && (
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="time"
+                                      value={sh.openTime || "09:30"}
+                                      onChange={(e) => {
+                                        const updated = [...profileSpecialHours];
+                                        updated[idx].openTime = e.target.value;
+                                        setProfileSpecialHours(updated);
+                                      }}
+                                      className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 font-mono font-bold outline-none"
+                                    />
+                                    <span className="text-xs text-slate-500 font-bold uppercase">To</span>
+                                    <input
+                                      type="time"
+                                      value={sh.closeTime || "18:30"}
+                                      onChange={(e) => {
+                                        const updated = [...profileSpecialHours];
+                                        updated[idx].closeTime = e.target.value;
+                                        setProfileSpecialHours(updated);
+                                      }}
+                                      className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 font-mono font-bold outline-none"
+                                    />
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const filtered = profileSpecialHours.filter((_, i) => i !== idx);
+                                    setProfileSpecialHours(filtered);
+                                  }}
+                                  className="text-rose-450 hover:text-rose-400 text-xs font-black uppercase tracking-widest px-3 py-1 cursor-pointer transition-all border border-rose-950 rounded-lg hover:bg-rose-950/20"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* SECTION 5: MORE (ATTRIBUTES) */}
+                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-8 shadow-md hover:border-slate-800 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
+                      <Settings className="h-5 w-5 text-primary" /> 5. More (Listing Attributes)
+                    </h3>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      
+                      {/* Box 1: Accessibility */}
+                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
+                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Accessibility</h4>
+                        <div className="space-y-3">
+                          {[
+                            { key: "wheelchair_accessible_toilet", label: "Wheelchair-accessible toilet" },
+                            { key: "wheelchair_accessible_car_park", label: "Wheelchair-accessible car park" },
+                            { key: "wheelchair_accessible_entrance", label: "Wheelchair-accessible entrance" },
+                            { key: "wheelchair_accessible_seating", label: "Wheelchair-accessible seating" }
+                          ].map((item) => (
+                            <label key={item.key} className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                              <input
+                                type="checkbox"
+                                checked={profileAttributes.accessibility[item.key] || false}
+                                onChange={(e) => {
+                                  const updatedAttr = { ...profileAttributes };
+                                  updatedAttr.accessibility[item.key] = e.target.checked;
+                                  setProfileAttributes(updatedAttr);
+                                }}
+                                className="accent-primary h-5 w-5 rounded border-slate-800 cursor-pointer"
+                              />
+                              <span className="text-sm font-semibold text-slate-200">{item.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Box 2: Amenities & Crowd */}
+                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
+                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Amenities & Crowd</h4>
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                            <input
+                              type="checkbox"
+                              checked={profileAttributes.amenities.gender_neutral_toilets || false}
+                              onChange={(e) => {
+                                const updatedAttr = { ...profileAttributes };
+                                updatedAttr.amenities.gender_neutral_toilets = e.target.checked;
+                                setProfileAttributes(updatedAttr);
+                              }}
+                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-slate-200">Gender-neutral toilets</span>
+                          </label>
+                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                            <input
+                              type="checkbox"
+                              checked={profileAttributes.crowd.lgqbtq_friendly || false}
+                              onChange={(e) => {
+                                const updatedAttr = { ...profileAttributes };
+                                updatedAttr.crowd.lgqbtq_friendly = e.target.checked;
+                                setProfileAttributes(updatedAttr);
+                              }}
+                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-slate-200">LGBTQ+ friendly</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Box 3: Parking */}
+                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
+                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Parking Options</h4>
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                            <input
+                              type="checkbox"
+                              checked={profileAttributes.parking.free_multistorey_car_park || false}
+                              onChange={(e) => {
+                                const updatedAttr = { ...profileAttributes };
+                                updatedAttr.parking.free_multistorey_car_park = e.target.checked;
+                                setProfileAttributes(updatedAttr);
+                              }}
+                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-slate-200">Free multi-storey car park</span>
+                          </label>
+                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                            <input
+                              type="checkbox"
+                              checked={profileAttributes.parking.free_parking_lot || false}
+                              onChange={(e) => {
+                                const updatedAttr = { ...profileAttributes };
+                                updatedAttr.parking.free_parking_lot = e.target.checked;
+                                setProfileAttributes(updatedAttr);
+                              }}
+                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-slate-200">Free parking lot</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Box 4: Planning & Service Options */}
+                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
+                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Planning & Booking</h4>
+                        <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                          <input
+                            type="checkbox"
+                            checked={profileAttributes.planning.appointment_required || false}
+                            onChange={(e) => {
+                              const updatedAttr = { ...profileAttributes };
+                              updatedAttr.planning.appointment_required = e.target.checked;
+                              setProfileAttributes(updatedAttr);
+                            }}
+                            className="accent-primary h-5 w-5 rounded cursor-pointer"
+                          />
+                          <span className="text-sm font-semibold text-slate-200">Appointment required</span>
+                        </label>
+                      </div>
+
+                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850 md:col-span-2">
+                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Service Options</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                            <input
+                              type="checkbox"
+                              checked={profileAttributes.serviceOptions.offers_online_appointments || false}
+                              onChange={(e) => {
+                                const updatedAttr = { ...profileAttributes };
+                                updatedAttr.serviceOptions.offers_online_appointments = e.target.checked;
+                                setProfileAttributes(updatedAttr);
+                              }}
+                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-slate-200">Offers online appointments</span>
+                          </label>
+                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                            <input
+                              type="checkbox"
+                              checked={profileAttributes.serviceOptions.onsite_services_available || false}
+                              onChange={(e) => {
+                                const updatedAttr = { ...profileAttributes };
+                                updatedAttr.serviceOptions.onsite_services_available = e.target.checked;
+                                setProfileAttributes(updatedAttr);
+                              }}
+                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                            />
+                            <span className="text-sm font-semibold text-slate-200">On-site services available</span>
+                          </label>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Submission Row */}
+                  <div className="flex justify-end pt-6">
+                    <button
+                      type="submit"
+                      disabled={savingProfile}
+                      className="bg-primary hover:bg-secondary text-slate-950 font-black text-sm px-10 py-4.5 rounded-2xl transition-all shadow-2xl flex items-center gap-2 cursor-pointer disabled:opacity-50 tracking-wider uppercase"
+                    >
+                      {savingProfile ? "Saving Profile Changes..." : "Save Business Profile Changes"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
 
           {/* =========================================================
               SUB-TAB 2: UPDATES & POSTS (AI POST CREATOR)

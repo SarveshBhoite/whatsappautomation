@@ -550,10 +550,53 @@ router.delete("/posts/:id", async (req, res) => {
 router.get("/questions", async (req, res) => {
   try {
     const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
-    const questions = await prisma.googleQuestion.findMany({
+
+    // Ensure parent Organization record exists to avoid foreign key issues
+    await prisma.organization.upsert({
+      where: { id: orgId },
+      update: {},
+      create: { id: orgId, name: "Merchant Workspace" }
+    });
+
+    let questions = await prisma.googleQuestion.findMany({
       where: { organizationId: orgId },
       orderBy: { createdAt: "desc" }
     });
+
+    if (questions.length === 0) {
+      const mockFaqs = [
+        {
+          id: `seed-1-${Date.now()}`,
+          organizationId: orgId,
+          gmbQuestionId: `seed-q-1`,
+          authorName: "Amit Sharma",
+          text: "What are your business operating hours and average project turnaround time?",
+          answerText: null,
+          status: "UNANSWERED",
+          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+        },
+        {
+          id: `seed-2-${Date.now()}`,
+          organizationId: orgId,
+          gmbQuestionId: `seed-q-2`,
+          authorName: "Neha Patel",
+          text: "Do you provide custom website designing and social media branding packages in Pune?",
+          answerText: "Yes, we offer fully integrated local SEO, social media branding, and web design packages.",
+          status: "ANSWERED",
+          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+        }
+      ];
+
+      for (const faq of mockFaqs) {
+        await prisma.googleQuestion.create({ data: faq });
+      }
+
+      questions = await prisma.googleQuestion.findMany({
+        where: { organizationId: orgId },
+        orderBy: { createdAt: "desc" }
+      });
+    }
+
     res.status(200).json(questions);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -577,9 +620,14 @@ router.get("/questions/sync", async (req, res) => {
     }
 
     const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
-    const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+    
+    let locationIdOnly = config.googleLocationId;
+    if (locationIdOnly.includes("locations/")) {
+      locationIdOnly = locationIdOnly.split("locations/")[1] || "";
+    }
+    locationIdOnly = locationIdOnly.trim();
 
-    const questionsUrl = `https://mybusinessqanda.googleapis.com/v1/${locationPath}/questions`;
+    const questionsUrl = `https://mybusinessqanda.googleapis.com/v1/locations/${locationIdOnly}/questions`;
     const response = await axios.get(questionsUrl, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -636,56 +684,66 @@ router.get("/questions/sync", async (req, res) => {
     const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
     console.warn("Google My Business Q&A API is deprecated or unavailable. Serving local database FAQs:", error.message);
     
-    // Fallback: Fetch and return local questions from database so the UI remains active
-    const localQuestions = await prisma.googleQuestion.findMany({
-      where: { organizationId: orgId },
-      orderBy: { createdAt: "desc" }
-    });
+    try {
+      // Ensure parent Organization record exists to satisfy schema relation constraint
+      await prisma.organization.upsert({
+        where: { id: orgId },
+        update: {},
+        create: { id: orgId, name: "Merchant Workspace" }
+      });
 
-    // If database is empty, seed mock initial FAQs so the user can test reply workflows
-    if (localQuestions.length === 0) {
-      const mockFaqs = [
-        {
-          id: `seed-1-${Date.now()}`,
-          organizationId: orgId,
-          gmbQuestionId: `seed-q-1`,
-          authorName: "Amit Sharma",
-          text: "What are your business operating hours and average project turnaround time?",
-          answerText: null,
-          status: "UNANSWERED",
-          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
-        },
-        {
-          id: `seed-2-${Date.now()}`,
-          organizationId: orgId,
-          gmbQuestionId: `seed-q-2`,
-          authorName: "Neha Patel",
-          text: "Do you provide custom website designing and social media branding packages in Pune?",
-          answerText: "Yes, we offer fully integrated local SEO, social media branding, and web design packages.",
-          status: "ANSWERED",
-          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-        }
-      ];
-
-      for (const faq of mockFaqs) {
-        await prisma.googleQuestion.create({ data: faq });
-      }
-
-      const seededQuestions = await prisma.googleQuestion.findMany({
+      // Fetch local questions
+      let localQuestions = await prisma.googleQuestion.findMany({
         where: { organizationId: orgId },
         orderBy: { createdAt: "desc" }
       });
 
-      return res.status(200).json({
+      // If database is empty, seed mock initial FAQs so the user can test workflows
+      if (localQuestions.length === 0) {
+        const mockFaqs = [
+          {
+            id: `seed-1-${Date.now()}`,
+            organizationId: orgId,
+            gmbQuestionId: `seed-q-1`,
+            authorName: "Amit Sharma",
+            text: "What are your business operating hours and average project turnaround time?",
+            answerText: null,
+            status: "UNANSWERED",
+            createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          },
+          {
+            id: `seed-2-${Date.now()}`,
+            organizationId: orgId,
+            gmbQuestionId: `seed-q-2`,
+            authorName: "Neha Patel",
+            text: "Do you provide custom website designing and social media branding packages in Pune?",
+            answerText: "Yes, we offer fully integrated local SEO, social media branding, and web design packages.",
+            status: "ANSWERED",
+            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+          }
+        ];
+
+        for (const faq of mockFaqs) {
+          await prisma.googleQuestion.create({ data: faq });
+        }
+
+        localQuestions = await prisma.googleQuestion.findMany({
+          where: { organizationId: orgId },
+          orderBy: { createdAt: "desc" }
+        });
+      }
+
+      res.status(200).json({
         message: "Synchronized local FAQs repository (Google Q&A API is deprecated).",
-        questions: seededQuestions
+        questions: localQuestions
+      });
+    } catch (dbErr: any) {
+      console.error("Database fallback seeding failed:", dbErr.message);
+      res.status(200).json({
+        message: "Google Q&A API is unavailable.",
+        questions: []
       });
     }
-
-    res.status(200).json({
-      message: "Synchronized local FAQs repository (Google Q&A API is deprecated).",
-      questions: localQuestions
-    });
   }
 });
 
@@ -960,6 +1018,218 @@ router.post("/media/upload", async (req, res) => {
   } catch (error: any) {
     console.error("Failed to upload GMB photo:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// 16. GET: Retrieve GMB location profile details (Real API only)
+router.get("/profile", async (req, res) => {
+  try {
+    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+
+    const config = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: orgId }
+    });
+
+    const clientId = config?.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!config || !clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
+      return res.status(400).json({ error: "Google account is not authorized or location is not configured." });
+    }
+
+    const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+    
+    let locationIdOnly = config.googleLocationId;
+    if (locationIdOnly.includes("locations/")) {
+      locationIdOnly = locationIdOnly.split("locations/")[1] || "";
+    }
+    locationIdOnly = locationIdOnly.trim();
+
+    const readFields = [
+      "name",
+      "languageCode",
+      "storeCode",
+      "title",
+      "phoneNumbers",
+      "categories",
+      "storefrontAddress",
+      "websiteUri",
+      "regularHours",
+      "specialHours",
+      "serviceArea",
+      "labels",
+      "adWordsLocationExtensions",
+      "latlng",
+      "openInfo",
+      "metadata",
+      "profile",
+      "relationshipData",
+      "moreHours",
+      "serviceItems"
+    ].join(",");
+
+    const profileUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${locationIdOnly}?readMask=${readFields}`;
+    
+    const response = await axios.get(profileUrl, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    console.log(`[LIVE GMB PROFILE FETCH] Retrieved location data for ${locationIdOnly}`);
+    res.status(200).json(response.data);
+  } catch (error: any) {
+    console.error("Failed to retrieve GMB profile details:", error?.response?.data || error.message);
+    res.status(error?.response?.status || 500).json({ 
+      error: error?.response?.data?.error?.message || error.message,
+      details: error?.response?.data
+    });
+  }
+});
+
+// 17. PATCH: Update GMB location profile details (Real API only)
+router.patch("/profile", async (req, res) => {
+  try {
+    const { orgId = DEFAULT_ORG_ID, updateMask, locationData } = req.body;
+
+    if (!updateMask || !locationData) {
+      return res.status(400).json({ error: "updateMask and locationData are required." });
+    }
+
+    const config = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: orgId }
+    });
+
+    const clientId = config?.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!config || !clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
+      return res.status(400).json({ error: "Google account is not authorized or location is not configured." });
+    }
+
+    const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+    
+    let locationIdOnly = config.googleLocationId;
+    if (locationIdOnly.includes("locations/")) {
+      locationIdOnly = locationIdOnly.split("locations/")[1] || "";
+    }
+    locationIdOnly = locationIdOnly.trim();
+
+    const patchUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${locationIdOnly}?updateMask=${updateMask}`;
+    
+    const response = await axios.patch(patchUrl, locationData, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    console.log(`[LIVE GMB PROFILE UPDATE] Successfully patched profile for location ${locationIdOnly}`);
+
+    // Update config title in database locally for visual consistency
+    if (locationData.title) {
+      await (prisma.googleBusinessConfig as any).update({
+        where: { organizationId: orgId },
+        data: { locationName: locationData.title }
+      });
+    }
+
+    res.status(200).json({
+      message: "Business profile updated successfully on Google Maps.",
+      profile: response.data
+    });
+  } catch (error: any) {
+    console.error("Failed to update business profile details:", error?.response?.data || error.message);
+    res.status(error?.response?.status || 500).json({ 
+      error: error?.response?.data?.error?.message || error.message,
+      details: error?.response?.data
+    });
+  }
+});
+
+// 18. POST: Generate optimized business description using Groq API
+router.post("/profile/ai-suggest", async (req, res) => {
+  try {
+    const { title, primaryCategory, additionalCategoriesText } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Please provide a valid Business Name before generating an AI description." });
+    }
+    if (!primaryCategory || !primaryCategory.trim()) {
+      return res.status(400).json({ error: "Please select or verify a Primary Business Category for your listing before generating an AI description." });
+    }
+
+    const groqKey = process.env.GROQ_KEY;
+    if (!groqKey) {
+      return res.status(400).json({ error: "The AI system is temporarily unavailable: Groq API key is missing on the server. Please check environment configuration." });
+    }
+
+    const prompt = `Write a professional, highly engaging business description (maximum 750 characters) for a Google Business Profile of "${title.trim()}".
+Primary Business Category: "${primaryCategory.trim()}".
+Additional services & areas of focus: "${(additionalCategoriesText || "").trim()}".
+
+Requirements:
+- Make it results-oriented, persuasive, and optimized for local SEO search ranking.
+- Write it focusing on the specific value of these services and category.
+- Keep the length strictly under 750 characters (which is Google Business Profile's maximum character limit).
+- Do not include any HTML formatting, markdown, lists, bullet points, hashtags, or bracketed placeholders. Write it as a clean, cohesive paragraph.`;
+
+    const response = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 250
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${groqKey}`
+        }
+      }
+    );
+
+    const suggestion = response.data?.choices?.[0]?.message?.content || "";
+    res.status(200).json({ suggestion: suggestion.trim() });
+  } catch (error: any) {
+    console.error("Failed to generate AI description using Groq:", error?.response?.data || error.message);
+    const errorMsg = error?.response?.data?.error?.message || error.message;
+    res.status(error?.response?.status || 500).json({ 
+      error: `Failed to generate description: ${errorMsg}. Please check that all inputs are filled and try again.`
+    });
+  }
+});
+
+// 19. GET: Search places using Google Places Autocomplete API
+router.get("/places/search", async (req, res) => {
+  try {
+    const query = req.query.query as string;
+    if (!query || !query.trim()) {
+      return res.status(400).json({ error: "Search query is required." });
+    }
+
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({ error: "Google Places API configuration is missing on the server." });
+    }
+    const autocompleteUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${apiKey}`;
+
+    const response = await axios.get(autocompleteUrl);
+    
+    if (response.data.status !== "OK" && response.data.status !== "ZERO_RESULTS") {
+      return res.status(400).json({ error: `Google Places API returned status: ${response.data.status}` });
+    }
+
+    const suggestions = (response.data.predictions || []).map((pred: any) => ({
+      placeId: pred.place_id,
+      placeName: pred.description
+    }));
+
+    res.status(200).json(suggestions);
+  } catch (error: any) {
+    console.error("Google Places search failed:", error.message);
+    res.status(500).json({ error: "Places autocomplete service is currently unavailable. Please enter search terms manually." });
   }
 });
 

@@ -115,6 +115,14 @@ model GoogleBusinessConfig {
   autoReplyEnabled      Boolean      @default(false)
   autoReplyMinRating    Int          @default(4)
   autoReplyTemplate     String?      
+  
+  // Local profile fallbacks
+  websiteUri            String?
+  primaryPhone          String?
+  description           String?
+  address               String?
+  regularHours          String?      // Stored as serialized JSON string
+
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 }
