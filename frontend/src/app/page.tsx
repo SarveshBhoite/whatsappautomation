@@ -388,6 +388,7 @@ export default function Dashboard() {
     googleClientId: "",
     googleClientSecret: "",
     googleRefreshToken: "",
+    googleAdsCustomerId: "",
     autoReplyEnabled: false,
     autoReplyMinRating: 4,
     autoReplyTemplate: "",
@@ -396,6 +397,7 @@ export default function Dashboard() {
   const [googleOauthStatus, setGoogleOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
   const [formGoogleAccountId, setFormGoogleAccountId] = useState("");
   const [formGoogleLocationId, setFormGoogleLocationId] = useState("");
+  const [formGoogleAdsCustomerId, setFormGoogleAdsCustomerId] = useState("");
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -863,6 +865,7 @@ export default function Dashboard() {
         }
         setFormGoogleAccountId(accountId);
         setFormGoogleLocationId(locationId);
+        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
       }
     } catch (err) {
       console.error("Error fetching Google GMB config:", err);
@@ -891,7 +894,8 @@ export default function Dashboard() {
         body: JSON.stringify({ 
           orgId: DEFAULT_ORG_ID, 
           ...googleConfig,
-          googleLocationId: finalLocationId
+          googleLocationId: finalLocationId,
+          googleAdsCustomerId: formGoogleAdsCustomerId
         })
       });
       if (res.ok) {
@@ -909,6 +913,7 @@ export default function Dashboard() {
         }
         setFormGoogleAccountId(accountId);
         setFormGoogleLocationId(locationId);
+        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
 
         setGoogleSaveStatus("success");
         setTimeout(() => setGoogleSaveStatus("idle"), 3000);
@@ -2414,6 +2419,17 @@ export default function Dashboard() {
                             value={formGoogleLocationId}
                             onChange={(e) => setFormGoogleLocationId(e.target.value)}
                             placeholder="e.g. 15154699825689004204"
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">Google Ads Customer ID</label>
+                          <input
+                            type="text"
+                            value={formGoogleAdsCustomerId}
+                            onChange={(e) => setFormGoogleAdsCustomerId(e.target.value)}
+                            placeholder="e.g. 123-456-7890"
                             className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
                           />
                         </div>

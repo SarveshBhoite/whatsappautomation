@@ -10,6 +10,7 @@ import messagesRouter from "./routes/messages";
 import adminRouter from "./routes/admin";
 import gmbRouter from "./routes/gmb";
 import gmbPerformanceRouter from "./routes/gmbPerformance";
+import googleAdsRouter from "./routes/googleAds";
 
 dotenv.config();
 
@@ -47,6 +48,10 @@ app.use("/api/gmb", gmbRouter);
 
 // GMB Performance Analytics Router
 app.use("/api/gmb/performance", gmbPerformanceRouter);
+
+// Google Ads Campaign & Analytics Router
+app.use("/api/ads", googleAdsRouter);
+
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -115,8 +120,8 @@ function startGmbSyncScheduler() {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
+server.listen(Number(PORT), "::", () => {
+  console.log(`Backend server running on all interfaces (port ${PORT})`);
   startGmbSyncScheduler();
 });
 

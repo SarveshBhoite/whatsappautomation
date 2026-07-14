@@ -20,7 +20,17 @@ import {
   Map,
   ArrowUpRight,
   GitMerge,
-  Star
+  Star,
+  Sparkles,
+  Plus,
+  Trash2,
+  Send,
+  HelpCircle,
+  MessageSquare,
+  Camera,
+  RefreshCw,
+  Upload,
+  Image as ImageIcon
 } from "lucide-react";
 import Link from "next/link";
 
@@ -117,6 +127,34 @@ export default function GmbPerformanceDashboard() {
   const [activeMetricTab, setActiveMetricTab] = useState<"actions" | "views">("actions");
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
+  const [activeSubTab, setActiveSubTab] = useState<"performance" | "posts" | "qa" | "media">("performance");
+
+  // GMB Posts States
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [postTitle, setPostTitle] = useState("");
+  const [postSummary, setPostSummary] = useState("");
+  const [postMediaUrl, setPostMediaUrl] = useState("");
+  const [postCTA, setPostCTA] = useState("NONE");
+  const [postCTAUrl, setPostCTAUrl] = useState("");
+  const [isGeneratingPost, setIsGeneratingPost] = useState(false);
+  const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+
+  // GMB Q&A States
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
+  const [questionReplyText, setQuestionReplyText] = useState("");
+  const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+
+  // GMB Media States
+  const [mediaItems, setMediaItems] = useState<any[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  const [mediaCategory, setMediaCategory] = useState("ADDITIONAL");
+  const [mediaFileBase64, setMediaFileBase64] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
   // Determine standard default months based on 3-day data delay
   const latestDate = new Date();
   latestDate.setDate(latestDate.getDate() - 3);
@@ -145,6 +183,247 @@ export default function GmbPerformanceDashboard() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    fetchPosts();
+    fetchQuestions();
+    fetchMedia();
+  }, [orgId]);
+
+  // Fetch GMB Posts
+  const fetchPosts = async () => {
+    setLoadingPosts(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/posts?orgId=${orgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPosts(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch GMB posts:", err);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  // Fetch GMB Questions
+  const fetchQuestions = async () => {
+    setLoadingQuestions(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/questions?orgId=${orgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setQuestions(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch GMB questions:", err);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+
+  // Fetch GMB Gallery Photos
+  const fetchMedia = async () => {
+    setLoadingMedia(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/media?orgId=${orgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMediaItems(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch GMB media:", err);
+    } finally {
+      setLoadingMedia(false);
+    }
+  };
+
+  // Sync Q&A Questions from Google
+  const handleSyncQuestions = async () => {
+    setLoadingQuestions(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/questions/sync?orgId=${orgId}`);
+      if (res.ok) {
+        const result = await res.json();
+        setQuestions(result.questions || []);
+      }
+    } catch (err) {
+      console.error("Failed to sync GMB questions:", err);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+
+  // Submit New GMB Post
+  const handleCreatePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!postSummary) return;
+
+    setIsSubmittingPost(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/posts/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          title: postTitle,
+          summary: postSummary,
+          mediaUrl: postMediaUrl || undefined,
+          callToActionType: postCTA,
+          callToActionUrl: postCTAUrl || undefined
+        })
+      });
+
+      if (res.ok) {
+        setPostTitle("");
+        setPostSummary("");
+        setPostMediaUrl("");
+        setPostCTA("NONE");
+        setPostCTAUrl("");
+        await fetchPosts();
+      }
+    } catch (err) {
+      console.error("Failed to create post:", err);
+    } finally {
+      setIsSubmittingPost(false);
+    }
+  };
+
+  // Delete GMB Post
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm("Are you sure you want to delete this post?")) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/posts/${postId}?orgId=${orgId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await fetchPosts();
+      }
+    } catch (err) {
+      console.error("Failed to delete post:", err);
+    }
+  };
+
+  // Answer GMB Question
+  const handlePostAnswer = async (questionId: string) => {
+    if (!questionReplyText) return;
+
+    setIsSubmittingAnswer(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/questions/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          questionId,
+          replyText: questionReplyText
+        })
+      });
+
+      if (res.ok) {
+        setQuestionReplyText("");
+        setReplyingToQuestionId(null);
+        await fetchQuestions();
+      }
+    } catch (err) {
+      console.error("Failed to reply to question:", err);
+    } finally {
+      setIsSubmittingAnswer(false);
+    }
+  };
+
+  // Gemini AI Copy Generator for Posts
+  const handleGeneratePostCopy = async () => {
+    setIsGeneratingPost(true);
+    try {
+      const prompt = `Write a short, engaging Google Business Profile local post updates for a service/marketing business. Output only the body text of the post and keep it under 300 characters.`;
+      
+      const res = await fetch(`${BACKEND_URL}/api/gmb/questions/ai-suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          questionText: prompt
+        })
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setPostSummary(result.suggestion || "");
+      }
+    } catch (err) {
+      console.error("AI Post Copy generation failed:", err);
+    } finally {
+      setIsGeneratingPost(false);
+    }
+  };
+
+  // Gemini AI Answer Generator for Questions
+  const handleGenerateAnswerSuggestion = async (questionText: string) => {
+    setIsGeneratingAnswer(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/questions/ai-suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          questionText
+        })
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setQuestionReplyText(result.suggestion || "");
+      }
+    } catch (err) {
+      console.error("AI Answer suggestion failed:", err);
+    } finally {
+      setIsGeneratingAnswer(false);
+    }
+  };
+
+  // Handle Photo Selector File Change
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setMediaFileBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Upload Selected Gallery Photo
+  const handleUploadPhoto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mediaFileBase64) return;
+
+    setUploadingPhoto(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/media/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          image: mediaFileBase64,
+          category: mediaCategory
+        })
+      });
+
+      if (res.ok) {
+        setMediaFileBase64(null);
+        await fetchMedia();
+      } else {
+        const errData = await res.json();
+        alert(`Failed to upload photo: ${errData.error}`);
+      }
+    } catch (err) {
+      console.error("Failed to upload photo:", err);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const fetchPerformance = async (
     aM = selectedAMonth, 
@@ -523,28 +802,49 @@ export default function GmbPerformanceDashboard() {
                 <Store className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-black tracking-tight sm:text-2xl">Google Business Listing</h1>
+                <h1 className="text-xl font-black tracking-tight sm:text-2xl">Google Business Profile</h1>
                 <p className="text-xs text-slate-400">
-                  {data ? `${data.locationName} • GMB API performance dashboard` : "Manage and track Google Business performance statistics"}
+                  {data ? `${data.locationName} • GMB Complete Solution` : "Manage and track Google Business profile details"}
                 </p>
               </div>
             </div>
 
-            {data && (
-              <div className="flex flex-col sm:items-end gap-1">
-                <div className="inline-flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-slate-200">{(data as any).range.label}</span>
-                  <span className="text-[10px] text-slate-550">({data.range.startDate} to {data.range.endDate})</span>
-                </div>
-                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                  Compared to {(data as any).range.previousLabel}
-                </span>
-              </div>
-            )}
+            {/* Horizontal Sub-tabs Navigation */}
+            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 shadow-inner gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveSubTab("performance")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "performance" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <TrendingUp className="h-3.5 w-3.5" /> Performance
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab("posts")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "posts" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <Calendar className="h-3.5 w-3.5" /> Updates & Posts
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab("qa")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "qa" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <HelpCircle className="h-3.5 w-3.5" /> Q&A Inbox
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab("media")}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "media" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <Camera className="h-3.5 w-3.5" /> Photos Gallery
+              </button>
+            </div>
           </div>
 
-          {/* Calendar Month Selectors Panel */}
+          {activeSubTab === "performance" && (
+            <>
+              {/* Calendar Month Selectors Panel */}
           {(() => {
             const list = [];
             const listCursor = new Date();
@@ -1117,27 +1417,408 @@ export default function GmbPerformanceDashboard() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+        </>
+      )}
 
-              {/* 4. Action Cards for GMB Listing */}
-              <div className="bg-slate-900/30 border border-slate-900 rounded-3xl p-6 flex flex-col sm:flex-row justify-between items-center gap-6">
-                <div className="flex items-center gap-3 text-center sm:text-left">
-                  <Store className="h-10 w-10 text-primary stroke-1" />
-                  <div className="space-y-0.5">
-                    <h4 className="text-xs font-bold text-slate-200">Listing Connection Verified</h4>
-                    <p className="text-[10px] text-slate-500">Your Google OAuth connection and Location ID are active and verified.</p>
+          {/* =========================================================
+              SUB-TAB 2: UPDATES & POSTS (AI POST CREATOR)
+              ========================================================= */}
+          {activeSubTab === "posts" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
+              {/* Creator Form Column */}
+              <div className="lg:col-span-1 space-y-6">
+                <form onSubmit={handleCreatePost} className="bg-slate-950/30 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Plus className="h-4.5 w-4.5 text-primary" /> Create Google Post
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePostCopy}
+                      disabled={isGeneratingPost}
+                      className="bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-slate-950 transition-all font-bold text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <Sparkles className={`h-3 w-3 ${isGeneratingPost ? "animate-spin" : ""}`} />
+                      {isGeneratingPost ? "Drafting..." : "AI Write"}
+                    </button>
                   </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Post Title (Optional)</label>
+                    <input
+                      type="text"
+                      value={postTitle}
+                      onChange={(e) => setPostTitle(e.target.value)}
+                      placeholder="monsoon special deal"
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Post Summary / Body</label>
+                    <textarea
+                      value={postSummary}
+                      onChange={(e) => setPostSummary(e.target.value)}
+                      placeholder="Write post content here..."
+                      rows={4}
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CTA Button Action</label>
+                    <select
+                      value={postCTA}
+                      onChange={(e) => setPostCTA(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary cursor-pointer"
+                    >
+                      <option value="NONE">No Button</option>
+                      <option value="BOOK">Book Appointment</option>
+                      <option value="ORDER">Order Online</option>
+                      <option value="SHOP">Shop Products</option>
+                      <option value="LEARN_MORE">Learn More</option>
+                      <option value="SIGN_UP">Sign Up</option>
+                      <option value="CALL">Call Now</option>
+                    </select>
+                  </div>
+
+                  {postCTA !== "NONE" && postCTA !== "CALL" && (
+                    <div className="flex flex-col gap-1.5 animate-fadeIn">
+                      <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CTA Action URL</label>
+                      <input
+                        type="url"
+                        value={postCTAUrl}
+                        onChange={(e) => setPostCTAUrl(e.target.value)}
+                        placeholder="https://example.com"
+                        className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Media Photo URL (Optional)</label>
+                    <input
+                      type="url"
+                      value={postMediaUrl}
+                      onChange={(e) => setPostMediaUrl(e.target.value)}
+                      placeholder="Image address"
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-[10px]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingPost || !postSummary}
+                    className="w-full bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs py-3 rounded-xl transition-all shadow-md mt-4 cursor-pointer"
+                  >
+                    {isSubmittingPost ? "Publishing..." : "Publish Post on Google Maps"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Posts Feed Grid */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div className="flex flex-col">
+                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider">Active Updates Feed</h3>
+                    <span className="text-[10px] text-slate-500 leading-normal">Manage scheduled and live posts on Google Maps</span>
+                  </div>
+                  <button
+                    onClick={fetchPosts}
+                    className="p-2 bg-slate-950/40 border border-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`h-4.5 w-4.5 ${loadingPosts ? "animate-spin" : ""}`} />
+                  </button>
                 </div>
 
-                <div className="flex gap-3 shrink-0">
-                  <Link 
-                    href="/?tab=settings" 
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+                {loadingPosts && posts.length === 0 ? (
+                  <div className="flex justify-center items-center py-20">
+                    <div className="h-8 w-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div className="bg-slate-950/20 border border-slate-900 rounded-3xl p-12 text-center text-slate-400">
+                    <Calendar className="h-14 w-14 text-slate-650 mx-auto mb-4 stroke-1" />
+                    <p className="text-xs font-semibold">No active updates or local posts found.</p>
+                    <p className="text-[10px] text-slate-550 mt-1">Use the writer form on the left to publish your first post.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {posts.map((post) => (
+                      <div key={post.id} className="bg-slate-950/20 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg">
+                        <div className="p-5 space-y-4">
+                          <div className="flex justify-between items-start">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                              post.status === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-400"
+                            }`}>
+                              {post.status}
+                            </span>
+                            <button
+                              onClick={() => handleDeletePost(post.id)}
+                              className="text-rose-400 hover:text-rose-300 p-1.5 bg-slate-900/50 border border-slate-850 hover:border-rose-900/50 rounded-xl transition-all cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {post.mediaUrl && (
+                            <div className="h-32 w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-855">
+                              <img src={post.mediaUrl} alt="Post Cover" className="w-full h-full object-cover" />
+                            </div>
+                          )}
+
+                          <div className="space-y-1.5">
+                            {post.title && <h4 className="font-extrabold text-sm text-slate-200">{post.title}</h4>}
+                            <p className="text-xs text-slate-400 leading-relaxed line-clamp-4">{post.summary}</p>
+                          </div>
+                        </div>
+
+                        {post.callToActionType && post.callToActionType !== "NONE" && (
+                          <div className="bg-slate-950/40 p-4 border-t border-slate-855 flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">CTA: {post.callToActionType}</span>
+                            <a
+                              href={post.callToActionUrl || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-primary hover:text-secondary font-bold flex items-center gap-1"
+                            >
+                              Link Landing Page <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================
+              SUB-TAB 3: Q&A INBOX (CUSTOMER QUESTIONS)
+              ========================================================= */}
+          {activeSubTab === "qa" && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div className="flex flex-col">
+                  <h2 className="font-bold text-sm text-slate-200 uppercase tracking-wider">Customer Questions Inbox</h2>
+                  <span className="text-[10px] text-slate-500 leading-normal">Monitor and auto-reply to questions posted on Google Maps</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSyncQuestions}
+                    disabled={loadingQuestions}
+                    className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                   >
-                    Configure GMB Setup
-                  </Link>
+                    <RefreshCw className={`h-4 w-4 ${loadingQuestions ? "animate-spin" : ""}`} />
+                    Sync Questions
+                  </button>
                 </div>
               </div>
 
+              {loadingQuestions && questions.length === 0 ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : questions.length === 0 ? (
+                <div className="bg-slate-950/20 border border-slate-900 rounded-3xl p-12 text-center text-slate-400 max-w-2xl mx-auto">
+                  <HelpCircle className="h-14 w-14 text-slate-650 mx-auto mb-4 stroke-1 animate-pulse" />
+                  <p className="text-xs font-semibold">Q&A inbox is currently empty.</p>
+                  <p className="text-[10px] text-slate-550 mt-1">Click **Sync Questions** to scan live customer comments from Google Maps.</p>
+                </div>
+              ) : (
+                <div className="space-y-6 max-w-4xl mx-auto">
+                  {questions.map((q) => (
+                    <div key={q.id} className="bg-slate-950/20 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-9 w-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-300">
+                            {q.authorName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-200">{q.authorName}</span>
+                            <span className="text-[9px] text-slate-500">{new Date(q.createdAt).toLocaleDateString([], { dateStyle: "medium" })}</span>
+                          </div>
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                          q.status === "ANSWERED" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
+                        }`}>
+                          {q.status}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900/40 p-4 border border-slate-855 rounded-2xl flex gap-3">
+                        <MessageSquare className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                        <p className="text-xs text-slate-300 font-semibold leading-relaxed font-sans italic">
+                          "{q.text}"
+                        </p>
+                      </div>
+
+                      {q.answerText ? (
+                        <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-850 space-y-2 border-l-2 border-l-emerald-500">
+                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Posted Answer</span>
+                          <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{q.answerText}</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Merchant Reply Panel</span>
+                            <button
+                              onClick={() => {
+                                setReplyingToQuestionId(q.id);
+                                handleGenerateAnswerSuggestion(q.text);
+                              }}
+                              disabled={isGeneratingAnswer && replyingToQuestionId === q.id}
+                              className="bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-slate-950 transition-all font-bold text-[9px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <Sparkles className={`h-3 w-3 ${isGeneratingAnswer && replyingToQuestionId === q.id ? "animate-spin" : ""}`} />
+                              AI Draft Reply
+                            </button>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <textarea
+                              value={replyingToQuestionId === q.id ? questionReplyText : ""}
+                              onChange={(e) => {
+                                setReplyingToQuestionId(q.id);
+                                setQuestionReplyText(e.target.value);
+                              }}
+                              placeholder="Type answer to post on Google Maps..."
+                              rows={2}
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-slate-200 outline-none focus:border-primary"
+                            />
+                            <button
+                              onClick={() => handlePostAnswer(q.id)}
+                              disabled={isSubmittingAnswer || replyingToQuestionId !== q.id || !questionReplyText}
+                              className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold rounded-2xl p-3 px-5 flex items-center justify-center shrink-0 shadow-lg cursor-pointer"
+                            >
+                              <Send className="h-4.5 w-4.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =========================================================
+              SUB-TAB 4: LISTING GALLERY (PHOTOS & IMAGES MANAGEMENT)
+              ========================================================= */}
+          {activeSubTab === "media" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
+              {/* Photo Upload Card Column */}
+              <div className="lg:col-span-1 space-y-6">
+                <form onSubmit={handleUploadPhoto} className="bg-slate-950/30 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                  <div className="border-b border-slate-800 pb-3">
+                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Upload className="h-4.5 w-4.5 text-primary" /> Upload Photo
+                    </h3>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Photo Category</label>
+                    <select
+                      value={mediaCategory}
+                      onChange={(e) => setMediaCategory(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary cursor-pointer"
+                    >
+                      <option value="ADDITIONAL">Additional Photo</option>
+                      <option value="COVER">Cover Photo</option>
+                      <option value="PROFILE">Profile Logo</option>
+                      <option value="INTERIOR">Interior Photo</option>
+                      <option value="EXTERIOR">Exterior Photo</option>
+                      <option value="TEAMS">Team Photo</option>
+                    </select>
+                  </div>
+
+                  {/* Visual Dropzone File Picker */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Select Image File</label>
+                    <div className="relative border-2 border-dashed border-slate-800 hover:border-primary/50 bg-slate-900/60 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoFileChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                      {mediaFileBase64 ? (
+                        <div className="space-y-3">
+                          <img src={mediaFileBase64} alt="Preview" className="h-24 mx-auto object-cover rounded-xl border border-slate-850" />
+                          <span className="text-[10px] text-emerald-400 font-bold block">Image loaded successfully!</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <ImageIcon className="h-8 w-8 text-slate-600 mx-auto" />
+                          <span className="text-xs font-semibold text-slate-350 block">Click or Drag Image Here</span>
+                          <span className="text-[10px] text-slate-550 block font-mono">PNG, JPG, or WEBP up to 5MB</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={uploadingPhoto || !mediaFileBase64}
+                    className="w-full bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs py-3 rounded-xl transition-all shadow-md mt-4 cursor-pointer"
+                  >
+                    {uploadingPhoto ? "Uploading to Google..." : "Upload Photo to Live Profile"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Photos Gallery Feed Grid */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div className="flex flex-col">
+                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider">Listing Image Gallery</h3>
+                    <span className="text-[10px] text-slate-550 leading-normal">Live storefront and workspace media from your business page</span>
+                  </div>
+                  <button
+                    onClick={fetchMedia}
+                    className="p-2 bg-slate-950/40 border border-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`h-4.5 w-4.5 ${loadingMedia ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+
+                {loadingMedia && mediaItems.length === 0 ? (
+                  <div className="flex justify-center items-center py-20">
+                    <div className="h-8 w-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : mediaItems.length === 0 ? (
+                  <div className="bg-slate-950/20 border border-slate-900 rounded-3xl p-12 text-center text-slate-400">
+                    <Camera className="h-14 w-14 text-slate-650 mx-auto mb-4 stroke-1" />
+                    <p className="text-xs font-semibold">Your gallery has no photos.</p>
+                    <p className="text-[10px] text-slate-550 mt-1">Use the upload box on the left to upload brand storefront photos.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {mediaItems.map((item, idx) => (
+                      <div key={item.name || idx} className="group relative aspect-square bg-slate-950/30 border border-slate-800 rounded-2xl overflow-hidden shadow-md flex flex-col justify-end">
+                        <img
+                          src={item.googleUrl}
+                          alt="Listing Media"
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent opacity-85 p-3 flex flex-col justify-end gap-1 select-none">
+                          <span className="text-[9px] bg-primary/95 text-slate-950 font-bold px-2 py-0.5 rounded-lg w-max uppercase tracking-wider">
+                            {item.category}
+                          </span>
+                          <span className="text-[8px] text-slate-400">
+                            Uploaded {new Date(item.createTime).toLocaleDateString([], { dateStyle: "short" })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

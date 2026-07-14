@@ -8,16 +8,19 @@ generator client {
 }
 
 model Organization {
-  id            String         @id @default(uuid())
-  name          String
-  createdAt     DateTime       @default(now())
-  users         User[]
-  waConfig      WhatsAppConfig?
-  igConfig      InstagramConfig?
-  gmbConfig     GoogleBusinessConfig?
-  flows         Flow[]
-  conversations Conversation[]
-  googleReviews GoogleReview[]
+  id                String                 @id @default(uuid())
+  name              String
+  createdAt         DateTime               @default(now())
+  users             User[]
+  waConfig          WhatsAppConfig?
+  igConfig          InstagramConfig?
+  gmbConfig         GoogleBusinessConfig?
+  flows             Flow[]
+  conversations     Conversation[]
+  googleReviews     GoogleReview[]
+  googlePosts       GooglePost[]
+  googleQuestions   GoogleQuestion[]
+  googleAdCampaigns GoogleAdCampaign[]
 }
 
 model User {
@@ -108,6 +111,7 @@ model GoogleBusinessConfig {
   googleClientId        String?      
   googleClientSecret    String?      
   googleRefreshToken    String?      
+  googleAdsCustomerId   String?      
   autoReplyEnabled      Boolean      @default(false)
   autoReplyMinRating    Int          @default(4)
   autoReplyTemplate     String?      
@@ -129,4 +133,51 @@ model GoogleReview {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
+
+model GooglePost {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  gmbPostId      String?      @unique
+  title          String?
+  summary        String
+  mediaUrl       String?
+  callToActionType String?    // LEARN_MORE, BOOK, ORDER, SIGN_UP, etc.
+  callToActionUrl  String?
+  status         String       @default("DRAFT") // DRAFT, PUBLISHED, FAILED
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model GoogleQuestion {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  gmbQuestionId  String       @unique
+  authorName     String
+  text           String
+  aiAnswer       String?
+  answerText     String?
+  status         String       @default("UNANSWERED") // UNANSWERED, ANSWERED, AUTO_ANSWERED
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model GoogleAdCampaign {
+  id                  String       @id @default(uuid())
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  googleAdsCampaignId String?      @unique
+  name                String
+  budget              Float
+  startDate           DateTime
+  endDate             DateTime?
+  status              String       @default("DRAFT") // DRAFT, ENABLED, PAUSED
+  headlines           Json         // List of headlines for responsive search ads
+  descriptions        Json         // List of descriptions
+  keywords            Json         // Target keywords
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
 
