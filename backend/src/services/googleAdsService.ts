@@ -271,20 +271,55 @@ export class GoogleAdsService {
   public static async createCampaign(organizationId: string, customerId: string, params: {
     name: string; budgetResourceName: string; channelType: string;
     biddingStrategy: string; targetCpaMicros?: number; targetRoas?: number;
+    targetSpendMicros?: number;
     startDate: string; endDate?: string;
     networkSearch?: boolean; networkDisplay?: boolean;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
 
-    // Build bidding strategy
+    const isPMax = params.channelType === "PERFORMANCE_MAX";
+
+    // Build bidding strategy — v24 REST uses camelCase object keys
+    // PERFORMANCE_MAX only supports maximizeConversions or maximizeConversionValue
     let biddingConfig: any = {};
-    switch (params.biddingStrategy) {
-      case "TARGET_CPA": biddingConfig = { targetCpa: { targetCpaMicros: params.targetCpaMicros } }; break;
-      case "TARGET_ROAS": biddingConfig = { targetRoas: { targetRoas: params.targetRoas } }; break;
-      case "MAXIMIZE_CLICKS": biddingConfig = { maximizeClicks: {} }; break;
-      case "MAXIMIZE_CONVERSIONS": biddingConfig = { maximizeConversions: {} }; break;
-      case "MAXIMIZE_CONVERSION_VALUE": biddingConfig = { maximizeConversionValue: {} }; break;
-      default: biddingConfig = { manualCpc: { enhancedCpcEnabled: false } }; break;
+    if (isPMax) {
+      // Default PMax to maximizeConversionValue; override if caller says MAXIMIZE_CONVERSIONS
+      if (params.biddingStrategy === "MAXIMIZE_CONVERSIONS") {
+        biddingConfig = { maximizeConversions: {} };
+      } else {
+        biddingConfig = { maximizeConversionValue: {} };
+      }
+    } else {
+      switch (params.biddingStrategy) {
+        case "TARGET_CPA":
+          biddingConfig = { targetCpa: { targetCpaMicros: String(params.targetCpaMicros ?? 0) } };
+          break;
+        case "TARGET_ROAS":
+          biddingConfig = { targetRoas: { targetRoas: params.targetRoas ?? 0 } };
+          break;
+        case "MAXIMIZE_CLICKS":
+          // maximizeClicks accepts an optional cpcBidCeilingMicros
+          biddingConfig = { maximizeClicks: {} };
+          break;
+        case "MAXIMIZE_CONVERSIONS":
+          biddingConfig = { maximizeConversions: {} };
+          break;
+        case "MAXIMIZE_CONVERSION_VALUE":
+          biddingConfig = { maximizeConversionValue: {} };
+          break;
+        case "TARGET_IMPRESSION_SHARE":
+          biddingConfig = { targetImpressionShare: { location: "ANYWHERE_ON_PAGE", locationFractionMicros: 1_000_000 } };
+          break;
+        case "MANUAL_CPM":
+          biddingConfig = { manualCpm: {} };
+          break;
+        case "MANUAL_CPV":
+          biddingConfig = { manualCpv: {} };
+          break;
+        default:
+          // MANUAL_CPC is the safe default for Search/Display
+          biddingConfig = { manualCpc: { enhancedCpcEnabled: false } };
+      }
     }
 
     const startDateTime = params.startDate.includes(" ") ? params.startDate : `${params.startDate} 00:00:00`;
@@ -296,14 +331,18 @@ export class GoogleAdsService {
       status: "PAUSED",
       campaignBudget: params.budgetResourceName,
       startDateTime,
-      networkSettings: {
+      ...biddingConfig
+    };
+
+    // Network settings are NOT allowed for PERFORMANCE_MAX campaigns
+    if (!isPMax) {
+      campaignBody.networkSettings = {
         targetGoogleSearch: params.networkSearch !== false,
         targetSearchNetwork: params.networkSearch !== false,
         targetContentNetwork: params.networkDisplay || false,
         targetPartnerSearchNetwork: false
-      },
-      ...biddingConfig
-    };
+      };
+    }
 
     if (endDateTime) campaignBody.endDateTime = endDateTime;
 

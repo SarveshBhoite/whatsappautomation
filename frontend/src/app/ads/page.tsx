@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Megaphone, TrendingUp, MousePointerClick, Eye, DollarSign,
@@ -1357,6 +1357,22 @@ function SettingsTab({
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Suspense-safe OAuth param handler ────────────────────────────────────────
+// useSearchParams() MUST be inside a <Suspense> boundary for Next.js static export.
+function SearchParamsHandler({ onOAuth }: { onOAuth: (status: string, tab: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const oauthStatus = searchParams.get("oauth") || "";
+    const tabParam = searchParams.get("tab") || "";
+    if (oauthStatus || tabParam) {
+      onOAuth(oauthStatus, tabParam);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+  return null;
+}
+
 export default function GoogleAdsPage() {
   const orgId = DEFAULT_ORG_ID;
 
@@ -1446,26 +1462,20 @@ export default function GoogleAdsPage() {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
 
   // ── Handle OAuth redirect back from Google ────────────────────────────────
-  // When the backend redirects to /ads?tab=settings&oauth=success,
-  // we need to auto-switch to the settings tab so the user sees their accounts.
-  const searchParams = useSearchParams();
-  useEffect(() => {
-    const oauthStatus = searchParams.get("oauth");
-    const tabParam    = searchParams.get("tab");
+  // SearchParamsHandler (rendered below in Suspense) reads the URL params and
+  // calls this callback — keeping useSearchParams inside a Suspense boundary
+  // as required by Next.js 13+ for static prerendering.
+  const handleOAuthParams = useCallback((oauthStatus: string, tabParam: string) => {
     if (oauthStatus === "success" || tabParam === "settings") {
       setActiveTab("settings");
       if (oauthStatus === "success") {
         showToast("✅ Google account connected! Fetching your ad accounts…");
       }
-      // Clean URL params so they don't persist on refresh
-      window.history.replaceState({}, document.title, window.location.pathname);
     }
     if (oauthStatus === "error") {
       showToast("❌ Google OAuth failed. Please try connecting again.");
-      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, []);
 
   // Load connection state
   useEffect(() => {
@@ -1870,6 +1880,10 @@ export default function GoogleAdsPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden">
+      {/* SearchParamsHandler must be inside Suspense for Next.js static prerendering */}
+      <Suspense fallback={null}>
+        <SearchParamsHandler onOAuth={handleOAuthParams} />
+      </Suspense>
 
       {/* ── Header ── */}
       {/* z-50 + overflow-visible so the account dropdown floats above KPI cards */}

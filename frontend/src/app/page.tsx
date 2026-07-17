@@ -7,13 +7,13 @@ import {
 
 /* ── Page-level SEO metadata (overrides root layout for this route) ── */
 export const metadata: Metadata = {
-  title: "Jisnu CRM ",
+  title: "Jisnu CRM – WhatsApp, Google Ads & Google Business Automation",
   description:
     "Jisnu CRM is an all-in-one customer relationship management platform. " +
     "Connect your WhatsApp Business API, Google Ads accounts, and Google Business " +
     "Profile to automate marketing, manage campaigns, sync reviews, and grow your business.",
   openGraph: {
-    title: "Jisnu CRM ",
+    title: "Jisnu CRM – All-in-One Marketing Automation Platform",
     description:
       "Manage WhatsApp broadcasts, Google Ads campaigns, and Google My Business " +
       "reviews from a single, secure dashboard.",
