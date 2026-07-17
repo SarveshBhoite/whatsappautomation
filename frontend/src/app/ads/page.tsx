@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Megaphone, TrendingUp, MousePointerClick, Eye, DollarSign,
   Target, Plus, Play, Pause, Sparkles, ChevronRight, ChevronLeft,
@@ -131,7 +132,7 @@ function Textarea({ label, ...props }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ACCOUNT SELECTOR
+// ACCOUNT SELECTOR  (dropdown in header)
 // ─────────────────────────────────────────────────────────────────────────────
 function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) {
   const [open, setOpen] = useState(false);
@@ -161,7 +162,8 @@ function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) 
   const current = accounts.find((a: any) => a.customerId === selected);
 
   return (
-    <div className="relative" ref={ref}>
+    // z-[60] on the wrapper so the dropdown escapes the header stacking context
+    <div className="relative z-[60]" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700/50 text-sm text-slate-100 hover:border-slate-600 transition-all min-w-[180px]"
@@ -172,7 +174,8 @@ function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) 
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 w-72 z-50 bg-slate-900 border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden">
+        /* fixed positioning so it always renders above KPI cards */
+        <div className="absolute top-full mt-1 left-0 w-72 z-[200] bg-slate-900 border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-slate-700/30">
             <p className="text-xs font-semibold text-slate-400 px-2 py-1">Google Ads Accounts</p>
           </div>
@@ -212,6 +215,252 @@ function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) 
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACCOUNT PICKER SCREEN  (full-page UI shown after OAuth or when no account selected)
+// ─────────────────────────────────────────────────────────────────────────────
+function AccountPickerScreen({ orgId, onAccountSelected, showToast }: { orgId: string; onAccountSelected: (id: string) => void; showToast: (msg: string) => void }) {
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+  const [accessibleCids, setAccessibleCids] = useState<string[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [customCid, setCustomCid] = useState("");
+  const [logs, setLogs]           = useState<{ ts: string; level: "info" | "error" | "warn"; msg: string }[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+
+  function log(level: "info" | "error" | "warn", msg: string) {
+    setLogs(prev => [{ ts: new Date().toLocaleTimeString(), level, msg }, ...prev.slice(0, 49)]);
+  }
+
+  async function fetchAccessible() {
+    setLoading(true);
+    log("info", `Fetching accessible customers from ${BACKEND_URL}/api/ads/accessible-customers…`);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ads/accessible-customers?orgId=${orgId}`);
+      const text = await res.text();
+      log("info", `Response status: ${res.status}`);
+      log("info", `Raw response: ${text.slice(0, 400)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
+      const data = JSON.parse(text);
+      const ids: string[] = data.customerIds || [];
+      log(ids.length > 0 ? "info" : "warn", `Found ${ids.length} accessible customer IDs: ${ids.join(", ") || "(none)"}`);
+      setAccessibleCids(ids);
+    } catch (e: any) {
+      log("error", `Error: ${e.message}`);
+      showToast("Failed to fetch accounts — see debug panel");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function connectAndSelect(cid: string) {
+    const cleanCid = cid.replace(/-/g, "");
+    setConnecting(cleanCid);
+    log("info", `Connecting account ${cleanCid}…`);
+    try {
+      // First try to get info
+      const infoRes = await fetch(`${BACKEND_URL}/api/ads/customer-info?orgId=${orgId}&customerId=${cleanCid}`);
+      let info: any = null;
+      if (infoRes.ok) {
+        info = await infoRes.json();
+        log("info", `Account info: ${JSON.stringify(info).slice(0, 200)}`);
+      } else {
+        log("warn", `Could not fetch account info (${infoRes.status}), proceeding with bare ID`);
+      }
+
+      // Connect it
+      const res = await fetch(`${BACKEND_URL}/api/ads/connect-customer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          customerId: cleanCid,
+          name: info?.descriptiveName || `Account ${cleanCid}`,
+          currencyCode: info?.currencyCode,
+          timeZone: info?.timeZone,
+          isManager: info?.manager || false
+        })
+      });
+      const resText = await res.text();
+      log(res.ok ? "info" : "error", `connect-customer response (${res.status}): ${resText.slice(0, 300)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${resText}`);
+
+      log("info", `✅ Account ${cleanCid} connected. Selecting as active…`);
+      showToast(`Account ${cleanCid} connected!`);
+      onAccountSelected(cleanCid);
+    } catch (e: any) {
+      log("error", `Failed: ${e.message}`);
+      showToast(`Failed to connect account: ${e.message}`);
+    } finally {
+      setConnecting(null);
+    }
+  }
+
+  useEffect(() => { fetchAccessible(); }, []);
+
+  const levelColor = { info: "text-slate-300", warn: "text-amber-400", error: "text-rose-400" } as const;
+
+  return (
+    <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+            <Building2 className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="font-bold text-slate-100">Select Google Ads Account</h1>
+            <p className="text-xs text-slate-400">Pick the account you want to manage in this CRM</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchAccessible}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700/50 text-xs text-slate-300 hover:border-slate-600 transition-all"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <a
+            href={`${BACKEND_URL}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-900 text-xs font-bold hover:bg-slate-100 transition-all shadow-lg"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Reconnect Google
+          </a>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 p-6 max-w-3xl mx-auto w-full space-y-6">
+
+        {/* Account list */}
+        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/40">
+          <div className="px-5 py-4 border-b border-slate-700/30 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-200 text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Google Ads Accounts on Your Profile
+            </h2>
+            {loading && <Loader2 className="h-4 w-4 text-primary animate-spin" />}
+          </div>
+
+          <div className="divide-y divide-slate-700/20">
+            {!loading && accessibleCids.length === 0 && (
+              <div className="py-10 text-center space-y-3">
+                <AlertCircle className="h-8 w-8 text-slate-600 mx-auto" />
+                <p className="text-slate-400 text-sm font-medium">No accounts found</p>
+                <p className="text-slate-500 text-xs max-w-sm mx-auto">
+                  This can happen if the Google account connected has no Google Ads accounts, or if the OAuth token lacks the <code className="text-primary">adwords</code> scope. Try reconnecting below.
+                </p>
+                <button onClick={() => setShowDebug(true)} className="text-xs text-primary hover:underline">
+                  Open Debug Panel →
+                </button>
+              </div>
+            )}
+
+            {loading && (
+              <div className="py-10 flex items-center justify-center gap-3">
+                <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                <p className="text-slate-400 text-sm">Fetching accounts from Google…</p>
+              </div>
+            )}
+
+            {accessibleCids.map(cid => {
+              const cleanCid = cid.replace(/-/g, "");
+              return (
+                <div key={cid} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-800/40 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm">
+                      {cid[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-mono text-slate-200">{cid}</p>
+                      <p className="text-xs text-slate-500">Customer ID</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => connectAndSelect(cid)}
+                    disabled={connecting === cleanCid}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-slate-950 text-xs font-bold hover:bg-secondary transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                  >
+                    {connecting === cleanCid
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Connecting…</>
+                      : <><CheckCircle className="h-3.5 w-3.5" /> Connect & Use</>}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Manual ID entry */}
+        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/40 p-5 space-y-3">
+          <h2 className="font-semibold text-slate-200 text-sm flex items-center gap-2">
+            <Settings className="h-4 w-4 text-primary" />
+            Enter Account ID Manually
+          </h2>
+          <p className="text-xs text-slate-400">If your account isn't listed above (common with sub-accounts/MCC), enter the Customer ID directly.</p>
+          <div className="flex gap-2">
+            <input
+              value={customCid}
+              onChange={e => setCustomCid(e.target.value)}
+              placeholder="e.g. 123-456-7890 or 1234567890"
+              className="flex-1 bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary/50 font-mono"
+            />
+            <button
+              onClick={() => { if (customCid.trim()) { connectAndSelect(customCid.trim()); setCustomCid(""); } }}
+              disabled={!customCid.trim() || !!connecting}
+              className="px-4 py-2.5 rounded-xl bg-primary text-slate-950 font-bold text-sm hover:bg-secondary transition-all disabled:opacity-40"
+            >
+              Connect
+            </button>
+          </div>
+        </div>
+
+        {/* Debug panel toggle */}
+        <div className="rounded-2xl border border-slate-700/30 overflow-hidden">
+          <button
+            onClick={() => setShowDebug(d => !d)}
+            className="w-full flex items-center justify-between px-5 py-3.5 bg-slate-900/50 hover:bg-slate-800/50 transition-all text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-slate-300">
+              <Activity className="h-4 w-4 text-amber-400" />
+              Debug Logs
+              {logs.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs">{logs.length}</span>
+              )}
+            </span>
+            <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${showDebug ? "rotate-180" : ""}`} />
+          </button>
+
+          {showDebug && (
+            <div className="bg-slate-950 border-t border-slate-800 p-4 max-h-72 overflow-y-auto">
+              {logs.length === 0 ? (
+                <p className="text-xs text-slate-600 text-center py-4">No logs yet — click Refresh to start</p>
+              ) : (
+                <div className="space-y-1 font-mono text-xs">
+                  {logs.map((l, i) => (
+                    <div key={i} className="flex gap-2">
+                      <span className="text-slate-600 shrink-0">[{l.ts}]</span>
+                      <span className={`${levelColor[l.level]} break-all`}>{l.msg}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }
@@ -972,7 +1221,7 @@ function SettingsTab({
           </h3>
           <div className="space-y-2 text-xs">
             {[
-              { label: "API Version", val: "Google Ads API v17" },
+              { label: "API Version", val: "Google Ads API v24" },
               { label: "Developer Token", val: "Configured (Active)" },
               { label: "Access Tier", val: "Basic Access" }
             ].map(r => (
@@ -1050,6 +1299,28 @@ export default function GoogleAdsPage() {
   const [analyzing, setAnalyzing] = useState(false);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
+
+  // ── Handle OAuth redirect back from Google ────────────────────────────────
+  // When the backend redirects to /ads?tab=settings&oauth=success,
+  // we need to auto-switch to the settings tab so the user sees their accounts.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const oauthStatus = searchParams.get("oauth");
+    const tabParam    = searchParams.get("tab");
+    if (oauthStatus === "success" || tabParam === "settings") {
+      setActiveTab("settings");
+      if (oauthStatus === "success") {
+        showToast("✅ Google account connected! Fetching your ad accounts…");
+      }
+      // Clean URL params so they don't persist on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    if (oauthStatus === "error") {
+      showToast("❌ Google OAuth failed. Please try connecting again.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Load connection state
   useEffect(() => {
@@ -1307,18 +1578,24 @@ export default function GoogleAdsPage() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            Connect with Google
+          Connect with Google
           </a>
         </div>
       </div>
     );
   }
 
+  // ── Account Picker ── shown right after OAuth completes, while connected but no account chosen
+  if (isConnected && !selectedCustomerId) {
+    return <AccountPickerScreen orgId={orgId} onAccountSelected={handleSelectAccount} showToast={showToast} />;
+  }
+
   return (
     <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden">
 
       {/* ── Header ── */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur shrink-0 gap-3 flex-wrap">
+      {/* z-50 + overflow-visible so the account dropdown floats above KPI cards */}
+      <header className="relative z-50 flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur shrink-0 gap-3 flex-wrap overflow-visible">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0">
             <Megaphone className="h-4 w-4 text-white" />
@@ -1348,8 +1625,24 @@ export default function GoogleAdsPage() {
               <Plus className="h-4 w-4" /> New Campaign
             </button>
           )}
+
+          {/* Connect / Add Google Account */}
+          <a
+            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads`}
+            title="Connect or switch Google account"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700/50 text-xs text-slate-300 hover:border-slate-600 hover:text-white transition-all"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Connect Google
+          </a>
         </div>
       </header>
+
 
       {/* ── Tab Bar ── */}
       <div className="flex items-center gap-0 border-b border-slate-800 bg-slate-950/70 overflow-x-auto shrink-0 px-2">

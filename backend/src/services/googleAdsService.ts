@@ -2,7 +2,7 @@ import axios from "axios";
 import { getGoogleAccessToken } from "./gmbSyncService";
 import prisma from "../utils/prisma";
 
-const ADS_API_VERSION = "v17";
+const ADS_API_VERSION = "v24";
 const ADS_BASE = `https://googleads.googleapis.com/${ADS_API_VERSION}`;
 
 export class GoogleAdsService {
@@ -92,8 +92,19 @@ export class GoogleAdsService {
   /** List all accessible customer resource names for this OAuth token */
   public static async listAccessibleCustomers(organizationId: string) {
     const { headers } = await this.getManagerHeaders(organizationId);
-    const res = await axios.get(`${ADS_BASE}/customers:listAccessibleCustomers`, { headers });
-    return res.data.resourceNames || [];
+    const url = `${ADS_BASE}/customers:listAccessibleCustomers`;
+    console.log(`[GoogleAds] GET ${url}`);
+    console.log(`[GoogleAds] Headers:`, JSON.stringify({ ...headers, Authorization: "Bearer <redacted>" }));
+    try {
+      const res = await axios.get(url, { headers });
+      console.log(`[GoogleAds] listAccessibleCustomers OK — found ${(res.data.resourceNames || []).length} accounts`);
+      return res.data.resourceNames || [];
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const body = JSON.stringify(err?.response?.data).slice(0, 500);
+      console.error(`[GoogleAds] listAccessibleCustomers failed — HTTP ${status}:`, body);
+      throw new Error(`Google Ads API error (${status}): ${body}`);
+    }
   }
 
   /**
@@ -225,7 +236,7 @@ export class GoogleAdsService {
 
     const rows = await this.gaqlSearch(organizationId, cid, `
       SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
-             campaign.bidding_strategy_type, campaign.start_date, campaign.end_date,
+             campaign.bidding_strategy_type, campaign.start_date_time, campaign.end_date_time,
              campaign_budget.amount_micros, campaign_budget.resource_name,
              metrics.impressions, metrics.clicks, metrics.cost_micros,
              metrics.ctr, metrics.conversions, metrics.average_cpc,
@@ -242,8 +253,8 @@ export class GoogleAdsService {
       status: r.campaign?.status,
       channelType: r.campaign?.advertisingChannelType,
       biddingStrategy: r.campaign?.biddingStrategyType,
-      startDate: r.campaign?.startDate,
-      endDate: r.campaign?.endDate,
+      startDate: r.campaign?.startDateTime,
+      endDate: r.campaign?.endDateTime,
       budgetAmountMicros: r.campaignBudget?.amountMicros,
       budgetResourceName: r.campaignBudget?.resourceName,
       impressions: Number(r.metrics?.impressions || 0),
@@ -276,12 +287,15 @@ export class GoogleAdsService {
       default: biddingConfig = { manualCpc: { enhancedCpcEnabled: false } }; break;
     }
 
+    const startDateTime = params.startDate.includes(" ") ? params.startDate : `${params.startDate} 00:00:00`;
+    const endDateTime = params.endDate ? (params.endDate.includes(" ") ? params.endDate : `${params.endDate} 23:59:59`) : undefined;
+
     const campaignBody: any = {
       name: params.name,
       advertisingChannelType: params.channelType || "SEARCH",
       status: "PAUSED",
       campaignBudget: params.budgetResourceName,
-      startDate: params.startDate.replace(/-/g, ""),
+      startDateTime,
       networkSettings: {
         targetGoogleSearch: params.networkSearch !== false,
         targetSearchNetwork: params.networkSearch !== false,
@@ -291,7 +305,7 @@ export class GoogleAdsService {
       ...biddingConfig
     };
 
-    if (params.endDate) campaignBody.endDate = params.endDate.replace(/-/g, "");
+    if (endDateTime) campaignBody.endDateTime = endDateTime;
 
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaigns:mutate`, {
       operations: [{ create: campaignBody }]
@@ -308,7 +322,11 @@ export class GoogleAdsService {
     const maskFields: string[] = [];
     if (updates.name) { updateObj.name = updates.name; maskFields.push("name"); }
     if (updates.status) { updateObj.status = updates.status; maskFields.push("status"); }
-    if (updates.endDate) { updateObj.endDate = updates.endDate.replace(/-/g, ""); maskFields.push("endDate"); }
+    if (updates.endDate) {
+      const endDateTime = updates.endDate.includes(" ") ? updates.endDate : `${updates.endDate} 23:59:59`;
+      updateObj.endDateTime = endDateTime;
+      maskFields.push("endDateTime");
+    }
 
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaigns:mutate`, {
       operations: [{ update: updateObj, updateMask: maskFields.join(",") }]

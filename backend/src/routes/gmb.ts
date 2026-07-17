@@ -209,7 +209,7 @@ router.get("/oauth/callback", async (req, res) => {
       try {
         const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
         const adsListRes = await axios.get(
-          "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
+          "https://googleads.googleapis.com/v24/customers:listAccessibleCustomers",
           {
             headers: {
               Authorization: `Bearer ${access_token}`,
