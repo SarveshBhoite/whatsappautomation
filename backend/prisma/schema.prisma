@@ -1,6 +1,7 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -21,6 +22,7 @@ model Organization {
   googlePosts       GooglePost[]
   googleQuestions   GoogleQuestion[]
   googleAdCampaigns GoogleAdCampaign[]
+  googleAdAccounts  GoogleAdAccount[]
 }
 
 model User {
@@ -171,21 +173,138 @@ model GoogleQuestion {
   updatedAt      DateTime     @updatedAt
 }
 
-model GoogleAdCampaign {
-  id                  String       @id @default(uuid())
-  organizationId      String
-  organization        Organization @relation(fields: [organizationId], references: [id])
-  googleAdsCampaignId String?      @unique
-  name                String
-  budget              Float
-  startDate           DateTime
-  endDate             DateTime?
-  status              String       @default("DRAFT") // DRAFT, ENABLED, PAUSED
-  headlines           Json         // List of headlines for responsive search ads
-  descriptions        Json         // List of descriptions
-  keywords            Json         // Target keywords
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+// ─── Google Ads Account (one per connected customer ID per org) ──────────────
+model GoogleAdAccount {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  customerId     String       // Google Ads customer ID (numeric, no dashes)
+  name           String?      // Account descriptive name
+  currencyCode   String?      // e.g. INR, USD
+  timeZone       String?
+  isManager      Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, customerId])
 }
 
+model GoogleAdCampaign {
+  id                  String            @id @default(uuid())
+  organizationId      String
+  organization        Organization      @relation(fields: [organizationId], references: [id])
+  customerId          String            // which Google Ads account this belongs to
+  googleAdsCampaignId String?           @unique
+  name                String
+  campaignType        String            @default("SEARCH") // SEARCH, DISPLAY, VIDEO, SMART, PERFORMANCE_MAX
+  biddingStrategy     String?           // MANUAL_CPC, TARGET_CPA, TARGET_ROAS, MAXIMIZE_CLICKS, etc.
+  targetCpa           Float?
+  targetRoas          Float?
+  budget              Float
+  budgetResourceName  String?
+  startDate           DateTime
+  endDate             DateTime?
+  status              String            @default("PAUSED") // ENABLED, PAUSED, REMOVED
+  headlines           Json              @default("[]")
+  descriptions        Json              @default("[]")
+  keywords            Json              @default("[]")
+  finalUrl            String?
+  geoTargets          Json              @default("[]") // list of geo target IDs
+  adSchedule         Json              @default("[]")
+  networkSearch       Boolean           @default(true)
+  networkDisplay      Boolean           @default(false)
+  adGroups            GoogleAdGroup[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+}
+
+model GoogleAdGroup {
+  id                    String          @id @default(uuid())
+  organizationId        String
+  campaignId            String
+  campaign              GoogleAdCampaign @relation(fields: [campaignId], references: [id])
+  customerId            String
+  googleAdGroupId       String?
+  googleCampaignId      String?         // the Google-side campaign ID
+  name                  String
+  status                String          @default("ENABLED") // ENABLED, PAUSED, REMOVED
+  adGroupType           String          @default("SEARCH_STANDARD")
+  cpcBidMicros          BigInt?         // CPC bid in micros
+  targetCpaMicros       BigInt?
+  ads                   GoogleAd[]
+  keywords              GoogleAdKeyword[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@unique([googleAdGroupId])
+}
+
+model GoogleAd {
+  id                 String         @id @default(uuid())
+  organizationId     String
+  adGroupId          String
+  adGroup            GoogleAdGroup  @relation(fields: [adGroupId], references: [id])
+  customerId         String
+  googleAdId         String?
+  googleAdGroupId    String?
+  adType             String         @default("RESPONSIVE_SEARCH_AD") // RESPONSIVE_SEARCH_AD, EXPANDED_TEXT_AD, RESPONSIVE_DISPLAY_AD
+  status             String         @default("ENABLED")
+  headlines          Json           @default("[]")
+  descriptions       Json           @default("[]")
+  finalUrls          Json           @default("[]")
+  displayUrl         String?
+  path1              String?
+  path2              String?
+  strengthLabel      String?        // POOR, AVERAGE, GOOD, EXCELLENT
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+model GoogleAdKeyword {
+  id                 String          @id @default(uuid())
+  organizationId     String
+  adGroupId          String
+  adGroup            GoogleAdGroup   @relation(fields: [adGroupId], references: [id])
+  customerId         String
+  googleKeywordId    String?
+  googleAdGroupId    String?
+  text               String
+  matchType          String          @default("BROAD") // BROAD, PHRASE, EXACT
+  isNegative         Boolean         @default(false)
+  status             String          @default("ENABLED")
+  cpcBidMicros       BigInt?
+  qualityScore       Int?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model GoogleAdExtension {
+  id                 String          @id @default(uuid())
+  organizationId     String
+  customerId         String
+  googleResourceName String?
+  extensionType      String          // SITELINK, CALLOUT, CALL, LOCATION, IMAGE, PRICE, PROMOTION
+  status             String          @default("ENABLED")
+  data               Json            // flexible blob for all extension type fields
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model GoogleAdConversion {
+  id                    String         @id @default(uuid())
+  organizationId        String
+  customerId            String
+  googleResourceName    String?
+  googleConversionId    String?
+  name                  String
+  category              String         @default("PURCHASE") // PURCHASE, SIGNUP, LEAD, PAGE_VIEW, etc.
+  valuePerConversion    Float?
+  countingType          String         @default("ONE_PER_CLICK") // ONE_PER_CLICK, MANY_PER_CLICK
+  conversionWindow      Int            @default(30) // days
+  status                String         @default("ENABLED")
+  tag                   String?        // tracking tag snippet
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+}
 

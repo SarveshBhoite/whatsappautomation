@@ -104,6 +104,7 @@ router.post("/config", async (req, res) => {
 router.get("/oauth/connect", (req, res) => {
   try {
     const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    const redirectPath = (req.query.redirect as string) || "/";
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
 
@@ -116,7 +117,10 @@ router.get("/oauth/connect", (req, res) => {
       "https://www.googleapis.com/auth/business.manage",
       "https://www.googleapis.com/auth/adwords"
     ].join(" ");
-    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(orgId)}`;
+    
+    // Pass both orgId and redirect path in the state parameter
+    const statePayload = JSON.stringify({ orgId, redirect: redirectPath });
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(statePayload)}`;
     
     res.redirect(oauthUrl);
   } catch (error: any) {
@@ -127,7 +131,20 @@ router.get("/oauth/connect", (req, res) => {
 // Real Google OAuth: Handle OAuth Code Callback from Google
 router.get("/oauth/callback", async (req, res) => {
   const code = req.query.code as string;
-  const orgId = (req.query.state as string) || DEFAULT_ORG_ID;
+  const stateStr = req.query.state as string;
+  
+  let orgId = DEFAULT_ORG_ID;
+  let redirectPath = "/";
+
+  if (stateStr) {
+    try {
+      const parsed = JSON.parse(stateStr);
+      orgId = parsed.orgId || DEFAULT_ORG_ID;
+      redirectPath = parsed.redirect || "/";
+    } catch {
+      orgId = stateStr;
+    }
+  }
 
   if (!code) {
     return res.status(400).send("No authorization code returned from Google");
@@ -234,11 +251,11 @@ router.get("/oauth/callback", async (req, res) => {
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    res.redirect(`${frontendUrl}/?tab=settings&oauth=success`);
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=success`);
   } catch (error: any) {
     console.error("OAuth Token Exchange Error:", error?.response?.data || error.message);
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    res.redirect(`${frontendUrl}/?tab=settings&oauth=error`);
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=error`);
   }
 });
 
