@@ -7,7 +7,9 @@ import {
   getGmbLocationPath,
   mapStarRatingToNumber,
   executeAutoReplyIfApplicable,
-  syncGmbReviews
+  syncGmbReviews,
+  buildGmbPostPayload,
+  logGmbRequest
 } from "../services/gmbSyncService";
 
 const router = Router();
@@ -465,11 +467,32 @@ router.post("/posts/create", async (req, res) => {
       summary,
       mediaUrl,
       callToActionType,
-      callToActionUrl
+      callToActionUrl,
+      scheduledAt
     } = req.body;
 
     if (!summary) {
       return res.status(400).json({ error: "Summary text is required for GMB Posts." });
+    }
+
+    // ── Scheduled post: save to DB for background publisher ──────────────────
+    const isScheduled = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
+    if (isScheduled) {
+      const post = await prisma.googlePost.create({
+        data: {
+          organizationId: orgId,
+          gmbPostId: null,
+          title: title || "",
+          summary,
+          mediaUrl: mediaUrl || null,
+          callToActionType: callToActionType || "NONE",
+          callToActionUrl: callToActionUrl || null,
+          status: "SCHEDULED",
+          scheduledAt: new Date(scheduledAt)
+        }
+      });
+      io.to(orgId).emit("new-post", post);
+      return res.status(201).json(post);
     }
 
     const config = await prisma.googleBusinessConfig.findUnique({
@@ -481,40 +504,26 @@ router.post("/posts/create", async (req, res) => {
 
     let gmbPostId: string | null = null;
 
-    // If live credentials are connected, publish to Google Maps Business API
+    // If live credentials are connected, publish immediately to Google Business API
     if (config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
       try {
         const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
         const locationPath = await getGmbLocationPath(token, config.googleLocationId);
-
         const localPostUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/localPosts`;
-        
-        const payload: any = {
-          summary: summary,
-          languageCode: "en"
-        };
 
-        if (callToActionType && callToActionType !== "NONE") {
-          payload.callToAction = {
-            actionType: callToActionType,
-            url: callToActionUrl || config.googleReviewUrl || "https://google.com"
-          };
-        }
+        const payload = buildGmbPostPayload(
+          summary,
+          callToActionType,
+          callToActionUrl,
+          mediaUrl,
+          config.googleReviewUrl || undefined
+        );
 
-        if (mediaUrl) {
-          payload.media = [
-            {
-              mediaFormat: "PHOTO",
-              sourceUrl: mediaUrl
-            }
-          ];
-        }
+        const headers = { Authorization: `Bearer ${token}` };
+        logGmbRequest("POST", localPostUrl, headers, payload);
 
-        const postRes = await axios.post(localPostUrl, payload, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        gmbPostId = postRes.data.name; // Could be accounts/*/locations/*/localPosts/*
+        const postRes = await axios.post(localPostUrl, payload, { headers });
+        gmbPostId = postRes.data.name;
         console.log(`[LIVE GMB POST] Created post successfully: ${gmbPostId}`);
       } catch (apiErr: any) {
         console.error("Failed to publish post to Google API. Saving locally only.", apiErr?.response?.data || apiErr.message);

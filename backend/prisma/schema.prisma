@@ -154,7 +154,11 @@ model GooglePost {
   mediaUrl       String?
   callToActionType String?    // LEARN_MORE, BOOK, ORDER, SIGN_UP, etc.
   callToActionUrl  String?
-  status         String       @default("DRAFT") // DRAFT, PUBLISHED, FAILED
+  status         String       @default("DRAFT") // DRAFT, SCHEDULED, PUBLISHING, PUBLISHED, FAILED
+  scheduledAt    DateTime?    // When to auto-publish (null = publish immediately)
+  publishedAt    DateTime?    // When it was actually published to GMB
+  publishError   String?      // Error message if publish failed
+  retryCount     Int          @default(0) // Auto-retry up to 3 times on failure
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }

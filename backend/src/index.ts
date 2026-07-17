@@ -74,7 +74,7 @@ io.on("connection", (socket) => {
 });
 
 import prisma from "./utils/prisma";
-import { syncGmbReviews } from "./services/gmbSyncService";
+import { syncGmbReviews, syncGmbPosts, publishPostToGmb } from "./services/gmbSyncService";
 
 // Background Google Business Profile Reviews Sync Scheduler
 async function runBackgroundGmbSync() {
@@ -101,6 +101,15 @@ async function runBackgroundGmbSync() {
         console.log(`[BACKGROUND SCHEDULER] Syncing Organization ID: ${config.organizationId}`);
         const result = await syncGmbReviews(config.organizationId, io);
         console.log(`[BACKGROUND SCHEDULER] Sync successful for ${config.organizationId}. Synced ${result.syncedCount} new reviews.`);
+
+        // Also sync GMB posts from Google into local DB
+        try {
+          const postsResult = await syncGmbPosts(config.organizationId, io);
+          console.log(`[BACKGROUND SCHEDULER] Posts sync for ${config.organizationId}: ${postsResult.length} posts total.`);
+        } catch (postErr: any) {
+          // Post sync failures are non-fatal (GMB My Business API may not be enabled)
+          console.warn(`[BACKGROUND SCHEDULER] Posts sync skipped for ${config.organizationId}: ${postErr.message}`);
+        }
       } catch (err: any) {
         console.error(`[BACKGROUND SCHEDULER] Sync failed for Organization ${config.organizationId}:`, err.message);
       }
@@ -110,12 +119,42 @@ async function runBackgroundGmbSync() {
   }
 }
 
+// Background: check every 60 seconds for SCHEDULED posts due to be published,
+// and auto-retry FAILED posts (up to 3 attempts)
+async function runScheduledPostsSync() {
+  try {
+    const now = new Date();
+    const pendingPosts = await prisma.googlePost.findMany({
+      where: {
+        OR: [
+          { status: "SCHEDULED", scheduledAt: { lte: now } },
+          { status: "FAILED", retryCount: { lt: 3 }, scheduledAt: { not: null, lte: now } }
+        ]
+      }
+    });
+
+    if (pendingPosts.length > 0) {
+      console.log(`[SCHEDULED PUBLISHER] ${pendingPosts.length} post(s) due to publish.`);
+      for (const post of pendingPosts) {
+        try {
+          await publishPostToGmb(post.id, io);
+        } catch (err: any) {
+          console.error(`[SCHEDULED PUBLISHER] Error publishing post ${post.id}:`, err.message);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("[SCHEDULED PUBLISHER] Scheduler error:", err.message);
+  }
+}
+
 function startGmbSyncScheduler() {
   console.log("[BACKGROUND SCHEDULER] Scheduled auto-sync to run every 15 minutes.");
-  // Sync every 15 minutes
-  setInterval(() => {
-    runBackgroundGmbSync();
-  }, 15 * 60 * 1000);
+  setInterval(() => { runBackgroundGmbSync(); }, 15 * 60 * 1000);
+
+  // Check and publish scheduled posts every 60 seconds
+  console.log("[BACKGROUND SCHEDULER] Scheduled post publisher to run every 60 seconds.");
+  setInterval(() => { runScheduledPostsSync(); }, 60 * 1000);
 }
 
 // Start Server

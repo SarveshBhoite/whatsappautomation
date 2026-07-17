@@ -187,3 +187,191 @@ export async function syncGmbReviews(orgId: string, io?: any) {
 
   return { syncedCount, reviews: updatedReviews };
 }
+
+// ─── GMB POST SYNC FEATURES (merged from feature/gmb-post-sync) ───────────────
+
+// Build a clean GMB local post payload, handling CALL vs URL-based CTAs correctly
+export function buildGmbPostPayload(
+  summary: string,
+  callToActionType?: string,
+  callToActionUrl?: string,
+  mediaUrl?: string,
+  fallbackUrl?: string
+) {
+  const payload: any = { summary, languageCode: "en" };
+
+  if (callToActionType && callToActionType !== "NONE") {
+    if (callToActionType === "CALL") {
+      // CALL type does NOT take a URL — it dials the business phone number
+      payload.callToAction = { actionType: "CALL" };
+    } else {
+      const targetUrl = callToActionUrl || fallbackUrl;
+      payload.callToAction = { actionType: callToActionType };
+      if (targetUrl) payload.callToAction.url = targetUrl;
+    }
+  }
+
+  if (mediaUrl) {
+    payload.media = [{ mediaFormat: "PHOTO", sourceUrl: mediaUrl }];
+  }
+
+  return payload;
+}
+
+// Log the complete outgoing GMB API request for debugging and audit trails
+export function logGmbRequest(method: string, url: string, headers: Record<string, string>, payload: any) {
+  console.log("[GMB API REQUEST] ──────────────────────────────────");
+  console.log(`  Method:  ${method}`);
+  console.log(`  URL:     ${url}`);
+  console.log(`  Headers: ${JSON.stringify({ ...headers, Authorization: headers.Authorization ? "Bearer ***REDACTED***" : undefined }, null, 2)}`);
+  console.log(`  Payload: ${JSON.stringify(payload, null, 2)}`);
+  console.log("[GMB API REQUEST] ──────────────────────────────────");
+}
+
+// Sync live GMB posts from the Google API into our local database
+export async function syncGmbPosts(orgId: string, io?: any) {
+  const config = await prisma.googleBusinessConfig.findUnique({
+    where: { organizationId: orgId }
+  });
+
+  if (!config) throw new Error("Google Business Configuration not found.");
+
+  const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
+    throw new Error("Google Business account is not authorized or Location ID is not configured.");
+  }
+
+  const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+  const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+  const postsUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/localPosts`;
+
+  console.log(`[BACKGROUND SYNC] Fetching GMB posts for org ${orgId}...`);
+  const response = await axios.get(postsUrl, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const gmbPosts = response.data.localPosts || [];
+  console.log(`[BACKGROUND SYNC] Found ${gmbPosts.length} posts from Google.`);
+
+  let synced = 0;
+
+  for (const gmbPost of gmbPosts) {
+    const existingPost = await prisma.googlePost.findUnique({
+      where: { gmbPostId: gmbPost.name }
+    });
+
+    let statusMapped = "DRAFT";
+    if (gmbPost.state === "LIVE") statusMapped = "PUBLISHED";
+    else if (gmbPost.state === "REJECTED") statusMapped = "FAILED";
+
+    const data = {
+      summary: gmbPost.summary || "",
+      mediaUrl: gmbPost.media?.[0]?.googleUrl || null,
+      callToActionType: gmbPost.callToAction?.actionType || null,
+      callToActionUrl: gmbPost.callToAction?.url || null,
+      status: statusMapped,
+      updatedAt: gmbPost.updateTime ? new Date(gmbPost.updateTime) : new Date()
+    };
+
+    if (!existingPost) {
+      await prisma.googlePost.create({
+        data: {
+          organizationId: orgId,
+          gmbPostId: gmbPost.name,
+          title: "",
+          createdAt: gmbPost.createTime ? new Date(gmbPost.createTime) : new Date(),
+          ...data
+        }
+      });
+    } else {
+      await prisma.googlePost.update({ where: { gmbPostId: gmbPost.name }, data });
+    }
+    synced++;
+  }
+
+  const posts = await prisma.googlePost.findMany({
+    where: { organizationId: orgId },
+    orderBy: { createdAt: "desc" }
+  });
+
+  if (io) io.to(orgId).emit("posts-synced", posts);
+
+  return { synced, posts, length: posts.length };
+}
+
+// Publish a single scheduled post to GMB — called by the background scheduler
+export async function publishPostToGmb(postId: string, io?: any) {
+  console.log(`[SCHEDULED PUBLISHER] Attempting to publish post ID ${postId}...`);
+
+  const post = await prisma.googlePost.findUnique({ where: { id: postId } });
+  if (!post) { console.error(`[SCHEDULED PUBLISHER] Post ID ${postId} not found.`); return; }
+  if (post.status === "PUBLISHED" || post.gmbPostId) {
+    console.log(`[SCHEDULED PUBLISHER] Post ID ${postId} already published.`); return;
+  }
+
+  // Mark as PUBLISHING to prevent duplicate publish race conditions
+  let currentPost = await prisma.googlePost.update({
+    where: { id: postId },
+    data: { status: "PUBLISHING" }
+  });
+  if (io) io.to(post.organizationId).emit("post-updated", currentPost);
+
+  try {
+    const config = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: post.organizationId }
+    });
+    if (!config) throw new Error("Google Business Configuration not found.");
+
+    const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
+      throw new Error("Google credentials or Location ID are not configured.");
+    }
+
+    const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+    const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+    const localPostUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/localPosts`;
+
+    const payload = buildGmbPostPayload(
+      post.summary,
+      post.callToActionType || undefined,
+      post.callToActionUrl || undefined,
+      post.mediaUrl || undefined,
+      config.googleReviewUrl || undefined
+    );
+
+    const headers = { Authorization: `Bearer ${token}` };
+    logGmbRequest("POST", localPostUrl, headers, payload);
+
+    const postRes = await axios.post(localPostUrl, payload, { headers });
+    const gmbPostId = postRes.data.name;
+
+    const updatedPost = await prisma.googlePost.update({
+      where: { id: postId },
+      data: { gmbPostId, status: "PUBLISHED", publishedAt: new Date(), publishError: null }
+    });
+
+    console.log(`[SCHEDULED PUBLISHER] Post ${postId} published as GMB ID ${gmbPostId}`);
+    if (io) io.to(post.organizationId).emit("post-updated", updatedPost);
+    return updatedPost;
+
+  } catch (error: any) {
+    const errorMsg = error?.response?.data ? JSON.stringify(error.response.data) : error.message;
+    console.error(`[SCHEDULED PUBLISHER] Failed to publish post ${postId}:`, errorMsg);
+
+    const failedPost = await prisma.googlePost.update({
+      where: { id: postId },
+      data: {
+        status: "FAILED",
+        publishError: errorMsg.substring(0, 500),
+        retryCount: (post.retryCount || 0) + 1
+      }
+    });
+
+    if (io) io.to(post.organizationId).emit("post-updated", failedPost);
+    return failedPost;
+  }
+}
+
