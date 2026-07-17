@@ -32,9 +32,18 @@ import {
   Upload,
   Image as ImageIcon,
   Clock,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Check
 } from "lucide-react";
 import Link from "next/link";
+import { io } from "socket.io-client";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { format } from "date-fns";
+
 
 // Native SVG Instagram & WhatsApp icons matching main page
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -73,6 +82,112 @@ const WhatsApp = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
+
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+function ShadcnSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = "Select"
+}: {
+  value: string;
+  onValueChange: (val: string) => void;
+  options: SelectOption[];
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div className="relative w-full text-center" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex h-9 w-full items-center justify-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-1 py-2 text-xs font-bold text-slate-200 shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer text-center select-none"
+      >
+        <span className="truncate text-center w-full block ml-2">{selectedOption ? selectedOption.label : placeholder}</span>
+        <ChevronDown className="h-3.5 w-3.5 opacity-55 shrink-0 text-slate-500 mr-1.5" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-slate-850 bg-slate-955 p-1 text-slate-200 shadow-2xl animate-fadeIn scrollbar-none">
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onValueChange(opt.value);
+                  setIsOpen(false);
+                }}
+                className={`relative flex w-full cursor-pointer select-none items-center justify-center rounded-lg py-2 text-xs text-slate-350 outline-none transition-colors hover:bg-slate-900 hover:text-slate-100 ${
+                  isSelected ? "bg-slate-900 font-bold text-primary" : ""
+                }`}
+              >
+                {isSelected && (
+                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                    <Check className="h-3 w-3 text-primary" />
+                  </span>
+                )}
+                <span className="truncate text-center w-full">{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const hourOptions = Array.from({ length: 12 }, (_, i) => {
+  const val = (i + 1).toString().padStart(2, "0");
+  return { value: val, label: val };
+});
+
+const minuteOptions = Array.from({ length: 12 }, (_, i) => {
+  const val = (i * 5).toString().padStart(2, "0");
+  return { value: val, label: val };
+});
+
+const ampmOptions = [
+  { value: "AM", label: "AM" },
+  { value: "PM", label: "PM" }
+];
+
+const getInitialTimeState = () => {
+  if (typeof window === "undefined") {
+    return { hour: "09", minute: "30", ampm: "AM" };
+  }
+  const now = new Date();
+  const currentHour24 = now.getHours();
+  const currentHour12 = currentHour24 % 12 || 12;
+  const hour = currentHour12.toString().padStart(2, "0");
+  
+  const currentMinute = now.getMinutes();
+  const nearest5 = Math.round(currentMinute / 5) * 5;
+  const normalizedMinute = nearest5 >= 60 ? 0 : nearest5;
+  const minute = normalizedMinute.toString().padStart(2, "0");
+  
+  const ampm = currentHour24 >= 12 ? "PM" : "AM";
+  return { hour, minute, ampm };
+};
 
 interface PerformanceSummary {
   totalViews: number;
@@ -119,6 +234,341 @@ interface PerformanceData {
     directionsRequests: string;
   };
   timeline: TimelineDay[];
+}
+
+// Popover components mimicking shadcn Popover API locally
+const PopoverContext = React.createContext<{
+  open: boolean;
+  setOpen: (open: boolean) => void;
+} | null>(null);
+
+function Popover({
+  children,
+  open: controlledOpen,
+  onOpenChange
+}: {
+  children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : localOpen;
+  const setOpen = (newOpen: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(newOpen);
+    } else {
+      setLocalOpen(newOpen);
+    }
+  };
+
+  return (
+    <PopoverContext.Provider value={{ open, setOpen }}>
+      {children}
+    </PopoverContext.Provider>
+  );
+}
+
+function PopoverTrigger({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) {
+  const context = React.useContext(PopoverContext);
+  if (!context) throw new Error("PopoverTrigger must be used inside Popover");
+
+  const { open, setOpen } = context;
+
+  if (asChild && React.isValidElement(children)) {
+    const child = children as React.ReactElement<any>;
+    return React.cloneElement(child, {
+      onClick: (e: React.MouseEvent) => {
+        e.preventDefault();
+        setOpen(!open);
+        if (child.props && typeof child.props.onClick === "function") {
+          child.props.onClick(e);
+        }
+      }
+    });
+  }
+
+  return (
+    <button type="button" onClick={() => setOpen(!open)}>
+      {children}
+    </button>
+  );
+}
+
+function PopoverContent({
+  children,
+  align = "start",
+  side = "bottom",
+  sideOffset = 4,
+  avoidCollisions = false,
+  className = ""
+}: {
+  children: React.ReactNode;
+  align?: "start" | "center" | "end";
+  side?: "top" | "bottom" | "left" | "right";
+  sideOffset?: number;
+  avoidCollisions?: boolean;
+  className?: string;
+}) {
+  const context = React.useContext(PopoverContext);
+  if (!context) throw new Error("PopoverContent must be used inside Popover");
+
+  const { open } = context;
+
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        left: 0,
+        width: "100%",
+        marginTop: `${sideOffset}px`,
+        zIndex: 50
+      }}
+      className={`bg-[#020617] border border-[#1e293b] rounded-xl shadow-2xl overflow-hidden animate-fadeIn ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ScrollArea({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 ${className}`}
+      style={{
+        scrollbarWidth: "thin",
+        scrollbarColor: "#334155 #0f172a"
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+interface CustomGmbTimePickerProps {
+  selectedTime: Date;
+  onChange: (date: Date) => void;
+}
+
+function CustomGmbTimePicker({ selectedTime, onChange }: CustomGmbTimePickerProps) {
+  const [inputValue, setInputValue] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
+
+  // Synchronize internal input value with the selectedTime prop in HH:MM format
+  useEffect(() => {
+    if (selectedTime) {
+      const hStr = selectedTime.getHours().toString().padStart(2, "0");
+      const mStr = selectedTime.getMinutes().toString().padStart(2, "0");
+      setInputValue(`${hStr}:${mStr}`);
+    }
+  }, [selectedTime]);
+
+  const times = React.useMemo(() => {
+    const list: string[] = [];
+    for (let h = 0; h < 24; h++) {
+      const hStr = h.toString().padStart(2, "0");
+      list.push(`${hStr}:00`);
+      list.push(`${hStr}:30`);
+    }
+    return list;
+  }, []);
+
+  // Validate and format value or revert on blur / click outside
+  const validateAndRevertOrFormat = (val: string) => {
+    const cleaned = val.trim();
+    
+    // Parse formats like H:M, HH:M, H:MM, HH:MM
+    const match = cleaned.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (match) {
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        const hStr = h.toString().padStart(2, "0");
+        const mStr = m.toString().padStart(2, "0");
+        const formatted = `${hStr}:${mStr}`;
+        setInputValue(formatted);
+        
+        const newDate = new Date(selectedTime);
+        newDate.setHours(h);
+        newDate.setMinutes(m);
+        newDate.setSeconds(0);
+        onChange(newDate);
+        return;
+      }
+    }
+
+    // Try parsing numbers only (e.g. 9 or 09 or 905)
+    const numOnly = parseInt(cleaned, 10);
+    if (!isNaN(numOnly) && !cleaned.includes(":")) {
+      if (cleaned.length <= 2 && numOnly >= 0 && numOnly <= 23) {
+        const hStr = numOnly.toString().padStart(2, "0");
+        const formatted = `${hStr}:00`;
+        setInputValue(formatted);
+        
+        const newDate = new Date(selectedTime);
+        newDate.setHours(numOnly);
+        newDate.setMinutes(0);
+        newDate.setSeconds(0);
+        onChange(newDate);
+        return;
+      }
+      if (cleaned.length === 3 || cleaned.length === 4) {
+        const hVal = parseInt(cleaned.slice(0, cleaned.length - 2), 10);
+        const mVal = parseInt(cleaned.slice(cleaned.length - 2), 10);
+        if (hVal >= 0 && hVal <= 23 && mVal >= 0 && mVal <= 59) {
+          const hStr = hVal.toString().padStart(2, "0");
+          const mStr = mVal.toString().padStart(2, "0");
+          const formatted = `${hStr}:${mStr}`;
+          setInputValue(formatted);
+          
+          const newDate = new Date(selectedTime);
+          newDate.setHours(hVal);
+          newDate.setMinutes(mVal);
+          newDate.setSeconds(0);
+          onChange(newDate);
+          return;
+        }
+      }
+    }
+    
+    // Revert if completely invalid
+    if (selectedTime) {
+      const hStr = selectedTime.getHours().toString().padStart(2, "0");
+      const mStr = selectedTime.getMinutes().toString().padStart(2, "0");
+      setInputValue(`${hStr}:${mStr}`);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    
+    // Input filtering: allow digits and colons only
+    val = val.replace(/[^0-9:]/g, "");
+    
+    // Apply basic mask: if 2 digits are typed without colon, insert colon
+    if (val.length === 2 && !val.includes(":") && e.target.value.length > inputValue.length) {
+      val = val + ":";
+    }
+    
+    if (val.length > 5) {
+      val = val.slice(0, 5);
+    }
+    
+    setInputValue(val);
+
+    // Live validation (optional, propagate if already perfectly matches HH:MM format)
+    const match = val.match(/^(\d{2}):(\d{2})$/);
+    if (match) {
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        const newDate = new Date(selectedTime);
+        newDate.setHours(h);
+        newDate.setMinutes(m);
+        newDate.setSeconds(0);
+        onChange(newDate);
+      }
+    }
+  };
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        validateAndRevertOrFormat(inputValue);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [inputValue, selectedTime]);
+
+  // Scroll active/selected item into view when dropdown is opened
+  useEffect(() => {
+    if (isOpen && activeItemRef.current) {
+      activeItemRef.current.scrollIntoView({ block: "nearest", behavior: "auto" });
+    }
+  }, [isOpen]);
+
+  const selectTime = (timeStr: string) => {
+    setInputValue(timeStr);
+    setIsOpen(false);
+    
+    const [hStr, mStr] = timeStr.split(":");
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    
+    const newDate = new Date(selectedTime);
+    newDate.setHours(h);
+    newDate.setMinutes(m);
+    newDate.setSeconds(0);
+    onChange(newDate);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      setIsOpen(false);
+      validateAndRevertOrFormat(inputValue);
+    }
+    if (e.key === "Escape") {
+      setIsOpen(false);
+      validateAndRevertOrFormat(inputValue);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onFocus={() => setIsOpen(true)}
+            onClick={() => setIsOpen(true)}
+            onKeyDown={handleKeyDown}
+            placeholder="HH:MM"
+            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer text-center"
+          />
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          side="bottom"
+          sideOffset={4}
+          avoidCollisions={false}
+          className="w-full p-0"
+        >
+          <ScrollArea className="h-60">
+            {times.map((time) => {
+              const isSelected = time === inputValue;
+              return (
+                <button
+                  key={time}
+                  type="button"
+                  ref={isSelected ? activeItemRef : null}
+                  onClick={() => selectTime(time)}
+                  className={`w-full text-center px-4 py-2 text-xs transition-colors cursor-pointer block text-left px-3 py-2 hover:bg-accent ${
+                    isSelected
+                      ? "bg-primary/20 text-primary font-bold"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  {time}
+                </button>
+              );
+            })}
+          </ScrollArea>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 export default function GmbPerformanceDashboard() {
@@ -193,8 +643,58 @@ export default function GmbPerformanceDashboard() {
   const [postMediaUrl, setPostMediaUrl] = useState("");
   const [postCTA, setPostCTA] = useState("NONE");
   const [postCTAUrl, setPostCTAUrl] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [isScheduledOnly, setIsScheduledOnly] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState<Date | null>(null);
+
+  // Detect if user locale prefers 12-hour or 24-hour format
+  const is12HourFormat = React.useMemo(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const formatter = new Intl.DateTimeFormat(undefined, { hour: "numeric" });
+      const resolved = formatter.resolvedOptions();
+      if (resolved.hour12 !== undefined) {
+        return resolved.hour12;
+      }
+      const sample = formatter.format(new Date(2026, 0, 1, 13, 0, 0));
+      return /am|pm|a\s*m|p\s*m/i.test(sample);
+    } catch (e) {
+      return true;
+    }
+  }, []);
+
+  const [scheduleTime, setScheduleTime] = useState<Date>(() => {
+    const d = new Date();
+    const minutes = d.getMinutes();
+    const roundedMinutes = Math.round(minutes / 15) * 15;
+    d.setMinutes(roundedMinutes);
+    d.setSeconds(0);
+    return d;
+  });
+
+  const formattedTimeStr = React.useMemo(() => {
+    if (!scheduleTime) return "";
+    return format(scheduleTime, is12HourFormat ? "hh:mm a" : "HH:mm");
+  }, [scheduleTime, is12HourFormat]);
+
   const [isGeneratingPost, setIsGeneratingPost] = useState(false);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+
+  // Synchronize scheduledAt whenever date or time changes
+  useEffect(() => {
+    if (isScheduledOnly && scheduleDate && scheduleTime) {
+      const y = scheduleDate.getFullYear();
+      const m = (scheduleDate.getMonth() + 1).toString().padStart(2, "0");
+      const d = scheduleDate.getDate().toString().padStart(2, "0");
+      const dateStr = `${y}-${m}-${d}`;
+
+      const hours = scheduleTime.getHours().toString().padStart(2, "0");
+      const minutes = scheduleTime.getMinutes().toString().padStart(2, "0");
+      setScheduledAt(`${dateStr}T${hours}:${minutes}:00`);
+    } else {
+      setScheduledAt("");
+    }
+  }, [isScheduledOnly, scheduleDate, scheduleTime]);
 
   // GMB Q&A States
   const [questions, setQuestions] = useState<any[]>([]);
@@ -235,6 +735,57 @@ export default function GmbPerformanceDashboard() {
     fetchQuestions();
     fetchMedia();
     fetchProfileDetails();
+  }, [orgId]);
+
+  // Real-time updates for Google My Business Posts via Socket.io
+  useEffect(() => {
+    const socket = io(BACKEND_URL);
+
+    // Join the organization room
+    socket.emit("join-org", orgId);
+
+    // Sync event: Updates the entire posts list
+    socket.on("posts-synced", (syncedPosts: any[]) => {
+      setPosts(syncedPosts);
+    });
+
+    // New post event: Prepends the new post avoiding duplicate gmbPostId/id
+    socket.on("new-post", (newPost: any) => {
+      setPosts((prev) => {
+        if (newPost.gmbPostId && prev.some((p) => p.gmbPostId === newPost.gmbPostId)) {
+          return prev;
+        }
+        if (prev.some((p) => p.id === newPost.id)) {
+          return prev;
+        }
+        return [newPost, ...prev];
+      });
+    });
+
+    // Post updated event: Updates fields for a matching post in local state
+    socket.on("post-updated", (updatedPost: any) => {
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (updatedPost.gmbPostId && p.gmbPostId === updatedPost.gmbPostId) {
+            return updatedPost;
+          }
+          if (p.id === updatedPost.id) {
+            return updatedPost;
+          }
+          return p;
+        })
+      );
+    });
+
+    // Post deleted event: Removes the post from state
+    socket.on("post-deleted", (deletedPostId: string) => {
+      setPosts((prev) => prev.filter((p) => p.id !== deletedPostId && p.gmbPostId !== deletedPostId));
+    });
+
+    // Disconnect when component unmounts
+    return () => {
+      socket.disconnect();
+    };
   }, [orgId]);
 
   // Fetch GMB Profile Details
@@ -593,6 +1144,18 @@ export default function GmbPerformanceDashboard() {
     e.preventDefault();
     if (!postSummary) return;
 
+    let finalScheduledAt = undefined;
+    if (isScheduledOnly && scheduleDate && scheduleTime) {
+      const y = scheduleDate.getFullYear();
+      const m = (scheduleDate.getMonth() + 1).toString().padStart(2, "0");
+      const d = scheduleDate.getDate().toString().padStart(2, "0");
+      const dateStr = `${y}-${m}-${d}`;
+
+      const hours = scheduleTime.getHours().toString().padStart(2, "0");
+      const minutes = scheduleTime.getMinutes().toString().padStart(2, "0");
+      finalScheduledAt = `${dateStr}T${hours}:${minutes}:00`;
+    }
+
     setIsSubmittingPost(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmb/posts/create`, {
@@ -604,7 +1167,8 @@ export default function GmbPerformanceDashboard() {
           summary: postSummary,
           mediaUrl: postMediaUrl || undefined,
           callToActionType: postCTA,
-          callToActionUrl: postCTAUrl || undefined
+          callToActionUrl: postCTAUrl || undefined,
+          scheduledAt: finalScheduledAt
         })
       });
 
@@ -614,6 +1178,15 @@ export default function GmbPerformanceDashboard() {
         setPostMediaUrl("");
         setPostCTA("NONE");
         setPostCTAUrl("");
+        setScheduledAt("");
+        setScheduleDate(null);
+        const d = new Date();
+        const minutes = d.getMinutes();
+        const roundedMinutes = Math.round(minutes / 15) * 15;
+        d.setMinutes(roundedMinutes);
+        d.setSeconds(0);
+        setScheduleTime(d);
+        setIsScheduledOnly(false);
         await fetchPosts();
       }
     } catch (err) {
@@ -1022,11 +1595,7 @@ export default function GmbPerformanceDashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
-      
-
-      {/* Main Container */}
-      <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-900 text-slate-100 font-sans">
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-8 py-8 space-y-8">
           
           {/* Header */}
@@ -2443,12 +3012,224 @@ export default function GmbPerformanceDashboard() {
                     />
                   </div>
 
+                   <div className="flex items-center gap-2 select-none py-1">
+                    <input
+                      type="checkbox"
+                      id="schedule-toggle"
+                      checked={isScheduledOnly}
+                      onChange={(e) => {
+                        setIsScheduledOnly(e.target.checked);
+                        if (!e.target.checked) {
+                          setScheduleDate(null);
+                        }
+                      }}
+                      className="accent-primary h-4 w-4 rounded cursor-pointer"
+                    />
+                    <label htmlFor="schedule-toggle" className="text-xs font-bold text-slate-350 cursor-pointer select-none">
+                      Schedule this post
+                    </label>
+                  </div>
+
+                  {isScheduledOnly && (
+                    <div className="space-y-4 animate-fadeIn">
+                      <div className="grid grid-cols-2 gap-3.5">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Publish Date</label>
+                          <DatePicker
+                            selected={scheduleDate}
+                            onChange={(date: Date | null) => setScheduleDate(date)}
+                            minDate={new Date()}
+                            placeholderText="Select a date"
+                            dateFormat="dd MMM yyyy"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer text-center"
+                            required={isScheduledOnly}
+                            portalId="gmb-datepicker-portal"
+                            renderCustomHeader={({
+                              date,
+                              changeYear,
+                              changeMonth,
+                              decreaseMonth,
+                              increaseMonth,
+                              prevMonthButtonDisabled,
+                              nextMonthButtonDisabled,
+                            }) => {
+                              const monthNames = [
+                                "January", "February", "March", "April", "May", "June",
+                                "July", "August", "September", "October", "November", "December"
+                              ];
+                              const currentYear = new Date().getFullYear();
+                              const years = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i);
+
+                              return (
+                                <div className="flex items-center justify-between px-2 py-1.5 gap-2 bg-slate-950 border-b border-slate-850">
+                                  <button
+                                    type="button"
+                                    onClick={decreaseMonth}
+                                    disabled={prevMonthButtonDisabled}
+                                    className="p-1 hover:bg-slate-900 border border-slate-900 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                  >
+                                    <ChevronLeft className="h-4 w-4" />
+                                  </button>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <select
+                                      value={date.getMonth()}
+                                      onChange={({ target: { value } }) => changeMonth(Number(value))}
+                                      className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 font-bold outline-none cursor-pointer hover:border-slate-700"
+                                    >
+                                      {monthNames.map((monthName, idx) => (
+                                        <option key={monthName} value={idx}>
+                                          {monthName}
+                                        </option>
+                                      ))}
+                                    </select>
+
+                                    <select
+                                      value={date.getFullYear()}
+                                      onChange={({ target: { value } }) => changeYear(Number(value))}
+                                      className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 font-bold outline-none cursor-pointer hover:border-slate-700"
+                                    >
+                                      {years.map((y) => (
+                                        <option key={y} value={y}>
+                                          {y}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={increaseMonth}
+                                    disabled={nextMonthButtonDisabled}
+                                    className="p-1 hover:bg-slate-900 border border-slate-900 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                  >
+                                    <ChevronRight className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              );
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Publish Time</label>
+                          <CustomGmbTimePicker
+                            selectedTime={scheduleTime}
+                            onChange={setScheduleTime}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Preview Banner */}
+                      {scheduleDate && (
+                        <div className="bg-slate-900/40 border border-slate-850/60 p-3.5 rounded-xl flex flex-col gap-1.5 text-xs select-none">
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Post will publish on</span>
+                          <div className="flex items-center gap-2 text-slate-200 font-extrabold text-sm">
+                            <Clock className="h-4 w-4 text-primary" />
+                            <span>
+                              {format(scheduleDate, "dd MMM yyyy")} • {formattedTimeStr}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom Dark Theme Styles for DatePicker */}
+                      <style>{`
+                        .react-datepicker {
+                          background-color: #020617 !important;
+                          border: 1px solid #1e293b !important;
+                          border-radius: 12px !important;
+                          font-family: inherit !important;
+                          color: #e2e8f0 !important;
+                          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+                        }
+                        .react-datepicker__header {
+                          background-color: #090d16 !important;
+                          border-bottom: 1px solid #1e293b !important;
+                          border-top-left-radius: 12px !important;
+                          border-top-right-radius: 12px !important;
+                          padding-top: 10px !important;
+                        }
+                        .react-datepicker__current-month,
+                        .react-datepicker__day-name,
+                        .react-datepicker__day {
+                          color: #cbd5e1 !important;
+                        }
+                        .react-datepicker__day:hover {
+                          background-color: #1e293b !important;
+                          color: #ffffff !important;
+                        }
+                        .react-datepicker__day--selected {
+                          background-color: var(--color-primary, #38bdf8) !important;
+                          color: #020617 !important;
+                          font-weight: bold !important;
+                        }
+                        .react-datepicker__day--disabled {
+                          color: #475569 !important;
+                          opacity: 0.25;
+                        }
+                        .react-datepicker__navigation-icon::before {
+                          border-color: #94a3b8 !important;
+                        }
+                        .react-datepicker__header__dropdown {
+                          margin-top: 6px;
+                          display: flex;
+                          justify-content: center;
+                          gap: 8px;
+                        }
+                        .react-datepicker__month-select,
+                        .react-datepicker__year-select {
+                          background-color: #0f172a !important;
+                          color: #cbd5e1 !important;
+                          border: 1px solid #334155 !important;
+                          border-radius: 6px !important;
+                          padding: 2px 4px !important;
+                          font-size: 11px !important;
+                          outline: none !important;
+                          cursor: pointer;
+                        }
+                        .react-datepicker__time-container {
+                          background-color: #020617 !important;
+                          border-left: 1px solid #1e293b !important;
+                          width: 85px !important;
+                        }
+                        .react-datepicker__time-container .react-datepicker__time {
+                          background-color: #020617 !important;
+                          color: #cbd5e1 !important;
+                        }
+                        .react-datepicker__time-list-item {
+                          background-color: #020617 !important;
+                          color: #cbd5e1 !important;
+                          font-size: 11px !important;
+                          padding: 6px 10px !important;
+                          cursor: pointer;
+                        }
+                        .react-datepicker__time-list-item:hover {
+                          background-color: #1e293b !important;
+                          color: #ffffff !important;
+                        }
+                        .react-datepicker__time-list-item--selected {
+                          background-color: var(--color-primary, #38bdf8) !important;
+                          color: #020617 !important;
+                          font-weight: bold !important;
+                        }
+                        .react-datepicker--time-only .react-datepicker__time-container {
+                          border-left: none !important;
+                          width: 100% !important;
+                        }
+                        .react-datepicker__time-box {
+                          width: 100% !important;
+                          border-radius: 12px !important;
+                        }
+                      `}</style>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    disabled={isSubmittingPost || !postSummary}
+                    disabled={isSubmittingPost || !postSummary || (isScheduledOnly && !scheduleDate)}
                     className="w-full bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs py-3 rounded-xl transition-all shadow-md mt-4 cursor-pointer"
                   >
-                    {isSubmittingPost ? "Publishing..." : "Publish Post on Google Maps"}
+                    {isSubmittingPost ? "Processing..." : isScheduledOnly ? "Schedule Google Post" : "Publish Post on Google Maps"}
                   </button>
                 </form>
               </div>
@@ -2483,18 +3264,36 @@ export default function GmbPerformanceDashboard() {
                     {posts.map((post) => (
                       <div key={post.id} className="bg-slate-950/20 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg">
                         <div className="p-5 space-y-4">
-                          <div className="flex justify-between items-start">
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                              post.status === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800 text-slate-400"
-                            }`}>
-                              {post.status}
-                            </span>
-                            <button
-                              onClick={() => handleDeletePost(post.id)}
-                              className="text-rose-400 hover:text-rose-300 p-1.5 bg-slate-900/50 border border-slate-850 hover:border-rose-900/50 rounded-xl transition-all cursor-pointer"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between items-start">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                post.status === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-400" :
+                                post.status === "SCHEDULED" ? "bg-blue-500/10 text-blue-400" :
+                                post.status === "PUBLISHING" ? "bg-amber-500/10 text-amber-400 animate-pulse" :
+                                post.status === "FAILED" ? "bg-rose-500/10 text-rose-400" :
+                                "bg-slate-800 text-slate-400"
+                              }`}>
+                                {post.status}
+                              </span>
+                              <button
+                                onClick={() => handleDeletePost(post.id)}
+                                className="text-rose-400 hover:text-rose-300 p-1.5 bg-slate-900/50 border border-slate-850 hover:border-rose-900/50 rounded-xl transition-all cursor-pointer"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                            
+                            {post.status === "SCHEDULED" && post.scheduledAt && (
+                              <div className="text-[10px] text-blue-400 flex items-center gap-1 font-semibold">
+                                <Clock className="h-3.5 w-3.5" /> Scheduled for: {new Date(post.scheduledAt).toLocaleString()}
+                              </div>
+                            )}
+
+                            {post.status === "FAILED" && post.publishError && (
+                              <div className="text-[10px] text-rose-400 border border-rose-950/40 bg-rose-950/10 p-2 rounded-xl leading-relaxed select-all">
+                                Error: {post.publishError}
+                              </div>
+                            )}
                           </div>
 
                           {post.mediaUrl && (
@@ -2762,7 +3561,6 @@ export default function GmbPerformanceDashboard() {
           )}
 
         </div>
-      </div>
 
       {/* Lightbox Photo Preview Modal */}
       {selectedPhoto && (
