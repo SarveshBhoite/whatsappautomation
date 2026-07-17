@@ -10,7 +10,7 @@ export class GoogleAdsService {
   /**
    * Helper to get axios instance configured with Ads API headers
    */
-  private static async getAdsHeaders(organizationId: string) {
+  public static async getAdsHeaders(organizationId: string) {
     const config = await prisma.googleBusinessConfig.findUnique({
       where: { organizationId }
     });

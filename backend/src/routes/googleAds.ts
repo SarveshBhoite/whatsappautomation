@@ -5,8 +5,80 @@ import axios from "axios";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_KEY = process.env.GROQ_KEY || "";
 
-// 1. POST: Launch Local Search Campaign (Creates Budget, Campaign, AdGroup, Responsive Ad, and Keywords)
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. GET: List accessible Google Ads customer accounts linked via OAuth
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/accessible-customers", async (req, res) => {
+  try {
+    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    const config = await prisma.googleBusinessConfig.findUnique({ where: { organizationId: orgId } });
+
+    if (!config?.googleRefreshToken) {
+      return res.status(400).json({ error: "Google account not connected. Please complete OAuth first." });
+    }
+
+    const { getGoogleAccessToken } = await import("../services/gmbSyncService");
+    const accessToken = await getGoogleAccessToken(
+      process.env.GOOGLE_CLIENT_ID || "",
+      process.env.GOOGLE_CLIENT_SECRET || "",
+      config.googleRefreshToken
+    );
+
+    const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
+    const listRes = await axios.get(
+      "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "developer-token": devToken,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const resourceNames: string[] = listRes.data.resourceNames || [];
+    // Extract numeric IDs from "customers/XXXXXXXXXX"
+    const customerIds = resourceNames.map((rn: string) => rn.split("/")[1]);
+
+    res.status(200).json({ customerIds, resourceNames });
+  } catch (error: any) {
+    console.error("Failed to list accessible customers:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. POST: Save / update the Google Ads Customer ID for this org
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/connect-customer", async (req, res) => {
+  try {
+    const { orgId = DEFAULT_ORG_ID, customerId } = req.body;
+    if (!customerId) return res.status(400).json({ error: "customerId is required" });
+
+    await prisma.googleBusinessConfig.upsert({
+      where: { organizationId: orgId },
+      update: { googleAdsCustomerId: customerId },
+      create: {
+        organizationId: orgId,
+        googleAdsCustomerId: customerId,
+        locationName: "",
+        autoReplyEnabled: false,
+        autoReplyMinRating: 4
+      }
+    });
+
+    res.status(200).json({ message: "Google Ads Customer ID saved successfully", customerId });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. POST: Launch a full Local Search Campaign (Budget → Campaign → AdGroup → Ad → Keywords)
+// ─────────────────────────────────────────────────────────────────────────────
 router.post("/campaign/launch", async (req, res) => {
   try {
     const {
@@ -25,7 +97,6 @@ router.post("/campaign/launch", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields for campaign launch." });
     }
 
-    // Call GoogleAdsService to build the entire campaign structure in Google Ads API
     const result = await GoogleAdsService.launchLocalSearchCampaign({
       organizationId: orgId,
       campaignName,
@@ -38,7 +109,6 @@ router.post("/campaign/launch", async (req, res) => {
       keywords: keywords || []
     });
 
-    // Save to local database
     const localCampaign = await prisma.googleAdCampaign.create({
       data: {
         organizationId: orgId,
@@ -47,9 +117,9 @@ router.post("/campaign/launch", async (req, res) => {
         budget: Number(budget),
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
-        status: "PAUSED", // PAUSED in Google Ads initially
-        headlines: headlines,
-        descriptions: descriptions,
+        status: "PAUSED",
+        headlines,
+        descriptions,
         keywords: keywords || []
       }
     });
@@ -68,24 +138,64 @@ router.post("/campaign/launch", async (req, res) => {
   }
 });
 
-// 2. GET: List campaigns and fetch live performance
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. GET: List campaigns with live Google Ads performance data
+// ─────────────────────────────────────────────────────────────────────────────
 router.get("/campaigns", async (req, res) => {
   try {
     const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
 
-    // Fetch local campaigns from database
     const localCampaigns = await prisma.googleAdCampaign.findMany({
       where: { organizationId: orgId },
       orderBy: { createdAt: "desc" }
     });
 
     try {
-      // Attempt to pull live performance insights from Google Ads API
       const livePerformance = await GoogleAdsService.getCampaignPerformance(orgId);
 
-      // Map live stats back to database records
+      // Auto-upsert any campaigns from Google Ads to our local DB so they exist in CRM and can be toggled
+      for (const lp of livePerformance) {
+        const existing = localCampaigns.find(lc => lc.googleAdsCampaignId === String(lp.id));
+        if (!existing) {
+          try {
+            const created = await prisma.googleAdCampaign.create({
+              data: {
+                organizationId: orgId,
+                googleAdsCampaignId: String(lp.id),
+                name: lp.name,
+                budget: 0, // Placeholder budget
+                startDate: new Date(),
+                status: lp.status,
+                headlines: [],
+                descriptions: [],
+                keywords: []
+              }
+            });
+            localCampaigns.push(created);
+            console.log(`[Sync] Auto-created local campaign record for Google Ads Campaign: ${lp.name} (${lp.id})`);
+          } catch (createErr: any) {
+            console.error(`[Sync] Failed to auto-create local campaign record:`, createErr.message);
+          }
+        } else if (existing.name !== lp.name || existing.status !== lp.status) {
+          // Keep local name & status updated in case they changed it on Google Ads dashboard
+          try {
+            const updated = await prisma.googleAdCampaign.update({
+              where: { id: existing.id },
+              data: {
+                name: lp.name,
+                status: lp.status
+              }
+            });
+            const index = localCampaigns.findIndex(lc => lc.id === existing.id);
+            if (index !== -1) localCampaigns[index] = updated;
+          } catch (updateErr: any) {
+            console.error(`[Sync] Failed to update local campaign record:`, updateErr.message);
+          }
+        }
+      }
+
       const combinedCampaigns = localCampaigns.map(lc => {
-        const liveMatch = livePerformance.find((lp: any) => lp.id === lc.googleAdsCampaignId);
+        const liveMatch = livePerformance.find((lp: any) => String(lp.id) === lc.googleAdsCampaignId);
         return {
           ...lc,
           liveStatus: liveMatch ? liveMatch.status : lc.status,
@@ -99,10 +209,8 @@ router.get("/campaigns", async (req, res) => {
 
       return res.status(200).json(combinedCampaigns);
     } catch (apiError: any) {
-      console.warn("Could not retrieve live Google Ads performance. Returning local campaigns only:", apiError.message);
-      
-      // Fallback: Return local database records with zeroed metrics if API call fails (e.g. invalid test customer ID)
-      const fallbackCampaigns = localCampaigns.map(lc => ({
+      console.warn("Live Google Ads performance unavailable. Returning local campaigns:", apiError.message);
+      const fallback = localCampaigns.map(lc => ({
         ...lc,
         liveStatus: lc.status,
         impressions: 0,
@@ -111,8 +219,7 @@ router.get("/campaigns", async (req, res) => {
         conversions: 0,
         cost: "0.00"
       }));
-
-      return res.status(200).json(fallbackCampaigns);
+      return res.status(200).json(fallback);
     }
   } catch (error: any) {
     console.error("Failed to fetch Google campaigns:", error);
@@ -120,87 +227,121 @@ router.get("/campaigns", async (req, res) => {
   }
 });
 
-// 3. POST: Generate campaign headlines and descriptions using Gemini AI
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. POST: Toggle campaign status (ENABLED ↔ PAUSED) in Google Ads + local DB
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/campaign/status", async (req, res) => {
+  try {
+    const { orgId = DEFAULT_ORG_ID, campaignId, status } = req.body;
+    if (!campaignId || !status) return res.status(400).json({ error: "campaignId and status are required" });
+    if (!["ENABLED", "PAUSED"].includes(status)) return res.status(400).json({ error: "status must be ENABLED or PAUSED" });
+
+    // Update in Google Ads API
+    const { headers, customerId } = await (GoogleAdsService as any).getAdsHeaders(orgId);
+    const campaign = await prisma.googleAdCampaign.findFirst({ where: { id: campaignId, organizationId: orgId } });
+    if (!campaign?.googleAdsCampaignId) return res.status(404).json({ error: "Campaign not found" });
+
+    await axios.post(
+      `https://googleads.googleapis.com/v17/customers/${customerId}/campaigns:mutate`,
+      {
+        operations: [{
+          update: {
+            resourceName: `customers/${customerId}/campaigns/${campaign.googleAdsCampaignId}`,
+            status
+          },
+          updateMask: "status"
+        }]
+      },
+      { headers }
+    );
+
+    // Update local DB
+    const updated = await prisma.googleAdCampaign.update({
+      where: { id: campaignId },
+      data: { status }
+    });
+
+    res.status(200).json({ message: `Campaign ${status.toLowerCase()} successfully`, campaign: updated });
+  } catch (error: any) {
+    console.error("Failed to toggle campaign status:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. POST: Generate campaign ad copy using Groq Llama-3.3-70b
+// ─────────────────────────────────────────────────────────────────────────────
 router.post("/generate-copy", async (req, res) => {
   try {
-    const { businessDescription, campaignTheme, keywords } = req.body;
+    const { businessDescription, campaignTheme, targetLocation, keywords } = req.body;
 
     if (!businessDescription || !campaignTheme) {
-      return res.status(400).json({ error: "Business description and campaign theme are required." });
+      return res.status(400).json({ error: "businessDescription and campaignTheme are required." });
     }
 
-    // Call Gemini 1.5 Flash API for low-latency ad copy generation
-    // We can use a developer API key or fallback to a standard free-tier public key
-    const geminiApiKey = process.env.GEMINI_API_KEY || "YOUR_FREE_GEMINI_KEY"; // Fallback placeholder or instructions
-    const model = "gemini-1.5-flash";
-    const prompt = `
-      You are an expert Google Ads Specialist. Write high-converting headlines and descriptions for a Responsive Search Ad.
-      
-      Business Details: ${businessDescription}
-      Campaign Theme: ${campaignTheme}
-      Target Keywords: ${keywords ? keywords.join(", ") : "Local area search"}
+    const prompt = `You are an expert Google Ads specialist with 10+ years of experience writing high-converting Responsive Search Ads.
 
-      Google Ads limits:
-      - Headlines MUST be 30 characters or less.
-      - Descriptions MUST be 90 characters or less.
+Write compelling ad copy for a Google Search campaign with these details:
+- Business: ${businessDescription}
+- Campaign Goal / Theme: ${campaignTheme}
+- Target Location: ${targetLocation || "Local area"}
+- Seed Keywords: ${keywords ? (Array.isArray(keywords) ? keywords.join(", ") : keywords) : "local search"}
 
-      Return a JSON object with two arrays:
-      1. "headlines": Array of exactly 6 unique H1 headlines (each <= 30 chars).
-      2. "descriptions": Array of exactly 3 unique descriptions (each <= 90 chars).
+STRICT Google Ads character limits:
+- Each headline: MAXIMUM 30 characters (including spaces)
+- Each description: MAXIMUM 90 characters (including spaces)
 
-      Strictly format your response as a raw, parsable JSON string. No markdown block wrapper.
-    `;
+Requirements:
+1. Generate exactly 6 unique headlines (max 30 chars each) — include the primary keyword in at least 2 headlines
+2. Generate exactly 3 unique descriptions (max 90 chars each) — include a clear call to action
+3. Generate exactly 10 relevant keyword suggestions (broad to specific)
+4. Verify every headline is under 30 characters before including it
+5. Verify every description is under 90 characters before including it
+
+Return ONLY a raw JSON object (no markdown, no explanation):
+{
+  "headlines": ["...", "...", "...", "...", "...", "..."],
+  "descriptions": ["...", "...", "..."],
+  "keywords": ["...", "...", "...", "...", "...", "...", "...", "...", "...", "..."]
+}`;
 
     try {
       const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+        GROQ_API_URL,
         {
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.6,
+          max_tokens: 800
         },
         {
-          headers: { "Content-Type": "application/json" }
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${GROQ_KEY}`
+          }
         }
       );
 
-      const responseText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-      const parsedCopy = JSON.parse(responseText.trim());
+      const raw = response.data?.choices?.[0]?.message?.content || "{}";
+      // Strip any markdown code fences if present
+      const cleaned = raw.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
+      const parsed = JSON.parse(cleaned);
 
-      res.status(200).json(parsedCopy);
-    } catch (apiError: any) {
-      console.warn("Gemini API generation failed. Returning default ad copy.", apiError.message);
-      
-      // Fallback mock ad copies if API key is not ready yet
-      const fallbackCopy = {
-        headlines: [
-          `Jisnu Digital Marketing`,
-          `Affordable GMB Setup`,
-          `Grow Your Business Online`,
-          `Top Agency in Pune`,
-          `Get More Customer Leads`,
-          `Best SEO Services`
-        ],
-        descriptions: [
-          `Boost your Google My Business rankings and attract local customer calls today.`,
-          `Full service GMB and social media setup. Partner with Pune's top digital agency.`,
-          `Professional local SEO, reviews optimization, and automated Google ad services.`
-        ]
-      };
+      // Enforce character limits — truncate any overflowing copies
+      const safeHeadlines = (parsed.headlines || []).map((h: string) => h.substring(0, 30));
+      const safeDescriptions = (parsed.descriptions || []).map((d: string) => d.substring(0, 90));
 
-      res.status(200).json(fallbackCopy);
+      res.status(200).json({
+        headlines: safeHeadlines,
+        descriptions: safeDescriptions,
+        keywords: parsed.keywords || []
+      });
+    } catch (groqErr: any) {
+      console.error("Groq copy generation failed:", groqErr?.response?.data || groqErr.message);
+      res.status(500).json({ error: "AI copy generation failed. Please try again." });
     }
   } catch (error: any) {
-    console.error("Ad Copy generation failed:", error);
+    console.error("Ad Copy generation error:", error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -111,8 +111,12 @@ router.get("/oauth/connect", (req, res) => {
       return res.status(400).send("GOOGLE_CLIENT_ID is not configured in backend .env");
     }
 
-    const scope = "https://www.googleapis.com/auth/business.manage";
-    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${encodeURIComponent(orgId)}`;
+    // Include both GMB and Google Ads scopes in one OAuth consent screen
+    const scopes = [
+      "https://www.googleapis.com/auth/business.manage",
+      "https://www.googleapis.com/auth/adwords"
+    ].join(" ");
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(orgId)}`;
     
     res.redirect(oauthUrl);
   } catch (error: any) {
@@ -182,19 +186,47 @@ router.get("/oauth/callback", async (req, res) => {
       }
     }
 
-    // Update config in database
+    // Auto-discover Google Ads Customer ID from the linked Google account
+    let googleAdsCustomerId: string | undefined = existingConfig?.googleAdsCustomerId || undefined;
+    if (!googleAdsCustomerId) {
+      try {
+        const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
+        const adsListRes = await axios.get(
+          "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
+          {
+            headers: {
+              Authorization: `Bearer ${access_token}`,
+              "developer-token": DEVELOPER_TOKEN,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+        const resourceNames: string[] = adsListRes.data.resourceNames || [];
+        if (resourceNames.length > 0) {
+          // resourceNames[0] = "customers/1234567890" — extract the numeric ID
+          googleAdsCustomerId = resourceNames[0].split("/")[1];
+          console.log(`[OAuth] Auto-discovered Google Ads Customer ID: ${googleAdsCustomerId}`);
+        }
+      } catch (adsErr: any) {
+        console.warn("[OAuth] Could not auto-discover Google Ads Customer ID:", adsErr?.response?.data || adsErr.message);
+      }
+    }
+
+    // Update config in database — save refresh token, location, and ads customer ID
     await prisma.googleBusinessConfig.upsert({
       where: { organizationId: orgId },
       update: {
         googleRefreshToken: refresh_token || undefined,
         locationName: locationName || undefined,
-        googleLocationId: googleLocationId || undefined
+        googleLocationId: googleLocationId || undefined,
+        googleAdsCustomerId: googleAdsCustomerId || undefined
       },
       create: {
         organizationId: orgId,
         googleRefreshToken: refresh_token || "",
         locationName,
         googleLocationId,
+        googleAdsCustomerId: googleAdsCustomerId || "",
         autoReplyEnabled: true,
         autoReplyMinRating: 4,
         autoReplyTemplate: "Thank you so much for your review! We value your feedback."
