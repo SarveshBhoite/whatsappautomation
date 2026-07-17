@@ -473,7 +473,7 @@ function CampaignCreator({ orgId, customerId, onClose, onSuccess }: any) {
   const [brief, setBrief] = useState({
     businessDescription: "", campaignTheme: "", targetLocation: "",
     dailyBudget: "", finalUrl: "", startDate: "", endDate: "",
-    campaignType: "SEARCH", biddingStrategy: "MANUAL_CPC",
+    campaignObjective: "SALES", campaignType: "SEARCH", biddingStrategy: "MANUAL_CPC",
     targetCpa: "", targetRoas: "", networkDisplay: false
   });
   const [generating, setGenerating] = useState(false);
@@ -492,7 +492,22 @@ function CampaignCreator({ orgId, customerId, onClose, onSuccess }: any) {
   const [launchResult, setLaunchResult] = useState<any>(null);
   const [toast, setToast] = useState("");
 
+  const [uploadedImages, setUploadedImages] = useState<Array<{ name: string; base64: string }>>([]);
+
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
+
+  const handleImageUpload = (e: any) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    files.forEach((file: any) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(",")[1];
+        setUploadedImages(prev => [...prev, { name: file.name, base64: base64String }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   async function generateCopy() {
     if (!brief.businessDescription || !brief.campaignTheme) { showToast("Fill in business description and campaign goal"); return; }
@@ -544,7 +559,8 @@ function CampaignCreator({ orgId, customerId, onClose, onSuccess }: any) {
           descriptions: editDescs,
           keywords: editKeywords,
           geoTargetIds: selectedGeos.map(g => g.id),
-          networkDisplay: brief.networkDisplay
+          networkDisplay: brief.networkDisplay,
+          images: uploadedImages
         })
       });
       const data = await res.json();
@@ -597,13 +613,73 @@ function CampaignCreator({ orgId, customerId, onClose, onSuccess }: any) {
 
           {/* STEP 1: Strategy */}
           {step === 1 && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <Select label="Campaign Type" value={brief.campaignType} onChange={(e: any) => setBrief(b => ({ ...b, campaignType: e.target.value }))}>
-                  <option value="SEARCH">Search</option>
-                  <option value="DISPLAY">Display</option>
-                  <option value="PERFORMANCE_MAX">Performance Max</option>
-                </Select>
+            <div className="space-y-5">
+              {/* Objective selection */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">What's your campaign objective?</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: "SALES", label: "Sales", desc: "Drive sales online, in app, or store", icon: DollarSign, color: "text-emerald-400" },
+                    { id: "LEADS", label: "Leads", desc: "Get conversions & customer signups", icon: Users, color: "text-primary" },
+                    { id: "TRAFFIC", label: "Website traffic", desc: "Get the right visitors to your site", icon: Globe, color: "text-sky-400" },
+                    { id: "APP", label: "App promotion", desc: "Get more installs and engagement", icon: Activity, color: "text-violet-400" },
+                    { id: "AWARENESS", label: "YouTube reach / Awareness", desc: "Drive brand awareness and views", icon: Megaphone, color: "text-rose-400" },
+                    { id: "LOCAL", label: "Local store visits", desc: "Drive visits to physical locations", icon: Building2, color: "text-amber-400" },
+                    { id: "NO_GOAL", label: "No guidance", desc: "Create a custom campaign setup", icon: Sparkles, color: "text-slate-400" }
+                  ].map(obj => {
+                    const Icon = obj.icon;
+                    const isSel = brief.campaignObjective === obj.id;
+                    return (
+                      <button
+                        key={obj.id}
+                        type="button"
+                        onClick={() => setBrief(b => ({ ...b, campaignObjective: obj.id }))}
+                        className={`p-3 rounded-xl border text-left transition-all ${isSel ? "border-primary bg-primary/10" : "border-slate-800 bg-slate-950/40 hover:bg-slate-850"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`p-1.5 rounded-lg bg-slate-800 ${obj.color}`}><Icon className="h-4 w-4" /></div>
+                          <span className="text-xs font-bold text-slate-200">{obj.label}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 line-clamp-2">{obj.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Campaign type selection */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Select a campaign type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: "SEARCH", label: "Search", desc: "Drive action on Google Search with text ads", icon: Search },
+                    { id: "PERFORMANCE_MAX", label: "Performance Max", desc: "Reach users on Search, YouTube, and Display", icon: Layers },
+                    { id: "DEMAND_GEN", label: "Demand Gen", desc: "Drive demand with image & video ads", icon: Zap },
+                    { id: "DISPLAY", label: "Display", desc: "Reach customers across 3M sites & apps", icon: Eye },
+                    { id: "SHOPPING", label: "Shopping", desc: "Promote products from Merchant Center", icon: BadgePercent },
+                    { id: "VIDEO", label: "Video", desc: "Drive conversions and actions on YouTube", icon: Play }
+                  ].map(ct => {
+                    const Icon = ct.icon;
+                    const isSel = brief.campaignType === ct.id;
+                    return (
+                      <button
+                        key={ct.id}
+                        type="button"
+                        onClick={() => setBrief(b => ({ ...b, campaignType: ct.id }))}
+                        className={`p-3 rounded-xl border text-left transition-all ${isSel ? "border-primary bg-primary/10" : "border-slate-800 bg-slate-950/40 hover:bg-slate-850"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1.5 rounded-lg bg-slate-800 text-primary"><Icon className="h-4 w-4" /></div>
+                          <span className="text-xs font-bold text-slate-200">{ct.label}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 line-clamp-2">{ct.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-3 border-t border-slate-800">
                 <Select label="Bidding Strategy" value={brief.biddingStrategy} onChange={(e: any) => setBrief(b => ({ ...b, biddingStrategy: e.target.value }))}>
                   <option value="MANUAL_CPC">Manual CPC</option>
                   <option value="MAXIMIZE_CLICKS">Maximize Clicks</option>
@@ -612,36 +688,36 @@ function CampaignCreator({ orgId, customerId, onClose, onSuccess }: any) {
                   <option value="TARGET_CPA">Target CPA</option>
                   <option value="TARGET_ROAS">Target ROAS</option>
                 </Select>
-              </div>
 
-              {brief.biddingStrategy === "TARGET_CPA" && (
-                <Input label="Target CPA (₹)" type="number" placeholder="e.g. 500" value={brief.targetCpa} onChange={(e: any) => setBrief(b => ({ ...b, targetCpa: e.target.value }))} />
-              )}
-              {brief.biddingStrategy === "TARGET_ROAS" && (
-                <Input label="Target ROAS (e.g. 3.0 = 300%)" type="number" step="0.1" placeholder="e.g. 3.0" value={brief.targetRoas} onChange={(e: any) => setBrief(b => ({ ...b, targetRoas: e.target.value }))} />
-              )}
+                {brief.biddingStrategy === "TARGET_CPA" && (
+                  <Input label="Target CPA (₹)" type="number" placeholder="e.g. 500" value={brief.targetCpa} onChange={(e: any) => setBrief(b => ({ ...b, targetCpa: e.target.value }))} />
+                )}
+                {brief.biddingStrategy === "TARGET_ROAS" && (
+                  <Input label="Target ROAS (e.g. 3.0 = 300%)" type="number" step="0.1" placeholder="e.g. 3.0" value={brief.targetRoas} onChange={(e: any) => setBrief(b => ({ ...b, targetRoas: e.target.value }))} />
+                )}
 
-              <Textarea label="Business Description *" rows={3} value={brief.businessDescription} onChange={(e: any) => setBrief(b => ({ ...b, businessDescription: e.target.value }))} placeholder="e.g. Digital marketing agency in Pune specialising in local SEO and lead generation for SMEs." />
-              <Input label="Campaign Goal / Theme *" value={brief.campaignTheme} onChange={(e: any) => setBrief(b => ({ ...b, campaignTheme: e.target.value }))} placeholder="e.g. Get more local business owners to enquire about GMB setup" />
-              <Input label="Target Location" value={brief.targetLocation} onChange={(e: any) => setBrief(b => ({ ...b, targetLocation: e.target.value }))} placeholder="e.g. Pune, Maharashtra" />
+                <Textarea label="Business Description *" rows={2} value={brief.businessDescription} onChange={(e: any) => setBrief(b => ({ ...b, businessDescription: e.target.value }))} placeholder="e.g. Digital marketing agency in Pune specialising in local SEO and lead generation for SMEs." />
+                <Input label="Campaign Goal / Theme *" value={brief.campaignTheme} onChange={(e: any) => setBrief(b => ({ ...b, campaignTheme: e.target.value }))} placeholder="e.g. Get more local business owners to enquire about GMB setup" />
+                <Input label="Target Location" value={brief.targetLocation} onChange={(e: any) => setBrief(b => ({ ...b, targetLocation: e.target.value }))} placeholder="e.g. Pune, Maharashtra" />
 
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="Daily Budget (₹) *" type="number" value={brief.dailyBudget} onChange={(e: any) => setBrief(b => ({ ...b, dailyBudget: e.target.value }))} placeholder="500" />
-                <Input label="Landing Page URL *" value={brief.finalUrl} onChange={(e: any) => setBrief(b => ({ ...b, finalUrl: e.target.value }))} placeholder="https://yourwebsite.com" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="Start Date" type="date" value={brief.startDate} onChange={(e: any) => setBrief(b => ({ ...b, startDate: e.target.value }))} />
-                <Input label="End Date (optional)" type="date" value={brief.endDate} onChange={(e: any) => setBrief(b => ({ ...b, endDate: e.target.value }))} />
-              </div>
-
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className={`w-10 h-5 rounded-full transition-all ${brief.networkDisplay ? "bg-primary" : "bg-slate-700"}`} onClick={() => setBrief(b => ({ ...b, networkDisplay: !b.networkDisplay }))}>
-                  <div className={`w-4 h-4 rounded-full bg-white shadow mt-0.5 transition-all ${brief.networkDisplay ? "ml-5.5" : "ml-0.5"}`} style={{ marginLeft: brief.networkDisplay ? "22px" : "2px" }} />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Daily Budget (₹) *" type="number" value={brief.dailyBudget} onChange={(e: any) => setBrief(b => ({ ...b, dailyBudget: e.target.value }))} placeholder="500" />
+                  <Input label="Landing Page URL *" value={brief.finalUrl} onChange={(e: any) => setBrief(b => ({ ...b, finalUrl: e.target.value }))} placeholder="https://yourwebsite.com" />
                 </div>
-                <span className="text-sm text-slate-300">Also show on Display Network</span>
-              </label>
-            </>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Start Date" type="date" value={brief.startDate} onChange={(e: any) => setBrief(b => ({ ...b, startDate: e.target.value }))} />
+                  <Input label="End Date (optional)" type="date" value={brief.endDate} onChange={(e: any) => setBrief(b => ({ ...b, endDate: e.target.value }))} />
+                </div>
+
+                <label className="flex items-center gap-3 cursor-pointer group pt-1">
+                  <div className={`w-10 h-5 rounded-full transition-all ${brief.networkDisplay ? "bg-primary" : "bg-slate-700"}`} onClick={() => setBrief(b => ({ ...b, networkDisplay: !b.networkDisplay }))}>
+                    <div className={`w-4 h-4 rounded-full bg-white shadow mt-0.5 transition-all ${brief.networkDisplay ? "ml-5.5" : "ml-0.5"}`} style={{ marginLeft: brief.networkDisplay ? "22px" : "2px" }} />
+                  </div>
+                  <span className="text-sm text-slate-300">Also show on Display Network</span>
+                </label>
+              </div>
+            </div>
           )}
 
           {/* STEP 2: Ad Copy */}
@@ -745,6 +821,44 @@ function CampaignCreator({ orgId, customerId, onClose, onSuccess }: any) {
                   </div>
                 </div>
               )}
+
+              {brief.campaignType === "PERFORMANCE_MAX" && (
+                <div className="space-y-3 border-t border-slate-800 pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">Asset Group Marketing Images</label>
+                      <p className="text-[10px] text-slate-500">PMax campaigns require at least 1 landscape/square marketing image.</p>
+                    </div>
+                    <label className="text-xs text-primary font-bold hover:underline cursor-pointer flex items-center gap-1">
+                      <Plus className="h-3 w-3" /> Upload Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleImageUpload}
+                      />
+                    </label>
+                  </div>
+                  {uploadedImages.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {uploadedImages.map((img: any, idx: number) => (
+                        <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-700 bg-slate-800 aspect-square">
+                          <img src={`data:image/png;base64,${img.base64}`} className="w-full h-full object-cover" />
+                          <button
+                            onClick={() => setUploadedImages(imgs => imgs.filter((_, i) => i !== idx))}
+                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-rose-400 font-bold text-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic py-2">No marketing images uploaded yet.</p>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -824,13 +938,16 @@ function CampaignCreator({ orgId, customerId, onClose, onSuccess }: any) {
               <div className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 space-y-3">
                 <h3 className="text-sm font-semibold text-slate-100">Campaign Summary</h3>
                 {[
+                  { label: "Objective", val: brief.campaignObjective },
                   { label: "Type", val: brief.campaignType },
                   { label: "Bidding", val: brief.biddingStrategy },
                   { label: "Daily Budget", val: `₹${brief.dailyBudget}` },
                   { label: "Landing URL", val: brief.finalUrl },
                   { label: "Headlines", val: `${editHeadlines.length} headlines` },
                   { label: "Descriptions", val: `${editDescs.length} descriptions` },
-                  { label: "Keywords", val: `${editKeywords.length} keywords` },
+                  ...(brief.campaignType === "PERFORMANCE_MAX"
+                    ? [{ label: "Marketing Images", val: `${uploadedImages.length} images` }]
+                    : [{ label: "Keywords", val: `${editKeywords.length} keywords` }]),
                   { label: "Locations", val: selectedGeos.length > 0 ? selectedGeos.map(g => g.name).join(", ") : "All locations" },
                 ].map(r => (
                   <div key={r.label} className="flex justify-between text-sm">
@@ -1298,6 +1415,34 @@ export default function GoogleAdsPage() {
   const [analysis, setAnalysis] = useState<any>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
+  // ── Campaign Details states ──────────────────────────────────────────────
+  const [selectedCampaignDetails, setSelectedCampaignDetails] = useState<any>(null);
+  const [activeDetailsTab, setActiveDetailsTab] = useState<"info" | "ad-groups" | "ads" | "keywords" | "ai">("info");
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [detailName, setDetailName] = useState("");
+  const [detailBudget, setDetailBudget] = useState(500);
+  const [detailStatus, setDetailStatus] = useState("PAUSED");
+  const [detailEndDate, setDetailEndDate] = useState("");
+
+  // Inline sub-entity forms
+  const [newAdGroupName, setNewAdGroupName] = useState("");
+  const [newAdGroupBid, setNewAdGroupBid] = useState("1.00");
+  const [isCreatingAdGroup, setIsCreatingAdGroup] = useState(false);
+
+  const [newAdAdGroupRes, setNewAdAdGroupRes] = useState("");
+  const [newAdHeadlines, setNewAdHeadlines] = useState("");
+  const [newAdDescriptions, setNewAdDescriptions] = useState("");
+  const [newAdFinalUrl, setNewAdFinalUrl] = useState("");
+  const [newAdPath1, setNewAdPath1] = useState("");
+  const [newAdPath2, setNewAdPath2] = useState("");
+  const [isCreatingAd, setIsCreatingAd] = useState(false);
+
+  const [detailKwAdGroupRes, setDetailKwAdGroupRes] = useState("");
+  const [detailKwText, setDetailKwText] = useState("");
+  const [detailKwMatchType, setDetailKwMatchType] = useState("BROAD");
+  const [detailKwIsNegative, setDetailKwIsNegative] = useState(false);
+  const [isAddingDetailKw, setIsAddingDetailKw] = useState(false);
+
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
 
   // ── Handle OAuth redirect back from Google ────────────────────────────────
@@ -1532,6 +1677,139 @@ export default function GoogleAdsPage() {
     } catch (e: any) { showToast(`Analysis failed: ${e.message}`); setShowAnalysis(false); } finally { setAnalyzing(false); }
   }
 
+  // ── Campaign Details Workspace Helpers ─────────────────────────────────────
+  async function saveCampaignDetails() {
+    if (!selectedCampaignDetails || !detailName.trim()) { showToast("Name is required"); return; }
+    setIsSavingDetails(true);
+    try {
+      const res = await api(`/campaigns/${selectedCampaignDetails.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: selectedCustomerId,
+          name: detailName,
+          status: detailStatus,
+          endDate: detailEndDate || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Update failed");
+      showToast("Campaign settings updated live ✓");
+      setSelectedCampaignDetails({ ...selectedCampaignDetails, name: detailName, status: detailStatus, liveStatus: detailStatus, endDate: detailEndDate ? new Date(detailEndDate) : null });
+      loadCampaigns(selectedCustomerId);
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`);
+    } finally {
+      setIsSavingDetails(false);
+    }
+  }
+
+  async function createAdGroupInline() {
+    if (!selectedCampaignDetails || !newAdGroupName.trim()) { showToast("Enter an ad group name"); return; }
+    setIsCreatingAdGroup(true);
+    try {
+      const res = await api("/ad-groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          customerId: selectedCustomerId,
+          campaignId: selectedCampaignDetails.id,
+          campaignResourceName: `customers/${selectedCustomerId}/campaigns/${selectedCampaignDetails.googleAdsCampaignId}`,
+          name: newAdGroupName,
+          cpcBid: newAdGroupBid
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create ad group");
+      showToast(`Ad Group "${newAdGroupName}" created ✓`);
+      setNewAdGroupName("");
+      loadAdGroups(selectedCustomerId);
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`);
+    } finally {
+      setIsCreatingAdGroup(false);
+    }
+  }
+
+  async function createAdInline() {
+    if (!selectedCampaignDetails || !newAdAdGroupRes || !newAdHeadlines.trim() || !newAdDescriptions.trim()) {
+      showToast("Select ad group, and fill headlines & descriptions");
+      return;
+    }
+    setIsCreatingAd(true);
+    try {
+      const headlinesList = newAdHeadlines.split("\n").filter(h => h.trim()).map(text => ({ text: text.trim().substring(0, 30) }));
+      const descriptionsList = newAdDescriptions.split("\n").filter(d => d.trim()).map(text => ({ text: text.trim().substring(0, 90) }));
+      const agId = newAdAdGroupRes.split("/").pop();
+
+      const res = await api("/ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          customerId: selectedCustomerId,
+          adGroupId: agId,
+          adGroupResourceName: newAdAdGroupRes,
+          finalUrls: [newAdFinalUrl || "https://example.com"],
+          headlines: headlinesList,
+          descriptions: descriptionsList,
+          path1: newAdPath1 || undefined,
+          path2: newAdPath2 || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create ad");
+      showToast("Ad created successfully ✓");
+      setNewAdHeadlines("");
+      setNewAdDescriptions("");
+      setNewAdPath1("");
+      setNewAdPath2("");
+      loadAds(selectedCustomerId);
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`);
+    } finally {
+      setIsCreatingAd(false);
+    }
+  }
+
+  async function addKeywordInline() {
+    if (!selectedCampaignDetails || !detailKwAdGroupRes || !detailKwText.trim()) {
+      showToast("Select ad group and enter keyword text");
+      return;
+    }
+    setIsAddingDetailKw(true);
+    try {
+      const kwList = detailKwText.split("\n").filter(k => k.trim()).map(text => ({
+        text: text.trim(),
+        matchType: detailKwMatchType,
+        isNegative: detailKwIsNegative
+      }));
+      const agId = detailKwAdGroupRes.split("/").pop();
+
+      const res = await api("/keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orgId,
+          customerId: selectedCustomerId,
+          adGroupId: agId,
+          adGroupResourceName: detailKwAdGroupRes,
+          keywords: kwList
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add keywords");
+      showToast(`${kwList.length} keywords added ✓`);
+      setDetailKwText("");
+      loadKeywords(selectedCustomerId);
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`);
+    } finally {
+      setIsAddingDetailKw(false);
+    }
+  }
+
   // Totals for overview
   const totalImpressions = campaigns.reduce((s, c) => s + (c.impressions || 0), 0);
   const totalClicks = campaigns.reduce((s, c) => s + (c.clicks || 0), 0);
@@ -1711,7 +1989,19 @@ export default function GoogleAdsPage() {
                     <div key={c.id} className="px-5 py-3 flex items-center gap-4 border-b border-slate-700/20 last:border-0 hover:bg-slate-800/20 transition-all">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-slate-200 truncate text-sm">{c.name}</p>
+                          <button
+                            onClick={() => {
+                              setSelectedCampaignDetails(c);
+                              setActiveDetailsTab("info");
+                              setDetailName(c.name);
+                              setDetailBudget(c.budget);
+                              setDetailStatus(c.liveStatus || c.status);
+                              setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
+                            }}
+                            className="font-semibold text-primary hover:text-secondary hover:underline text-left text-sm truncate max-w-[200px] block focus:outline-none"
+                          >
+                            {c.name}
+                          </button>
                           <Pill status={c.liveStatus || c.status} />
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">{c.campaignType || "SEARCH"} · ₹{c.budget}/day</p>
@@ -1765,7 +2055,19 @@ export default function GoogleAdsPage() {
                       {filteredCamps.map(c => (
                         <tr key={c.id} className="hover:bg-slate-800/30 transition-all group">
                           <td className="px-4 py-3 min-w-[180px]">
-                            <p className="font-medium text-slate-200 text-sm truncate max-w-[200px]">{c.name}</p>
+                            <button
+                              onClick={() => {
+                                setSelectedCampaignDetails(c);
+                                setActiveDetailsTab("info");
+                                setDetailName(c.name);
+                                setDetailBudget(c.budget);
+                                setDetailStatus(c.liveStatus || c.status);
+                                setDetailEndDate(c.endDate ? new Date(c.endDate).toISOString().split("T")[0] : "");
+                              }}
+                              className="font-semibold text-primary hover:text-secondary hover:underline text-left text-sm truncate max-w-[200px] block focus:outline-none"
+                            >
+                              {c.name}
+                            </button>
                             <p className="text-xs text-slate-500 mt-0.5">{c.googleAdsCampaignId || "Not synced"}</p>
                           </td>
                           <td className="px-4 py-3"><Pill status={c.liveStatus || c.status} /></td>
@@ -2161,6 +2463,443 @@ export default function GoogleAdsPage() {
                 {addingKw ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 Add Keywords
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Campaign Details Workspace Modal */}
+      {selectedCampaignDetails && (
+        <Modal
+          title={`Campaign Workspace: ${selectedCampaignDetails.name}`}
+          onClose={() => setSelectedCampaignDetails(null)}
+          wide
+        >
+          <div className="flex h-[600px] -m-6 bg-slate-900 rounded-b-2xl overflow-hidden">
+            {/* Sidebar Tabs */}
+            <div className="w-48 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0">
+              {[
+                { id: "info", label: "Campaign Info", icon: Settings },
+                { id: "ad-groups", label: "Ad Groups", icon: Layers },
+                { id: "ads", label: "Ads (RSAs)", icon: FileText },
+                { id: "keywords", label: "Keywords", icon: Tag },
+                { id: "ai", label: "AI Audit Report", icon: Bot }
+              ].map(t => {
+                const Icon = t.icon;
+                const isActive = activeDetailsTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveDetailsTab(t.id as any)}
+                    className={`flex items-center gap-2.5 px-4 py-3.5 text-xs font-semibold border-b border-slate-800/40 text-left transition-all ${isActive ? "bg-primary/10 text-primary border-r-2 border-r-primary" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              
+              {/* TAB 1: Info (Edit) */}
+              {activeDetailsTab === "info" && (
+                <div className="space-y-4">
+                  <h3 className="font-bold text-slate-100 text-sm border-b border-slate-800 pb-2">Campaign Settings</h3>
+                  <div className="space-y-3">
+                    <Input
+                      label="Campaign Name *"
+                      value={detailName}
+                      onChange={(e: any) => setDetailName(e.target.value)}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label="Daily Budget (₹) *"
+                        type="number"
+                        value={detailBudget}
+                        onChange={(e: any) => setDetailBudget(Number(e.target.value))}
+                      />
+                      <Input
+                        label="End Date (optional)"
+                        type="date"
+                        value={detailEndDate}
+                        onChange={(e: any) => setDetailEndDate(e.target.value)}
+                      />
+                    </div>
+                    <Select
+                      label="Status"
+                      value={detailStatus}
+                      onChange={(e: any) => setDetailStatus(e.target.value)}
+                    >
+                      <option value="ENABLED">Enabled (Active)</option>
+                      <option value="PAUSED">Paused</option>
+                    </Select>
+                  </div>
+                  <button
+                    onClick={saveCampaignDetails}
+                    disabled={isSavingDetails}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary transition-all disabled:opacity-40 text-sm"
+                  >
+                    {isSavingDetails ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    Save Campaign Settings
+                  </button>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-2 mt-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">ReadOnly Settings</h4>
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <p className="text-slate-500">Google ID</p>
+                        <p className="text-slate-300 font-mono">{selectedCampaignDetails.googleAdsCampaignId || "Not Synced"}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Campaign Type</p>
+                        <p className="text-slate-300 font-semibold">{selectedCampaignDetails.campaignType}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Bidding Strategy</p>
+                        <p className="text-slate-300 font-semibold">{selectedCampaignDetails.biddingStrategy}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Start Date</p>
+                        <p className="text-slate-300 font-semibold">
+                          {selectedCampaignDetails.startDate ? new Date(selectedCampaignDetails.startDate).toLocaleDateString() : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Ad Groups */}
+              {activeDetailsTab === "ad-groups" && (
+                <div className="space-y-6">
+                  {/* Create Ad Group Form */}
+                  <div className="rounded-xl border border-slate-700/50 bg-slate-850 p-4 space-y-3">
+                    <h4 className="font-semibold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <PlusCircle className="h-4 w-4 text-primary" /> Create Ad Group
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        placeholder="Ad Group Name (e.g. SEO Services)"
+                        value={newAdGroupName}
+                        onChange={(e: any) => setNewAdGroupName(e.target.value)}
+                      />
+                      <Input
+                        placeholder="Default CPC Bid (₹) (e.g. 5.50)"
+                        value={newAdGroupBid}
+                        onChange={(e: any) => setNewAdGroupBid(e.target.value)}
+                      />
+                    </div>
+                    <button
+                      onClick={createAdGroupInline}
+                      disabled={isCreatingAdGroup || !newAdGroupName.trim()}
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary transition-all disabled:opacity-40 text-xs"
+                    >
+                      {isCreatingAdGroup ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                      Add Ad Group
+                    </button>
+                  </div>
+
+                  {/* List of Ad Groups */}
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-slate-300 text-sm">Ad Groups in this Campaign</h3>
+                    {adGroups.filter(ag => ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId).length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-4">No ad groups found in this campaign.</p>
+                    ) : (
+                      adGroups.filter(ag => ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId).map(ag => (
+                        <div key={ag.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-850 bg-slate-950/20">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-200">{ag.name}</p>
+                            <p className="text-[10px] text-slate-500 font-mono">ID: {ag.id} · Type: {ag.type}</p>
+                          </div>
+                          <div className="flex items-center gap-4 text-right">
+                            <div>
+                              <p className="text-xs text-slate-300 font-medium">₹{ag.cpcBidMicros ? (Number(ag.cpcBidMicros) / 1_000_000).toFixed(2) : "—"}</p>
+                              <p className="text-[10px] text-slate-500">CPC Bid</p>
+                            </div>
+                            <Pill status={ag.status} />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: Ads (Responsive Search Ads) */}
+              {activeDetailsTab === "ads" && (
+                <div className="space-y-6">
+                  {/* Create Ad Form */}
+                  <div className="rounded-xl border border-slate-700/50 bg-slate-850 p-4 space-y-3">
+                    <h4 className="font-semibold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <PlusCircle className="h-4 w-4 text-primary" /> Create Responsive Search Ad
+                    </h4>
+                    <Select
+                      label="Ad Group"
+                      value={newAdAdGroupRes}
+                      onChange={(e: any) => setNewAdAdGroupRes(e.target.value)}
+                    >
+                      <option value="">Select Ad Group</option>
+                      {adGroups.filter(ag => ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId).map(ag => (
+                        <option key={ag.id} value={`customers/${selectedCustomerId}/adGroups/${ag.id}`}>{ag.name}</option>
+                      ))}
+                    </Select>
+                    <Input
+                      label="Final Landing Page URL *"
+                      placeholder="https://yourwebsite.com/landing"
+                      value={newAdFinalUrl}
+                      onChange={(e: any) => setNewAdFinalUrl(e.target.value)}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Display Path 1"
+                        placeholder="e.g. seo"
+                        maxLength={15}
+                        value={newAdPath1}
+                        onChange={(e: any) => setNewAdPath1(e.target.value)}
+                      />
+                      <Input
+                        label="Display Path 2"
+                        placeholder="e.g. audit"
+                        maxLength={15}
+                        value={newAdPath2}
+                        onChange={(e: any) => setNewAdPath2(e.target.value)}
+                      />
+                    </div>
+                    <Textarea
+                      label="Headlines (one per line, max 30 chars each) *"
+                      rows={3}
+                      placeholder="Top SEO Agency Pune&#10;Grow Your Traffic&#10;Affordable SEO Services"
+                      value={newAdHeadlines}
+                      onChange={(e: any) => setNewAdHeadlines(e.target.value)}
+                    />
+                    <Textarea
+                      label="Descriptions (one per line, max 90 chars each) *"
+                      rows={2}
+                      placeholder="Get high-quality leads from Google. Request a free audit today!&#10;Expert SEO consulting services to rank #1 on Google searches."
+                      value={newAdDescriptions}
+                      onChange={(e: any) => setNewAdDescriptions(e.target.value)}
+                    />
+                    <button
+                      onClick={createAdInline}
+                      disabled={isCreatingAd || !newAdAdGroupRes || !newAdHeadlines.trim() || !newAdDescriptions.trim()}
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary transition-all disabled:opacity-40 text-xs"
+                    >
+                      {isCreatingAd ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                      Publish Ad to Google Ads
+                    </button>
+                  </div>
+
+                  {/* List of Ads */}
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-slate-300 text-sm">Ads in this Campaign</h3>
+                    {ads.filter(ad => adGroups.some(ag => ag.id === ad.adGroupId && ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId)).length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-4">No ads found in this campaign.</p>
+                    ) : (
+                      ads.filter(ad => adGroups.some(ag => ag.id === ad.adGroupId && ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId)).map(ad => (
+                        <div key={ad.id} className="p-3 rounded-xl border border-slate-850 bg-slate-950/20 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500 font-mono">Ad ID: {ad.id}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300`}>{ad.adStrength || "Strength: —"}</span>
+                              <Pill status={ad.status} />
+                            </div>
+                          </div>
+                          <div className="text-xs text-slate-400 space-y-1">
+                            <p className="text-slate-500">Ad Group: <strong className="text-slate-300">{ad.adGroupName}</strong></p>
+                            <p className="text-primary font-medium">{ad.finalUrls?.[0]}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {(ad.headlines || []).slice(0, 3).map((h: any, i: number) => (
+                                <span key={i} className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300">{h.text || h}</span>
+                              ))}
+                            </div>
+                            <div className="space-y-0.5 mt-1">
+                              {(ad.descriptions || []).slice(0, 2).map((d: any, i: number) => (
+                                <p key={i} className="text-[10px] text-slate-400">{d.text || d}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: Keywords */}
+              {activeDetailsTab === "keywords" && (
+                <div className="space-y-6">
+                  {/* Create Keyword Form */}
+                  <div className="rounded-xl border border-slate-700/50 bg-slate-850 p-4 space-y-3">
+                    <h4 className="font-semibold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <PlusCircle className="h-4 w-4 text-primary" /> Add Campaign Keywords
+                    </h4>
+                    <Select
+                      label="Ad Group"
+                      value={detailKwAdGroupRes}
+                      onChange={(e: any) => setDetailKwAdGroupRes(e.target.value)}
+                    >
+                      <option value="">Select Ad Group</option>
+                      {adGroups.filter(ag => ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId).map(ag => (
+                        <option key={ag.id} value={`customers/${selectedCustomerId}/adGroups/${ag.id}`}>{ag.name}</option>
+                      ))}
+                    </Select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Select
+                        label="Match Type"
+                        value={detailKwMatchType}
+                        onChange={(e: any) => setDetailKwMatchType(e.target.value)}
+                      >
+                        <option value="BROAD">Broad Match</option>
+                        <option value="PHRASE">Phrase Match</option>
+                        <option value="EXACT">Exact Match</option>
+                      </Select>
+                      <label className="flex flex-col justify-end gap-1.5 cursor-pointer pb-2">
+                        <span className="text-xs text-slate-400">Keyword Category</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={detailKwIsNegative}
+                            onChange={e => setDetailKwIsNegative(e.target.checked)}
+                            className="rounded border-slate-700 bg-slate-900 text-primary focus:ring-primary"
+                          />
+                          <span className="text-xs text-rose-400 font-semibold">Mark as Negative Keyword</span>
+                        </div>
+                      </label>
+                    </div>
+                    <Textarea
+                      label="Keywords (one per line)"
+                      rows={3}
+                      placeholder="seo expert pune&#10;business leads agency&#10;rank on google"
+                      value={detailKwText}
+                      onChange={(e: any) => setDetailKwText(e.target.value)}
+                    />
+                    <button
+                      onClick={addKeywordInline}
+                      disabled={isAddingDetailKw || !detailKwAdGroupRes || !detailKwText.trim()}
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-primary text-slate-950 font-bold hover:bg-secondary transition-all disabled:opacity-40 text-xs"
+                    >
+                      {isAddingDetailKw ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                      Add Keywords
+                    </button>
+                  </div>
+
+                  {/* List of Keywords */}
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-slate-300 text-sm">Active Keywords</h3>
+                    {keywords.filter(kw => adGroups.some(ag => ag.id === kw.adGroupId && ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId)).length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-4">No keywords found in this campaign.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-800 text-slate-400">
+                              <th className="text-left py-2 font-medium">Keyword</th>
+                              <th className="text-left py-2 font-medium">Match</th>
+                              <th className="text-left py-2 font-medium">Category</th>
+                              <th className="text-left py-2 font-medium">Status</th>
+                              <th className="text-right py-2 font-medium">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/40">
+                            {keywords.filter(kw => adGroups.some(ag => ag.id === kw.adGroupId && ag.campaignResourceName?.split("/").pop() === selectedCampaignDetails.googleAdsCampaignId)).map(kw => (
+                              <tr key={kw.id} className="hover:bg-slate-800/10">
+                                <td className="py-2.5 font-medium text-slate-200">
+                                  {kw.text}
+                                  <p className="text-[10px] text-slate-500">Group: {kw.adGroupName}</p>
+                                </td>
+                                <td className="py-2.5"><span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400">{kw.matchType}</span></td>
+                                <td className="py-2.5">
+                                  <span className={`text-[10px] font-semibold ${kw.isNegative ? "text-rose-400" : "text-emerald-400"}`}>
+                                    {kw.isNegative ? "Negative" : "Positive"}
+                                  </span>
+                                </td>
+                                <td className="py-2.5"><Pill status={kw.status} /></td>
+                                <td className="py-2.5 text-right">
+                                  <button
+                                    onClick={() => deleteKeyword(kw)}
+                                    className="p-1 rounded text-rose-400 hover:bg-rose-500/10 transition-all"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: AI Recommendations */}
+              {activeDetailsTab === "ai" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h3 className="font-bold text-slate-100 text-sm">Campaign Audit Report</h3>
+                    <button
+                      onClick={() => analyzeCampaign(selectedCampaignDetails)}
+                      disabled={analyzing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 text-white text-xs font-bold hover:bg-violet-500 transition-all shadow-lg"
+                    >
+                      {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
+                      Run Diagnostics
+                    </button>
+                  </div>
+
+                  {analyzing ? (
+                    <div className="flex flex-col items-center py-16 gap-3">
+                      <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                      <p className="text-slate-400 text-xs">Diagnosing performance, ad quality, and negative targets...</p>
+                    </div>
+                  ) : analysis ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-primary/20 flex items-center justify-center border border-violet-500/20">
+                          <span className={`text-xl font-black ${analysis.score >= 7 ? "text-emerald-400" : "text-amber-400"}`}>{analysis.score}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-200">Diagnostics Score: {analysis.score}/10</p>
+                          <p className="text-xs text-slate-400">{analysis.assessment}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                          <h4 className="font-bold text-emerald-400 mb-1 flex items-center gap-1">✓ Strengths</h4>
+                          <ul className="space-y-1 text-slate-300">
+                            {(analysis.strengths || []).map((s: string, i: number) => <li key={i}>• {s}</li>)}
+                          </ul>
+                        </div>
+                        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3">
+                          <h4 className="font-bold text-rose-400 mb-1 flex items-center gap-1">! Issues</h4>
+                          <ul className="space-y-1 text-slate-300">
+                            {(analysis.issues || []).map((s: string, i: number) => <li key={i}>• {s}</li>)}
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">AI Optimizer Recommendations</h4>
+                        {(analysis.recommendations || []).map((r: any, i: number) => (
+                          <div key={i} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-xs">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-bold text-slate-200">{r.title}</span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded ${r.impact === "HIGH" ? "bg-rose-500/10 text-rose-400" : "bg-sky-500/10 text-sky-400"}`}>{r.impact}</span>
+                            </div>
+                            <p className="text-slate-400">{r.action}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 text-center py-10">Click "Run Diagnostics" to generate campaign performance audit recommendations using Groq/Llama 3.</p>
+                  )}
+                </div>
+              )}
+
             </div>
           </div>
         </Modal>

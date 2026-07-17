@@ -329,22 +329,36 @@ router.post("/campaign/launch", async (req, res) => {
       orgId = DEFAULT_ORG_ID, customerId, campaignName, budget,
       channelType, biddingStrategy, targetCpa, targetRoas,
       startDate, endDate, finalUrl, headlines, descriptions, keywords,
-      geoTargetIds, networkDisplay
+      geoTargetIds, networkDisplay, images
     } = req.body;
 
     if (!customerId || !campaignName || !budget || !finalUrl || !headlines || !descriptions) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const result = await GoogleAdsService.launchLocalSearchCampaign({
-      organizationId: orgId, customerId,
-      campaignName, budget: Number(budget),
-      channelType, biddingStrategy, targetCpa: targetCpa ? Number(targetCpa) : undefined,
-      targetRoas: targetRoas ? Number(targetRoas) : undefined,
-      startDate: startDate || new Date().toISOString().split("T")[0],
-      endDate, finalUrl, headlines, descriptions, keywords: keywords || [],
-      geoTargetIds, networkDisplay
-    });
+    let result;
+    if (channelType === "PERFORMANCE_MAX") {
+      result = await GoogleAdsService.launchPerformanceMaxCampaign({
+        organizationId: orgId, customerId,
+        campaignName, budget: Number(budget),
+        biddingStrategy: biddingStrategy || "MAXIMIZE_CONVERSIONS",
+        targetCpa: targetCpa ? Number(targetCpa) : undefined,
+        targetRoas: targetRoas ? Number(targetRoas) : undefined,
+        startDate: startDate || new Date().toISOString().split("T")[0],
+        endDate, finalUrl, headlines, descriptions,
+        images: images || []
+      });
+    } else {
+      result = await GoogleAdsService.launchLocalSearchCampaign({
+        organizationId: orgId, customerId,
+        campaignName, budget: Number(budget),
+        channelType, biddingStrategy, targetCpa: targetCpa ? Number(targetCpa) : undefined,
+        targetRoas: targetRoas ? Number(targetRoas) : undefined,
+        startDate: startDate || new Date().toISOString().split("T")[0],
+        endDate, finalUrl, headlines, descriptions, keywords: keywords || [],
+        geoTargetIds, networkDisplay
+      });
+    }
 
     const localCampaign = await prisma.googleAdCampaign.create({
       data: {

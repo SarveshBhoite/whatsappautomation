@@ -947,4 +947,146 @@ export class GoogleAdsService {
       campaignId: campaignRef.split("/").pop()
     };
   }
+
+  // ── PERFORMANCE MAX & ASSET GROUPS ───────────────────────────────────────
+
+  public static async uploadImageAsset(organizationId: string, customerId: string, name: string, base64Data: string) {
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assets:mutate`, {
+      operations: [{
+        create: {
+          name,
+          type: "IMAGE",
+          imageAsset: {
+            data: base64Data
+          }
+        }
+      }]
+    }, { headers });
+    return res.data.results?.[0]?.resourceName;
+  }
+
+  public static async createTextAsset(organizationId: string, customerId: string, value: string) {
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assets:mutate`, {
+      operations: [{
+        create: {
+          name: `Text asset: ${value.slice(0, 15)}`,
+          type: "TEXT",
+          textAsset: { value }
+        }
+      }]
+    }, { headers });
+    return res.data.results?.[0]?.resourceName;
+  }
+
+  public static async createAssetGroup(organizationId: string, customerId: string, params: {
+    campaignResourceName: string; name: string; finalUrls: string[]; path1?: string; path2?: string;
+  }) {
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assetGroups:mutate`, {
+      operations: [{
+        create: {
+          campaign: params.campaignResourceName,
+          name: params.name,
+          finalUrls: params.finalUrls,
+          status: "PAUSED",
+          path1: params.path1 || "",
+          path2: params.path2 || ""
+        }
+      }]
+    }, { headers });
+    return res.data.results?.[0]?.resourceName;
+  }
+
+  public static async linkAssetToAssetGroup(organizationId: string, customerId: string, params: {
+    assetGroupResourceName: string; assetResourceName: string; fieldType: string;
+  }) {
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assetGroupAssets:mutate`, {
+      operations: [{
+        create: {
+          assetGroup: params.assetGroupResourceName,
+          asset: params.assetResourceName,
+          fieldType: params.fieldType
+        }
+      }]
+    }, { headers });
+    return res.data.results?.[0]?.resourceName;
+  }
+
+  public static async launchPerformanceMaxCampaign(params: {
+    organizationId: string; customerId: string;
+    campaignName: string; budget: number;
+    biddingStrategy?: string; targetCpa?: number; targetRoas?: number;
+    startDate: string; endDate?: string;
+    finalUrl: string; headlines: string[]; descriptions: string[];
+    images?: Array<{ name: string; base64: string }>;
+  }) {
+    const { organizationId, customerId } = params;
+
+    // 1. Create Budget
+    const budgetRef = await this.createBudget(organizationId, customerId, {
+      name: `${params.campaignName} PMax Budget`,
+      amountPerDay: params.budget
+    });
+
+    // 2. Create Campaign
+    const campaignRef = await this.createCampaign(organizationId, customerId, {
+      name: params.campaignName,
+      budgetResourceName: budgetRef,
+      channelType: "PERFORMANCE_MAX",
+      biddingStrategy: params.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+      targetCpaMicros: params.targetCpa ? Math.round(params.targetCpa * 1_000_000) : undefined,
+      targetRoas: params.targetRoas,
+      startDate: params.startDate,
+      endDate: params.endDate
+    });
+
+    // 3. Create Asset Group
+    const assetGroupRef = await this.createAssetGroup(organizationId, customerId, {
+      campaignResourceName: campaignRef,
+      name: `${params.campaignName} Asset Group 1`,
+      finalUrls: [params.finalUrl]
+    });
+
+    // 4. Create Headlines and link them
+    for (const text of params.headlines.slice(0, 5)) {
+      const assetRef = await this.createTextAsset(organizationId, customerId, text);
+      await this.linkAssetToAssetGroup(organizationId, customerId, {
+        assetGroupResourceName: assetGroupRef,
+        assetResourceName: assetRef,
+        fieldType: "HEADLINE"
+      });
+    }
+
+    // 5. Create Descriptions and link them
+    for (const text of params.descriptions.slice(0, 4)) {
+      const assetRef = await this.createTextAsset(organizationId, customerId, text);
+      await this.linkAssetToAssetGroup(organizationId, customerId, {
+        assetGroupResourceName: assetGroupRef,
+        assetResourceName: assetRef,
+        fieldType: "DESCRIPTION"
+      });
+    }
+
+    // 6. Handle custom images if uploaded
+    if (params.images && params.images.length > 0) {
+      for (const img of params.images) {
+        const assetRef = await this.uploadImageAsset(organizationId, customerId, img.name, img.base64);
+        await this.linkAssetToAssetGroup(organizationId, customerId, {
+          assetGroupResourceName: assetGroupRef,
+          assetResourceName: assetRef,
+          fieldType: "MARKETING_IMAGE"
+        });
+      }
+    }
+
+    return {
+      campaignResourceName: campaignRef,
+      assetGroupResourceName: assetGroupRef,
+      budgetResourceName: budgetRef,
+      campaignId: campaignRef.split("/").pop()
+    };
+  }
 }
