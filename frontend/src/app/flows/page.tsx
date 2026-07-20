@@ -516,6 +516,47 @@ export default function Dashboard() {
   const [flowId, setFlowId] = useState<string | null>(null);
   const [flowSaveStatus, setFlowSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
 
+  // AI Flow Generator States
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiPromptText, setAiPromptText] = useState("");
+  const [aiPlatform, setAiPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const generateAiFlow = async () => {
+    if (!aiPromptText.trim()) return;
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/flows/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({
+          prompt: aiPromptText,
+          platform: aiPlatform
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.flow) {
+        setNodes(data.flow.nodes);
+        setEdges(data.flow.edges);
+        setSelectedPlatform(aiPlatform);
+        setIsAiModalOpen(false);
+        setAiPromptText("");
+      } else {
+        setAiError(data.error || "Failed to generate flow. Please try again.");
+      }
+    } catch (err: any) {
+      setAiError(err.message || "Network error. Please make sure the backend is running.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   // Selected Node reference for Flow Builder property editor
   const selectedNode = nodes.find((n) => n.selected);
 
@@ -1763,6 +1804,18 @@ export default function Dashboard() {
                 <div className="h-6 w-px bg-slate-800 mx-2" />
 
                 <button
+                  onClick={() => {
+                    setAiPlatform(selectedPlatform);
+                    setAiPromptText("");
+                    setAiError(null);
+                    setIsAiModalOpen(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-slate-100 font-semibold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer mr-1"
+                >
+                  <span>✨ AI Generate</span>
+                </button>
+
+                <button
                   onClick={saveFlow}
                   disabled={flowSaveStatus === "saving"}
                   className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -2446,6 +2499,98 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* AI Generate Modal */}
+      {isAiModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+              <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                <span>✨ AI Flow Generator</span>
+              </h3>
+              <button 
+                onClick={() => setIsAiModalOpen(false)}
+                className="text-slate-400 hover:text-slate-200 transition-colors text-lg"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 flex flex-col gap-4">
+              {aiError && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg text-xs font-medium animate-fadeIn">
+                  ⚠️ {aiError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  Describe your chatbot flow
+                </label>
+                <textarea
+                  value={aiPromptText}
+                  onChange={(e) => setAiPromptText(e.target.value)}
+                  placeholder="e.g. Create a WhatsApp flow for a dental clinic that greets customers, offers booking or pricing, collects their name/phone, and sends confirmation..."
+                  rows={4}
+                  className="bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  Platform
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAiPlatform("whatsapp")}
+                    className={`py-2 px-4 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      aiPlatform === "whatsapp" 
+                        ? "bg-emerald-500/10 border-emerald-500 text-emerald-400" 
+                        : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
+                    }`}
+                  >
+                    WhatsApp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiPlatform("instagram")}
+                    className={`py-2 px-4 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      aiPlatform === "instagram" 
+                        ? "bg-pink-500/10 border-pink-500 text-pink-400" 
+                        : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
+                    }`}
+                  >
+                    Instagram
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/20 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAiModalOpen(false)}
+                disabled={aiGenerating}
+                className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={generateAiFlow}
+                disabled={aiGenerating || !aiPromptText.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-slate-100 text-xs font-semibold px-5 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                {aiGenerating ? "Generating..." : "Generate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
