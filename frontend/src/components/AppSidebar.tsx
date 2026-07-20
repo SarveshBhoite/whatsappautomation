@@ -21,6 +21,13 @@ const Instagram = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// YouTube SVG icon
+const Youtube = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.522 3.5 12 3.5 12 3.5s-7.522 0-9.388.553a3.003 3.003 0 0 0-2.11 2.11C0 8.028 0 12 0 12s0 3.972.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.866.553 9.388.553 9.388.553s7.522 0 9.388-.553a3.003 3.003 0 0 0 2.11-2.11C24 15.972 24 12 24 12s0-3.972-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+  </svg>
+);
+
 // ─── Nav definition ──────────────────────────────────────────────────────────
 interface NavItem {
   href: string;
@@ -32,6 +39,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,    label: "WhatsApp Chats",   match: "/whatsapp" },
   { href: "/instagram", icon: <Instagram className="h-5 w-5" />,   label: "Instagram Chats",  match: "/instagram" },
+  { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,     label: "YouTube Comments", match: "/youtube" },
   { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,    label: "Flows",            match: "/flows" },
   { href: "/reviews",   icon: <Star className="h-5 w-5" />,        label: "Google Reviews",   match: "/reviews" },
   { href: "/gmb",       icon: <Store className="h-5 w-5" />,       label: "Google Listing",   match: "/gmb" },
@@ -128,6 +136,7 @@ export default function AppSidebar() {
         {[
           { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,  label: "WA" },
           { href: "/instagram", icon: <Instagram className="h-5 w-5" />, label: "IG" },
+          { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,   label: "YT" },
           { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,  label: "Flows" },
           { href: "/reviews",   icon: <Star className="h-5 w-5" />,      label: "Reviews" },
           { href: "/gmb",       icon: <Store className="h-5 w-5" />,     label: "Listing" },

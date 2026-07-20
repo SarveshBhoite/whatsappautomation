@@ -15,6 +15,7 @@ model Organization {
   users             User[]
   waConfig          WhatsAppConfig?
   igConfig          InstagramConfig?
+  ytConfig          YouTubeConfig?
   gmbConfig         GoogleBusinessConfig?
   flows             Flow[]
   conversations     Conversation[]
@@ -80,6 +81,17 @@ model InstagramConfig {
   instagramAccountId    String?      
   pageId                String?      
   pageAccessToken       String?      
+  webhookVerifyToken    String       @default(uuid())
+}
+
+model YouTubeConfig {
+  id                    String       @id @default(uuid())
+  organizationId        String       @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  channelId             String?      
+  channelTitle          String?      
+  accessToken           String?      
+  refreshToken          String?      
   webhookVerifyToken    String       @default(uuid())
 }
 

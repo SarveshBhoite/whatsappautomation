@@ -1,6 +1,7 @@
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "./whatsappService";
 import { InstagramService } from "./instagramService";
+import { YouTubeService } from "./youtubeService";
 
 interface FlowGraph {
   nodes: FlowNode[];
@@ -44,6 +45,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           include: {
             waConfig: true,
             igConfig: true,
+            ytConfig: true,
           },
         },
       },
@@ -58,17 +60,25 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     }
 
     const isWhatsApp = conversation.platform === "whatsapp";
+    const isInstagram = conversation.platform === "instagram";
+    const isYouTube = conversation.platform === "youtube";
     const waConfig = conversation.organization.waConfig;
     const igConfig = conversation.organization.igConfig;
+    const ytConfig = conversation.organization.ytConfig;
 
     if (isWhatsApp) {
       if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
         console.warn(`WhatsApp credentials missing for conversation ${conversationId}`);
         return;
       }
-    } else {
+    } else if (isInstagram) {
       if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
         console.warn(`Instagram credentials missing for conversation ${conversationId}`);
+        return;
+      }
+    } else if (isYouTube) {
+      if (!ytConfig || !ytConfig.channelId || !ytConfig.accessToken) {
+        console.warn(`YouTube credentials missing for conversation ${conversationId}`);
         return;
       }
     }
@@ -150,8 +160,16 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
 
           if (!nextNodeId) {
             // Did not match options, re-send options (optionally notify client)
-            const sendToken = isWhatsApp ? waConfig!.accessToken! : igConfig!.pageAccessToken!;
-            const sendId = isWhatsApp ? waConfig!.phoneNumberId! : igConfig!.pageId!;
+            const sendToken = isWhatsApp 
+              ? waConfig!.accessToken! 
+              : isInstagram 
+                ? igConfig!.pageAccessToken! 
+                : ytConfig!.accessToken!;
+            const sendId = isWhatsApp 
+              ? waConfig!.phoneNumberId! 
+              : isInstagram 
+                ? igConfig!.pageId! 
+                : ytConfig!.channelId!;
             await sendNodeMessage(sendId, sendToken, conversation.customerPhone, currentNode, conversationId, conversation.organizationId, conversation.platform);
             return;
           }
@@ -188,8 +206,16 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
 
     // 4. Execute Next Node
     if (nextNodeId) {
-      const sendToken = isWhatsApp ? waConfig!.accessToken! : igConfig!.pageAccessToken!;
-      const sendId = isWhatsApp ? waConfig!.phoneNumberId! : igConfig!.pageId!;
+      const sendToken = isWhatsApp 
+        ? waConfig!.accessToken! 
+        : isInstagram 
+          ? igConfig!.pageAccessToken! 
+          : ytConfig!.accessToken!;
+      const sendId = isWhatsApp 
+        ? waConfig!.phoneNumberId! 
+        : isInstagram 
+          ? igConfig!.pageId! 
+          : ytConfig!.channelId!;
       await executeNodeChain(sendId, sendToken, conversation.customerPhone, nextNodeId, graph, conversationId, conversation.organizationId, conversation.platform);
     }
   } catch (error) {
@@ -257,6 +283,18 @@ async function sendNodeMessage(
   let messageType = "text";
   let responseData: any = null;
   const isWhatsApp = platform === "whatsapp";
+  const isInstagram = platform === "instagram";
+  const isYouTube = platform === "youtube";
+
+  // Refresh token dynamically for YouTube
+  let activeToken = accessToken;
+  if (isYouTube) {
+    try {
+      activeToken = await YouTubeService.refreshAccessToken(organizationId);
+    } catch (err: any) {
+      console.warn("YouTube sync token refresh warning in flow engine:", err.message);
+    }
+  }
 
   try {
     if (node.type === "textNode" || node.type === "welcomeNode" || node.type === "questionNode") {
@@ -264,8 +302,10 @@ async function sendNodeMessage(
       messageType = "text";
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, content);
-      } else {
+      } else if (isInstagram) {
         responseData = await InstagramService.sendTextMessage(accessToken, to, content);
+      } else if (isYouTube) {
+        responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, content);
       }
     } else if (node.type === "mediaNode") {
       const type = data.mediaType || "image";
@@ -284,7 +324,7 @@ async function sendNodeMessage(
           filename,
           caption
         );
-      } else {
+      } else if (isInstagram) {
         responseData = await InstagramService.sendMediaMessage(
           accessToken,
           to,
@@ -292,6 +332,20 @@ async function sendNodeMessage(
           url,
           filename,
           caption
+        );
+      } else if (isYouTube) {
+        let mediaText = url;
+        if (type === "document" && filename) {
+          mediaText = `${filename}: ${url}`;
+        }
+        if (caption) {
+          mediaText += ` - ${caption}`;
+        }
+        responseData = await YouTubeService.sendCommentReply(
+          phoneNumberId,
+          activeToken,
+          to,
+          mediaText
         );
       }
       
@@ -310,8 +364,12 @@ async function sendNodeMessage(
       const buttons = data.buttons || [];
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendButtonMessage(phoneNumberId, accessToken, to, content, buttons);
-      } else {
+      } else if (isInstagram) {
         responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+      } else if (isYouTube) {
+        const optionsText = buttons.map((btn, idx) => `\n${idx + 1}. ${btn.title}`).join("");
+        const fullText = `${content}${optionsText}`;
+        responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, fullText);
       }
       // Format content to include button info for frontend rendering
       const btnTitles = buttons.map(b => b.title).join(", ");
@@ -323,11 +381,16 @@ async function sendNodeMessage(
       const sections = data.listSections || [];
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendListMessage(phoneNumberId, accessToken, to, content, buttonText, sections);
-      } else {
+      } else if (isInstagram) {
         // Map list options to Instagram quick replies format
         const rows = sections.flatMap((sec) => sec.rows) || [];
         const buttons = rows.map((row) => ({ id: row.id, title: row.title }));
         responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+      } else if (isYouTube) {
+        const rows = sections.flatMap((sec) => sec.rows) || [];
+        const optionsText = rows.map((row, idx) => `\n${idx + 1}. ${row.title}${row.description ? ` (${row.description})` : ""}`).join("");
+        const fullText = `${content} (${buttonText})${optionsText}`;
+        responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, fullText);
       }
       const allRows = sections.flatMap((sec) => sec.rows) || [];
       const rowTitles = allRows.map((r) => r.title).join(", ");

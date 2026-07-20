@@ -11,6 +11,7 @@ import adminRouter from "./routes/admin";
 import gmbRouter from "./routes/gmb";
 import gmbPerformanceRouter from "./routes/gmbPerformance";
 import googleAdsRouter from "./routes/googleAds";
+import youtubeRouter from "./routes/youtube";
 
 dotenv.config();
 
@@ -52,6 +53,9 @@ app.use("/api/gmb/performance", gmbPerformanceRouter);
 // Google Ads Campaign & Analytics Router
 app.use("/api/ads", googleAdsRouter);
 
+// YouTube Comments & Config Router
+app.use("/api/youtube", youtubeRouter);
+
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -75,6 +79,7 @@ io.on("connection", (socket) => {
 
 import prisma from "./utils/prisma";
 import { syncGmbReviews, syncGmbPosts, publishPostToGmb } from "./services/gmbSyncService";
+import { YouTubeService } from "./services/youtubeService";
 
 // Background Google Business Profile Reviews Sync Scheduler
 async function runBackgroundGmbSync() {
@@ -119,6 +124,26 @@ async function runBackgroundGmbSync() {
   }
 }
 
+// Background YouTube Comments Polling Scheduler
+async function runBackgroundYoutubeSync() {
+  console.log("[BACKGROUND SCHEDULER] Running auto-sync for active YouTube channels...");
+  try {
+    const configs = await prisma.youTubeConfig.findMany({
+      where: {
+        channelId: { not: "" }
+      }
+    });
+
+    console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active YouTube configurations to sync.`);
+
+    for (const config of configs) {
+      await YouTubeService.syncComments(config.organizationId, io);
+    }
+  } catch (err: any) {
+    console.error("[BACKGROUND SCHEDULER] YouTube sync scheduler error:", err.message);
+  }
+}
+
 // Background: check every 60 seconds for SCHEDULED posts due to be published,
 // and auto-retry FAILED posts (up to 3 attempts)
 async function runScheduledPostsSync() {
@@ -150,7 +175,10 @@ async function runScheduledPostsSync() {
 
 function startGmbSyncScheduler() {
   console.log("[BACKGROUND SCHEDULER] Scheduled auto-sync to run every 15 minutes.");
-  setInterval(() => { runBackgroundGmbSync(); }, 15 * 60 * 1000);
+  setInterval(() => {
+    runBackgroundGmbSync();
+    runBackgroundYoutubeSync();
+  }, 15 * 60 * 1000);
 
   // Check and publish scheduled posts every 60 seconds
   console.log("[BACKGROUND SCHEDULER] Scheduled post publisher to run every 60 seconds.");

@@ -136,7 +136,7 @@ router.post("/flows/generate", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required field: prompt" });
     }
 
-    const flowPlatform = platform === "instagram" ? "instagram" : "whatsapp";
+    const flowPlatform = platform === "youtube" ? "youtube" : platform === "instagram" ? "instagram" : "whatsapp";
     const generatedGraph = await generateFlow(prompt, flowPlatform);
 
     return res.status(200).json({

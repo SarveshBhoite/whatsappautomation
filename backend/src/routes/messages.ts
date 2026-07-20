@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "../services/whatsappService";
 import { InstagramService } from "../services/instagramService";
+import { YouTubeService } from "../services/youtubeService";
 import { io } from "../index";
 
 const router = Router();
@@ -23,6 +24,7 @@ router.post("/send", async (req: Request, res: Response) => {
           include: {
             waConfig: true,
             igConfig: true,
+            ytConfig: true,
           },
         },
       },
@@ -33,16 +35,23 @@ router.post("/send", async (req: Request, res: Response) => {
     }
 
     const isWhatsApp = conversation.platform === "whatsapp";
+    const isInstagram = conversation.platform === "instagram";
+    const isYouTube = conversation.platform === "youtube";
     const waConfig = conversation.organization.waConfig;
     const igConfig = conversation.organization.igConfig;
+    const ytConfig = conversation.organization.ytConfig;
 
     if (isWhatsApp) {
       if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
         return res.status(400).json({ error: "WhatsApp credentials not configured for this organization" });
       }
-    } else {
+    } else if (isInstagram) {
       if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
         return res.status(400).json({ error: "Instagram credentials not configured for this organization" });
+      }
+    } else if (isYouTube) {
+      if (!ytConfig || !ytConfig.channelId || !ytConfig.accessToken) {
+        return res.status(400).json({ error: "YouTube credentials not configured for this organization" });
       }
     }
 
@@ -122,7 +131,7 @@ router.post("/send", async (req: Request, res: Response) => {
       } else {
         return res.status(400).json({ error: "Unsupported message type for manual sending" });
       }
-    } else {
+    } else if (isInstagram) {
       if (messageType === "text") {
         responseData = await InstagramService.sendTextMessage(
           igConfig!.pageAccessToken!,
@@ -152,9 +161,42 @@ router.post("/send", async (req: Request, res: Response) => {
       } else {
         return res.status(400).json({ error: "Unsupported message type for manual sending" });
       }
+    } else if (isYouTube) {
+      // YouTube only supports plain text replies. Media is appended as a URL link.
+      let textToSend = mediaUrlOrId;
+      if (messageType !== "text") {
+        if (messageType === "document" && filename) {
+          textToSend = `${filename}: ${mediaUrlOrId}`;
+        }
+        if (caption) {
+          textToSend += ` - ${caption}`;
+        }
+      }
+
+      // Refresh accessToken in case it expired
+      let token = ytConfig!.accessToken!;
+      if (ytConfig!.refreshToken) {
+        try {
+          token = await YouTubeService.refreshAccessToken(conversation.organizationId);
+        } catch (err: any) {
+          console.warn("Manual YouTube token refresh warning:", err.message);
+        }
+      }
+
+      responseData = await YouTubeService.sendCommentReply(
+        ytConfig!.channelId!,
+        token,
+        customerPhone, // Parent comment/thread ID
+        textToSend
+      );
+      contentForDb = textToSend;
     }
 
-    const waMessageId = isWhatsApp ? (responseData?.messages?.[0]?.id || null) : (responseData?.message_id || null);
+    const waMessageId = isWhatsApp 
+      ? (responseData?.messages?.[0]?.id || null) 
+      : isInstagram 
+        ? (responseData?.message_id || null) 
+        : (responseData?.id || null);
 
     // 3. Pause the Chatbot (Sending manual message automatically pauses chatbot for 24h)
     const pauseDuration = 24 * 60 * 60 * 1000; // 24 hours

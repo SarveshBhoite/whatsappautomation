@@ -356,13 +356,13 @@ function autoCorrectGraph(graph: any) {
 /**
  * Main generator service utilizing Groq's API and applying automated node positions.
  */
-export async function generateFlow(prompt: string, platform: "whatsapp" | "instagram"): Promise<FlowGraph> {
+export async function generateFlow(prompt: string, platform: "whatsapp" | "instagram" | "youtube"): Promise<FlowGraph> {
   const groqKey = process.env.GROQ_KEY;
   if (!groqKey) {
     throw new Error("GROQ_KEY environment variable is not set");
   }
 
-  const systemPrompt = `You are an expert WhatsApp and Instagram chatbot architect.
+  const systemPrompt = `You are an expert WhatsApp, Instagram, and YouTube chatbot architect.
 Your job is to generate chatbot flow JSON compatible with our existing CRM Flow Builder.
 
 Rules:
@@ -381,7 +381,7 @@ Generate only the logical conversation structure.
 Existing node types:
 1. welcomeNode: Root greeting node. Has data: { text: string }
 2. textNode: Standard text reply message. Has data: { text: string }
-3. buttonsNode: Quick reply options. Has data: { text: string, buttons: [{ id: string, title: string }] }. Limit: WhatsApp max 3 buttons, Instagram max 13 buttons.
+3. buttonsNode: Quick reply options. Has data: { text: string, buttons: [{ id: string, title: string }] }. Limit: WhatsApp max 3 buttons, Instagram max 13 buttons, YouTube max 13 buttons.
 4. listNode: Structured list menu. Has data: { text: string, listButtonText: string, listSections: [{ title: string, rows: [{ id: string, title: string, description: string }] }] }. Total rows <= 10.
 5. questionNode: Asks user for text input and stores it. Has data: { text: string, variableName: string }.
 6. mediaNode: Static media message. Has data: { mediaType: "image" | "video" | "audio" | "document", mediaUrl: string, caption: string }.
@@ -392,6 +392,8 @@ Edges connect nodes. An edge must contain:
 - "source": string (source node ID)
 - "target": string (target node ID)
 - "sourceHandle": string (ONLY if source node is buttonsNode or listNode, must match the specific button/row ID)
+
+${platform === "youtube" ? "Special YouTube Rules:\n- When presenting options, use buttonsNode or listNode with clear titles. Interactive choices will be automatically formatted as numbered text options for YouTube comments.\n- Do NOT generate WhatsApp-specific interactive payload mechanisms." : ""}
 
 Generate a logical conversational tree for: ${prompt} on platform: ${platform}.`;
 
