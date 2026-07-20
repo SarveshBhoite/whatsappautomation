@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
+import { generateFlow } from "../services/aiFlowGenerator";
 
 const router = Router();
 
@@ -123,6 +124,31 @@ router.post("/flows", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error saving flow:", error);
     return res.status(500).json({ error: "Failed to save flow", details: error.message });
+  }
+});
+
+// POST: Generate Flow via AI (Groq)
+router.post("/flows/generate", async (req: Request, res: Response) => {
+  try {
+    const { prompt, platform } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: "Missing required field: prompt" });
+    }
+
+    const flowPlatform = platform === "instagram" ? "instagram" : "whatsapp";
+    const generatedGraph = await generateFlow(prompt, flowPlatform);
+
+    return res.status(200).json({
+      success: true,
+      flow: generatedGraph
+    });
+  } catch (error: any) {
+    console.error("Error generating flow:", error);
+    if (error.message && error.message.includes("Schema validation failed")) {
+      return res.status(422).json({ error: error.message, details: error.message });
+    }
+    return res.status(500).json({ error: error.message, details: error.message });
   }
 });
 
