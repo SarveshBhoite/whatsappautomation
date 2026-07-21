@@ -113,6 +113,7 @@ export default function ReviewsDashboard() {
   const [qrCodeImageUrl, setQrCodeImageUrl] = useState("");
 
   const [syncing, setSyncing] = useState(false);
+  const [autoReplyingAll, setAutoReplyingAll] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
   const handleSyncReviews = async () => {
@@ -135,6 +136,34 @@ export default function ReviewsDashboard() {
       setSyncMessage({ text: err.message || "Failed to connect to backend server.", isError: true });
     } finally {
       setSyncing(false);
+      setTimeout(() => setSyncMessage(null), 5000);
+    }
+  };
+
+  const handleAutoReplyAll = async () => {
+    setAutoReplyingAll(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/auto-reply-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: DEFAULT_ORG_ID })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncMessage({ text: data.message || "Generated AI sentiment responses for all unreplied reviews!", isError: false });
+        if (data.reviews) {
+          setReviews(data.reviews);
+        } else {
+          fetchData();
+        }
+      } else {
+        setSyncMessage({ text: data.error || "Failed to generate AI sentiment replies.", isError: true });
+      }
+    } catch (err: any) {
+      setSyncMessage({ text: err.message || "Failed to connect to backend server.", isError: true });
+    } finally {
+      setAutoReplyingAll(false);
       setTimeout(() => setSyncMessage(null), 5000);
     }
   };
@@ -318,14 +347,26 @@ export default function ReviewsDashboard() {
             <Star className="h-5 w-5 text-primary" />
             <h1 className="text-base font-bold text-slate-100">GMB Review Automation & Protection</h1>
           </div>
-          <button
-            onClick={handleSyncReviews}
-            disabled={syncing}
-            className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md cursor-pointer animate-fadeIn"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing..." : "Sync Live Reviews"}
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAutoReplyAll}
+              disabled={autoReplyingAll}
+              className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+            >
+              <Bot className={`h-4 w-4 ${autoReplyingAll ? "animate-spin" : ""}`} />
+              {autoReplyingAll ? "Auto-Replying..." : "AI Sentiment Reply All"}
+            </button>
+
+            <button
+              onClick={handleSyncReviews}
+              disabled={syncing}
+              className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md cursor-pointer animate-fadeIn"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing..." : "Sync Live Reviews"}
+            </button>
+          </div>
         </header>
 
         {/* Dashboard Panels Scroll Area */}
@@ -389,76 +430,35 @@ export default function ReviewsDashboard() {
           {/* Configuration Setup & QR Panel Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
             
-            {/* Setup Form */}
-            <div className="md:col-span-2 space-y-6">
-              <form onSubmit={saveSettings} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
-                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Bot className="h-4.5 w-4.5 text-primary" /> Auto-Reply Configuration
+            {/* Setup Form Replaced with Active AI Sentiment Status Card */}
+            <div className="md:col-span-2 bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <Bot className="h-4.5 w-4.5 text-primary" /> Automated AI Sentiment Analysis Auto-Reply
                 </h3>
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                  Active ✓
+                </span>
+              </div>
 
-                {/* Auto Replies settings */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <label className="text-xs text-slate-200 font-bold uppercase tracking-wide flex items-center gap-1">
-                        Auto-Reply to Review Submissions
-                      </label>
-                      <span className="text-[10px] text-slate-500">Auto reply immediately to Google and funnel review posts</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={config.autoReplyEnabled}
-                        onChange={(e) => setConfig({ ...config, autoReplyEnabled: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary peer-checked:after:bg-slate-950 peer-checked:after:border-transparent"></div>
-                    </label>
-                  </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Automated sentiment analysis auto-reply is active for all Google and Funnel reviews. Our AI engine automatically analyzes the star rating and sentiment context of incoming customer reviews to generate and post appropriate, personalized responses directly to Google Business Profile.
+              </p>
 
-                  {config.autoReplyEnabled && (
-                    <div className="space-y-4 animate-fadeIn">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Minimum Rating to Auto-Reply</label>
-                        <select
-                          value={config.autoReplyMinRating}
-                          onChange={(e) => setConfig({ ...config, autoReplyMinRating: Number(e.target.value) })}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer w-full sm:w-48"
-                        >
-                          <option value={3}>3 Stars & Above</option>
-                          <option value={4}>4 Stars & Above</option>
-                          <option value={5}>5 Stars Only</option>
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Auto-Reply Response Template</label>
-                        <textarea
-                          value={config.autoReplyTemplate || ""}
-                          onChange={(e) => setConfig({ ...config, autoReplyTemplate: e.target.value })}
-                          placeholder="e.g. Thank you so much for your review! We're thrilled that you had a great experience."
-                          rows={4}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed"
-                        />
-                      </div>
-                    </div>
-                  )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="bg-slate-900/60 border border-slate-850 p-3 rounded-xl flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">4-5 Star Reviews</span>
+                  <span className="text-xs text-slate-300">Generates appreciative, warm customer thank-you responses.</span>
                 </div>
-
-                <div className="pt-2 flex items-center justify-between">
-                  <button
-                    type="submit"
-                    disabled={saveStatus === "saving"}
-                    className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-primary/10 cursor-pointer"
-                  >
-                    <Save className="h-4 w-4" />
-                    {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Auto-Replies Successfully!" : "Save Auto-Reply Setup"}
-                  </button>
-                  {saveStatus === "error" && (
-                    <span className="text-xs text-red-400 font-medium">Failed to save auto-reply settings.</span>
-                  )}
+                <div className="bg-slate-900/60 border border-slate-850 p-3 rounded-xl flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">3 Star Reviews</span>
+                  <span className="text-xs text-slate-300">Generates polite thanks and commitment to continuous service improvement.</span>
                 </div>
-              </form>
+                <div className="bg-slate-900/60 border border-slate-850 p-3 rounded-xl flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">1-2 Star Reviews</span>
+                  <span className="text-xs text-slate-300">Generates empathetic apologies with management assistance contact info.</span>
+                </div>
+              </div>
             </div>
 
             {/* QR Card */}

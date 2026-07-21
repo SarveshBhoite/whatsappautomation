@@ -59,45 +59,122 @@ export function mapStarRatingToNumber(rating: any): number {
   return 5;
 }
 
-// Helper function to handle auto-replies
+// AI Sentiment Analysis Auto-Reply Generator
+export async function generateSentimentAnalysisReply(review: any, locationName: string = "Our Business"): Promise<string> {
+  const customerName = review.customerName || "Valued Customer";
+  const rating = Number(review.rating || 5);
+  const comment = (review.comment || "").trim();
+
+  // Try Groq AI sentiment generation if GROQ_API_KEY or GROQ_KEY exists
+  const groqApiKey = process.env.GROQ_API_KEY || process.env.GROQ_KEY;
+  if (groqApiKey) {
+    try {
+      const prompt = `
+        You are an AI customer support manager representing "${locationName}". 
+        Analyze the sentiment of the following customer Google Review and generate a personalized, polite response.
+        
+        Customer Name: "${customerName}"
+        Star Rating: ${rating}/5 Stars
+        Customer Comment: "${comment || "(Star rating only)"}"
+        
+        Instructions:
+        - If rating is 4 or 5 stars: Express gratitude warmly, mention company commitment to excellence.
+        - If rating is 3 stars: Thank them for constructive feedback, express commitment to improve.
+        - If rating is 1 or 2 stars: Apologize sincerely for not meeting expectations, offer assistance to resolve their issue.
+        - Maximum 2-3 sentences.
+        - Output direct response text only, without quote marks or prefix:
+      `;
+
+      const response = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            {
+              role: "system",
+              content: "You are a professional customer review reply assistant. Always return polite, concise, sentiment-appropriate replies."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 250
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${groqApiKey}`
+          },
+          timeout: 10000
+        }
+      );
+
+      const aiReply = response.data?.choices?.[0]?.message?.content;
+      if (aiReply && aiReply.trim()) {
+        return aiReply.trim();
+      }
+    } catch (err: any) {
+      console.warn("[SENTIMENT AI REPLY] Groq API request failed, using rule-based sentiment reply:", err?.response?.data || err.message);
+    }
+  }
+
+  // Fallback intelligent sentiment analysis reply based on rating & comments
+  if (rating >= 4) {
+    if (comment.toLowerCase().includes("great") || comment.toLowerCase().includes("best") || comment.toLowerCase().includes("awesome")) {
+      return `Thank you so much, ${customerName}! We're thrilled to hear your great feedback for ${locationName}. We look forward to serving you again!`;
+    }
+    return `Thank you for the 5-star review, ${customerName}! Your support means the world to our team at ${locationName}.`;
+  } else if (rating === 3) {
+    return `Thank you for your feedback, ${customerName}. We appreciate your support and are constantly striving to improve our services at ${locationName}.`;
+  } else {
+    return `Dear ${customerName}, we sincerely apologize for your experience. We take your feedback seriously—please reach out to our management team directly so we can resolve this for you.`;
+  }
+}
+
+// Helper function to handle sentiment analysis auto-replies
 export async function executeAutoReplyIfApplicable(review: any, config: any) {
-  if (!config.autoReplyEnabled || review.rating < config.autoReplyMinRating || !config.autoReplyTemplate) {
+  // If review already has a reply, skip
+  if (review.replyText && review.replyStatus === "REPLIED") {
     return;
   }
 
   try {
-    const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+    const locationName = config?.locationName || "Our Business";
+    const replyText = await generateSentimentAnalysisReply(review, locationName);
 
-    if (review.source === "GOOGLE" && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
+    const clientId = config?.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+    if (review.source === "GOOGLE" && config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
       const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
       const locationPath = await getGmbLocationPath(token, config.googleLocationId);
       
       const replyUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/reviews/${review.id}/reply`;
       await axios.put(replyUrl, {
-        comment: config.autoReplyTemplate
+        comment: replyText
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log(`[LIVE GMB AUTO-REPLY] Submitted to Google for Review ID ${review.id}`);
+      console.log(`[LIVE GMB SENTIMENT AUTO-REPLY] Submitted to Google for Review ID ${review.id}`);
     } else {
-      console.log(`[LOCAL AUTO-REPLY] Saved locally for ${review.source} review ID ${review.id}`);
+      console.log(`[LOCAL SENTIMENT AUTO-REPLY] Saved locally for ${review.source} review ID ${review.id}`);
     }
 
     await prisma.googleReview.update({
       where: { id: review.id },
       data: {
-        replyText: config.autoReplyTemplate,
+        replyText: replyText,
         replyStatus: "REPLIED"
       }
     });
   } catch (error: any) {
-    console.error("Auto reply failed:", error?.response?.data || error.message);
+    console.error("Sentiment auto-reply failed:", error?.response?.data || error.message);
     await prisma.googleReview.update({
       where: { id: review.id },
       data: {
-        replyText: config.autoReplyTemplate,
         replyStatus: "ERROR"
       }
     });

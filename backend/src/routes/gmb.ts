@@ -290,6 +290,49 @@ router.get("/reviews/sync", async (req, res) => {
   }
 });
 
+// 3.2 POST Trigger AI Sentiment Auto-Reply for all unreplied reviews
+router.post("/reviews/auto-reply-all", async (req, res) => {
+  try {
+    const orgId = (req.body.orgId as string) || DEFAULT_ORG_ID;
+
+    const config = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: orgId }
+    });
+
+    const unrepliedReviews = await prisma.googleReview.findMany({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { replyText: null },
+          { replyStatus: "UNREPLIED" },
+          { replyStatus: "ERROR" }
+        ]
+      }
+    });
+
+    let autoRepliedCount = 0;
+    for (const review of unrepliedReviews) {
+      await executeAutoReplyIfApplicable(review, config);
+      autoRepliedCount++;
+    }
+
+    const updatedReviews = await prisma.googleReview.findMany({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: "desc" }
+    });
+
+    io.to(orgId).emit("reviews-synced", updatedReviews);
+
+    res.status(200).json({
+      message: `Generated AI sentiment responses for ${autoRepliedCount} reviews!`,
+      reviews: updatedReviews
+    });
+  } catch (error: any) {
+    console.error("Failed to auto-reply all reviews:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 4. POST Submit Public Funnel Review
 router.post("/reviews/submit", async (req, res) => {
   try {
