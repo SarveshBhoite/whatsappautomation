@@ -378,6 +378,7 @@ export default function Dashboard() {
   const [videoCommentsData, setVideoCommentsData] = useState<any[]>([]);
   const [videoCommentsDisabled, setVideoCommentsDisabled] = useState<boolean>(false);
   const [loadingVideoComments, setLoadingVideoComments] = useState(false);
+  const [commentsFilter, setCommentsFilter] = useState<"all" | "shorts" | "videos">("all");
 
   // Videos vs Shorts State
   const [videosShortsData, setVideosShortsData] = useState<any | null>(null);
@@ -1411,938 +1412,484 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {((activeTab === "chats_youtube" || activeTab === "settings" || activeTab === "analytics")) && (() => {
-          const currentPlatform = "youtube";
-          const filteredConversations = conversations.filter(c => (c.platform || "youtube") === currentPlatform);
-          const isInstagramTab = false;
-          const isYouTubeTab = true;
-
-          return (
-            <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
-              <div className={`${
-                mobileChatOpen ? "hidden" : "flex"
-              } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center gap-2">
-                  <h2 className="font-bold text-base text-slate-100 flex items-center gap-1.5 min-w-0">
-                    <span className="truncate">Comments</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-normal shrink-0 ${isYouTubeTab ? "bg-red-500/20 text-red-400" : isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
-                      {filteredConversations.length}
-                    </span>
-                  </h2>
-                </div>
-                
-                {/* Conversation items list */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
-                  {filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
-                      <Youtube className="h-8 w-8 text-red-500/60" />
-                      <p className="text-xs">No active YouTube comment threads chats found.</p>
-                    </div>
-                  ) : (
-                    filteredConversations.map((conv) => {
-                      const lastMsg = conv.messages?.[0];
-                      const isSelected = activeConv?.id === conv.id;
-                      const isInstagram = (conv.platform || "youtube") === "instagram";
-                      const isYouTube = (conv.platform || "youtube") === "youtube";
-
-                      return (
-                        <div
-                          key={conv.id}
-                          onClick={() => handleSelectConversation(conv)}
-                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-2 ${isSelected ? (isYouTube ? "bg-slate-800/40 border-red-500" : isInstagram ? "bg-slate-800/40 border-pink-500" : "bg-slate-800/40 border-emerald-500") : "hover:bg-slate-850/50 border-transparent"}`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {isYouTube ? (
-                                <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                              ) : isInstagram ? (
-                                <Instagram className="h-3.5 w-3.5 text-pink-400 shrink-0" />
-                              ) : (
-                                <Bot className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                              )}
-                              <span className="font-semibold text-slate-200 text-sm truncate">
-                                {conv.customerName || conv.customerPhone}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-slate-500">
-                              {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
-                              {lastMsg?.content || "No messages yet"}
-                            </p>
-                            {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
-                                <User className="h-2.5 w-2.5" /> Manual
-                              </span>
-                            ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isYouTube ? "bg-red-500/10 text-red-400" : isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
-                                <Bot className="h-2.5 w-2.5" /> Auto
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+        {/* TAB 1: CHANNEL OVERVIEW ANALYTICS */}
+        {activeTab === "analytics" && (
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <BarChart2 className="h-6 w-6 text-red-500" />
+                <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Channel Performance Overview</h2>
               </div>
+              <button
+                onClick={fetchAnalytics}
+                disabled={loadingAnalytics}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingAnalytics ? "animate-spin" : ""}`} /> Refresh Analytics
+              </button>
+            </div>
 
-              {/* Chat Conversation Pane — full screen on mobile when chat open */}
-              <div className={`${
-                mobileChatOpen ? "flex" : "hidden"
-              } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
-                {activeTab === "settings" ? (
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-4xl mx-auto">
-                    {/* Settings Title */}
-                    <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-4">
-                      <Settings className="h-6 w-6 text-red-500" />
-                      <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Connection Settings</h2>
+            {loadingAnalytics ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
+                <span className="text-xs text-slate-400 font-sans">Fetching YouTube Analytics data...</span>
+              </div>
+            ) : analyticsData ? (
+              <div className="space-y-6 animate-fadeIn font-sans">
+                {/* Summary Cards Grid */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Total Views</span>
+                      <Eye className="h-4.5 w-4.5 text-red-400" />
                     </div>
-                    {/* YouTube Credentials Form */}
-                    <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                          <Video className="h-4.5 w-4.5 text-red-500" /> YouTube Channel Configuration
-                        </h3>
-                        {ytConfig.refreshToken || ytConfig.channelId ? (
-                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
-                            Connected ✓
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {(ytConfig.refreshToken || ytConfig.channelId) && (
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Connected Account</span>
-                            <span className="text-sm font-bold text-slate-200">
-                              {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono">
-                              Channel ID: {ytConfig.channelId || "N/A"}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
-                              saveYoutubeConfig({ preventDefault: () => {} } as any);
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all cursor-pointer shrink-0"
-                          >
-                            Disconnect
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
-                          <input
-                            type="text"
-                            value={ytConfig.channelId || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
-                            placeholder="e.g. UCxxxxxxxxx"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
-                          <input
-                            type="text"
-                            value={ytConfig.accessToken || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
-                            placeholder="Access Token"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-slate-850 pt-4">
-                        <button
-                          type="button"
-                          onClick={handleYoutubeOAuthConnect}
-                          disabled={ytOauthStatus === "connecting"}
-                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
-                        >
-                          <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                          {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
-                        </button>
-
-                        <button
-                          type="submit"
-                          disabled={ytSaveStatus === "saving"}
-                          className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs transition-all cursor-pointer"
-                        >
-                          {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
-                        </button>
-                      </div>
-                    </form>
+                    <span className="text-2xl font-bold text-slate-100">
+                      {Number(analyticsData.summary?.rows?.[0]?.[0] || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Last 30 days summary</span>
                   </div>
-                ) : activeTab === "analytics" ? (
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-4xl mx-auto">
-                    {/* Analytics Title */}
-                    <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-4">
-                      <BarChart2 className="h-6 w-6 text-red-500" />
-                      <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Channel Performance</h2>
+
+                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">New Subs</span>
+                      <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
                     </div>
-
-                    {loadingAnalytics ? (
-                      <div className="flex flex-col items-center justify-center py-20 gap-3">
-                        <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
-                        <span className="text-xs text-slate-400 font-sans">Fetching YouTube Analytics data...</span>
-                      </div>
-                    ) : analyticsData ? (
-                      <div className="space-y-6 animate-fadeIn font-sans">
-                        {/* Summary Cards Grid */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="text-[10px] font-bold uppercase tracking-wider">Total Views</span>
-                              <Eye className="h-4.5 w-4.5 text-red-400" />
-                            </div>
-                            <span className="text-2xl font-bold text-slate-100">
-                              {Number(analyticsData.summary?.rows?.[0]?.[0] || 0).toLocaleString()}
-                            </span>
-                            <span className="text-[10px] text-slate-500">Last 30 days summary</span>
-                          </div>
-
-                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="text-[10px] font-bold uppercase tracking-wider">New Subs</span>
-                              <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
-                            </div>
-                            <span className="text-2xl font-bold text-slate-100">
-                              {Number(analyticsData.summary?.rows?.[0]?.[3] || 0).toLocaleString()}
-                            </span>
-                            <span className="text-[10px] text-slate-500">Subscribers gained</span>
-                          </div>
-
-                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="text-[10px] font-bold uppercase tracking-wider">Watch Time</span>
-                              <Clock className="h-4.5 w-4.5 text-sky-400" />
-                            </div>
-                            <span className="text-2xl font-bold text-slate-100">
-                              {Number(analyticsData.summary?.rows?.[0]?.[4] || 0).toLocaleString()} min
-                            </span>
-                            <span className="text-[10px] text-slate-500">Estimated watched time</span>
-                          </div>
-
-                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="text-[10px] font-bold uppercase tracking-wider">Avg Duration</span>
-                              <Clock className="h-4.5 w-4.5 text-amber-400" />
-                            </div>
-                            <span className="text-2xl font-bold text-slate-100">
-                              {(() => {
-                                const totalSec = Number(analyticsData.summary?.rows?.[0]?.[5] || 0);
-                                const mins = Math.floor(totalSec / 60);
-                                const secs = Math.floor(totalSec % 60);
-                                return `${mins}:${secs.toString().padStart(2, "0")}`;
-                              })()}
-                            </span>
-                            <span className="text-[10px] text-slate-500">Average view duration</span>
-                          </div>
-                        </div>
-
-                        {/* Interactive Graph Timeline / Grid */}
-                        <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                          <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider mb-4">Views Timeline</h3>
-                          {analyticsData.daily?.rows && analyticsData.daily.rows.length > 0 ? (
-                            <div className="h-48 w-full flex items-end justify-between gap-1 pt-6 pb-2 px-2 border-b border-l border-slate-800">
-                              {analyticsData.daily.rows.map((row: any, idx: number) => {
-                                const maxViews = Math.max(...(analyticsData.daily.rows.map((r: any) => Number(r[1] || 0))) || [1]);
-                                const val = Number(row[1] || 0);
-                                const pct = (val / (maxViews || 1)) * 100;
-                                return (
-                                  <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
-                                    <div className="relative w-full flex justify-center">
-                                      <span className="absolute bottom-full mb-1 bg-slate-950 text-slate-200 border border-slate-800 px-1.5 py-0.5 rounded text-[9px] scale-0 group-hover:scale-100 transition-all font-mono z-20">
-                                        {val} views
-                                      </span>
-                                    </div>
-                                    <div 
-                                      className="w-full bg-red-600/80 group-hover:bg-red-500 rounded-t-sm transition-all"
-                                      style={{ height: `${Math.max(pct, 4)}%` }}
-                                    />
-                                    <span className="text-[8px] text-slate-600 mt-2 font-mono hidden md:block">
-                                      {row[0]?.substring(8)}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="text-center text-slate-500 text-xs py-10">No daily timeline statistics rows available.</div>
-                          )}
-                        </div>
-
-                        {/* Top 5 Performing Videos */}
-                        <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                          <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-850 pb-2">
-                            <Tv className="h-4.5 w-4.5 text-red-500" /> Top 5 Performing Videos (Last 30 Days)
-                          </h3>
-                          <div className="divide-y divide-slate-850">
-                            {analyticsData.topVideos && analyticsData.topVideos.length > 0 ? (
-                              analyticsData.topVideos.map((video) => (
-                                <div key={video.id} className="py-3 flex items-center justify-between gap-4">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    {video.thumbnail ? (
-                                      <img 
-                                        src={video.thumbnail} 
-                                        alt={video.title} 
-                                        className="h-10 w-16 object-cover rounded bg-slate-900 border border-slate-850 shrink-0" 
-                                      />
-                                    ) : (
-                                      <div className="h-10 w-16 bg-slate-900 border border-slate-850 rounded shrink-0 flex items-center justify-center text-slate-600">
-                                        <Tv className="h-5 w-5" />
-                                      </div>
-                                    )}
-                                    <div className="flex flex-col min-w-0">
-                                      <span className="text-xs font-bold text-slate-200 truncate max-w-[200px] sm:max-w-md">
-                                        {video.title}
-                                      </span>
-                                      <span className="text-[10px] text-slate-500 font-mono">
-                                        ID: {video.id}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-4 text-right shrink-0">
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-bold text-slate-200 font-mono">
-                                        {video.views.toLocaleString()}
-                                      </span>
-                                      <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Views</span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-bold text-slate-200 font-mono">
-                                        {video.likes.toLocaleString()}
-                                      </span>
-                                      <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Likes</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-center text-slate-500 text-xs py-8">No top performing videos metadata found for this channel.</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center bg-slate-900/40 border border-slate-850 rounded-2xl p-10 flex flex-col items-center gap-2">
-                        <BarChart2 className="h-8 w-8 text-slate-600" />
-                        <span className="text-sm font-semibold text-slate-400">No Analytics Data Available</span>
-                        <span className="text-xs text-slate-500 max-w-sm">
-                          Please verify your credentials in settings and authenticate OAuth with Google YouTube scope to start tracking channel analytics.
-                        </span>
-                      </div>
-                    )}
+                    <span className="text-2xl font-bold text-slate-100">
+                      {Number(analyticsData.summary?.rows?.[0]?.[3] || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Subscribers gained</span>
                   </div>
-                ) : selectedVideoForComments ? (
-                  <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
-                    <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {selectedVideoForComments.thumbnail && (
-                          <img src={selectedVideoForComments.thumbnail} alt={selectedVideoForComments.title} className="h-10 w-16 object-cover rounded-lg border border-slate-800 shrink-0" />
-                        )}
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider">Video Comments</span>
-                          <h3 className="font-bold text-sm text-slate-100 truncate">{selectedVideoForComments.title}</h3>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setSelectedVideoForComments(null)}
-                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold shrink-0 cursor-pointer"
-                      >
-                        ← All Comments
-                      </button>
-                    </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-none">
-                      {loadingVideoComments ? (
-                        <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                          <RefreshCw className="h-6 w-6 text-red-500 animate-spin" />
-                          <p className="text-xs">Loading video comments...</p>
-                        </div>
-                      ) : videoCommentsDisabled ? (
-                        <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3 bg-slate-950/40 border border-slate-850 rounded-2xl">
-                          <AlertCircle className="h-8 w-8 text-amber-500" />
-                          <div className="flex flex-col gap-1">
-                            <span className="text-sm font-bold text-slate-200">Comments Disabled for this Video</span>
-                            <span className="text-xs text-slate-400 max-w-sm">
-                              Comments are turned off or disabled on YouTube for this specific video/short.
-                            </span>
-                          </div>
-                        </div>
-                      ) : videoCommentsData.length === 0 ? (
-                        <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                          <MessageSquare className="h-8 w-8 text-slate-600" />
-                          <p className="text-xs">No comments found for this video.</p>
-                        </div>
-                      ) : (
-                        videoCommentsData.map((comment: any) => (
-                          <div key={comment.id} className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-lg">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                {comment.authorAvatar ? (
-                                  <img src={comment.authorAvatar} alt={comment.authorName} className="h-7 w-7 rounded-full object-cover border border-slate-800 shrink-0" />
-                                ) : (
-                                  <div className="h-7 w-7 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
-                                    {comment.authorName?.[0] || "U"}
-                                  </div>
-                                )}
-                                <div className="flex flex-col min-w-0">
-                                  <span className="font-bold text-xs text-slate-200 truncate">{comment.authorName}</span>
-                                  <span className="text-[10px] text-slate-500">{new Date(comment.publishedAt).toLocaleDateString()}</span>
-                                </div>
-                              </div>
-                              <span className="text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/20">
-                                👍 {comment.likeCount || 0}
+                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Watch Time</span>
+                      <Clock className="h-4.5 w-4.5 text-sky-400" />
+                    </div>
+                    <span className="text-2xl font-bold text-slate-100">
+                      {Number(analyticsData.summary?.rows?.[0]?.[4] || 0).toLocaleString()} min
+                    </span>
+                    <span className="text-[10px] text-slate-500">Estimated watched time</span>
+                  </div>
+
+                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Avg Duration</span>
+                      <Clock className="h-4.5 w-4.5 text-amber-400" />
+                    </div>
+                    <span className="text-2xl font-bold text-slate-100">
+                      {(() => {
+                        const totalSec = Number(analyticsData.summary?.rows?.[0]?.[5] || 0);
+                        const mins = Math.floor(totalSec / 60);
+                        const secs = Math.floor(totalSec % 60);
+                        return `${mins}:${secs.toString().padStart(2, "0")}`;
+                      })()}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Average view duration</span>
+                  </div>
+                </div>
+
+                {/* Interactive Graph Timeline / Grid */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                  <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider mb-4">Views Timeline</h3>
+                  {analyticsData.daily?.rows && analyticsData.daily.rows.length > 0 ? (
+                    <div className="h-48 w-full flex items-end justify-between gap-1 pt-6 pb-2 px-2 border-b border-l border-slate-800">
+                      {analyticsData.daily.rows.map((row: any, idx: number) => {
+                        const maxViews = Math.max(...(analyticsData.daily.rows.map((r: any) => Number(r[1] || 0))) || [1]);
+                        const val = Number(row[1] || 0);
+                        const pct = (val / (maxViews || 1)) * 100;
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
+                            <div className="relative w-full flex justify-center">
+                              <span className="absolute bottom-full mb-1 bg-slate-950 text-slate-200 border border-slate-800 px-1.5 py-0.5 rounded text-[9px] scale-0 group-hover:scale-100 transition-all font-mono z-20">
+                                {val} views
                               </span>
                             </div>
-
-                            <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-850">
-                              {comment.text}
-                            </p>
-
-                            {/* Replies */}
-                            {comment.replies && comment.replies.length > 0 && (
-                              <div className="pl-4 border-l-2 border-slate-800 space-y-2 mt-2">
-                                {comment.replies.map((rep: any) => (
-                                  <div key={rep.id} className="bg-slate-900/40 p-2.5 rounded-lg text-xs space-y-1">
-                                    <span className="font-bold text-slate-300">{rep.authorName}</span>
-                                    <p className="text-slate-400">{rep.text}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Inline Reply Input */}
-                            <div className="flex items-center gap-2 pt-2 border-t border-slate-850">
-                              <input
-                                type="text"
-                                value={replyInputText[comment.id] || ""}
-                                onChange={(e) => setReplyInputText({ ...replyInputText, [comment.id]: e.target.value })}
-                                placeholder="Type a reply to this viewer..."
-                                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
-                              />
-                              <button
-                                onClick={() => handlePostCommentReply(comment.id, selectedVideoForComments.id)}
-                                disabled={postingReplyStatus[comment.id]}
-                                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                              >
-                                <Send className="h-3 w-3" /> Reply
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                ) : activeConv ? (
-                  <>
-                    {/* Chat header */}
-                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-3 sm:px-6 flex items-center justify-between z-10 gap-2">
-                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => setMobileChatOpen(false)}
-                          className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 shrink-0 transition-all"
-                        >
-                          <ArrowLeft className="h-5 w-5" />
-                        </button>
-                        <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700 shrink-0">
-                          {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-2">
-                            {activeConv.platform === "youtube" ? (
-                              <Youtube className="h-4 w-4 text-red-500 shrink-0" />
-                            ) : activeConv.platform === "instagram" ? (
-                              <Instagram className="h-4 w-4 text-pink-400 shrink-0" />
-                            ) : (
-                              <Bot className="h-4 w-4 text-emerald-400 shrink-0" />
-                            )}
-                            <span className="font-semibold text-sm text-slate-200 truncate">
-                              {activeConv.customerName || (activeConv.platform === "youtube" ? "YouTube Viewer" : activeConv.platform === "instagram" ? "Instagram User" : "User")}
+                            <div 
+                              className="w-full bg-red-600/80 group-hover:bg-red-500 rounded-t-sm transition-all"
+                              style={{ height: `${Math.max(pct, 4)}%` }}
+                            />
+                            <span className="text-[8px] text-slate-600 mt-2 font-mono hidden md:block">
+                              {row[0]?.substring(8)}
                             </span>
-                          </div>
-                          <span className="text-xs text-slate-400 flex items-center gap-1 truncate">
-                            {activeConv.platform === "youtube" ? (
-                              <><span>YouTube ID:</span> {activeConv.customerPhone}</>
-                            ) : activeConv.platform === "instagram" ? (
-                              <><span>Instagram ID:</span> {activeConv.customerPhone}</>
-                            ) : (
-                              <><Phone className="h-3 w-3 text-slate-500 shrink-0" /> {activeConv.customerPhone}</>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bot active / pause controllers */}
-                      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        {/* Bot status badge ΓÇö hidden on very small screens, visible on sm+ */}
-                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${
-                          activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        }`}>
-                          {activeConv.isBotPaused ? (
-                            <><User className="h-3.5 w-3.5" /><span>Bot Paused</span></>
-                          ) : (
-                            <><Bot className="h-3.5 w-3.5" /><span>Bot Active</span></>
-                          )}
-                        </div>
-                        {/* Compact bot status icon ΓÇö mobile only */}
-                        <div className={`sm:hidden p-2 rounded-xl border transition-all ${
-                          activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        }`}>
-                          {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${
-                            activeConv.isBotPaused 
-                              ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" 
-                              : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
-                          }`}
-                        >
-                          <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
-                          <span className="sm:hidden">{activeConv.isBotPaused ? "Resume" : "Pause"}</span>
-                        </button>
-
-                      </div>
-                    </div>
-                    {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
-                      {messages.map((msg) => {
-                        const isInbound = msg.direction === "inbound";
-                        
-                        // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
-                        const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
-                        let quoteText = "";
-                        let messageBody = msg.content;
-                        
-                        if (msg.quotedMessage) {
-                          const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
-                          const contentSnippet = msg.quotedMessage.content.split("|")[0];
-                          quoteText = `${sender}: ${contentSnippet}`;
-                        } else if (msg.content.startsWith("[Reply to: ")) {
-                          const closeBracketIndex = msg.content.indexOf("] ");
-                          if (closeBracketIndex !== -1) {
-                            quoteText = msg.content.substring(11, closeBracketIndex);
-                            messageBody = msg.content.substring(closeBracketIndex + 2);
-                          }
-                        }
-
-                        // Check if message has interactive buttons data
-                        const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
-                        let buttonsArray: string[] = [];
-                        if (hasButtons) {
-                          const parts = messageBody.split("|buttons:");
-                          messageBody = parts[0];
-                          buttonsArray = parts[1]?.split(", ") || [];
-                        }
-
-                        // Check if message is a list menu
-                        const hasList = msg.messageType === "listNode" || msg.content.includes("|list:");
-                        let listButtonText = "View Menu";
-                        let listRowsArray: string[] = [];
-                        if (hasList) {
-                          const parts = messageBody.split("|list:");
-                          messageBody = parts[0];
-                          const listParts = parts[1]?.split("|rows:");
-                          listButtonText = listParts?.[0] || "View Menu";
-                          const rowsString = listParts?.[1];
-                          listRowsArray = rowsString ? rowsString.split(", ") : [];
-
-                          // Fallback to active flow graph listNode options if rows array is empty
-                          if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
-                            const matchingNode = nodes.find(
-                              (n: any) =>
-                                n.type === "listNode" &&
-                                (n.data?.listButtonText === listButtonText ||
-                                  n.data?.text === messageBody)
-                            );
-                            if (matchingNode) {
-                              const fallbackSections = matchingNode.data?.listSections || [];
-                              const fallbackRows = fallbackSections
-                                .flatMap((s: any) => s.rows || [])
-                                .map((r: any) => r.title);
-                              if (fallbackRows.length > 0) {
-                                listRowsArray = fallbackRows;
-                              }
-                            }
-                          }
-                        }
-
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
-                          >
-                            <div className="relative max-w-[70%]">
-                              {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
-                              <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
-                                <button
-                                  type="button"
-                                  onClick={() => setQuotedMessage(msg)}
-                                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-2 rounded-full border border-slate-700 shadow-lg transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
-                                  title="Quote Reply"
-                                >
-                                  <CornerUpLeft className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-
-                              {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${
-                                isInbound 
-                                  ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none" 
-                                  : activeConv?.platform === "instagram"
-                                    ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                    : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
-                              }`}>
-                                {msg.senderName && !isInbound && (
-                                  <span className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/80" : "text-slate-800/70"}`}>
-                                    {msg.senderName}
-                                  </span>
-                                )}
-                                
-                                {/* Render Quoted Reply Box inside Bubble */}
-                                {hasQuote && (
-                                  <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${
-                                    isInbound 
-                                      ? "bg-slate-900/40 border-slate-500 text-slate-400" 
-                                      : activeConv?.platform === "instagram"
-                                        ? "bg-violet-950/40 border-violet-400 text-violet-200"
-                                        : "bg-emerald-600/30 border-emerald-950 text-slate-900"
-                                  }`}>
-                                    {quoteText}
-                                  </div>
-                                )}
-
-                                {/* Render media content or plain text */}
-                                {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
-                                  // Parse structured media content
-                                  let mediaUrl = msg.content;
-                                  let displayFilename = "document.pdf";
-                                  let captionText = "";
-
-                                  if (msg.messageType === "document") {
-                                    const parts = msg.content.split("|");
-                                    displayFilename = parts[0] || "document.pdf";
-                                    mediaUrl = parts[1] || "";
-                                    const capPart = parts.find(p => p.startsWith("caption:"));
-                                    if (capPart) {
-                                      captionText = capPart.substring(8);
-                                    }
-                                  } else {
-                                    const parts = msg.content.split("|");
-                                    mediaUrl = parts[0] || "";
-                                    const capPart = parts.find(p => p.startsWith("caption:"));
-                                    if (capPart) {
-                                      captionText = capPart.substring(8);
-                                    }
-                                  }
-
-                                  return (
-                                    <div className="flex flex-col gap-2">
-                                      {msg.messageType === "image" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                          <img 
-                                            src={getMediaUrl(mediaUrl)} 
-                                            alt="Sent Media" 
-                                            className="object-cover w-full h-32 hover:scale-105 transition-all duration-300 cursor-zoom-in"
-                                            onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
-                                          />
-                                        </div>
-                                      ) : msg.messageType === "video" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                          <video 
-                                            src={getMediaUrl(mediaUrl)} 
-                                            controls 
-                                            className="object-cover w-full h-36"
-                                          />
-                                        </div>
-                                      ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
-                                        <div className="max-w-[240px] py-1">
-                                          <audio 
-                                            src={getMediaUrl(mediaUrl)} 
-                                            controls 
-                                            className="w-full h-10"
-                                          />
-                                        </div>
-                                      ) : (
-                                        <a 
-                                          href={getMediaUrl(mediaUrl)} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer" 
-                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
-                                        >
-                                          <FileText className="h-8 w-8 stroke-1" />
-                                          <div className="flex flex-col min-w-0">
-                                            <span className="text-xs font-semibold truncate max-w-[150px]">
-                                              {displayFilename}
-                                            </span>
-                                            <span className="text-[10px] text-slate-500">Document File</span>
-                                          </div>
-                                        </a>
-                                      )}
-                                      {captionText && (
-                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
-                                      )}
-                                    </div>
-                                  );
-                                })() : (
-                                  <div className="flex flex-col gap-2">
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
-                                    
-                                    {/* Render Clickable buttons in chat logs */}
-                                    {hasButtons && (
-                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
-                                        {buttonsArray.map((btnTitle, index) => {
-                                          const isIg = activeConv?.platform === "instagram";
-                                          const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
-                                          const btnIconColor = isIg ? "text-pink-500" : "text-emerald-500";
-                                          return (
-                                            <div
-                                              key={index}
-                                              className="w-full bg-white text-slate-700 border border-slate-200/80 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
-                                            >
-                                              <Bot className={`h-3 w-3 ${btnIconColor}`} />
-                                              {btnTitle}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-
-                                    {/* Render Clickable List Menus in chat logs */}
-                                    {hasList && (
-                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActiveListMenuMsgId(
-                                              activeListMenuMsgId === msg.id ? null : msg.id
-                                            );
-                                          }}
-                                          className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${
-                                            activeConv?.platform === "instagram" ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500"
-                                          } border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer`}
-                                        >
-                                          <span className="flex items-center gap-1.5">
-                                            <FileText className={`h-3.5 w-3.5 ${
-                                              activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-500"
-                                            }`} />
-                                            {listButtonText}
-                                          </span>
-                                          <span className="text-[10px] text-slate-400 font-normal">Select</span>
-                                        </button>
-
-                                        {/* Dropdown popup of options */}
-                                        {activeListMenuMsgId === msg.id && (
-                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
-                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
-                                              <span>Menu Options</span>
-                                              <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
-                                            </div>
-                                            <div className="flex flex-col gap-1">
-                                              {listRowsArray.map((rowText, index) => (
-                                                <div
-                                                  key={index}
-                                                  className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
-                                                >
-                                                  <span className="truncate pr-2">{rowText}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Ticks status and time */}
-                                <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${
-                                  isInbound 
-                                    ? "text-slate-500" 
-                                    : activeConv?.platform === "instagram"
-                                      ? "text-pink-100/85"
-                                      : "text-slate-800/80"
-                                }`}>
-                                  <span>
-                                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                  {!isInbound && (
-                                    <span>
-                                      {msg.status === "sent" && <Check className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                      {msg.status === "delivered" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                      {msg.status === "read" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-white" : "text-emerald-950"}`} />}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
                           </div>
                         );
                       })}
-                      <div ref={messageEndRef} />
                     </div>
+                  ) : (
+                    <div className="text-center text-slate-500 text-xs py-10">No daily timeline statistics rows available.</div>
+                  )}
+                </div>
 
-                    {/* Quoted Message Preview Header above input bar */}
-                    {quotedMessage && (
-                      <div className="bg-slate-950 border-t border-slate-800 p-2.5 flex justify-between items-center text-[11px] text-slate-300 w-full animate-fadeIn shrink-0">
-                        <div className="flex flex-col truncate border-l-2 border-emerald-500 pl-2">
-                          <span className="font-bold text-emerald-400 text-[9px] uppercase tracking-wider">
-                            Quoting {quotedMessage.direction === "inbound" ? "Customer" : "Agent/Bot"}
-                          </span>
-                          <span className="truncate text-xs text-slate-400 font-sans italic">
-                            {quotedMessage.content.split("|")[0]}
-                          </span>
+                {/* Top Performing Videos */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                  <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-850 pb-2">
+                    <Tv className="h-4.5 w-4.5 text-red-500" /> Top Performing Videos (Last 30 Days)
+                  </h3>
+                  <div className="divide-y divide-slate-850">
+                    {analyticsData.topVideos && analyticsData.topVideos.length > 0 ? (
+                      analyticsData.topVideos.map((video) => (
+                        <div key={video.id} className="py-3 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {video.thumbnail ? (
+                              <img 
+                                src={video.thumbnail} 
+                                alt={video.title} 
+                                className="h-10 w-16 object-cover rounded bg-slate-900 border border-slate-850 shrink-0" 
+                              />
+                            ) : (
+                              <div className="h-10 w-16 bg-slate-900 border border-slate-850 rounded shrink-0 flex items-center justify-center text-slate-600">
+                                <Tv className="h-5 w-5" />
+                              </div>
+                            )}
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs font-bold text-slate-200 truncate max-w-[200px] sm:max-w-md">
+                                {video.title}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                ID: {video.id}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-right shrink-0">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-slate-200 font-mono">
+                                {video.views.toLocaleString()}
+                              </span>
+                              <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Views</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-slate-200 font-mono">
+                                {video.likes.toLocaleString()}
+                              </span>
+                              <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Likes</span>
+                            </div>
+                          </div>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setQuotedMessage(null)} 
-                          className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
-                        >
-                          ├ù
-                        </button>
-                      </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-slate-500 text-xs py-8">No top performing videos metadata found for this channel.</div>
                     )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center bg-slate-900/40 border border-slate-850 rounded-2xl p-10 flex flex-col items-center gap-2">
+                <BarChart2 className="h-8 w-8 text-slate-600" />
+                <span className="text-sm font-semibold text-slate-400">No Analytics Data Available</span>
+                <span className="text-xs text-slate-500 max-w-sm">
+                  Please verify your credentials in settings and authenticate OAuth with Google YouTube scope to start tracking channel analytics.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
-                    {/* Message input bar */}
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
-                      
-                      {/* EMOJI PICKER POPUP */}
-                      {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
-                          {["≡ƒÿÇ", "≡ƒÿé", "≡ƒÿì", "≡ƒæì", "≡ƒÖÅ", "≡ƒöÑ", "≡ƒÜÇ", "Γ¥ñ∩╕Å", "≡ƒæÅ", "≡ƒÄë"].map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => {
-                                setInputText((prev) => prev + emoji);
-                                setShowEmojiPicker(false);
-                              }}
-                              className="text-lg hover:scale-125 transition-transform p-1.5"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* MEDIA/PAPERCLIP POPUP */}
-                      {showMediaMenu && (
-                        <div className="absolute bottom-16 left-12 bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xl z-50 text-[11px] min-w-[170px]">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowMediaMenu(false);
-                              fileInputRef.current?.click();
-                            }}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 cursor-pointer"
-                          >
-                            <Paperclip className="h-4 w-4 text-emerald-400" /> Upload & Send File
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 border-t border-slate-850 pt-1.5"
-                          >
-                            <ImageIcon className="h-4 w-4 text-emerald-400/80" /> Mock Case Study (Image)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300"
-                          >
-                            <FileText className="h-4 w-4 text-sky-400/80" /> Mock Portfolio (PDF)
-                          </button>
-                        </div>
-                      )}
-
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        className="hidden" 
-                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                      />
-
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setShowEmojiPicker(!showEmojiPicker);
-                          setShowMediaMenu(false);
-                        }}
-                        className={`p-2 rounded-lg transition-colors ${showEmojiPicker ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
-                      >
-                        <Smile className="h-5 w-5" />
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setShowMediaMenu(!showMediaMenu);
-                          setShowEmojiPicker(false);
-                        }}
-                        className={`p-2 rounded-lg transition-colors ${showMediaMenu ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
-                      >
-                        <Paperclip className="h-5 w-5" />
-                      </button>
-                      
-                      <input
-                        type="text"
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        placeholder="Type a message..."
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                      />
-
-                      <button
-                        type="submit"
-                        disabled={!inputText.trim()}
-                        className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition-all shadow-md shadow-emerald-500/15 disabled:opacity-40 disabled:hover:bg-emerald-500"
-                      >
-                        <Send className="h-4.5 w-4.5 fill-slate-950" />
-                      </button>
-                    </form>
-                  </>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
-                    <div className="max-w-md flex flex-col items-center gap-4">
-                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-xl border ${isYouTubeTab ? "bg-red-500/10 text-red-400 border-red-500/20" : isInstagramTab ? "bg-pink-500/10 text-pink-400 border-pink-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}`}>
-                        {isYouTubeTab ? (
-                          <Youtube className="h-10 w-10 stroke-1" />
-                        ) : isInstagramTab ? (
-                          <Instagram className="h-10 w-10 stroke-1" />
-                        ) : (
-                          <Bot className="h-10 w-10 stroke-1" />
-                        )}
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-100">YouTube Comments CRM</h3>
-                      <p className="text-sm text-slate-400">
-                        Select an active YouTube comment thread from the sidebar inbox to view replies, monitor auto-replies, or reply manually to viewers.
-                      </p>
+        {/* TAB 2: COMMENTS INBOX & CONTENT FEED */}
+        {activeTab === "chats_youtube" && (
+          <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
+            {selectedVideoForComments ? (
+              <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
+                <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {selectedVideoForComments.thumbnail && (
+                      <img src={selectedVideoForComments.thumbnail} alt={selectedVideoForComments.title} className="h-10 w-16 object-cover rounded-lg border border-slate-800 shrink-0" />
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider">Video Comment Section</span>
+                      <h3 className="font-bold text-sm text-slate-100 truncate">{selectedVideoForComments.title}</h3>
                     </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedVideoForComments(null)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold shrink-0 cursor-pointer flex items-center gap-1"
+                  >
+                    ← Back to All Videos & Shorts
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {loadingVideoComments ? (
+                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
+                      <RefreshCw className="h-6 w-6 text-red-500 animate-spin" />
+                      <p className="text-xs">Loading video comments...</p>
+                    </div>
+                  ) : videoCommentsDisabled ? (
+                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3 bg-slate-950/40 border border-slate-850 rounded-2xl">
+                      <AlertCircle className="h-8 w-8 text-amber-500" />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-bold text-slate-200">Comments Disabled for this Video</span>
+                        <span className="text-xs text-slate-400 max-w-sm">
+                          Comments are turned off or disabled on YouTube for this specific video/short.
+                        </span>
+                      </div>
+                    </div>
+                  ) : videoCommentsData.length === 0 ? (
+                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
+                      <MessageSquare className="h-8 w-8 text-slate-600" />
+                      <p className="text-xs">No comments found for this video.</p>
+                    </div>
+                  ) : (
+                    videoCommentsData.map((comment: any) => (
+                      <div key={comment.id} className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-lg">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {comment.authorAvatar ? (
+                              <img src={comment.authorAvatar} alt={comment.authorName} className="h-7 w-7 rounded-full object-cover border border-slate-800 shrink-0" />
+                            ) : (
+                              <div className="h-7 w-7 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                                {comment.authorName?.[0] || "U"}
+                              </div>
+                            )}
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-xs text-slate-200 truncate">{comment.authorName}</span>
+                              <span className="text-[10px] text-slate-500">{new Date(comment.publishedAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                          <span className="text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/20">
+                            👍 {comment.likeCount || 0}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-850">
+                          {comment.text}
+                        </p>
+
+                        {/* Replies */}
+                        {comment.replies && comment.replies.length > 0 && (
+                          <div className="pl-4 border-l-2 border-slate-800 space-y-2 mt-2">
+                            {comment.replies.map((rep: any) => (
+                              <div key={rep.id} className="bg-slate-900/40 p-2.5 rounded-lg text-xs space-y-1">
+                                <span className="font-bold text-slate-300">{rep.authorName}</span>
+                                <p className="text-slate-400">{rep.text}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Inline Reply Input */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-850">
+                          <input
+                            type="text"
+                            value={replyInputText[comment.id] || ""}
+                            onChange={(e) => setReplyInputText({ ...replyInputText, [comment.id]: e.target.value })}
+                            placeholder="Type a reply to this viewer..."
+                            className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                          />
+                          <button
+                            onClick={() => handlePostCommentReply(comment.id, selectedVideoForComments.id)}
+                            disabled={postingReplyStatus[comment.id]}
+                            className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            <Send className="h-3 w-3" /> Reply
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5 text-red-500" /> Channel Videos & Comments Hub
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Select any video or Short to open its comment section and reply to viewers.
+                    </p>
+                  </div>
+
+                  {/* Filter Pills */}
+                  {videosShortsData && (
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      {[
+                        { id: "all", label: `All Content (${(videosShortsData.videos?.length || 0) + (videosShortsData.shorts?.length || 0)})` },
+                        { id: "shorts", label: `⚡ Shorts (${videosShortsData.shorts?.length || 0})` },
+                        { id: "videos", label: `📺 Videos (${videosShortsData.videos?.length || 0})` }
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setCommentsFilter(item.id as any)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            commentsFilter === item.id
+                              ? "bg-red-600 text-white font-bold shadow-md shadow-red-500/10"
+                              : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {loadingVideosShorts ? (
+                  <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
+                    <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
+                    <p className="text-xs font-semibold">Loading channel videos and Shorts...</p>
+                  </div>
+                ) : videosShortsData ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {(() => {
+                      const allItems = [
+                        ...(commentsFilter !== "shorts" ? (videosShortsData.videos || []) : []),
+                        ...(commentsFilter !== "videos" ? (videosShortsData.shorts || []) : [])
+                      ].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+                      if (allItems.length === 0) {
+                        return (
+                          <div className="col-span-full p-12 text-center text-slate-500">
+                            No content found for the selected filter.
+                          </div>
+                        );
+                      }
+
+                      return allItems.map((item: any) => (
+                        <div
+                          key={item.id}
+                          onClick={() => handleSelectVideoForComments(item)}
+                          className="bg-slate-950/40 border border-slate-800 hover:border-red-500/40 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 hover:scale-[1.01] shadow-lg cursor-pointer group"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="relative shrink-0">
+                              <img
+                                src={item.thumbnail}
+                                alt={item.title}
+                                className={`object-cover rounded-lg border border-slate-800 ${item.isShort ? "h-16 w-11" : "h-14 w-24"}`}
+                              />
+                              {item.isShort && (
+                                <span className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-bold text-[9px] px-1 rounded shadow">
+                                  ⚡ SHORT
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-xs text-slate-200 truncate group-hover:text-red-400 transition-colors">
+                                {item.title}
+                              </span>
+                              <span className="text-[10px] text-slate-500 mt-1">
+                                {new Date(item.publishedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between border-t border-slate-850 pt-3 text-xs">
+                            <div className="flex items-center gap-3">
+                              <span className="text-slate-400 font-mono text-[11px]">
+                                👁️ {item.views.toLocaleString()}
+                              </span>
+                              <span className="text-slate-400 font-mono text-[11px]">
+                                💬 {item.comments.toLocaleString()}
+                              </span>
+                            </div>
+
+                            <span className="text-[10px] font-bold text-red-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                              View Comments →
+                            </span>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-center text-slate-500 text-xs py-10">
+                    Connect your YouTube channel to load video & Short comment feeds.
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 6: SETTINGS */}
+        {activeTab === "settings" && (
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-4xl mx-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-4">
+              <Settings className="h-6 w-6 text-red-500" />
+              <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Connection Settings</h2>
             </div>
-          );
-        })()}
+
+            <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <Video className="h-4.5 w-4.5 text-red-500" /> YouTube Channel Configuration
+                </h3>
+                {ytConfig.refreshToken || ytConfig.channelId ? (
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                    Connected ✓
+                  </span>
+                ) : null}
+              </div>
+
+              {(ytConfig.refreshToken || ytConfig.channelId) && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Connected Account</span>
+                    <span className="text-sm font-bold text-slate-200">
+                      {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      Channel ID: {ytConfig.channelId || "N/A"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
+                      saveYoutubeConfig({ preventDefault: () => {} } as any);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
+                  <input
+                    type="text"
+                    value={ytConfig.channelId || ""}
+                    onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                    placeholder="e.g. UCxxxxxxxxx"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
+                  <input
+                    type="text"
+                    value={ytConfig.accessToken || ""}
+                    onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                    placeholder="Access Token"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-slate-850 pt-4">
+                <button
+                  type="button"
+                  onClick={handleYoutubeOAuthConnect}
+                  disabled={ytOauthStatus === "connecting"}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
+                >
+                  <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
+                  {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={ytSaveStatus === "saving"}
+                >
+                  {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* TAB 2: VISUAL FLOW BUILDER */}
         {activeTab === "flows" && (
