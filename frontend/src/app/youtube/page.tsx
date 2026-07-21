@@ -1341,7 +1341,7 @@ export default function Dashboard() {
               onClick={() => setActiveTab("analytics")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "analytics"
-                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               }`}
             >
@@ -1353,11 +1353,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab("chats_youtube")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "chats_youtube"
-                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               }`}
             >
-              <MessageSquare className="h-3.5 w-3.5" /> Comments Inbox
+              <MessageSquare className="h-3.5 w-3.5 text-red-400" /> Comments Inbox
             </button>
 
             <button
@@ -1365,11 +1365,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab("videos_shorts")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "videos_shorts"
-                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               }`}
             >
-              <Tv className="h-3.5 w-3.5 text-amber-400" /> Shorts vs Videos
+              <Tv className="h-3.5 w-3.5 text-red-400" /> Shorts vs Videos
             </button>
 
             <button
@@ -1377,11 +1377,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab("comparative")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "comparative"
-                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               }`}
             >
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> Comparative MoM
+              <TrendingUp className="h-3.5 w-3.5 text-red-400" /> Comparative MoM
             </button>
 
             <button
@@ -1389,11 +1389,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab("demographics")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "demographics"
-                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               }`}
             >
-              <BarChart2 className="h-3.5 w-3.5 text-sky-400" /> Demographics & Traffic
+              <BarChart2 className="h-3.5 w-3.5 text-red-400" /> Demographics & Traffic
             </button>
           </div>
 
@@ -1403,11 +1403,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab("settings")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "settings"
-                  ? "bg-slate-800 text-red-400 border border-slate-700"
+                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               }`}
             >
-              <Settings className="h-3.5 w-3.5" /> Setup
+              <Settings className="h-3.5 w-3.5 text-red-400" /> Setup
             </button>
           </div>
         </div>
@@ -1559,7 +1559,7 @@ export default function Dashboard() {
                             </div>
                             <div className="flex flex-col">
                               <span className="text-xs font-bold text-slate-200 font-mono">
-                                {video.likes.toLocaleString()}
+                                {(video as any).likesHidden || video.likes < 0 ? "Hidden" : video.likes.toLocaleString()}
                               </span>
                               <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Likes</span>
                             </div>
@@ -1759,7 +1759,7 @@ export default function Dashboard() {
                                 className={`object-cover rounded-lg border border-slate-800 ${item.isShort ? "h-16 w-11" : "h-14 w-24"}`}
                               />
                               {item.isShort && (
-                                <span className="absolute -top-1 -right-1 bg-amber-500 text-slate-950 font-bold text-[9px] px-1 rounded shadow">
+                                <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-[9px] px-1 rounded shadow">
                                   ⚡ SHORT
                                 </span>
                               )}
@@ -2283,7 +2283,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* YouTube Shorts List */}
                   <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                    <h3 className="font-bold text-xs text-amber-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
+                    <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
                       <span className="flex items-center gap-1.5">⚡ YouTube Shorts Feed ({videosShortsData.shorts?.length || 0})</span>
                       <span className="text-[10px] text-slate-500 font-normal">Click short to open comments</span>
                     </h3>
@@ -2298,13 +2298,13 @@ export default function Dashboard() {
                             <div className="flex items-center gap-3 min-w-0">
                               <img src={short.thumbnail} alt={short.title} className="h-12 w-8 object-cover rounded bg-slate-900 border border-slate-800 shrink-0 group-hover:scale-105 transition-all" />
                               <div className="flex flex-col min-w-0">
-                                <span className="font-semibold text-xs text-slate-200 truncate group-hover:text-amber-400 transition-all">{short.title}</span>
+                                <span className="font-semibold text-xs text-slate-200 truncate group-hover:text-red-400 transition-all">{short.title}</span>
                                 <span className="text-[10px] text-slate-500">Duration: {short.durationSec}s • {new Date(short.publishedAt).toLocaleDateString()}</span>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
                               <span className="font-bold text-xs text-slate-200 block">{short.views.toLocaleString()} views</span>
-                              <span className="text-[10px] text-emerald-400 font-semibold">{short.engagementRate}% eng</span>
+                              <span className="text-[10px] text-red-400 font-semibold">{short.engagementRate}% eng</span>
                             </div>
                           </div>
                         ))
@@ -2337,7 +2337,7 @@ export default function Dashboard() {
                             </div>
                             <div className="text-right shrink-0">
                               <span className="font-bold text-xs text-slate-200 block">{video.views.toLocaleString()} views</span>
-                              <span className="text-[10px] text-emerald-400 font-semibold">{video.engagementRate}% eng</span>
+                              <span className="text-[10px] text-red-400 font-semibold">{video.engagementRate}% eng</span>
                             </div>
                           </div>
                         ))
@@ -2360,7 +2360,7 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-emerald-400" /> Comparative Performance Analytics
+                  <TrendingUp className="h-5 w-5 text-red-500" /> Comparative Performance Analytics
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
                   Compare channel performance metrics against previous time periods (Month-over-Month growth).
@@ -2383,7 +2383,7 @@ export default function Dashboard() {
                     }}
                     className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       comparativeDays === item.val
-                        ? "bg-emerald-500 text-slate-950 font-bold"
+                        ? "bg-red-600 text-white font-bold shadow-md shadow-red-600/20"
                         : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
                     }`}
                   >
@@ -2395,7 +2395,7 @@ export default function Dashboard() {
 
             {loadingComparative ? (
               <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
-                <RefreshCw className="h-8 w-8 text-emerald-500 animate-spin" />
+                <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
                 <p className="text-xs font-semibold">Calculating comparative metrics...</p>
               </div>
             ) : comparativeData ? (
@@ -2528,7 +2528,7 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <BarChart2 className="h-5 w-5 text-sky-400" /> Audience Demographics & Traffic Sources
+                  <BarChart2 className="h-5 w-5 text-red-500" /> Audience Demographics & Traffic Sources
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
                   Understand your viewer age groups, top geographic regions, traffic acquisition sources, and device types.
@@ -2545,14 +2545,14 @@ export default function Dashboard() {
 
             {loadingDemographics ? (
               <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
-                <RefreshCw className="h-8 w-8 text-sky-500 animate-spin" />
+                <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
                 <p className="text-xs font-semibold">Loading viewer demographics data...</p>
               </div>
             ) : demographicsData ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Age & Gender Distribution */}
                 <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-sky-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
                     Viewer Age & Gender Distribution
                   </h3>
                   <div className="space-y-3">
@@ -2561,10 +2561,10 @@ export default function Dashboard() {
                         <div key={idx} className="space-y-1">
                           <div className="flex justify-between text-xs text-slate-300 font-medium">
                             <span>{ag.ageGroup} years ({ag.gender})</span>
-                            <span className="font-mono text-sky-400">{ag.percentage.toFixed(1)}%</span>
+                            <span className="font-mono text-red-400">{ag.percentage.toFixed(1)}%</span>
                           </div>
                           <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-850">
-                            <div className="bg-sky-500 h-full rounded-full transition-all" style={{ width: `${Math.min(ag.percentage, 100)}%` }} />
+                            <div className="bg-red-600 h-full rounded-full transition-all" style={{ width: `${Math.min(ag.percentage, 100)}%` }} />
                           </div>
                         </div>
                       ))
@@ -2576,7 +2576,7 @@ export default function Dashboard() {
 
                 {/* Top Countries */}
                 <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-emerald-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
                     Top Viewing Countries
                   </h3>
                   <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -2598,7 +2598,7 @@ export default function Dashboard() {
 
                 {/* Traffic Sources */}
                 <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-amber-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
                     Traffic Acquisition Sources
                   </h3>
                   <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -2620,7 +2620,7 @@ export default function Dashboard() {
 
                 {/* Device Breakdown */}
                 <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-purple-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
                     Device Types Breakdown
                   </h3>
                   <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">

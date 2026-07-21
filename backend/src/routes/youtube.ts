@@ -315,12 +315,14 @@ router.get("/analytics", async (req: Request, res: Response) => {
     const topVideos = topVideosRaw.map((row: any) => {
       const id = row[0];
       const meta = videoMetadataMap[id] || { title: `Video (${id})`, thumbnail: "" };
+      const rawLikes = Number(row[2] || 0);
       return {
         id,
         title: meta.title,
         thumbnail: meta.thumbnail,
         views: Number(row[1] || 0),
-        likes: Number(row[2] || 0),
+        likes: rawLikes < 0 ? 0 : rawLikes,
+        likesHidden: rawLikes < 0,
         estimatedMinutesWatched: Number(row[3] || 0)
       };
     });
@@ -568,6 +570,10 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
         } else {
           isShort = await checkIfShort(item.id);
         }
+        const rawLikes = Number(item.statistics?.likeCount ?? 0);
+        const likes = rawLikes < 0 ? 0 : rawLikes;
+        const views = Number(item.statistics?.viewCount || 0);
+        const comments = Number(item.statistics?.commentCount || 0);
 
         const videoData = {
           id: item.id,
@@ -577,11 +583,12 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
           publishedAt: item.snippet?.publishedAt,
           durationSec,
           isShort,
-          views: Number(item.statistics?.viewCount || 0),
-          likes: Number(item.statistics?.likeCount || 0),
-          comments: Number(item.statistics?.commentCount || 0),
-          engagementRate: Number(item.statistics?.viewCount || 0) > 0 
-            ? parseFloat((((Number(item.statistics?.likeCount || 0) + Number(item.statistics?.commentCount || 0)) / Number(item.statistics?.viewCount || 0)) * 100).toFixed(2))
+          views,
+          likes,
+          likesHidden: rawLikes < 0,
+          comments,
+          engagementRate: views > 0 
+            ? parseFloat((((likes + comments) / views) * 100).toFixed(2))
             : 0
         };
 
