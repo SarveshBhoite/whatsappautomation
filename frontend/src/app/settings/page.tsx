@@ -331,6 +331,13 @@ interface InstagramConfig {
   pageAccessToken: string;
 }
 
+interface YouTubeConfig {
+  channelId: string;
+  channelTitle?: string;
+  accessToken: string;
+  refreshToken: string;
+}
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("settings");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
@@ -345,15 +352,28 @@ export default function Dashboard() {
       }
 
       const oauth = params.get("oauth");
+      const platform = params.get("platform");
       if (oauth === "success") {
-        setSettingsSubTab("google");
-        setGoogleOauthStatus("success");
-        setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        if (platform === "youtube") {
+          setSettingsSubTab("youtube");
+          setYtOauthStatus("success");
+          setTimeout(() => setYtOauthStatus("idle"), 3000);
+        } else {
+          setSettingsSubTab("google");
+          setGoogleOauthStatus("success");
+          setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        }
         window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
       } else if (oauth === "error") {
-        setSettingsSubTab("google");
-        setGoogleOauthStatus("error");
-        setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        if (platform === "youtube") {
+          setSettingsSubTab("youtube");
+          setYtOauthStatus("error");
+          setTimeout(() => setYtOauthStatus("idle"), 3000);
+        } else {
+          setSettingsSubTab("google");
+          setGoogleOauthStatus("error");
+          setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        }
         window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
       }
     }
@@ -369,6 +389,16 @@ export default function Dashboard() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // YouTube Config state
+  const [ytConfig, setYtConfig] = useState<YouTubeConfig>({
+    channelId: "",
+    channelTitle: "",
+    accessToken: "",
+    refreshToken: ""
+  });
+  const [ytSaveStatus, setYtSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [ytOauthStatus, setYtOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
+
   // Instagram Config
   const [igConfig, setIgConfig] = useState<InstagramConfig>({
     instagramAccountId: "",
@@ -376,8 +406,8 @@ export default function Dashboard() {
     pageAccessToken: ""
   });
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
-  const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
-  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google">("whatsapp");
+  const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram" | "youtube">("whatsapp");
+  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube">("whatsapp");
 
   // Google GMB Config
   const [googleConfig, setGoogleConfig] = useState({
@@ -714,6 +744,7 @@ export default function Dashboard() {
     fetchConversations();
     fetchConfig();
     fetchInstagramConfig();
+    fetchYoutubeConfig();
     fetchGoogleConfig();
     fetchActiveFlow("whatsapp");
 
@@ -846,6 +877,48 @@ export default function Dashboard() {
     }
   };
 
+  const fetchYoutubeConfig = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/config`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      const data = await res.json();
+      if (data) {
+        setYtConfig(data);
+      }
+    } catch (err) {
+      console.error("Error fetching YouTube config:", err);
+    }
+  };
+
+  const saveYoutubeConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setYtSaveStatus("saving");
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/config`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify(ytConfig)
+      });
+      if (res.ok) {
+        setYtSaveStatus("success");
+        setTimeout(() => setYtSaveStatus("idle"), 3000);
+      } else {
+        setYtSaveStatus("error");
+      }
+    } catch (err) {
+      setYtSaveStatus("error");
+    }
+  };
+
+  const handleYoutubeOAuthConnect = () => {
+    setYtOauthStatus("connecting");
+    window.location.href = `${BACKEND_URL}/api/youtube/oauth/connect?orgId=${DEFAULT_ORG_ID}&redirect=${window.location.pathname}`;
+  };
+
   const fetchGoogleConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
@@ -932,7 +1005,7 @@ export default function Dashboard() {
     }
   };
 
-  const fetchActiveFlow = async (platform: "whatsapp" | "instagram" = "whatsapp") => {
+  const fetchActiveFlow = async (platform: "whatsapp" | "instagram" | "youtube" = "whatsapp") => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/flows?platform=${platform}`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
@@ -2066,6 +2139,13 @@ export default function Dashboard() {
                 >
                   <Star className="h-3.5 w-3.5 text-slate-950" /> Google Setup
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("youtube")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "youtube" ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  <Video className="h-3.5 w-3.5" /> YouTube Setup
+                </button>
               </div>
             </div>
 
@@ -2246,7 +2326,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </>
-                ) : (
+                ) : settingsSubTab === "google" ? (
                   <>
                     {/* Google GMB Credentials Form */}
                     <form onSubmit={saveGoogleConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
@@ -2378,6 +2458,89 @@ export default function Dashboard() {
                       )}
                     </div>
                   </>
+                ) : (
+                  <>
+                    {/* YouTube Credentials Form */}
+                    <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                          <Video className="h-4.5 w-4.5 text-red-500" /> YouTube Channel Configuration
+                        </h3>
+                        {ytConfig.refreshToken || ytConfig.channelId ? (
+                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                            Connected ✓
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {(ytConfig.refreshToken || ytConfig.channelId) && (
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Connected Account</span>
+                            <span className="text-sm font-bold text-slate-250">
+                              {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
+                            </span>
+                            <span className="text-xs text-slate-400 font-mono">
+                              Channel ID: {ytConfig.channelId || "N/A"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
+                              saveYoutubeConfig({ preventDefault: () => {} } as any);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
+                          <input
+                            type="text"
+                            value={ytConfig.channelId || ""}
+                            onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                            placeholder="e.g. UCxxxxxxxxx"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
+                          <input
+                            type="text"
+                            value={ytConfig.accessToken || ""}
+                            onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                            placeholder="Access Token"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-slate-850 pt-4">
+                        <button
+                          type="button"
+                          onClick={handleYoutubeOAuthConnect}
+                          disabled={ytOauthStatus === "connecting"}
+                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
+                        >
+                          <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
+                          {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
+                        </button>
+
+                        <button
+                          type="submit"
+                          disabled={ytSaveStatus === "saving"}
+                          className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs transition-all cursor-pointer"
+                        >
+                          {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
+                        </button>
+                      </div>
+                    </form>
+                  </>
                 )}
               </div>
 
@@ -2424,7 +2587,7 @@ export default function Dashboard() {
                         Register the unique Instagram Callback URL and Verify Token in your Meta Dashboard under Webhook settings.
                       </li>
                     </ul>
-                  ) : (
+                  ) : settingsSubTab === "google" ? (
                     <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
                       <li>
                         Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
@@ -2437,6 +2600,21 @@ export default function Dashboard() {
                       </li>
                       <li>
                         Click the <strong>Connect Google Account</strong> button and follow instructions on the screen to authenticate.
+                      </li>
+                    </ul>
+                  ) : (
+                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-red-500 marker:font-bold animate-fadeIn">
+                      <li>
+                        Connect your YouTube channel by clicking the <strong>Connect YouTube</strong> button.
+                      </li>
+                      <li>
+                        Grant read and write permissions to manage YouTube comments and channel analytics.
+                      </li>
+                      <li>
+                        Once connected, your <strong>Channel ID</strong> and title will fetch automatically.
+                      </li>
+                      <li>
+                        Click <strong>Save Credentials</strong> to store the configuration.
                       </li>
                     </ul>
                   )}

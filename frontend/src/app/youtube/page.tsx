@@ -29,7 +29,13 @@ import {
   ArrowLeft,
   Star,
   RefreshCw,
-  Store
+  Store,
+  BarChart2,
+  TrendingUp,
+  Clock,
+  ThumbsUp,
+  Eye,
+  Tv
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -339,7 +345,7 @@ interface InstagramConfig {
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<"chats_youtube" | "flows" | "settings">("chats_youtube");
+  const [activeTab, setActiveTab] = useState<"chats_youtube" | "flows" | "analytics" | "settings">("chats_youtube");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
@@ -347,7 +353,7 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (tab === "chats_youtube" || tab === "flows" || tab === "settings") {
+      if (tab === "chats_youtube" || tab === "flows" || tab === "analytics" || tab === "settings") {
         setActiveTab(tab as any);
       }
 
@@ -385,6 +391,28 @@ export default function Dashboard() {
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"youtube">("youtube");
   const [settingsSubTab, setSettingsSubTab] = useState<"youtube" | "google">("youtube");
+
+  interface YouTubeAnalyticsData {
+    summary: {
+      columnHeaders: { name: string; columnType: string; dataType: string }[];
+      rows: any[][];
+    };
+    daily: {
+      columnHeaders: { name: string; columnType: string; dataType: string }[];
+      rows: any[][];
+    };
+    topVideos: {
+      id: string;
+      title: string;
+      thumbnail: string;
+      views: number;
+      likes: number;
+      estimatedMinutesWatched: number;
+    }[];
+  }
+
+  const [analyticsData, setAnalyticsData] = useState<YouTubeAnalyticsData | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
   // YouTube Config
   interface YouTubeConfig {
@@ -754,6 +782,12 @@ export default function Dashboard() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === "analytics") {
+      fetchAnalytics();
+    }
+  }, [activeTab]);
+
   // Refetch flows when selected platform changes
   useEffect(() => {
     if (activeTab === "flows") {
@@ -785,6 +819,23 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Error fetching messages:", err);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    setLoadingAnalytics(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAnalyticsData(data);
+      }
+    } catch (err) {
+      console.error("Error fetching YouTube Analytics:", err);
+    } finally {
+      setLoadingAnalytics(false);
     }
   };
 
@@ -1146,8 +1197,7 @@ export default function Dashboard() {
       {/* 2. MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         
-        {/* TAB 1: REAL-TIME CHATS PANEL */}
-        {(activeTab === "chats_youtube") && (() => {
+        {((activeTab === "chats_youtube" || activeTab === "settings" || activeTab === "analytics")) && (() => {
           const currentPlatform = "youtube";
           const filteredConversations = conversations.filter(c => (c.platform || "youtube") === currentPlatform);
           const isInstagramTab = false;
@@ -1155,17 +1205,41 @@ export default function Dashboard() {
 
           return (
             <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar ΓÇö full screen on mobile when no chat open, fixed width on desktop */}
+              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
               <div className={`${
                 mobileChatOpen ? "hidden" : "flex"
               } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                  <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
-                    YouTube Comments
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isYouTubeTab ? "bg-red-500/20 text-red-400" : isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
-                      {filteredConversations.length} active
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center gap-2">
+                  <h2 className="font-bold text-base text-slate-100 flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">Comments</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-normal shrink-0 ${isYouTubeTab ? "bg-red-500/20 text-red-400" : isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                      {filteredConversations.length}
                     </span>
                   </h2>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button 
+                      onClick={() => setActiveTab(activeTab === "analytics" ? "chats_youtube" : "analytics")}
+                      className={`p-1.5 rounded-lg transition-all duration-200 border border-slate-800 text-xs font-semibold cursor-pointer shrink-0 ${
+                        activeTab === "analytics" 
+                          ? "bg-red-500/10 text-red-400 border-red-500/30" 
+                          : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+                      }`}
+                      title="YouTube Channel Analytics"
+                    >
+                      <BarChart2 className="h-4 w-4" />
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab(activeTab === "settings" ? "chats_youtube" : "settings")}
+                      className={`p-1.5 rounded-lg transition-all duration-200 border border-slate-800 text-xs font-semibold cursor-pointer shrink-0 ${
+                        activeTab === "settings" 
+                          ? "bg-red-500/10 text-red-400 border-red-500/30" 
+                          : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+                      }`}
+                      title="YouTube Connection Settings"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Conversation items list */}
@@ -1226,11 +1300,260 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Chat Conversation Pane ΓÇö full screen on mobile when chat open */}
+              {/* Chat Conversation Pane — full screen on mobile when chat open */}
               <div className={`${
                 mobileChatOpen ? "flex" : "hidden"
               } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
-                {activeConv ? (
+                {activeTab === "settings" ? (
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-4xl mx-auto">
+                    {/* Settings Title */}
+                    <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-4">
+                      <Settings className="h-6 w-6 text-red-500" />
+                      <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Connection Settings</h2>
+                    </div>
+                    {/* YouTube Credentials Form */}
+                    <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                          <Video className="h-4.5 w-4.5 text-red-500" /> YouTube Channel Configuration
+                        </h3>
+                        {ytConfig.refreshToken || ytConfig.channelId ? (
+                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                            Connected ✓
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {(ytConfig.refreshToken || ytConfig.channelId) && (
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Connected Account</span>
+                            <span className="text-sm font-bold text-slate-200">
+                              {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
+                            </span>
+                            <span className="text-xs text-slate-400 font-mono">
+                              Channel ID: {ytConfig.channelId || "N/A"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
+                              saveYoutubeConfig({ preventDefault: () => {} } as any);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
+                          <input
+                            type="text"
+                            value={ytConfig.channelId || ""}
+                            onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                            placeholder="e.g. UCxxxxxxxxx"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
+                          <input
+                            type="text"
+                            value={ytConfig.accessToken || ""}
+                            onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                            placeholder="Access Token"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-slate-850 pt-4">
+                        <button
+                          type="button"
+                          onClick={handleYoutubeOAuthConnect}
+                          disabled={ytOauthStatus === "connecting"}
+                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
+                        >
+                          <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
+                          {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
+                        </button>
+
+                        <button
+                          type="submit"
+                          disabled={ytSaveStatus === "saving"}
+                          className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs transition-all cursor-pointer"
+                        >
+                          {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : activeTab === "analytics" ? (
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-4xl mx-auto">
+                    {/* Analytics Title */}
+                    <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-4">
+                      <BarChart2 className="h-6 w-6 text-red-500" />
+                      <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Channel Performance</h2>
+                    </div>
+
+                    {loadingAnalytics ? (
+                      <div className="flex flex-col items-center justify-center py-20 gap-3">
+                        <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
+                        <span className="text-xs text-slate-400 font-sans">Fetching YouTube Analytics data...</span>
+                      </div>
+                    ) : analyticsData ? (
+                      <div className="space-y-6 animate-fadeIn font-sans">
+                        {/* Summary Cards Grid */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                            <div className="flex items-center justify-between text-slate-400">
+                              <span className="text-[10px] font-bold uppercase tracking-wider">Total Views</span>
+                              <Eye className="h-4.5 w-4.5 text-red-400" />
+                            </div>
+                            <span className="text-2xl font-bold text-slate-100">
+                              {Number(analyticsData.summary?.rows?.[0]?.[0] || 0).toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-slate-500">Last 30 days summary</span>
+                          </div>
+
+                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                            <div className="flex items-center justify-between text-slate-400">
+                              <span className="text-[10px] font-bold uppercase tracking-wider">New Subs</span>
+                              <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
+                            </div>
+                            <span className="text-2xl font-bold text-slate-100">
+                              {Number(analyticsData.summary?.rows?.[0]?.[3] || 0).toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-slate-500">Subscribers gained</span>
+                          </div>
+
+                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                            <div className="flex items-center justify-between text-slate-400">
+                              <span className="text-[10px] font-bold uppercase tracking-wider">Watch Time</span>
+                              <Clock className="h-4.5 w-4.5 text-sky-400" />
+                            </div>
+                            <span className="text-2xl font-bold text-slate-100">
+                              {Number(analyticsData.summary?.rows?.[0]?.[4] || 0).toLocaleString()} min
+                            </span>
+                            <span className="text-[10px] text-slate-500">Estimated watched time</span>
+                          </div>
+
+                          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
+                            <div className="flex items-center justify-between text-slate-400">
+                              <span className="text-[10px] font-bold uppercase tracking-wider">Avg Duration</span>
+                              <Clock className="h-4.5 w-4.5 text-amber-400" />
+                            </div>
+                            <span className="text-2xl font-bold text-slate-100">
+                              {(() => {
+                                const totalSec = Number(analyticsData.summary?.rows?.[0]?.[5] || 0);
+                                const mins = Math.floor(totalSec / 60);
+                                const secs = Math.floor(totalSec % 60);
+                                return `${mins}:${secs.toString().padStart(2, "0")}`;
+                              })()}
+                            </span>
+                            <span className="text-[10px] text-slate-500">Average view duration</span>
+                          </div>
+                        </div>
+
+                        {/* Interactive Graph Timeline / Grid */}
+                        <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                          <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider mb-4">Views Timeline</h3>
+                          {analyticsData.daily?.rows && analyticsData.daily.rows.length > 0 ? (
+                            <div className="h-48 w-full flex items-end justify-between gap-1 pt-6 pb-2 px-2 border-b border-l border-slate-800">
+                              {analyticsData.daily.rows.map((row: any, idx: number) => {
+                                const maxViews = Math.max(...(analyticsData.daily.rows.map((r: any) => Number(r[1] || 0))) || [1]);
+                                const val = Number(row[1] || 0);
+                                const pct = (val / (maxViews || 1)) * 100;
+                                return (
+                                  <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
+                                    <div className="relative w-full flex justify-center">
+                                      <span className="absolute bottom-full mb-1 bg-slate-950 text-slate-200 border border-slate-800 px-1.5 py-0.5 rounded text-[9px] scale-0 group-hover:scale-100 transition-all font-mono z-20">
+                                        {val} views
+                                      </span>
+                                    </div>
+                                    <div 
+                                      className="w-full bg-red-600/80 group-hover:bg-red-500 rounded-t-sm transition-all"
+                                      style={{ height: `${Math.max(pct, 4)}%` }}
+                                    />
+                                    <span className="text-[8px] text-slate-600 mt-2 font-mono hidden md:block">
+                                      {row[0]?.substring(8)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-center text-slate-500 text-xs py-10">No daily timeline statistics rows available.</div>
+                          )}
+                        </div>
+
+                        {/* Top 5 Performing Videos */}
+                        <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                          <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-850 pb-2">
+                            <Tv className="h-4.5 w-4.5 text-red-500" /> Top 5 Performing Videos (Last 30 Days)
+                          </h3>
+                          <div className="divide-y divide-slate-850">
+                            {analyticsData.topVideos && analyticsData.topVideos.length > 0 ? (
+                              analyticsData.topVideos.map((video) => (
+                                <div key={video.id} className="py-3 flex items-center justify-between gap-4">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    {video.thumbnail ? (
+                                      <img 
+                                        src={video.thumbnail} 
+                                        alt={video.title} 
+                                        className="h-10 w-16 object-cover rounded bg-slate-900 border border-slate-850 shrink-0" 
+                                      />
+                                    ) : (
+                                      <div className="h-10 w-16 bg-slate-900 border border-slate-850 rounded shrink-0 flex items-center justify-center text-slate-600">
+                                        <Tv className="h-5 w-5" />
+                                      </div>
+                                    )}
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-xs font-bold text-slate-200 truncate max-w-[200px] sm:max-w-md">
+                                        {video.title}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 font-mono">
+                                        ID: {video.id}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-4 text-right shrink-0">
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-bold text-slate-200 font-mono">
+                                        {video.views.toLocaleString()}
+                                      </span>
+                                      <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Views</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-bold text-slate-200 font-mono">
+                                        {video.likes.toLocaleString()}
+                                      </span>
+                                      <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Likes</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-center text-slate-500 text-xs py-8">No top performing videos metadata found for this channel.</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center bg-slate-900/40 border border-slate-850 rounded-2xl p-10 flex flex-col items-center gap-2">
+                        <BarChart2 className="h-8 w-8 text-slate-600" />
+                        <span className="text-sm font-semibold text-slate-400">No Analytics Data Available</span>
+                        <span className="text-xs text-slate-500 max-w-sm">
+                          Please verify your credentials in settings and authenticate OAuth with Google YouTube scope to start tracking channel analytics.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : activeConv ? (
                   <>
                     {/* Chat header */}
                     <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-3 sm:px-6 flex items-center justify-between z-10 gap-2">
@@ -2059,299 +2382,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: SETTINGS & ONBOARDING */}
-        {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-8 w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
-              <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
-                <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
-              </h2>
-              
-              {/* Secondary sub-tabs selector */}
-              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start sm:self-auto shadow-inner gap-1">
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("youtube")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "youtube" ? "bg-red-500 text-white shadow-md shadow-red-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
-                >
-                  <Youtube className="h-3.5 w-3.5 text-white" /> YouTube Setup
-                </button>
-                {/* WhatsApp & Instagram tabs removed */}
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("google")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-primary text-slate-950 shadow-md shadow-primary/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
-                >
-                  <Star className="h-3.5 w-3.5 text-slate-950" /> Google Setup
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Configuration Inputs */}
-              <div className="md:col-span-2 space-y-6">
-                {settingsSubTab === "youtube" ? (
-                  <>
-                    {/* YouTube Credentials Form */}
-                    <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                          <Youtube className="h-4.5 w-4.5 text-red-500" /> YouTube Channel Configuration
-                        </h3>
-                        {ytConfig.refreshToken || ytConfig.channelId ? (
-                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
-                            Connected ✓
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {(ytConfig.refreshToken || ytConfig.channelId) && (
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Connected Account</span>
-                            <span className="text-sm font-bold text-slate-200">
-                              {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono">
-                              Channel ID: {ytConfig.channelId || "N/A"}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
-                              saveYoutubeConfig({ preventDefault: () => {} } as any);
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all cursor-pointer shrink-0"
-                          >
-                            Disconnect
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
-                          <input
-                            type="text"
-                            value={ytConfig.channelId || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
-                            placeholder="e.g. UCxxxxxxxxx"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
-                          <input
-                            type="text"
-                            value={ytConfig.accessToken || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
-                            placeholder="Access Token"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-slate-850 pt-4">
-                        <button
-                          type="button"
-                          onClick={handleYoutubeOAuthConnect}
-                          disabled={ytOauthStatus === "connecting"}
-                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
-                        >
-                          <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                          {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
-                        </button>
-
-                        <button
-                          type="submit"
-                          disabled={ytSaveStatus === "saving"}
-                          className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs transition-all cursor-pointer"
-                        >
-                          {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
-                        </button>
-                      </div>
-                    </form>
-                  </>
-                ) : (
-                  <>
-                    {/* Google GMB Credentials Form */}
-                    <form onSubmit={saveGoogleConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Star className="h-4.5 w-4.5 text-primary" /> Google Business Configuration
-                      </h3>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Location / Business Name</label>
-                          <input
-                            type="text"
-                            value={googleConfig.locationName || ""}
-                            onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
-                            placeholder="e.g. Jisnu Digitals Pune"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Place ID (Link redirection)</label>
-                          <input
-                            type="text"
-                            value={googleConfig.googlePlaceId || ""}
-                            onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
-                            placeholder="e.g. ChIJK7R7jG-5wjsR..."
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Live Google Business Review Redirect URL</label>
-                        <input
-                          type="text"
-                          value={googleConfig.googleReviewUrl || ""}
-                          onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
-                          placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Business Account ID (Optional)</label>
-                          <input
-                            type="text"
-                            value={formGoogleAccountId}
-                            onChange={(e) => setFormGoogleAccountId(e.target.value)}
-                            placeholder="e.g. 1048273892019"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
-                          <input
-                            type="text"
-                            value={formGoogleLocationId}
-                            onChange={(e) => setFormGoogleLocationId(e.target.value)}
-                            placeholder="e.g. 15154699825689004204"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Ads Customer ID</label>
-                          <input
-                            type="text"
-                            value={formGoogleAdsCustomerId}
-                            onChange={(e) => setFormGoogleAdsCustomerId(e.target.value)}
-                            placeholder="e.g. 123-456-7890"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between">
-                        <button
-                          type="submit"
-                          disabled={googleSaveStatus === "saving"}
-                          className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
-                        >
-                          <Save className="h-4 w-4" />
-                          {googleSaveStatus === "saving" ? "Saving..." : googleSaveStatus === "success" ? "Saved Config Successfully!" : "Save Google Configurations"}
-                        </button>
-                        {googleSaveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save Google config.</span>
-                        )}
-                      </div>
-                    </form>
-
-                    {/* Google OAuth Live Connection Panel */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-primary" /> Google Business Profile Authorization
-                      </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Connect your live Google Business Profile account so the system can automatically monitor reviews and post automated replies on your behalf.
-                      </p>
-
-                      <div className="flex items-center gap-3.5 bg-slate-900/50 border border-slate-850 p-4 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={handleGoogleOAuthConnect}
-                          disabled={googleOauthStatus === "connecting"}
-                          className="bg-primary hover:bg-secondary text-slate-950 font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-50"
-                        >
-                          <RefreshCw className={`h-4.5 w-4.5 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                          {googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect Google Account"}
-                        </button>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-slate-200">
-                            {googleConfig.googleRefreshToken ? "Status: CONNECTED" : "Google Login (OAuth)"}
-                          </span>
-                          <span className="text-[10px] text-slate-500 leading-normal">
-                            {googleConfig.googleRefreshToken 
-                              ? "Your Google Business account token is active. Ready to manage reviews."
-                              : "Click to authorize GMB review API access via Google's secure portal."}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {googleOauthStatus === "success" && (
-                        <span className="text-xs text-emerald-400 font-medium block animate-fadeIn">Google profile connected successfully!</span>
-                      )}
-                      {googleOauthStatus === "error" && (
-                        <span className="text-xs text-red-400 font-medium block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Quick instructions sidebar */}
-              <div className="space-y-6">
-                <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-5 space-y-4 shadow-xl">
-                  <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <HelpCircle className="h-4 w-4 text-red-500" /> Setup Instructions
-                  </h4>
-                  
-                  {settingsSubTab === "youtube" ? (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-red-500 marker:font-bold animate-fadeIn">
-                      <li>
-                        Connect your YouTube channel by clicking the <strong>Connect YouTube Account</strong> button.
-                      </li>
-                      <li>
-                        Grant read and write permissions to manage YouTube comments and replies.
-                      </li>
-                      <li>
-                        Once connected, copy your <strong>Channel ID</strong> and make sure the token displays as active.
-                      </li>
-                      <li>
-                        Click <strong>Save Credentials</strong> to store the configuration.
-                      </li>
-                    </ul>
-                  ) : (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
-                      <li>
-                        Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
-                      </li>
-                      <li>
-                        Input the Live Google Review URL so positive review selections can redirect consumers to the listing page.
-                      </li>
-                      <li>
-                        Obtain the <strong>Location ID</strong> directly from your GMB profile parameters.
-                      </li>
-                      <li>
-                        Click the <strong>Connect Google Account</strong> button and follow instructions on the screen to authenticate.
-                      </li>
-                    </ul>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         )}
