@@ -35,7 +35,8 @@ import {
   Clock,
   ThumbsUp,
   Eye,
-  Tv
+  Tv,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -345,7 +346,7 @@ interface InstagramConfig {
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<"chats_youtube" | "flows" | "analytics" | "settings">("chats_youtube");
+  const [activeTab, setActiveTab] = useState<"chats_youtube" | "videos_shorts" | "comparative" | "demographics" | "flows" | "analytics" | "settings">("analytics");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
@@ -353,7 +354,7 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (tab === "chats_youtube" || tab === "flows" || tab === "analytics" || tab === "settings") {
+      if (tab === "chats_youtube" || tab === "videos_shorts" || tab === "comparative" || tab === "demographics" || tab === "flows" || tab === "analytics" || tab === "settings") {
         setActiveTab(tab as any);
       }
 
@@ -371,6 +372,29 @@ export default function Dashboard() {
       }
     }
   }, []);
+
+  // Video-Specific Comment Filtering State
+  const [selectedVideoForComments, setSelectedVideoForComments] = useState<{ id: string; title: string; thumbnail: string; views?: number } | null>(null);
+  const [videoCommentsData, setVideoCommentsData] = useState<any[]>([]);
+  const [videoCommentsDisabled, setVideoCommentsDisabled] = useState<boolean>(false);
+  const [loadingVideoComments, setLoadingVideoComments] = useState(false);
+
+  // Videos vs Shorts State
+  const [videosShortsData, setVideosShortsData] = useState<any | null>(null);
+  const [loadingVideosShorts, setLoadingVideosShorts] = useState(false);
+
+  // Comparative Month-over-Month Analytics State
+  const [comparativeData, setComparativeData] = useState<any | null>(null);
+  const [loadingComparative, setLoadingComparative] = useState(false);
+  const [comparativeDays, setComparativeDays] = useState<number | string>(30);
+
+  // Audience Demographics & Traffic Sources State
+  const [demographicsData, setDemographicsData] = useState<any | null>(null);
+  const [loadingDemographics, setLoadingDemographics] = useState(false);
+
+  // Comment Replies Text Inputs State
+  const [replyInputText, setReplyInputText] = useState<{ [commentId: string]: string }>({});
+  const [postingReplyStatus, setPostingReplyStatus] = useState<{ [commentId: string]: boolean }>({});
   
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -783,10 +807,16 @@ export default function Dashboard() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === "analytics") {
+    if (activeTab === "videos_shorts") {
+      fetchVideosShorts();
+    } else if (activeTab === "comparative") {
+      fetchComparative(comparativeDays);
+    } else if (activeTab === "demographics") {
+      fetchDemographics();
+    } else if (activeTab === "analytics") {
       fetchAnalytics();
     }
-  }, [activeTab]);
+  }, [activeTab, comparativeDays]);
 
   // Refetch flows when selected platform changes
   useEffect(() => {
@@ -836,6 +866,112 @@ export default function Dashboard() {
       console.error("Error fetching YouTube Analytics:", err);
     } finally {
       setLoadingAnalytics(false);
+    }
+  };
+
+  const fetchVideoComments = async (videoId: string) => {
+    setLoadingVideoComments(true);
+    setVideoCommentsDisabled(false);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/comments/video/${videoId}`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVideoCommentsData(data.comments || []);
+        if (data.commentsDisabled) {
+          setVideoCommentsDisabled(true);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching video comments:", err);
+      setVideoCommentsDisabled(true);
+    } finally {
+      setLoadingVideoComments(false);
+    }
+  };
+
+  const fetchVideosShorts = async () => {
+    setLoadingVideosShorts(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/videos-shorts`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVideosShortsData(data);
+      }
+    } catch (err) {
+      console.error("Error fetching videos vs shorts analytics:", err);
+    } finally {
+      setLoadingVideosShorts(false);
+    }
+  };
+
+  const fetchComparative = async (days: number | string = 30) => {
+    setLoadingComparative(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/comparative?days=${days}`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setComparativeData(data);
+      }
+    } catch (err) {
+      console.error("Error fetching comparative analytics:", err);
+    } finally {
+      setLoadingComparative(false);
+    }
+  };
+
+  const fetchDemographics = async () => {
+    setLoadingDemographics(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/demographics`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDemographicsData(data);
+      }
+    } catch (err) {
+      console.error("Error fetching demographics analytics:", err);
+    } finally {
+      setLoadingDemographics(false);
+    }
+  };
+
+  const handleSelectVideoForComments = (video: { id: string; title: string; thumbnail: string; views?: number }) => {
+    setSelectedVideoForComments(video);
+    setActiveTab("chats_youtube");
+    fetchVideoComments(video.id);
+  };
+
+  const handlePostCommentReply = async (commentId: string, videoId?: string) => {
+    const text = replyInputText[commentId];
+    if (!text || !text.trim()) return;
+
+    setPostingReplyStatus((prev) => ({ ...prev, [commentId]: true }));
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/comments/reply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({ parentId: commentId, videoId, text })
+      });
+      if (res.ok) {
+        setReplyInputText((prev) => ({ ...prev, [commentId]: "" }));
+        if (selectedVideoForComments) {
+          fetchVideoComments(selectedVideoForComments.id);
+        }
+      }
+    } catch (err) {
+      console.error("Error posting YouTube comment reply:", err);
+    } finally {
+      setPostingReplyStatus((prev) => ({ ...prev, [commentId]: false }));
     }
   };
 
@@ -1196,7 +1332,85 @@ export default function Dashboard() {
     <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
       {/* 2. MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
-        
+        {/* Top Sub-Nav Navigation Bar */}
+        <div className="h-12 border-b border-slate-800 bg-slate-950/60 px-4 sm:px-6 flex items-center justify-between z-20 shrink-0 gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab("analytics")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "analytics"
+                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              <BarChart2 className="h-3.5 w-3.5 text-red-400" /> Channel Analytics
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("chats_youtube")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "chats_youtube"
+                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              <MessageSquare className="h-3.5 w-3.5" /> Comments Inbox
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("videos_shorts")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "videos_shorts"
+                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              <Tv className="h-3.5 w-3.5 text-amber-400" /> Shorts vs Videos
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("comparative")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "comparative"
+                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> Comparative MoM
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("demographics")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "demographics"
+                  ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              <BarChart2 className="h-3.5 w-3.5 text-sky-400" /> Demographics & Traffic
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab("settings")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "settings"
+                  ? "bg-slate-800 text-red-400 border border-slate-700"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              <Settings className="h-3.5 w-3.5" /> Setup
+            </button>
+          </div>
+        </div>
+
         {((activeTab === "chats_youtube" || activeTab === "settings" || activeTab === "analytics")) && (() => {
           const currentPlatform = "youtube";
           const filteredConversations = conversations.filter(c => (c.platform || "youtube") === currentPlatform);
@@ -1216,30 +1430,6 @@ export default function Dashboard() {
                       {filteredConversations.length}
                     </span>
                   </h2>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button 
-                      onClick={() => setActiveTab(activeTab === "analytics" ? "chats_youtube" : "analytics")}
-                      className={`p-1.5 rounded-lg transition-all duration-200 border border-slate-800 text-xs font-semibold cursor-pointer shrink-0 ${
-                        activeTab === "analytics" 
-                          ? "bg-red-500/10 text-red-400 border-red-500/30" 
-                          : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
-                      }`}
-                      title="YouTube Channel Analytics"
-                    >
-                      <BarChart2 className="h-4 w-4" />
-                    </button>
-                    <button 
-                      onClick={() => setActiveTab(activeTab === "settings" ? "chats_youtube" : "settings")}
-                      className={`p-1.5 rounded-lg transition-all duration-200 border border-slate-800 text-xs font-semibold cursor-pointer shrink-0 ${
-                        activeTab === "settings" 
-                          ? "bg-red-500/10 text-red-400 border-red-500/30" 
-                          : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
-                      }`}
-                      title="YouTube Connection Settings"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
                 
                 {/* Conversation items list */}
@@ -1552,6 +1742,107 @@ export default function Dashboard() {
                         </span>
                       </div>
                     )}
+                  </div>
+                ) : selectedVideoForComments ? (
+                  <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
+                    <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {selectedVideoForComments.thumbnail && (
+                          <img src={selectedVideoForComments.thumbnail} alt={selectedVideoForComments.title} className="h-10 w-16 object-cover rounded-lg border border-slate-800 shrink-0" />
+                        )}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider">Video Comments</span>
+                          <h3 className="font-bold text-sm text-slate-100 truncate">{selectedVideoForComments.title}</h3>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedVideoForComments(null)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold shrink-0 cursor-pointer"
+                      >
+                        ← All Comments
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-none">
+                      {loadingVideoComments ? (
+                        <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
+                          <RefreshCw className="h-6 w-6 text-red-500 animate-spin" />
+                          <p className="text-xs">Loading video comments...</p>
+                        </div>
+                      ) : videoCommentsDisabled ? (
+                        <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3 bg-slate-950/40 border border-slate-850 rounded-2xl">
+                          <AlertCircle className="h-8 w-8 text-amber-500" />
+                          <div className="flex flex-col gap-1">
+                            <span className="text-sm font-bold text-slate-200">Comments Disabled for this Video</span>
+                            <span className="text-xs text-slate-400 max-w-sm">
+                              Comments are turned off or disabled on YouTube for this specific video/short.
+                            </span>
+                          </div>
+                        </div>
+                      ) : videoCommentsData.length === 0 ? (
+                        <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
+                          <MessageSquare className="h-8 w-8 text-slate-600" />
+                          <p className="text-xs">No comments found for this video.</p>
+                        </div>
+                      ) : (
+                        videoCommentsData.map((comment: any) => (
+                          <div key={comment.id} className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-lg">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {comment.authorAvatar ? (
+                                  <img src={comment.authorAvatar} alt={comment.authorName} className="h-7 w-7 rounded-full object-cover border border-slate-800 shrink-0" />
+                                ) : (
+                                  <div className="h-7 w-7 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                                    {comment.authorName?.[0] || "U"}
+                                  </div>
+                                )}
+                                <div className="flex flex-col min-w-0">
+                                  <span className="font-bold text-xs text-slate-200 truncate">{comment.authorName}</span>
+                                  <span className="text-[10px] text-slate-500">{new Date(comment.publishedAt).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/20">
+                                👍 {comment.likeCount || 0}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-850">
+                              {comment.text}
+                            </p>
+
+                            {/* Replies */}
+                            {comment.replies && comment.replies.length > 0 && (
+                              <div className="pl-4 border-l-2 border-slate-800 space-y-2 mt-2">
+                                {comment.replies.map((rep: any) => (
+                                  <div key={rep.id} className="bg-slate-900/40 p-2.5 rounded-lg text-xs space-y-1">
+                                    <span className="font-bold text-slate-300">{rep.authorName}</span>
+                                    <p className="text-slate-400">{rep.text}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Inline Reply Input */}
+                            <div className="flex items-center gap-2 pt-2 border-t border-slate-850">
+                              <input
+                                type="text"
+                                value={replyInputText[comment.id] || ""}
+                                onChange={(e) => setReplyInputText({ ...replyInputText, [comment.id]: e.target.value })}
+                                placeholder="Type a reply to this viewer..."
+                                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                              />
+                              <button
+                                onClick={() => handlePostCommentReply(comment.id, selectedVideoForComments.id)}
+                                disabled={postingReplyStatus[comment.id]}
+                                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              >
+                                <Send className="h-3 w-3" /> Reply
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 ) : activeConv ? (
                   <>
@@ -2383,6 +2674,428 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* TAB 2: SHORTS VS VIDEOS PERFORMANCE */}
+        {activeTab === "videos_shorts" && (
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <Tv className="h-5 w-5 text-amber-400" /> Shorts vs Long-Form Videos Performance
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Compare performance metrics between YouTube Shorts and regular long-form videos. Click any video to view its comment section!
+                </p>
+              </div>
+              <button
+                onClick={fetchVideosShorts}
+                disabled={loadingVideosShorts}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingVideosShorts ? "animate-spin" : ""}`} /> Refresh Data
+              </button>
+            </div>
+
+            {loadingVideosShorts ? (
+              <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
+                <RefreshCw className="h-8 w-8 text-amber-500 animate-spin" />
+                <p className="text-xs font-semibold">Analyzing videos & shorts metrics...</p>
+              </div>
+            ) : videosShortsData ? (
+              <>
+                {/* Summary Metrics Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Long Videos Count</span>
+                    <span className="text-2xl font-black text-slate-100">{videosShortsData.summary?.videoCount || 0}</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Total Views: {(videosShortsData.summary?.videoViews || 0).toLocaleString()}</span>
+                  </div>
+
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Shorts Count</span>
+                    <span className="text-2xl font-black text-amber-400">{videosShortsData.summary?.shortCount || 0}</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Total Views: {(videosShortsData.summary?.shortViews || 0).toLocaleString()}</span>
+                  </div>
+
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Avg Video Engagement</span>
+                    <span className="text-2xl font-black text-emerald-400">{videosShortsData.summary?.avgVideoEngagement || 0}%</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Likes + Comments / Views</span>
+                  </div>
+
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Avg Shorts Engagement</span>
+                    <span className="text-2xl font-black text-sky-400">{videosShortsData.summary?.avgShortEngagement || 0}%</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Likes + Comments / Views</span>
+                  </div>
+                </div>
+
+                {/* Lists Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* YouTube Shorts List */}
+                  <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                    <h3 className="font-bold text-xs text-amber-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
+                      <span className="flex items-center gap-1.5">⚡ YouTube Shorts Feed ({videosShortsData.shorts?.length || 0})</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Click short to open comments</span>
+                    </h3>
+                    <div className="divide-y divide-slate-850 max-h-96 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      {videosShortsData.shorts && videosShortsData.shorts.length > 0 ? (
+                        videosShortsData.shorts.map((short: any) => (
+                          <div
+                            key={short.id}
+                            onClick={() => handleSelectVideoForComments(short)}
+                            className="py-3 flex items-center justify-between gap-3 hover:bg-slate-900/60 p-2 rounded-xl transition-all cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <img src={short.thumbnail} alt={short.title} className="h-12 w-8 object-cover rounded bg-slate-900 border border-slate-800 shrink-0 group-hover:scale-105 transition-all" />
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-semibold text-xs text-slate-200 truncate group-hover:text-amber-400 transition-all">{short.title}</span>
+                                <span className="text-[10px] text-slate-500">Duration: {short.durationSec}s • {new Date(short.publishedAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-xs text-slate-200 block">{short.views.toLocaleString()} views</span>
+                              <span className="text-[10px] text-emerald-400 font-semibold">{short.engagementRate}% eng</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center text-slate-500 text-xs py-8">No YouTube Shorts detected on channel.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Long-Form Videos List */}
+                  <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                    <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
+                      <span className="flex items-center gap-1.5"><Tv className="h-4 w-4 text-red-500" /> Long-Form Videos ({videosShortsData.videos?.length || 0})</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Click video to open comments</span>
+                    </h3>
+                    <div className="divide-y divide-slate-850 max-h-96 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      {videosShortsData.videos && videosShortsData.videos.length > 0 ? (
+                        videosShortsData.videos.map((video: any) => (
+                          <div
+                            key={video.id}
+                            onClick={() => handleSelectVideoForComments(video)}
+                            className="py-3 flex items-center justify-between gap-3 hover:bg-slate-900/60 p-2 rounded-xl transition-all cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded bg-slate-900 border border-slate-800 shrink-0 group-hover:scale-105 transition-all" />
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-semibold text-xs text-slate-200 truncate group-hover:text-red-400 transition-all">{video.title}</span>
+                                <span className="text-[10px] text-slate-500">Duration: {Math.floor(video.durationSec / 60)}m {video.durationSec % 60}s</span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-xs text-slate-200 block">{video.views.toLocaleString()} views</span>
+                              <span className="text-[10px] text-emerald-400 font-semibold">{video.engagementRate}% eng</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center text-slate-500 text-xs py-8">No long-form videos found.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center text-slate-500 text-xs py-10">Connect your YouTube channel to load Shorts & Videos breakdown.</div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: COMPARATIVE MOM ANALYTICS */}
+        {activeTab === "comparative" && (
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-emerald-400" /> Comparative Performance Analytics
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Compare channel performance metrics against previous time periods (Month-over-Month growth).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 self-start sm:self-auto flex-wrap">
+                {[
+                  { label: "7 Days", val: 7 },
+                  { label: "30 Days", val: 30 },
+                  { label: "90 Days", val: 90 },
+                  { label: "1 Year", val: 365 },
+                  { label: "Lifetime", val: "lifetime" }
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={() => {
+                      setComparativeDays(item.val);
+                      fetchComparative(item.val);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      comparativeDays === item.val
+                        ? "bg-emerald-500 text-slate-950 font-bold"
+                        : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loadingComparative ? (
+              <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
+                <RefreshCw className="h-8 w-8 text-emerald-500 animate-spin" />
+                <p className="text-xs font-semibold">Calculating comparative metrics...</p>
+              </div>
+            ) : comparativeData ? (
+              <>
+                {/* Growth Badge Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Views */}
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Views</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        comparativeData.growth?.views >= 0
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                      }`}>
+                        {comparativeData.growth?.views >= 0 ? "+" : ""}{comparativeData.growth?.views}%
+                      </span>
+                    </div>
+                    <span className="text-2xl font-black text-slate-100">{comparativeData.current?.views?.toLocaleString() || 0}</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: {comparativeData.previous?.views?.toLocaleString() || 0}</span>
+                  </div>
+
+                  {/* Net Subs */}
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Net Subscribers</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        comparativeData.growth?.netSubs >= 0
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                      }`}>
+                        {comparativeData.growth?.netSubs >= 0 ? "+" : ""}{comparativeData.growth?.netSubs}%
+                      </span>
+                    </div>
+                    <span className="text-2xl font-black text-slate-100">+{comparativeData.current?.netSubs || 0}</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: +{comparativeData.previous?.netSubs || 0}</span>
+                  </div>
+
+                  {/* Watch Time */}
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Watch Time (Hrs)</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        comparativeData.growth?.watchTimeMin >= 0
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                      }`}>
+                        {comparativeData.growth?.watchTimeMin >= 0 ? "+" : ""}{comparativeData.growth?.watchTimeMin}%
+                      </span>
+                    </div>
+                    <span className="text-2xl font-black text-slate-100">{Math.round((comparativeData.current?.watchTimeMin || 0) / 60)} hrs</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: {Math.round((comparativeData.previous?.watchTimeMin || 0) / 60)} hrs</span>
+                  </div>
+
+                  {/* Likes */}
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Likes & Engagement</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        comparativeData.growth?.likes >= 0
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                      }`}>
+                        {comparativeData.growth?.likes >= 0 ? "+" : ""}{comparativeData.growth?.likes}%
+                      </span>
+                    </div>
+                    <span className="text-2xl font-black text-slate-100">{comparativeData.current?.likes?.toLocaleString() || 0}</span>
+                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: {comparativeData.previous?.likes?.toLocaleString() || 0}</span>
+                  </div>
+                </div>
+
+                {/* Period Comparison Table */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                  <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider">
+                    Detailed Comparison: {comparativeData.currentRange?.start} to {comparativeData.currentRange?.end} vs. {comparativeData.previousRange?.start} to {comparativeData.previousRange?.end}
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300 divide-y divide-slate-850">
+                      <thead>
+                        <tr className="text-slate-500 text-[10px] uppercase font-bold">
+                          <th className="py-2.5 px-3">Metric</th>
+                          <th className="py-2.5 px-3">Current Period ({comparativeDays}d)</th>
+                          <th className="py-2.5 px-3">Previous Period ({comparativeDays}d)</th>
+                          <th className="py-2.5 px-3">Growth / Growth Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-850/50">
+                        <tr>
+                          <td className="py-3 px-3 font-semibold text-slate-200">Views</td>
+                          <td className="py-3 px-3 font-mono">{comparativeData.current?.views?.toLocaleString()}</td>
+                          <td className="py-3 px-3 font-mono text-slate-500">{comparativeData.previous?.views?.toLocaleString()}</td>
+                          <td className={`py-3 px-3 font-bold ${comparativeData.growth?.views >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {comparativeData.growth?.views >= 0 ? "+" : ""}{comparativeData.growth?.views}%
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-3 font-semibold text-slate-200">Subscribers Gained</td>
+                          <td className="py-3 px-3 font-mono">+{comparativeData.current?.subsGained}</td>
+                          <td className="py-3 px-3 font-mono text-slate-500">+{comparativeData.previous?.subsGained}</td>
+                          <td className="py-3 px-3 font-bold text-slate-300">+{comparativeData.current?.subsGained - comparativeData.previous?.subsGained}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-3 font-semibold text-slate-200">Subscribers Lost</td>
+                          <td className="py-3 px-3 font-mono text-red-400">-{comparativeData.current?.subsLost}</td>
+                          <td className="py-3 px-3 font-mono text-slate-500">-{comparativeData.previous?.subsLost}</td>
+                          <td className="py-3 px-3 font-bold text-slate-400">-{comparativeData.current?.subsLost - comparativeData.previous?.subsLost}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-3 px-3 font-semibold text-slate-200">Watch Time (Minutes)</td>
+                          <td className="py-3 px-3 font-mono">{comparativeData.current?.watchTimeMin?.toLocaleString()} min</td>
+                          <td className="py-3 px-3 font-mono text-slate-500">{comparativeData.previous?.watchTimeMin?.toLocaleString()} min</td>
+                          <td className={`py-3 px-3 font-bold ${comparativeData.growth?.watchTimeMin >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {comparativeData.growth?.watchTimeMin >= 0 ? "+" : ""}{comparativeData.growth?.watchTimeMin}%
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center text-slate-500 text-xs py-10">No comparative statistics available.</div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: AUDIENCE DEMOGRAPHICS & TRAFFIC SOURCES */}
+        {activeTab === "demographics" && (
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                  <BarChart2 className="h-5 w-5 text-sky-400" /> Audience Demographics & Traffic Sources
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Understand your viewer age groups, top geographic regions, traffic acquisition sources, and device types.
+                </p>
+              </div>
+              <button
+                onClick={fetchDemographics}
+                disabled={loadingDemographics}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingDemographics ? "animate-spin" : ""}`} /> Refresh Demographics
+              </button>
+            </div>
+
+            {loadingDemographics ? (
+              <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
+                <RefreshCw className="h-8 w-8 text-sky-500 animate-spin" />
+                <p className="text-xs font-semibold">Loading viewer demographics data...</p>
+              </div>
+            ) : demographicsData ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Age & Gender Distribution */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                  <h3 className="font-bold text-xs text-sky-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                    Viewer Age & Gender Distribution
+                  </h3>
+                  <div className="space-y-3">
+                    {demographicsData.ageGender && demographicsData.ageGender.length > 0 ? (
+                      demographicsData.ageGender.map((ag: any, idx: number) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between text-xs text-slate-300 font-medium">
+                            <span>{ag.ageGroup} years ({ag.gender})</span>
+                            <span className="font-mono text-sky-400">{ag.percentage.toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-850">
+                            <div className="bg-sky-500 h-full rounded-full transition-all" style={{ width: `${Math.min(ag.percentage, 100)}%` }} />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-slate-500 text-xs py-6">Age and gender distribution data requires additional channel views.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Top Countries */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                  <h3 className="font-bold text-xs text-emerald-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                    Top Viewing Countries
+                  </h3>
+                  <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    {demographicsData.countries && demographicsData.countries.length > 0 ? (
+                      demographicsData.countries.map((c: any, idx: number) => (
+                        <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-200">{c.country}</span>
+                          <div className="text-right font-mono">
+                            <span className="text-slate-300 block">{c.views.toLocaleString()} views</span>
+                            <span className="text-[10px] text-slate-500">{c.watchTimeMin} min watch time</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-slate-500 text-xs py-6">No country breakdown data available.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Traffic Sources */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                  <h3 className="font-bold text-xs text-amber-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                    Traffic Acquisition Sources
+                  </h3>
+                  <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    {demographicsData.trafficSources && demographicsData.trafficSources.length > 0 ? (
+                      demographicsData.trafficSources.map((ts: any, idx: number) => (
+                        <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-200">{ts.sourceType?.replace("YT_", "")?.replace("_", " ")}</span>
+                          <div className="text-right font-mono">
+                            <span className="text-slate-300 block">{ts.views.toLocaleString()} views</span>
+                            <span className="text-[10px] text-slate-500">{ts.watchTimeMin} min watch time</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-slate-500 text-xs py-6">No traffic source data available.</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Device Breakdown */}
+                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                  <h3 className="font-bold text-xs text-purple-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                    Device Types Breakdown
+                  </h3>
+                  <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    {demographicsData.devices && demographicsData.devices.length > 0 ? (
+                      demographicsData.devices.map((d: any, idx: number) => (
+                        <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-200">{d.deviceType}</span>
+                          <div className="text-right font-mono">
+                            <span className="text-slate-300 block">{d.views.toLocaleString()} views</span>
+                            <span className="text-[10px] text-slate-500">{d.watchTimeMin} min watch time</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-slate-500 text-xs py-6">No device breakdown data available.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-slate-500 text-xs py-10">No demographics statistics available.</div>
+            )}
           </div>
         )}
       </main>
