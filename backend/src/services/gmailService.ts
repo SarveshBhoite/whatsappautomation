@@ -127,10 +127,19 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
   try {
     const token = await getGmailAccessToken(orgId);
 
+    let query = `in:${label.toLowerCase()}`;
+    if (label.toUpperCase() === "STARRED") {
+      query = "is:starred";
+    }
+
     // List recent messages. Sync last 50 threads to show more emails.
     const listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
       headers: { Authorization: `Bearer ${token}` },
-      params: { maxResults: 50, q: `label:${label}` }
+      params: { 
+        maxResults: 50, 
+        q: query,
+        includeSpamTrash: true
+      }
     });
 
     const threads = listRes.data.threads || [];

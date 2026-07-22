@@ -280,11 +280,34 @@ export default function GmailDashboard() {
       await fetchRules();
 
       // Get threads list for current label
-      const threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
+      let threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (threadsRes.ok) {
-        const threadsData = await threadsRes.json();
+        let threadsData = await threadsRes.json();
+
+        // If no cached threads exist for this category yet, trigger sync from Gmail API
+        if (threadsData.length === 0) {
+          try {
+            await fetch(`${BACKEND_URL}/api/gmail/sync`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-organization-id": DEFAULT_ORG_ID
+              },
+              body: JSON.stringify({ label })
+            });
+            const refetched = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
+              headers: { "x-organization-id": DEFAULT_ORG_ID }
+            });
+            if (refetched.ok) {
+              threadsData = await refetched.json();
+            }
+          } catch (syncErr) {
+            console.warn("Auto sync for label failed:", syncErr);
+          }
+        }
+
         setThreads(threadsData);
         if (threadsData.length > 0) {
           setSelectedThread(prev => {
