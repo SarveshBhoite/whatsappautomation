@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  MessageCircle, GitMerge, Star, Store, Megaphone, Settings
+  MessageCircle, GitMerge, Star, Store, Megaphone, Settings, Mail
 } from "lucide-react";
 
 // WhatsApp SVG icon
@@ -40,6 +40,7 @@ const navItems: NavItem[] = [
   { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,    label: "WhatsApp Chats",   match: "/whatsapp" },
   { href: "/instagram", icon: <Instagram className="h-5 w-5" />,   label: "Instagram Chats",  match: "/instagram" },
   { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,     label: "YouTube Comments", match: "/youtube" },
+  { href: "/gmail",     icon: <Mail className="h-5 w-5" />,        label: "Gmail Auto-Reply", match: "/gmail" },
   { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,    label: "Flows",            match: "/flows" },
   { href: "/reviews",   icon: <Star className="h-5 w-5" />,        label: "Google Reviews",   match: "/reviews" },
   { href: "/gmb",       icon: <Store className="h-5 w-5" />,       label: "Google Listing",   match: "/gmb" },
@@ -137,6 +138,7 @@ export default function AppSidebar() {
           { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,  label: "WA" },
           { href: "/instagram", icon: <Instagram className="h-5 w-5" />, label: "IG" },
           { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,   label: "YT" },
+          { href: "/gmail",     icon: <Mail className="h-5 w-5" />,      label: "Gmail" },
           { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,  label: "Flows" },
           { href: "/reviews",   icon: <Star className="h-5 w-5" />,      label: "Reviews" },
           { href: "/gmb",       icon: <Store className="h-5 w-5" />,     label: "Listing" },

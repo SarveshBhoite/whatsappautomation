@@ -9,22 +9,25 @@ generator client {
 }
 
 model Organization {
-  id                String                 @id @default(uuid())
-  name              String
-  createdAt         DateTime               @default(now())
-  users             User[]
-  waConfig          WhatsAppConfig?
-  igConfig          InstagramConfig?
-  ytConfig          YouTubeConfig?
-  gmbConfig         GoogleBusinessConfig?
-  flows             Flow[]
-  conversations     Conversation[]
-  googleReviews     GoogleReview[]
-  googlePosts       GooglePost[]
-  googleQuestions   GoogleQuestion[]
-  googleAdCampaigns GoogleAdCampaign[]
-  googleAdAccounts  GoogleAdAccount[]
+  id                  String                 @id @default(uuid())
+  name                String
+  createdAt           DateTime               @default(now())
+  users               User[]
+  waConfig            WhatsAppConfig?
+  igConfig            InstagramConfig?
+  ytConfig            YouTubeConfig?
+  gmbConfig           GoogleBusinessConfig?
+  gmailConfig         GmailConfig?
+  gmailAutoReplyRules GmailAutoReplyRule[]
+  flows               Flow[]
+  conversations       Conversation[]
+  googleReviews       GoogleReview[]
+  googlePosts         GooglePost[]
+  googleQuestions     GoogleQuestion[]
+  googleAdCampaigns   GoogleAdCampaign[]
+  googleAdAccounts    GoogleAdAccount[]
 }
+
 
 model User {
   id             String       @id @default(uuid())
@@ -323,4 +326,68 @@ model GoogleAdConversion {
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 }
+
+model GmailConfig {
+  id                    String       @id @default(uuid())
+  organizationId        String       @unique
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  emailAddress          String?
+  accessToken           String?
+  refreshToken          String?
+  autoReplyEnabled      Boolean      @default(false)
+  autoReplyTemplate     String?      // Custom prompt instructions for AI
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model GmailThread {
+  id             String         @id @default(uuid())
+  threadId       String         @unique // Gmail API thread ID
+  organizationId String
+  subject        String?
+  sender         String
+  snippet        String?
+  status         String         @default("UNREPLIED") // UNREPLIED, REPLIED, SKIPPED
+  label          String         @default("INBOX")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  messages       GmailMessage[]
+}
+
+model GmailMessage {
+  id             String            @id @default(uuid())
+  threadId       String
+  thread         GmailThread       @relation(fields: [threadId], references: [threadId], onDelete: Cascade)
+  messageId      String            @unique // Gmail API message ID
+  direction      String            // "inbound" or "outbound"
+  content        String            // Body of email
+  htmlContent    String?           // Rich HTML body if present
+  sender         String
+  aiDraft        String?           // Cached AI reply if awaiting review/action
+  createdAt      DateTime          @default(now())
+  attachments    GmailAttachment[]
+}
+
+model GmailAttachment {
+  id             String       @id @default(uuid())
+  messageId      String
+  message        GmailMessage @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
+  attachmentId   String       // Gmail API attachment ID
+  filename       String
+  mimeType       String
+  size           Int
+  createdAt      DateTime     @default(now())
+}
+
+model GmailAutoReplyRule {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  keyword        String       // word or phrase to match (case-insensitive)
+  replyText      String       // Reply message to send automatically
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
 

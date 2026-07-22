@@ -12,6 +12,7 @@ import gmbRouter from "./routes/gmb";
 import gmbPerformanceRouter from "./routes/gmbPerformance";
 import googleAdsRouter from "./routes/googleAds";
 import youtubeRouter from "./routes/youtube";
+import gmailRouter from "./routes/gmail";
 
 dotenv.config();
 
@@ -56,6 +57,8 @@ app.use("/api/ads", googleAdsRouter);
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
 
+// Gmail Router
+app.use("/api/gmail", gmailRouter);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -80,6 +83,7 @@ io.on("connection", (socket) => {
 import prisma from "./utils/prisma";
 import { syncGmbReviews, syncGmbPosts, publishPostToGmb } from "./services/gmbSyncService";
 import { YouTubeService } from "./services/youtubeService";
+import { syncGmailThreads } from "./services/gmailService";
 
 // Background Google Business Profile Reviews Sync Scheduler
 async function runBackgroundGmbSync() {
@@ -144,6 +148,26 @@ async function runBackgroundYoutubeSync() {
   }
 }
 
+// Background Gmail Threads Polling Scheduler
+async function runBackgroundGmailSync() {
+  console.log("[BACKGROUND SCHEDULER] Running auto-sync for active Gmail inboxes...");
+  try {
+    const configs = await prisma.gmailConfig.findMany({
+      where: {
+        refreshToken: { not: "" }
+      }
+    });
+
+    console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active Gmail configurations to sync.`);
+
+    for (const config of configs) {
+      await syncGmailThreads(config.organizationId, io);
+    }
+  } catch (err: any) {
+    console.error("[BACKGROUND SCHEDULER] Gmail sync scheduler error:", err.message);
+  }
+}
+
 // Background: check every 60 seconds for SCHEDULED posts due to be published,
 // and auto-retry FAILED posts (up to 3 attempts)
 async function runScheduledPostsSync() {
@@ -178,6 +202,7 @@ function startGmbSyncScheduler() {
   setInterval(() => {
     runBackgroundGmbSync();
     runBackgroundYoutubeSync();
+    runBackgroundGmailSync();
   }, 15 * 60 * 1000);
 
   // Check and publish scheduled posts every 60 seconds
