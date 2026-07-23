@@ -64,10 +64,12 @@ flowchart TD
 
 ---
 
-## 🚀 Key Modules & Feature Guide
+## 🚀 Key Modules & Visual Feature Guide
 
 ### 📺 1. YouTube Creator CRM & Channel Analytics
 Built with a signature **YouTube Red theme**, this module empowers creators and agencies to manage their entire YouTube presence without opening multiple browser tabs.
+
+![YouTube Creator CRM](./docs/assets/youtube_crm.png)
 
 ```mermaid
 graph LR
@@ -89,6 +91,8 @@ graph LR
 ### 🛡️ 2. Google Business Profile & Smart Review Shield
 Protect your business reputation while automating customer feedback management on Google Maps.
 
+![Google Business Profile Dashboard](./docs/assets/gmb_dashboard.png)
+
 ```mermaid
 flowchart LR
     Customer["👤 Customer Scans QR Code"] --> Funnel{"⭐ Selects Star Rating"}
@@ -108,15 +112,14 @@ flowchart LR
 - **One-Click AI Reply All**: Instantly process all pending unreplied Google reviews using the Groq AI engine.
 - **Local Posts Publisher**: Schedule and publish Google local update posts with custom Call-To-Action (CTA) buttons and promotional photos.
 
-#### 📷 Visual Previews
-| Google Business Dashboard | Performance Trends & Metrics | Review Moderation Queue |
-| :---: | :---: | :---: |
-| ![GMB Dashboard](./docs/assets/gmb_dashboard.png) | ![GMB Comparison](./docs/assets/gmb_comparison.png) | ![Review Filters](./docs/assets/reviews_filter.png) |
+![Review Moderation Queue & Filters](./docs/assets/reviews_filter.png)
 
 ---
 
 ### 💬 3. Omnichannel Live Messaging Hub
 A unified workspace for managing WhatsApp and Instagram Direct conversations.
+
+![WhatsApp & Instagram Omnichannel Inbox](./docs/assets/whatsapp_inbox.png)
 
 - **Multi-Platform Support**: Toggle seamlessly between WhatsApp Cloud API and Instagram Direct Messages.
 - **Real-Time WebSockets**: Instant message delivery and typing status updates without page refreshes.
@@ -127,6 +130,8 @@ A unified workspace for managing WhatsApp and Instagram Direct conversations.
 
 ### 🤖 4. Visual Drag-and-Drop Chatbot Flow Builder
 Build visual automated messaging bots to handle customer inquiries 24/7.
+
+![Visual Chatbot Flow Builder](./docs/assets/flows_builder.png)
 
 ```mermaid
 graph TD
@@ -144,6 +149,9 @@ graph TD
 
 ### 📢 5. Google Ads & Campaign Insights
 Track ad performance and ROI directly within the CRM.
+
+![Google Ads Performance Dashboard](./docs/assets/google_ads.png)
+
 - **Campaign Health Tracking**: View impressions, clicks, cost-per-click (CPC), and conversion rates.
 - **Account Multi-Location Overview**: Link Google Ads accounts to review marketing campaign ROI side-by-side with local GMB traffic.
 
