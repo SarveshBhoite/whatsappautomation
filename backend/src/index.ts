@@ -12,6 +12,7 @@ import gmbRouter from "./routes/gmb";
 import gmbPerformanceRouter from "./routes/gmbPerformance";
 import googleAdsRouter from "./routes/googleAds";
 import youtubeRouter from "./routes/youtube";
+import seoRouter from "./routes/seo";
 
 dotenv.config();
 
@@ -55,6 +56,9 @@ app.use("/api/ads", googleAdsRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
+
+// Web SEO Audit Router
+app.use("/api/seo", seoRouter);
 
 
 // Health check endpoint

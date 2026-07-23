@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  MessageCircle, GitMerge, Star, Store, Megaphone, Settings
+  MessageCircle, GitMerge, Star, Store, Megaphone, Settings, Wrench
 } from "lucide-react";
 
 // WhatsApp SVG icon
@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   { href: "/reviews",   icon: <Star className="h-5 w-5" />,        label: "Google Reviews",   match: "/reviews" },
   { href: "/gmb",       icon: <Store className="h-5 w-5" />,       label: "Google Listing",   match: "/gmb" },
   { href: "/ads",       icon: <Megaphone className="h-5 w-5" />,   label: "Google Ads",       match: "/ads" },
+  { href: "/tools",     icon: <Wrench className="h-5 w-5" />,      label: "Tools Suite",      match: "/tools" },
 ];
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -141,6 +142,7 @@ export default function AppSidebar() {
           { href: "/reviews",   icon: <Star className="h-5 w-5" />,      label: "Reviews" },
           { href: "/gmb",       icon: <Store className="h-5 w-5" />,     label: "Listing" },
           { href: "/ads",       icon: <Megaphone className="h-5 w-5" />, label: "Ads" },
+          { href: "/tools",     icon: <Wrench className="h-5 w-5" />,    label: "Tools" },
           { href: "/settings",  icon: <Settings className="h-5 w-5" />,  label: "Settings" },
         ].map(item => (
           <Link
