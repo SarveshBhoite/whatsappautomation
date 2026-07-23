@@ -365,6 +365,16 @@ router.post("/rules", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Keyword and reply text are required." });
     }
 
+    // Ensure organization exists before creating rule relation
+    await prisma.organization.upsert({
+      where: { id: organizationId },
+      update: {},
+      create: {
+        id: organizationId,
+        name: "Demo Organization"
+      }
+    });
+
     const rule = await prisma.gmailAutoReplyRule.create({
       data: {
         organizationId,

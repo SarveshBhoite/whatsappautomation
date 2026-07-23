@@ -8,30 +8,26 @@ const DEFAULT_ORG_ID = "demo-org-123";
  * Returns a valid access token for Gmail API.
  * If expired, it automatically refreshes it using the Google OAuth refresh token.
  */
-export async function getGmailAccessToken(orgId: string): Promise<string> {
+export async function getGmailAccessToken(orgId: string, forceRefresh = false): Promise<string> {
   const config = await prisma.gmailConfig.findUnique({
     where: { organizationId: orgId },
   });
 
-  if (!config || !config.accessToken) {
+  if (!config || (!config.accessToken && !config.refreshToken)) {
     throw new Error("Gmail configuration or access token not found. Please connect your Gmail account.");
   }
 
-  // Google tokens are generally valid for 1 hour (3600 seconds).
-  // Instead of complex timestamp calculations, we can proactively dry-run check or refresh when requested,
-  // or simply execute a token refresh if the token fails.
-  // For a robust implementation, we refresh the token if it's been updated more than 45 minutes ago.
   const timeSinceUpdate = Date.now() - new Date(config.updatedAt).getTime();
   const tokenDuration = 45 * 60 * 1000; // 45 minutes
 
-  if (timeSinceUpdate > tokenDuration && config.refreshToken) {
-    console.log(`[GMAIL SERVICE] Token expired for Org ${orgId}. Refreshing...`);
+  if ((forceRefresh || timeSinceUpdate > tokenDuration) && config.refreshToken) {
+    console.log(`[GMAIL SERVICE] Refreshing Google OAuth token for Org ${orgId}...`);
     try {
       const clientId = process.env.GOOGLE_CLIENT_ID;
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
       if (!clientId || !clientSecret) {
-        throw new Error("Google Ads/OAuth Credentials missing in backend .env");
+        throw new Error("Google OAuth Credentials missing in backend .env");
       }
 
       const response = await axios.post("https://oauth2.googleapis.com/token", {
@@ -47,7 +43,8 @@ export async function getGmailAccessToken(orgId: string): Promise<string> {
         where: { organizationId: orgId },
         data: {
           accessToken: access_token,
-          refreshToken: refresh_token || undefined, // keep existing if not returned
+          refreshToken: refresh_token || undefined,
+          updatedAt: new Date(),
         },
       });
 
@@ -58,7 +55,7 @@ export async function getGmailAccessToken(orgId: string): Promise<string> {
     }
   }
 
-  return config.accessToken;
+  return config.accessToken || "";
 }
 
 interface ParsedMessageParts {
@@ -125,22 +122,39 @@ export function parseGmailMessage(payload: any): ParsedMessageParts {
  */
 export async function syncGmailThreads(orgId: string, io?: Server, label: string = "INBOX") {
   try {
-    const token = await getGmailAccessToken(orgId);
+    let token = await getGmailAccessToken(orgId);
 
     let query = `in:${label.toLowerCase()}`;
     if (label.toUpperCase() === "STARRED") {
       query = "is:starred";
     }
 
-    // List recent messages. Sync last 50 threads to show more emails.
-    const listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { 
-        maxResults: 50, 
-        q: query,
-        includeSpamTrash: true
+    let listRes;
+    try {
+      listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { 
+          maxResults: 50, 
+          q: query,
+          includeSpamTrash: true
+        }
+      });
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        console.log(`[GMAIL SERVICE] 401 Unauthorized encountered. Forcing access token refresh...`);
+        token = await getGmailAccessToken(orgId, true);
+        listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { 
+            maxResults: 50, 
+            q: query,
+            includeSpamTrash: true
+          }
+        });
+      } else {
+        throw err;
       }
-    });
+    }
 
     const threads = listRes.data.threads || [];
     let syncedCount = 0;
@@ -198,10 +212,16 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           const parsed = parseGmailMessage(msg.payload);
           const body = parsed.text || parsed.html || msg.snippet || "";
 
-          // Determine direction
+          // Determine direction by checking if sender matches user's connected Gmail address
+          const config = await prisma.gmailConfig.findUnique({
+            where: { organizationId: orgId }
+          });
+          const userEmail = config?.emailAddress?.toLowerCase() || "";
+          
           const msgHeaders = msg.payload?.headers || [];
           const msgFrom = msgHeaders.find((h: any) => h.name.toLowerCase() === "from")?.value || "";
-          const direction = msgFrom.includes(sender) ? "inbound" : "outbound";
+          const isInbound = userEmail ? !msgFrom.toLowerCase().includes(userEmail) : true;
+          const direction = isInbound ? "inbound" : "outbound";
 
           // Save the message
           await prisma.gmailMessage.create({
@@ -231,11 +251,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           }
 
           // Only auto-reply if autoReplyEnabled is explicitly turned ON
-          if (direction === "inbound") {
-            const config = await prisma.gmailConfig.findUnique({
-              where: { organizationId: orgId }
-            });
-
+          if (isInbound) {
             if (config && config.autoReplyEnabled) {
               try {
                 // Fetch active rules for the organization
@@ -243,13 +259,19 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
                   where: { organizationId: orgId, isActive: true }
                 });
 
-                // Check if any rule keyword matches the email body (content) or subject
+                // Check if any rule keyword matches the email body or subject
                 const lowerContent = body.toLowerCase();
                 const lowerSubject = subject.toLowerCase();
-                const matchedRule = rules.find(rule => 
-                  lowerContent.includes(rule.keyword.toLowerCase()) || 
-                  lowerSubject.includes(rule.keyword.toLowerCase())
-                );
+                
+                const matchedRule = rules.find(rule => {
+                  const kw = rule.keyword.trim().toLowerCase();
+                  if (!kw) return false;
+                  
+                  // Match full phrase OR any space-separated token in the phrase
+                  if (lowerContent.includes(kw) || lowerSubject.includes(kw)) return true;
+                  const tokens = kw.split(/\s+/).filter(t => t.length > 2);
+                  return tokens.some(token => lowerContent.includes(token) || lowerSubject.includes(token));
+                });
 
                 if (matchedRule) {
                   // We have a match! We send the static automated reply set by the admin

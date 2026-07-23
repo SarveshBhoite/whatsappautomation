@@ -23,7 +23,13 @@ import {
   HelpCircle,
   Zap,
   Sliders,
-  Info
+  Info,
+  Shield,
+  Layers,
+  ArrowRight,
+  Search,
+  ExternalLink,
+  MessageSquare
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
@@ -76,12 +82,37 @@ interface GmailThread {
 }
 
 const LABELS = [
-  { id: "INBOX", name: "Inbox", icon: Inbox },
-  { id: "STARRED", name: "Starred", icon: Star },
-  { id: "SENT", name: "Sent", icon: Send },
-  { id: "SPAM", name: "Spam", icon: AlertCircle },
-  { id: "TRASH", name: "Trash", icon: Trash2 },
+  { id: "INBOX", name: "Inbox", icon: Inbox, count: 0 },
+  { id: "STARRED", name: "Starred", icon: Star, count: 0 },
+  { id: "SENT", name: "Sent", icon: Send, count: 0 },
+  { id: "SPAM", name: "Spam", icon: AlertCircle, count: 0 },
+  { id: "TRASH", name: "Trash", icon: Trash2, count: 0 },
 ];
+
+// Helper to generate initials from sender name
+const getInitials = (sender: string) => {
+  const name = sender.split("<")[0].trim().replace(/['"]/g, "");
+  if (!name) return "U";
+  const parts = name.split(" ");
+  if (parts.length > 1) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
+
+// Helper to generate custom avatar background based on initials
+const getAvatarColor = (initials: string) => {
+  const code = initials.charCodeAt(0) + (initials.charCodeAt(1) || 0);
+  const colors = [
+    "from-pink-500 to-rose-600 text-rose-100 border-rose-400/20 shadow-rose-950/20",
+    "from-purple-500 to-indigo-600 text-indigo-100 border-indigo-400/20 shadow-indigo-950/20",
+    "from-blue-500 to-sky-600 text-sky-100 border-sky-400/20 shadow-sky-950/20",
+    "from-emerald-500 to-teal-600 text-teal-100 border-teal-400/20 shadow-teal-950/20",
+    "from-amber-500 to-orange-600 text-orange-100 border-orange-400/20 shadow-orange-950/20",
+    "from-primary to-accent text-slate-100 border-primary/20 shadow-primary/20",
+  ];
+  return colors[code % colors.length];
+};
 
 const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?: string | null }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -99,23 +130,24 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
               overflow-x: hidden !important;
               max-width: 100% !important;
               word-break: break-word !important;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
               font-size: 13px;
               line-height: 1.6;
-              color: #f1f5f9; /* slate-100 */
-              background-color: transparent;
+              color: #1e293b; /* slate-800 */
+              background-color: #ffffff;
               margin: 0;
               padding: 0;
             }
             table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
             td, th { word-break: break-word !important; }
-            a { color: #f43f5e; text-decoration: underline; word-break: break-all; }
+            a { color: #55e6c1; text-decoration: underline; word-break: break-all; }
             img, video, iframe { max-width: 100% !important; height: auto !important; border-radius: 8px; }
             blockquote {
-              border-left: 2px solid #334155;
-              padding-left: 10px;
-              color: #94a3b8;
-              margin: 8px 0;
+              border-left: 3px solid #334155;
+              padding-left: 12px;
+              color: #64748b;
+              margin: 12px 0;
+              font-style: italic;
             }
           </style>
         `;
@@ -159,45 +191,54 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
     );
   }
 
-  return <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-200 break-words overflow-hidden min-w-0 max-w-full">{content}</div>;
+  return (
+    <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-800 break-words overflow-hidden min-w-0 max-w-full">
+      {content}
+    </div>
+  );
 };
 
 const AttachmentRenderer = ({ attachments, messageId }: { attachments?: GmailAttachment[]; messageId: string }) => {
   if (!attachments || attachments.length === 0) return null;
 
   return (
-    <div className="mt-4 border-t border-slate-800/60 pt-3">
-      <div className="flex items-center gap-1.5 mb-2 text-[10px] text-slate-450 font-bold uppercase tracking-wider">
-        <Paperclip className="h-3 w-3" /> Attachments ({attachments.length})
+    <div className="mt-5 border-t border-slate-800/80 pt-4">
+      <div className="flex items-center gap-1.5 mb-3 text-[10px] text-slate-450 font-bold uppercase tracking-wider">
+        <Paperclip className="h-3 w-3 text-slate-400" /> Attachments ({attachments.length})
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {attachments.map((att) => {
           const isImage = att.mimeType.startsWith("image/");
           const fileUrl = `${BACKEND_URL}/api/gmail/messages/${messageId}/attachments/${att.attachmentId}`;
           return (
-            <div key={att.id} className="group relative border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/40">
+            <div key={att.id} className="group relative border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/50 hover:border-slate-700/60 transition-all duration-300 hover:shadow-lg hover:shadow-black/20">
               {isImage ? (
                 <div className="flex flex-col">
-                  <div className="h-32 w-full overflow-hidden bg-slate-950 flex items-center justify-center relative">
+                  <div className="h-36 w-full overflow-hidden bg-slate-950 flex items-center justify-center relative">
                     <img
                       src={fileUrl}
                       alt={att.filename}
-                      className="max-h-full max-w-full object-contain transition group-hover:scale-105"
+                      className="max-h-full max-w-full object-contain transition duration-500 group-hover:scale-105"
                       loading="lazy"
                     />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-primary rounded-xl text-slate-950 text-xs font-bold shadow-lg shadow-primary/30 flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> View Image
+                      </a>
+                    </div>
                   </div>
-                  <div className="p-2 flex items-center justify-between border-t border-slate-800/60 bg-slate-900/60">
-                    <div className="truncate text-[11px] font-medium text-slate-300 max-w-[70%]">
+                  <div className="p-3 flex items-center justify-between border-t border-slate-800/80 bg-slate-900/40">
+                    <div className="truncate text-xs font-medium text-slate-300 max-w-[75%]">
                       {att.filename}
                     </div>
-                    <a
-                      href={fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-red-400 font-bold hover:underline"
-                    >
-                      View
-                    </a>
+                    <span className="text-[10px] text-slate-505">
+                      {(att.size / 1024).toFixed(1)} KB
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -205,14 +246,14 @@ const AttachmentRenderer = ({ attachments, messageId }: { attachments?: GmailAtt
                   href={fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2.5 p-3 hover:bg-slate-900/60 transition h-full text-left"
+                  className="flex items-center gap-3.5 p-4 hover:bg-slate-900/40 transition h-full text-left"
                 >
-                  <div className="h-9 w-9 rounded-lg bg-slate-900 flex items-center justify-center border border-slate-800 shrink-0">
-                    <FileText className="h-5 w-5 text-red-500" />
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0 group-hover:bg-primary/20 transition">
+                    <FileText className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="truncate text-xs font-semibold text-slate-200">{att.filename}</div>
-                    <div className="text-[10px] text-slate-500 font-medium">
+                    <div className="truncate text-xs font-semibold text-slate-200 group-hover:text-primary transition">{att.filename}</div>
+                    <div className="text-[10px] text-slate-500 font-medium mt-0.5">
                       {(att.size / 1024).toFixed(1)} KB
                     </div>
                   </div>
@@ -230,9 +271,10 @@ export default function GmailDashboard() {
   const [threads, setThreads] = useState<GmailThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<GmailThread | null>(null);
   
-  // Active Navigation Tab: "MAIL" or "SETTINGS"
+  // Navigation Tab: "MAIL" or "SETTINGS"
   const [activeTab, setActiveTab] = useState<"MAIL" | "SETTINGS">("MAIL");
   const [selectedLabel, setSelectedLabel] = useState("INBOX");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Config state
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
@@ -256,7 +298,6 @@ export default function GmailDashboard() {
 
   // Edit draft text state
   const [draftReplyText, setDraftReplyText] = useState("");
-  const [manualReplyMode, setManualReplyMode] = useState(true);
 
   const socketRef = useRef<Socket | null>(null);
 
@@ -287,7 +328,7 @@ export default function GmailDashboard() {
         let threadsData = await threadsRes.json();
 
         // If no cached threads exist for this category yet, trigger sync from Gmail API
-        if (threadsData.length === 0) {
+        if (threadsData.length === 0 && configRes.ok) {
           try {
             await fetch(`${BACKEND_URL}/api/gmail/sync`, {
               method: "POST",
@@ -371,14 +412,11 @@ export default function GmailDashboard() {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage && lastMessage.direction === "inbound") {
         setDraftReplyText(lastMessage.aiDraft || "");
-        setManualReplyMode(!lastMessage.aiDraft);
       } else {
         setDraftReplyText("");
-        setManualReplyMode(true);
       }
     } else {
       setDraftReplyText("");
-      setManualReplyMode(true);
     }
   }, [selectedThread]);
 
@@ -499,7 +537,6 @@ export default function GmailDashboard() {
         const data = await res.json();
         if (data.aiDraft) {
           setDraftReplyText(data.aiDraft);
-          setManualReplyMode(false);
         }
       } else {
         const errData = await res.json();
@@ -513,8 +550,8 @@ export default function GmailDashboard() {
     }
   };
 
-  const handleAddRule = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddRule = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!newKeyword.trim() || !newReplyText.trim()) return;
     setAddingRule(true);
     setErrorMsg(null);
@@ -535,7 +572,8 @@ export default function GmailDashboard() {
         setNewReplyText("");
         await fetchRules();
       } else {
-        setErrorMsg("Failed to create auto-reply rule.");
+        const errorData = await res.json().catch(() => ({}));
+        setErrorMsg(errorData.error || errorData.details || "Failed to create auto-reply rule.");
       }
     } catch (err) {
       console.error(err);
@@ -573,56 +611,181 @@ export default function GmailDashboard() {
     window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${DEFAULT_ORG_ID}&redirect=/gmail`;
   };
 
+  // Filter threads by search term
+  const filteredThreads = threads.filter(thread => {
+    const search = searchTerm.toLowerCase();
+    return (
+      thread.subject.toLowerCase().includes(search) ||
+      thread.sender.toLowerCase().includes(search) ||
+      thread.snippet.toLowerCase().includes(search)
+    );
+  });
+
   return (
-    <div className="flex h-screen w-full max-w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans select-none antialiased">
       
-      {/* Global CSS to suppress scrollbar visuals while preserving scroll functionality */}
+      {/* Global CSS for custom animations and scrollbars */}
       <style jsx global>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none !important;
-          width: 0 !important;
-          height: 0 !important;
+        ::-webkit-scrollbar {
+          width: 5px;
+          height: 5px;
         }
-        .no-scrollbar {
-          -ms-overflow-style: none !important;
-          scrollbar-width: none !important;
+        ::-webkit-scrollbar-track {
+          background: rgba(15, 23, 42, 0.3);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.15);
+          border-radius: 99px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(148, 163, 184, 0.3);
+        }
+        
+        .glow-pulse {
+          box-shadow: 0 0 15px rgba(var(--primary), 0.15);
+          animation: pulse 2s infinite alternate;
+        }
+        @keyframes pulse {
+          0% { box-shadow: 0 0 15px var(--primary); }
+          100% { box-shadow: 0 0 25px var(--secondary); }
+        }
+
+        .ai-glow-card {
+          position: relative;
+          background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+        }
+        .ai-glow-card::before {
+          content: "";
+          position: absolute;
+          inset: -1px;
+          background: linear-gradient(135deg, rgba(var(--primary), 0.3) 0%, rgba(var(--secondary), 0.3) 50%, rgba(var(--accent), 0.1) 100%);
+          border-radius: inherit;
+          z-index: -1;
+          pointer-events: none;
         }
       `}</style>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-900/40">
-        
-        {/* Top Navbar */}
-        <header className="h-16 border-b border-slate-800 bg-slate-950/80 backdrop-blur flex items-center justify-between px-6 shrink-0 z-10">
+      {/* Sidebar Navigation */}
+      <aside className="w-64 border-r border-slate-200 bg-white backdrop-blur-xl flex flex-col justify-between shrink-0 z-25">
+        <div className="flex flex-col gap-6 p-5">
+          {/* Logo Brand Header */}
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <Mail className="h-5 w-5 text-red-500" />
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-sky-500 p-0.5 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <div className="h-full w-full rounded-[14px] bg-white flex items-center justify-center">
+                <Mail className="h-5 w-5 text-emerald-600" />
+              </div>
             </div>
             <div>
-              <h1 className="font-extrabold text-lg tracking-tight">Gmail Automation</h1>
-              <p className="text-xs text-slate-400">Keyword auto-reply rules & on-demand AI drafting</p>
+              <span className="font-extrabold text-sm tracking-tight text-slate-900">
+                Gmail Portal
+              </span>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Automation Hub</p>
+            </div>
+          </div>
+
+          {/* Mailboxes Group */}
+          <div className="flex flex-col gap-1.5">
+            <span className="px-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
+              Folders
+            </span>
+            {LABELS.map((lbl) => {
+              const Icon = lbl.icon;
+              const isSelected = activeTab === "MAIL" && selectedLabel === lbl.id;
+              return (
+                <button
+                  key={lbl.id}
+                  onClick={() => handleLabelChange(lbl.id)}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
+                    isSelected
+                      ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 duration-200 ${isSelected ? "text-emerald-600" : "text-slate-500 group-hover:text-slate-700"}`} />
+                    <span>{lbl.name}</span>
+                  </div>
+                  {lbl.count > 0 && (
+                    <span className="text-[9px] font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full text-slate-600">
+                      {lbl.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* System Settings Group */}
+          <div className="flex flex-col gap-1.5 border-t border-slate-200 pt-5">
+            <span className="px-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
+              Management
+            </span>
+            <button
+              onClick={handleOpenSettings}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
+                activeTab === "SETTINGS"
+                  ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
+            >
+              <Settings className={`h-4 w-4 shrink-0 transition-transform group-hover:rotate-45 duration-200 ${activeTab === "SETTINGS" ? "text-emerald-600" : "text-slate-500"}`} />
+              <span>Automation & Rules</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Sidebar Info Footer */}
+        <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col gap-3">
+          {connectedEmail && (
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <div className="text-[10px] text-slate-600 font-semibold truncate max-w-[170px]" title={connectedEmail}>
+                {connectedEmail}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-[10px] text-slate-500">
+            <Shield className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <span>Secure OAuth Connection</span>
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
+        
+        {/* Header Section */}
+        <header className="h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-10">
+          <div className="flex items-center gap-4">
+            <div className="h-11 w-11 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shadow-sm">
+              <Mail className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="font-black text-lg tracking-tight text-slate-900">
+                {activeTab === "SETTINGS" ? "Automation Configuration" : `Mailbox: ${selectedLabel}`}
+              </h1>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {activeTab === "SETTINGS" 
+                  ? "Define keywords, responses, and template settings" 
+                  : "On-demand AI sentiment response manager"}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {connectedEmail && (
-              <span className="text-xs text-slate-400 bg-slate-800/80 border border-slate-700/50 rounded-lg px-2.5 py-1.5 font-medium">
-                Connected: <strong className="text-slate-200">{connectedEmail}</strong>
-              </span>
-            )}
             <button
               onClick={handleSyncInbox}
               disabled={syncing || !connectedEmail}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-750 bg-slate-850 hover:bg-slate-800 hover:text-slate-100 text-xs font-semibold text-slate-300 transition disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition duration-200 disabled:opacity-50"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin text-red-500" : ""}`} />
-              {syncing ? "Syncing..." : "Sync Inbox"}
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-emerald-600" : ""}`} />
+              {syncing ? "Syncing Inbox..." : "Sync Inbox"}
             </button>
             <button
               onClick={handleConnectGmail}
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md ${
+              className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition shadow-md ${
                 connectedEmail 
-                  ? "bg-slate-800 border border-slate-700 hover:bg-slate-750 text-slate-300"
-                  : "bg-red-600 hover:bg-red-500 text-white shadow-red-950/20"
+                  ? "bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700"
+                  : "bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-emerald-500/20"
               }`}
             >
               {connectedEmail ? "Reconnect Account" : "Connect Gmail"}
@@ -630,440 +793,409 @@ export default function GmailDashboard() {
           </div>
         </header>
 
-        {/* Global Error Banner */}
+        {/* Error Alert Display */}
         {errorMsg && (
-          <div className="bg-red-500/10 border-b border-red-500/25 px-6 py-2.5 flex items-center gap-2 text-xs text-red-400 font-semibold shrink-0">
-            <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-            {errorMsg}
+          <div className="bg-red-500/10 border-b border-red-500/20 px-8 py-3 flex items-center gap-3 text-xs text-red-400 font-semibold shrink-0">
+            <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+            <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Loading overlay if initializing */}
+        {/* Content Tabs Switch */}
         {loading && threads.length === 0 && rules.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3">
-            <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
-            <p className="text-sm text-slate-400 font-medium">Loading Gmail records...</p>
+          <div className="flex-1 flex flex-col items-center justify-center gap-4">
+            <div className="h-12 w-12 rounded-2xl border border-primary/25 bg-primary/5 flex items-center justify-center animate-pulse">
+              <RefreshCw className="h-6 w-6 text-primary animate-spin" />
+            </div>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Syncing workspace records...</p>
           </div>
         ) : !connectedEmail ? (
-          /* Empty OAuth State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
-            <div className="h-16 w-16 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6 shadow-xl shadow-red-950/10">
-              <Mail className="h-8 w-8 text-red-500" />
+          /* Empty / Unconnected State Graphic */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-md mx-auto text-center">
+            <div className="h-20 w-20 rounded-[28px] bg-emerald-50 border border-emerald-200 flex items-center justify-center mb-6 shadow-lg relative">
+              <Mail className="h-10 w-10 text-emerald-600 relative z-10" />
             </div>
-            <h2 className="text-xl font-bold text-slate-200 mb-2">Connect Your Gmail Account</h2>
-            <p className="text-sm text-slate-400 leading-relaxed mb-6">
-              Establish a secure Google OAuth connection to automatically fetch client emails, view threads, draft intelligent AI replies, and configure autopilot automations.
+            <h2 className="text-xl font-extrabold text-slate-900 mb-2">Connect Your Workspace Inbox</h2>
+            <p className="text-xs text-slate-500 leading-relaxed mb-8">
+              Establish a secure Google OAuth connection to instantly monitor client inquiries, review conversations, drafts AI responses, and manage auto-replies.
             </p>
             <button
               onClick={handleConnectGmail}
-              className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm tracking-wide transition shadow-lg shadow-red-950/25 flex items-center gap-2"
+              className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs tracking-wide transition shadow-lg shadow-emerald-500/20 flex items-center gap-2.5 transform active:scale-98 cursor-pointer"
             >
-              Get Started with OAuth <Sparkles className="h-4 w-4" />
+              Sign In with Google <Sparkles className="h-4 w-4" />
             </button>
           </div>
-        ) : (
-          /* Main Dashboard Workspace */
-          <div className="flex-1 flex overflow-hidden">
-            
-            {/* Leftmost Mailbox & Settings Sidebar */}
-            <div className="w-52 border-r border-slate-800 flex flex-col shrink-0 bg-slate-950/50 justify-between">
+        ) : activeTab === "SETTINGS" ? (
+          /* -------------------- SETTINGS TAB VIEW -------------------- */
+          <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
+            <div className="max-w-4xl mx-auto flex flex-col gap-8">
               
-              {/* Top Navigation Sections */}
-              <div className="flex flex-col gap-4 p-3 overflow-y-auto no-scrollbar">
+              {/* Autopilot and Prompt Panels */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* Mailboxes Group */}
-                <div className="flex flex-col gap-1">
-                  <span className="px-3 py-1 text-[10px] font-bold text-slate-450 uppercase tracking-wider">
-                    Mailboxes
-                  </span>
-                  {LABELS.map((lbl) => {
-                    const Icon = lbl.icon;
-                    const isSelected = activeTab === "MAIL" && selectedLabel === lbl.id;
-                    return (
-                      <button
-                        key={lbl.id}
-                        onClick={() => handleLabelChange(lbl.id)}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition text-left ${
-                          isSelected
-                            ? "bg-red-500/10 text-red-400 border border-red-500/20 shadow-sm shadow-red-950/10"
-                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span>{lbl.name}</span>
-                      </button>
-                    );
-                  })}
+                {/* Autopilot Controller Panel */}
+                <div className="border border-slate-200 rounded-3xl bg-white p-6 flex flex-col justify-between gap-5 shadow-sm">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <Zap className="h-4.5 w-4.5 text-amber-500 animate-pulse" /> AI Autopilot Engine
+                      </h3>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={autoReplyEnabled}
+                          onChange={(e) => setAutoReplyEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Enable autopilot to instantly respond to incoming emails that match any of your keyword rules. Emails that do not contain keywords will remain in the inbox for manual AI generation.
+                    </p>
+                  </div>
+                  
+                  <div className={`text-[10px] font-bold px-3 py-2.5 rounded-xl border flex items-center gap-2 ${
+                    autoReplyEnabled 
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-700" 
+                      : "bg-slate-100 border-slate-200 text-slate-600"
+                  }`}>
+                    <div className={`h-1.5 w-1.5 rounded-full ${autoReplyEnabled ? "bg-emerald-500 animate-ping" : "bg-slate-400"}`} />
+                    <span>Autopilot Status: <strong>{autoReplyEnabled ? "ACTIVE & MONITORING" : "PAUSED (MANUAL ONLY)"}</strong></span>
+                  </div>
                 </div>
 
-                {/* System Settings Group */}
-                <div className="flex flex-col gap-1 border-t border-slate-850 pt-3">
-                  <span className="px-3 py-1 text-[10px] font-bold text-slate-450 uppercase tracking-wider">
-                    Configuration
-                  </span>
+                {/* AI Configuration Prompt Card */}
+                <div className="border border-slate-200 rounded-3xl bg-white p-6 flex flex-col gap-4 shadow-sm">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Sparkles className="h-4.5 w-4.5 text-emerald-600" /> System Personality Instructions
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                      Control the parameters, guidelines, tone, and specific details followed by Llama 3 when drafting manually or automatically.
+                    </p>
+                  </div>
+                  <textarea
+                    value={autoReplyTemplate}
+                    onChange={(e) => setAutoReplyTemplate(e.target.value)}
+                    placeholder="e.g. You are an expert sales support manager. Act polite, helpful, and concise..."
+                    rows={4}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition duration-300 resize-none font-sans"
+                  />
+                </div>
+
+              </div>
+
+              {/* Rules Management Card */}
+              <div className="border border-slate-200 rounded-3xl bg-white p-6 flex flex-col gap-6 shadow-sm">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Sliders className="h-5 w-5 text-emerald-600" /> Keyword Routing Rules
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Add words or phrases to capture and resolve immediately. When matching email arrives, the designated responder content is sent back instantly.
+                  </p>
+                </div>
+
+                {/* Form to add rules */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl items-end">
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Matching Phrase / Keyword</label>
+                    <input
+                      type="text"
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      placeholder="e.g. pricing catalog"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Instant Reply Message</label>
+                    <input
+                      type="text"
+                      value={newReplyText}
+                      onChange={(e) => setNewReplyText(e.target.value)}
+                      placeholder="e.g. Hello, our pricing is located at..."
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
                   <button
-                    onClick={handleOpenSettings}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition text-left ${
-                      activeTab === "SETTINGS"
-                        ? "bg-red-500/10 text-red-400 border border-red-500/20 shadow-sm shadow-red-950/10"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
-                    }`}
+                    type="button"
+                    onClick={handleAddRule}
+                    disabled={addingRule || !newKeyword.trim() || !newReplyText.trim()}
+                    className="py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-xs font-bold text-white transition duration-200 flex items-center justify-center gap-2 h-[41px] shadow-sm shrink-0 cursor-pointer"
                   >
-                    <Settings className="h-4 w-4 shrink-0 text-red-400" />
-                    <span>Automation & Rules</span>
+                    <Plus className="h-4 w-4" /> {addingRule ? "Adding..." : "Add Rule"}
                   </button>
                 </div>
 
-              </div>
-
-              {/* Sidebar Footer info */}
-              <div className="p-3 border-t border-slate-850 bg-slate-950/80 text-[10px] text-slate-500 flex items-center gap-2">
-                <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                <span>Auto-Reply Active ({rules.length} Rules)</span>
-              </div>
-
-            </div>
-
-            {/* Render Tab View: MAIL vs SETTINGS */}
-            {activeTab === "SETTINGS" ? (
-              
-              /* Spacious Automation & Rules Configuration Dashboard */
-              <div className="flex-1 overflow-y-auto no-scrollbar p-8 bg-slate-900/20">
-                <div className="max-w-4xl mx-auto flex flex-col gap-8">
-                  
-                  {/* Settings Header */}
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-5">
-                    <div>
-                      <h2 className="text-xl font-extrabold text-slate-100 flex items-center gap-2.5">
-                        <Settings className="h-6 w-6 text-red-500" />
-                        Automation & Auto-Reply Rules
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Configure keyword triggers for instant static replies, set AI prompts, and control system behavior.
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleSaveConfig}
-                      disabled={savingConfig}
-                      className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md shadow-red-950/30 transition flex items-center gap-2 disabled:opacity-50"
-                    >
-                      <Save className="h-4 w-4" />
-                      {savingConfig ? "Saving Settings..." : "Save Settings"}
-                    </button>
-                  </div>
-
-                  {/* Top Grid: Autopilot & AI Prompt */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
-                    {/* Autopilot Enable Box */}
-                    <div className="bg-slate-950/60 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between gap-4 shadow-sm">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                            <Zap className="h-4 w-4 text-amber-400" /> Autopilot Execution
-                          </h3>
-                          <input
-                            id="autopilot-setting"
-                            type="checkbox"
-                            checked={autoReplyEnabled}
-                            onChange={(e) => setAutoReplyEnabled(e.target.checked)}
-                            className="h-5 w-5 accent-red-600 rounded cursor-pointer border-slate-700 bg-slate-900"
-                          />
-                        </div>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          When Autopilot is enabled, incoming emails containing any of your active keywords will be automatically sent your exact pre-set message. Unmatched emails skip auto-reply.
-                        </p>
-                      </div>
-                      <div className="text-[11px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl font-medium">
-                        Status: <strong>{autoReplyEnabled ? "Enabled (Live)" : "Disabled (Manual Only)"}</strong>
-                      </div>
-                    </div>
-
-                    {/* AI Prompt Template Box */}
-                    <div className="bg-slate-950/60 border border-slate-800 p-5 rounded-2xl flex flex-col gap-3 shadow-sm">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-red-400" /> AI Personality Prompt
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                          Guidelines followed by Groq Llama 3 when you click "✨ AI Draft" on individual emails.
-                        </p>
-                      </div>
-                      <textarea
-                        value={autoReplyTemplate}
-                        onChange={(e) => setAutoReplyTemplate(e.target.value)}
-                        placeholder="e.g. Always respond in a polite sales assistant tone..."
-                        rows={3}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs leading-relaxed text-slate-200 placeholder-slate-600 focus:outline-none focus:border-slate-700 resize-none font-sans"
-                      />
-                    </div>
-
-                  </div>
-
-                  {/* Rules Builder & Active Rules Table */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-6 rounded-2xl flex flex-col gap-6 shadow-sm">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                        <Bot className="h-5 w-5 text-red-500" /> Keyword Auto-Reply Rules
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Add specific keywords or phrases (e.g. <code className="text-red-400 font-mono bg-red-500/10 px-1 py-0.5 rounded">interview</code>, <code className="text-red-400 font-mono bg-red-500/10 px-1 py-0.5 rounded">pricing</code>). Mails matching these keywords will immediately send the exact reply message you define.
-                      </p>
-                    </div>
-
-                    {/* Add Rule Form */}
-                    <form onSubmit={handleAddRule} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/60 border border-slate-800 p-4 rounded-xl items-end">
-                      <div>
-                        <label className="text-xs font-bold text-slate-300 mb-1.5 block">Matching Keyword / Phrase</label>
-                        <input
-                          type="text"
-                          value={newKeyword}
-                          onChange={(e) => setNewKeyword(e.target.value)}
-                          placeholder="e.g. interview"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-slate-700"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-300 mb-1.5 block">Auto-Reply Message</label>
-                        <input
-                          type="text"
-                          value={newReplyText}
-                          onChange={(e) => setNewReplyText(e.target.value)}
-                          placeholder="Message to auto-send..."
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-slate-700"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={addingRule || !newKeyword.trim() || !newReplyText.trim()}
-                        className="py-2 px-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-xs font-bold text-white transition flex items-center justify-center gap-1.5 h-[38px] shadow-md shadow-red-950/20"
-                      >
-                        <Plus className="h-4 w-4" /> Add Auto-Reply Rule
-                      </button>
-                    </form>
-
-                    {/* Active Rules List */}
-                    <div className="flex flex-col gap-3 mt-2">
-                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Active Rules List ({rules.length})</h4>
-                      <div className="flex flex-col gap-2.5">
-                        {rules.map((rule) => (
-                          <div key={rule.id} className="flex items-center justify-between p-4 bg-slate-900/70 border border-slate-800 rounded-xl">
-                            <div className="flex flex-col gap-1 min-w-0 pr-4">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-slate-200">If mail contains:</span>
-                                <span className="text-xs font-mono font-bold bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-lg">
-                                  "{rule.keyword}"
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                                <strong className="text-slate-400">Reply Sent:</strong> "{rule.replyText}"
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteRule(rule.id)}
-                              disabled={deletingRuleId === rule.id}
-                              className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition shrink-0 border border-transparent hover:border-red-500/20"
-                            >
-                              <Trash2 className="h-4 w-4" /> Delete Rule
-                            </button>
-                          </div>
-                        ))}
-                        {rules.length === 0 && (
-                          <div className="p-8 text-center border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
-                            No keyword rules created yet. Enter a keyword above to get started.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* System Instructions & Guidance Card */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-6 rounded-2xl flex flex-col gap-3 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                      <HelpCircle className="h-4 w-4 text-slate-400" /> How Keyword Auto-Replies Work
-                    </h3>
-                    <ul className="text-xs text-slate-400 leading-relaxed list-disc list-inside flex flex-col gap-2">
-                      <li><strong>Selective Auto-Reply:</strong> Auto-reply will ONLY execute if an incoming email contains one of your active keywords (case-insensitive) in the subject or body.</li>
-                      <li><strong>No Wasteful AI Calls:</strong> Unmatched emails (such as promotional, newsletter, or irrelevant emails) will NOT invoke AI auto-replies, saving system tokens.</li>
-                      <li><strong>On-Demand AI Drafting:</strong> When reviewing unmatched emails in your Inbox, click the <strong className="text-slate-200">"✨ AI Draft"</strong> button to manually generate a Llama 3 reply draft on demand.</li>
-                    </ul>
-                  </div>
-
-                </div>
-              </div>
-
-            ) : (
-
-              /* Default Mail View (2-Pane: Thread List + Expanded Reader) */
-              <div className="flex-1 flex overflow-hidden">
-                
-                {/* Thread List Pane */}
-                <div className="w-80 border-r border-slate-800 flex flex-col shrink-0 bg-slate-950/20 overflow-y-auto no-scrollbar">
-                  <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/30 shrink-0">
-                    <span className="text-xs font-bold text-slate-450 uppercase tracking-wider flex items-center gap-1.5">
-                      <Inbox className="h-4 w-4 text-slate-400" /> {selectedLabel} ({threads.length})
-                    </span>
-                  </div>
-                  <div className="flex-1 divide-y divide-slate-850">
-                    {threads.map((thread) => {
-                      const isActive = selectedThread?.threadId === thread.threadId;
-                      const isUnreplied = thread.status === "UNREPLIED";
-                      return (
-                        <div
-                          key={thread.id}
-                          onClick={() => setSelectedThread(thread)}
-                          className={`p-4 flex flex-col gap-1.5 cursor-pointer transition text-left relative ${
-                            isActive 
-                              ? "bg-slate-850/80 border-l-2 border-red-500" 
-                              : "hover:bg-slate-900/40 border-l-2 border-transparent"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-200 truncate max-w-[150px]">
-                              {thread.sender.split("<")[0].trim() || "Unknown"}
-                            </span>
-                            <span className="text-[10px] text-slate-500 flex items-center gap-0.5">
-                              <Clock className="h-2.5 w-2.5" />
-                              {new Date(thread.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                {/* Rules Table */}
+                <div className="flex flex-col gap-3 mt-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active System Rules ({rules.length})</span>
+                  <div className="flex flex-col gap-3">
+                    {rules.map((rule) => (
+                      <div key={rule.id} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl group hover:border-slate-300 transition-colors">
+                        <div className="flex flex-col gap-1 min-w-0 pr-6">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-slate-600">If subject or body contains:</span>
+                            <span className="text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-lg shadow-sm">
+                              {rule.keyword}
                             </span>
                           </div>
-                          <h4 className="text-xs font-semibold text-slate-300 truncate">
-                            {thread.subject}
-                          </h4>
-                          <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                            {thread.snippet}
+                          <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                            <strong className="text-slate-500 font-semibold">Instant Reply:</strong> "{rule.replyText}"
                           </p>
-                          
-                          {/* Status Badges */}
-                          <div className="flex items-center gap-1.5 mt-1">
-                            {isUnreplied ? (
-                              <span className="text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-md">
-                                Pending AI Draft
-                              </span>
-                            ) : (
-                              <span className="text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                                <Check className="h-2.5 w-2.5" /> Replied
-                              </span>
-                            )}
-                          </div>
                         </div>
-                      );
-                    })}
-
-                    {threads.length === 0 && (
-                      <div className="p-8 text-center text-slate-500 text-xs">
-                        No threads found in this mailbox. Click Sync Inbox to fetch.
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRule(rule.id)}
+                          disabled={deletingRuleId === rule.id}
+                          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-600 hover:bg-red-50 p-2 rounded-xl transition border border-transparent shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>{deletingRuleId === rule.id ? "Deleting..." : "Remove"}</span>
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {rules.length === 0 && (
+                      <div className="p-10 text-center border border-dashed border-slate-300 rounded-2xl text-slate-400 text-xs">
+                        No active auto-reply keyword filters. Configure keyword triggers above.
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Expanded Middle Message Flow Panel */}
-                <div className="flex-1 flex flex-col min-w-0 h-full bg-slate-900/20 overflow-y-auto overflow-x-hidden no-scrollbar p-6 md:p-8">
-                  {selectedThread ? (
-                    <div className="max-w-4xl w-full mx-auto flex flex-col gap-6 min-w-0 max-w-full">
-                      
-                      {/* Subject Header */}
-                      <div className="border-b border-slate-800 pb-4 min-w-0 max-w-full overflow-hidden">
-                        <h2 className="text-xl font-bold text-slate-100 truncate">{selectedThread.subject}</h2>
-                        <p className="text-xs text-slate-400 mt-1 truncate">
-                          From: <span className="text-slate-300 font-medium">{selectedThread.sender}</span>
-                        </p>
-                      </div>
-
-                      {/* Message Bubble Flow */}
-                      <div className="flex flex-col gap-5 min-w-0 max-w-full">
-                        {selectedThread.messages?.map((msg) => {
-                          const isInbound = msg.direction === "inbound";
-                          return (
-                            <div
-                              key={msg.id}
-                              className={`flex flex-col gap-1.5 w-full min-w-0 max-w-full ${
-                                isInbound ? "self-start" : "self-end items-end"
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                                {isInbound ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3 text-red-400" />}
-                                <span className="truncate max-w-[200px]">{msg.sender.split("<")[0].trim() || msg.sender}</span>
-                                <span>•</span>
-                                <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                              </div>
-                              <div
-                                className={`p-5 rounded-2xl border w-full min-w-0 max-w-full overflow-hidden text-left ${
-                                  isInbound 
-                                    ? "bg-slate-900/90 border-slate-800 text-slate-200 rounded-tl-none shadow-sm" 
-                                    : "bg-slate-850 border-slate-750 text-slate-100 rounded-tr-none shadow-sm"
-                                }`}
-                              >
-                                <EmailRenderer content={msg.content} htmlContent={msg.htmlContent} />
-                                
-                                <AttachmentRenderer attachments={msg.attachments} messageId={msg.messageId} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Bottom AI Draft Responder Panel */}
-                      {selectedThread.status === "UNREPLIED" && (
-                        <div className="mt-8 rounded-2xl border border-red-500/20 bg-slate-900/80 p-6 shadow-xl relative overflow-hidden">
-                          <div className="absolute top-0 right-0 h-24 w-24 bg-red-500/5 blur-2xl rounded-full" />
-                          
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <Bot className="h-5 w-5 text-red-400" />
-                              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
-                                Draft Response
-                              </h3>
-                            </div>
-                            <button
-                              onClick={handleGenerateAiReply}
-                              disabled={generatingAi}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white text-xs font-bold transition shadow-sm disabled:opacity-50"
-                            >
-                              <Sparkles className={`h-3.5 w-3.5 ${generatingAi ? "animate-spin" : ""}`} />
-                              {generatingAi ? "Generating AI Reply..." : "✨ AI Draft"}
-                            </button>
-                          </div>
-
-                          {/* Text Editor */}
-                          <textarea
-                            value={draftReplyText}
-                            onChange={(e) => setDraftReplyText(e.target.value)}
-                            placeholder="Type your email response here, or click '✨ AI Draft' above to generate with AI..."
-                            rows={6}
-                            className="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-xs leading-relaxed text-slate-100 placeholder-slate-600 focus:outline-none focus:border-slate-700 resize-none font-sans scrollbar-none"
-                          />
-
-                          {/* Control Trigger */}
-                          <div className="flex justify-end mt-4">
-                            <button
-                              onClick={handleSendReply}
-                              disabled={sendingReply || !draftReplyText.trim()}
-                              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-xs font-bold text-white transition shadow-md shadow-red-950/20"
-                            >
-                              <Send className="h-3.5 w-3.5" />
-                              {sendingReply ? "Sending..." : "Send Email Reply"}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
-                      <Mail className="h-12 w-12 mb-3 opacity-40 text-red-400" />
-                      <p className="text-sm font-medium text-slate-400">No active conversation thread selected.</p>
-                      <p className="text-xs text-slate-500 mt-1">Select a conversation from the left to read and reply.</p>
-                    </div>
-                  )}
-                </div>
-
               </div>
 
-            )}
+              {/* Bottom Config Actions */}
+              <div className="flex justify-end gap-3 shrink-0">
+                <button
+                  onClick={handleSaveConfig}
+                  disabled={savingConfig}
+                  className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs tracking-wide transition shadow-md shadow-emerald-500/20 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <Save className="h-4 w-4" />
+                  {savingConfig ? "Saving Config..." : "Save Settings"}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        ) : (
+          /* -------------------- INBOX TAB VIEW -------------------- */
+          <div className="flex-1 flex overflow-hidden">
+            
+            {/* Conversation Threads Pane */}
+            <div className="w-85 border-r border-slate-200 flex flex-col shrink-0 bg-white overflow-hidden">
+              
+              {/* Search Bar Block */}
+              <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-3 shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search messages..."
+                    className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Scrollable Conversation List */}
+              <div className="flex-1 overflow-y-auto no-scrollbar divide-y divide-slate-100">
+                {filteredThreads.map((thread) => {
+                  const isActive = selectedThread?.threadId === thread.threadId;
+                  const isUnreplied = thread.status === "UNREPLIED";
+                  const initials = getInitials(thread.sender);
+                  const avatarTheme = getAvatarColor(initials);
+                  
+                  return (
+                    <div
+                      key={thread.id}
+                      onClick={() => setSelectedThread(thread)}
+                      className={`p-4 flex gap-3.5 cursor-pointer transition-all duration-200 text-left relative group ${
+                        isActive 
+                          ? "bg-emerald-50/60 border-l-3 border-emerald-500" 
+                          : "hover:bg-slate-50 border-l-3 border-transparent"
+                      }`}
+                    >
+                      {/* Initials Avatar */}
+                      <div className={`h-10 w-10 rounded-2xl bg-gradient-to-tr ${avatarTheme} border flex items-center justify-center font-bold text-xs shrink-0 shadow-sm transition-transform duration-300 group-hover:scale-105`}>
+                        {initials}
+                      </div>
+
+                      <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs truncate max-w-[130px] ${isUnreplied ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
+                            {thread.sender.split("<")[0].trim().replace(/['"]/g, "") || "Unknown"}
+                          </span>
+                          <span className="text-[9px] text-slate-400 flex items-center gap-0.5 shrink-0">
+                            <Clock className="h-2.5 w-2.5" />
+                            {new Date(thread.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+                        <h4 className={`text-xs truncate ${isUnreplied ? "font-bold text-slate-800" : "font-medium text-slate-600"}`}>
+                          {thread.subject}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mt-0.5">
+                          {thread.snippet}
+                        </p>
+
+                        {/* Status Pills */}
+                        <div className="flex items-center justify-between mt-1.5">
+                          {isUnreplied ? (
+                            <span className="text-[9px] font-extrabold tracking-wide uppercase bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-lg shadow-sm">
+                              Pending Action
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-extrabold tracking-wide uppercase bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
+                              <Check className="h-2.5 w-2.5" /> Replied
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredThreads.length === 0 && (
+                  <div className="p-10 text-center text-slate-400 text-xs">
+                    No matching threads found.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Email Message Detail Flow and Reader Pane */}
+            <div className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-y-auto no-scrollbar p-8">
+              {selectedThread ? (
+                <div className="max-w-4xl w-full mx-auto flex flex-col gap-6 min-w-0">
+                  
+                  {/* Selected Subject Header */}
+                  <div className="border-b border-slate-200 pb-5 min-w-0 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <h2 className="text-xl font-bold text-slate-900 truncate tracking-tight">{selectedThread.subject}</h2>
+                      <p className="text-xs text-slate-500 mt-1 truncate">
+                        From: <span className="text-slate-700 font-semibold">{selectedThread.sender}</span>
+                      </p>
+                    </div>
+                    {selectedThread.status === "UNREPLIED" && (
+                      <span className="text-[10px] font-extrabold tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-xl shrink-0 uppercase shadow-sm flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5" /> Awaiting Response
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Message Bubble Chronology list */}
+                  <div className="flex flex-col gap-5 min-w-0">
+                    {selectedThread.messages?.map((msg) => {
+                      const isInbound = msg.direction === "inbound";
+                      const initials = getInitials(msg.sender);
+                      const avatarTheme = getAvatarColor(initials);
+                      
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex items-start gap-4 min-w-0 w-full ${
+                            isInbound ? "self-start" : "flex-row-reverse self-end"
+                          }`}
+                        >
+                          {/* Avatar Circle */}
+                          <div className={`h-9 w-9 rounded-2xl bg-gradient-to-tr ${avatarTheme} border flex items-center justify-center font-bold text-[11px] shrink-0 shadow-sm mt-1`}>
+                            {initials}
+                          </div>
+
+                          <div className={`flex flex-col gap-1.5 max-w-[85%] min-w-0 ${!isInbound && "items-end"}`}>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                              <span className="truncate font-semibold text-slate-700">
+                                {isInbound ? msg.sender.split("<")[0].trim().replace(/['"]/g, "") : "AI Agent"}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            
+                            {/* Message content card wrapper */}
+                            <div
+                              className={`p-5 rounded-3xl border text-left w-full min-w-0 break-words overflow-hidden ${
+                                isInbound 
+                                  ? "bg-white border-slate-200 text-slate-900 rounded-tl-none shadow-sm" 
+                                  : "bg-slate-100 border-slate-200 text-slate-900 rounded-tr-none shadow-sm"
+                              }`}
+                            >
+                              <EmailRenderer content={msg.content} htmlContent={msg.htmlContent} />
+                              
+                              {/* Attachments inside bubble */}
+                              <AttachmentRenderer attachments={msg.attachments} messageId={msg.messageId} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Redesigned AI/Manual Action Responder Panel */}
+                  {selectedThread.status === "UNREPLIED" && (
+                    <div className="mt-8 rounded-3xl border border-emerald-200 bg-white p-6 shadow-md relative overflow-hidden">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Bot className="h-5 w-5 text-emerald-600" />
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900">Draft Response</h3>
+                            <p className="text-[10px] text-slate-500 font-medium">Draft custom message or request Llama 3 generation</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleGenerateAiReply}
+                          disabled={generatingAi}
+                          className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition duration-300 disabled:opacity-50 shadow-sm cursor-pointer"
+                        >
+                          <Sparkles className={`h-4 w-4 ${generatingAi ? "animate-spin text-emerald-600" : ""}`} />
+                          {generatingAi ? "Invoking AI Engine..." : "Generate AI Reply"}
+                        </button>
+                      </div>
+
+                      {/* Text editor box */}
+                      <textarea
+                        value={draftReplyText}
+                        onChange={(e) => setDraftReplyText(e.target.value)}
+                        placeholder="Type your manual response email here, or click 'Generate AI Reply' above to draft with AI..."
+                        rows={6}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs leading-relaxed text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 resize-none font-sans"
+                      />
+
+                      {/* Responder Control Panel */}
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                          <Info className="h-4.5 w-4.5 text-slate-400" />
+                          <span>Review the email content before sending. Auto-replies are recorded.</span>
+                        </div>
+                        <button
+                          onClick={handleSendReply}
+                          disabled={sendingReply || !draftReplyText.trim()}
+                          className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-xs font-bold text-white transition shadow-md shadow-emerald-500/20 active:scale-98 cursor-pointer"
+                        >
+                          <Send className="h-4 w-4" />
+                          {sendingReply ? "Sending..." : "Send Email Reply"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              ) : (
+                /* Empty thread viewer graphic */
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                  <Mail className="h-16 w-16 mb-3 opacity-40 text-emerald-600" />
+                  <p className="text-sm font-semibold text-slate-700">No active thread selected</p>
+                  <p className="text-xs text-slate-500 mt-1">Select a mailbox item from the left panel to inspect message flow.</p>
+                </div>
+              )}
+            </div>
 
           </div>
         )}
