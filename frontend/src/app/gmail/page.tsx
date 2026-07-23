@@ -76,6 +76,8 @@ interface GmailThread {
   snippet: string;
   status: "UNREPLIED" | "REPLIED" | "SKIPPED";
   label: string;
+  isStarred?: boolean;
+  isSpam?: boolean;
   createdAt: string;
   updatedAt: string;
   messages: GmailMessage[];
@@ -301,55 +303,20 @@ export default function GmailDashboard() {
 
   const socketRef = useRef<Socket | null>(null);
 
-  // Fetch Threads, Config, and Rules
+  // Fetch Threads fast (non-blocking for config)
   const fetchData = async (label = selectedLabel) => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      // Get settings config
-      const configRes = await fetch(`${BACKEND_URL}/api/gmail/config`, {
+      // Get threads list for current label immediately from local DB
+      const threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
-      if (configRes.ok) {
-        const configData = await configRes.json();
-        setAutoReplyEnabled(configData.autoReplyEnabled);
-        setAutoReplyTemplate(configData.autoReplyTemplate || "");
-        setConnectedEmail(configData.emailAddress || null);
-      }
 
-      // Fetch rules list
-      await fetchRules();
-
-      // Get threads list for current label
-      let threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
-      });
       if (threadsRes.ok) {
         let threadsData = await threadsRes.json();
-
-        // If no cached threads exist for this category yet, trigger sync from Gmail API
-        if (threadsData.length === 0 && configRes.ok) {
-          try {
-            await fetch(`${BACKEND_URL}/api/gmail/sync`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-organization-id": DEFAULT_ORG_ID
-              },
-              body: JSON.stringify({ label })
-            });
-            const refetched = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
-              headers: { "x-organization-id": DEFAULT_ORG_ID }
-            });
-            if (refetched.ok) {
-              threadsData = await refetched.json();
-            }
-          } catch (syncErr) {
-            console.warn("Auto sync for label failed:", syncErr);
-          }
-        }
-
         setThreads(threadsData);
+
         if (threadsData.length > 0) {
           setSelectedThread(prev => {
             if (prev) {
@@ -362,6 +329,19 @@ export default function GmailDashboard() {
           setSelectedThread(null);
         }
       }
+
+      // Non-blocking fetch of config & rules
+      fetch(`${BACKEND_URL}/api/gmail/config`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      }).then(res => res.ok ? res.json() : null).then(configData => {
+        if (configData) {
+          setAutoReplyEnabled(configData.autoReplyEnabled);
+          setAutoReplyTemplate(configData.autoReplyTemplate || "");
+          setConnectedEmail(configData.emailAddress || null);
+        }
+      }).catch(console.error);
+
+      fetchRules();
     } catch (err: any) {
       console.error("Failed to load Gmail data:", err);
       setErrorMsg("Failed to connect to the backend server.");
@@ -381,6 +361,61 @@ export default function GmailDashboard() {
       }
     } catch (err) {
       console.error("Failed to fetch rules:", err);
+    }
+  };
+
+  // Toggle Star on a thread
+  const handleToggleStar = async (threadId: string, currentStarred: boolean) => {
+    const nextStarred = !currentStarred;
+    setThreads(prev => prev.map(t => t.threadId === threadId ? { ...t, isStarred: nextStarred } : t));
+    if (selectedThread?.threadId === threadId) {
+      setSelectedThread(prev => prev ? { ...prev, isStarred: nextStarred } : null);
+    }
+
+    try {
+      await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}/star`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": DEFAULT_ORG_ID },
+        body: JSON.stringify({ isStarred: nextStarred })
+      });
+    } catch (err) {
+      console.error("Failed to update star:", err);
+    }
+  };
+
+  // Toggle Spam on a thread
+  const handleToggleSpam = async (threadId: string, currentSpam: boolean) => {
+    const nextSpam = !currentSpam;
+    setThreads(prev => prev.filter(t => t.threadId !== threadId));
+    if (selectedThread?.threadId === threadId) {
+      setSelectedThread(null);
+    }
+
+    try {
+      await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}/spam`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": DEFAULT_ORG_ID },
+        body: JSON.stringify({ isSpam: nextSpam })
+      });
+    } catch (err) {
+      console.error("Failed to update spam status:", err);
+    }
+  };
+
+  // Delete thread (Move to Trash / Permanent delete)
+  const handleDeleteThread = async (threadId: string) => {
+    setThreads(prev => prev.filter(t => t.threadId !== threadId));
+    if (selectedThread?.threadId === threadId) {
+      setSelectedThread(null);
+    }
+
+    try {
+      await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}`, {
+        method: "DELETE",
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+    } catch (err) {
+      console.error("Failed to delete thread:", err);
     }
   };
 
@@ -1044,7 +1079,7 @@ export default function GmailDashboard() {
                           {thread.snippet}
                         </p>
 
-                        {/* Status Pills */}
+                        {/* Status Pills and Action Buttons */}
                         <div className="flex items-center justify-between mt-1.5">
                           {isUnreplied ? (
                             <span className="text-[9px] font-extrabold tracking-wide uppercase bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-lg shadow-sm">
@@ -1055,6 +1090,33 @@ export default function GmailDashboard() {
                               <Check className="h-2.5 w-2.5" /> Replied
                             </span>
                           )}
+
+                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              title={thread.isStarred ? "Unstar" : "Star"}
+                              onClick={(e) => { e.stopPropagation(); handleToggleStar(thread.threadId, !!thread.isStarred); }}
+                              className={`p-1 rounded-lg transition ${thread.isStarred ? "text-amber-500 hover:text-amber-600" : "text-slate-400 hover:text-amber-500 hover:bg-slate-100"}`}
+                            >
+                              <Star className={`h-3.5 w-3.5 ${thread.isStarred ? "fill-amber-400" : ""}`} />
+                            </button>
+                            <button
+                              type="button"
+                              title={thread.isSpam ? "Unmark Spam" : "Mark as Spam"}
+                              onClick={(e) => { e.stopPropagation(); handleToggleSpam(thread.threadId, !!thread.isSpam); }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 transition"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteThread(thread.threadId); }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-100 transition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1074,7 +1136,7 @@ export default function GmailDashboard() {
               {selectedThread ? (
                 <div className="max-w-4xl w-full mx-auto flex flex-col gap-6 min-w-0">
                   
-                  {/* Selected Subject Header */}
+                  {/* Selected Subject Header with Actions */}
                   <div className="border-b border-slate-200 pb-5 min-w-0 flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <h2 className="text-xl font-bold text-slate-900 truncate tracking-tight">{selectedThread.subject}</h2>
@@ -1082,11 +1144,45 @@ export default function GmailDashboard() {
                         From: <span className="text-slate-700 font-semibold">{selectedThread.sender}</span>
                       </p>
                     </div>
-                    {selectedThread.status === "UNREPLIED" && (
-                      <span className="text-[10px] font-extrabold tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-xl shrink-0 uppercase shadow-sm flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5" /> Awaiting Response
-                      </span>
-                    )}
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {selectedThread.status === "UNREPLIED" && (
+                        <span className="text-[10px] font-extrabold tracking-wider bg-amber-500/10 text-amber-600 border border-amber-200 px-2.5 py-1 rounded-xl shrink-0 uppercase shadow-sm flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" /> Awaiting Response
+                        </span>
+                      )}
+
+                      {/* Header Action Buttons */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStar(selectedThread.threadId, !!selectedThread.isStarred)}
+                        className={`p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm ${selectedThread.isStarred ? "text-amber-500" : "text-slate-600"}`}
+                        title={selectedThread.isStarred ? "Unstar Email" : "Star Email"}
+                      >
+                        <Star className={`h-4 w-4 ${selectedThread.isStarred ? "fill-amber-400 text-amber-500" : ""}`} />
+                        <span>{selectedThread.isStarred ? "Starred" : "Star"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSpam(selectedThread.threadId, !!selectedThread.isSpam)}
+                        className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:text-red-600 text-slate-600 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+                        title={selectedThread.isSpam ? "Unmark Spam" : "Mark as Spam"}
+                      >
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <span>{selectedThread.isSpam ? "In Spam" : "Spam"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteThread(selectedThread.threadId)}
+                        className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:text-red-600 text-slate-600 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+                        title="Delete Email"
+                      >
+                        <Trash2 className="h-4 w-4 text-slate-500 hover:text-red-600" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Message Bubble Chronology list */}

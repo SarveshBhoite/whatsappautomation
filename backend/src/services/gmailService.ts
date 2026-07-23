@@ -460,3 +460,66 @@ export async function sendGmailReply(orgId: string, threadId: string, replyConte
     throw err;
   }
 }
+
+/**
+ * Modifies labels for a thread in Gmail API (Add/Remove labels like STARRED, SPAM, TRASH, INBOX).
+ */
+export async function updateGmailThreadLabels(
+  orgId: string, 
+  threadId: string, 
+  addLabelIds: string[], 
+  removeLabelIds: string[]
+): Promise<any> {
+  try {
+    const token = await getGmailAccessToken(orgId);
+
+    const response = await axios.post(
+      `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}/modify`,
+      {
+        addLabelIds,
+        removeLabelIds
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+
+    return response.data;
+  } catch (err: any) {
+    console.error(`[GMAIL SERVICE] Failed to modify labels on Gmail API for thread ${threadId}:`, err?.response?.data || err.message);
+    throw err;
+  }
+}
+
+/**
+ * Moves thread to Trash or permanently deletes it in Gmail API.
+ */
+export async function deleteGmailThreadViaApi(orgId: string, threadId: string, permanent = false): Promise<any> {
+  try {
+    const token = await getGmailAccessToken(orgId);
+
+    if (permanent) {
+      // Permanently delete thread from Gmail
+      const response = await axios.delete(
+        `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      return response.data;
+    } else {
+      // Move thread to Trash in Gmail
+      const response = await axios.post(
+        `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}/trash`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      return response.data;
+    }
+  } catch (err: any) {
+    console.error(`[GMAIL SERVICE] Delete failed on Gmail API for thread ${threadId}:`, err?.response?.data || err.message);
+    throw err;
+  }
+}

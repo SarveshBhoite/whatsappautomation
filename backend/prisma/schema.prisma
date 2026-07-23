@@ -349,6 +349,8 @@ model GmailThread {
   snippet        String?
   status         String         @default("UNREPLIED") // UNREPLIED, REPLIED, SKIPPED
   label          String         @default("INBOX")
+  isStarred      Boolean        @default(false)
+  isSpam         Boolean        @default(false)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   messages       GmailMessage[]

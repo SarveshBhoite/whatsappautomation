@@ -1,7 +1,14 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import axios from "axios";
-import { syncGmailThreads, sendGmailReply, generateGmailAiDraft, getGmailAccessToken } from "../services/gmailService";
+import { 
+  syncGmailThreads, 
+  sendGmailReply, 
+  generateGmailAiDraft, 
+  getGmailAccessToken,
+  updateGmailThreadLabels,
+  deleteGmailThreadViaApi
+} from "../services/gmailService";
 import { io } from "../index";
 
 const router = Router();
@@ -189,10 +196,25 @@ router.get("/oauth/callback", async (req: Request, res: Response) => {
 router.get("/threads", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const label = (req.query.label as string) || "INBOX";
+    const label = ((req.query.label as string) || "INBOX").toUpperCase();
+
+    let whereClause: any = { organizationId };
+
+    if (label === "STARRED") {
+      whereClause.isStarred = true;
+    } else if (label === "SPAM") {
+      whereClause.label = "SPAM";
+    } else if (label === "TRASH") {
+      whereClause.label = "TRASH";
+    } else if (label === "SENT") {
+      whereClause.label = "SENT";
+    } else {
+      // Default INBOX: show non-spam, non-trash inbox threads
+      whereClause.label = "INBOX";
+    }
 
     const threads = await prisma.gmailThread.findMany({
-      where: { organizationId, label },
+      where: whereClause,
       include: {
         messages: {
           orderBy: { createdAt: "asc" },
@@ -208,6 +230,113 @@ router.get("/threads", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error fetching Gmail threads:", error);
     return res.status(500).json({ error: "Failed to fetch Gmail threads", details: error.message });
+  }
+});
+
+// POST: Toggle Star on a thread
+router.post("/threads/:threadId/star", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { threadId } = req.params;
+    const { isStarred } = req.body;
+
+    const thread = await prisma.gmailThread.update({
+      where: { threadId },
+      data: { isStarred: Boolean(isStarred) }
+    });
+
+    // Sync with Google Gmail REST API
+    try {
+      const addLabels = isStarred ? ["STARRED"] : [];
+      const removeLabels = isStarred ? [] : ["STARRED"];
+      await updateGmailThreadLabels(organizationId, threadId, addLabels, removeLabels);
+    } catch (apiErr: any) {
+      console.warn(`[GMAIL API] Could not sync star status to Gmail API for thread ${threadId}:`, apiErr.message);
+    }
+
+    return res.status(200).json({ success: true, isStarred: thread.isStarred });
+  } catch (error: any) {
+    console.error("Error toggling star:", error);
+    return res.status(500).json({ error: "Failed to update star status", details: error.message });
+  }
+});
+
+// POST: Mark thread as Spam or move back to Inbox
+router.post("/threads/:threadId/spam", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { threadId } = req.params;
+    const { isSpam } = req.body;
+
+    const newLabel = isSpam ? "SPAM" : "INBOX";
+    const thread = await prisma.gmailThread.update({
+      where: { threadId },
+      data: { isSpam: Boolean(isSpam), label: newLabel }
+    });
+
+    // Sync with Google Gmail REST API
+    try {
+      const addLabels = isSpam ? ["SPAM"] : ["INBOX"];
+      const removeLabels = isSpam ? ["INBOX"] : ["SPAM"];
+      await updateGmailThreadLabels(organizationId, threadId, addLabels, removeLabels);
+    } catch (apiErr: any) {
+      console.warn(`[GMAIL API] Could not sync spam status to Gmail API for thread ${threadId}:`, apiErr.message);
+    }
+
+    return res.status(200).json({ success: true, isSpam: thread.isSpam, label: thread.label });
+  } catch (error: any) {
+    console.error("Error toggling spam:", error);
+    return res.status(500).json({ error: "Failed to update spam status", details: error.message });
+  }
+});
+
+// DELETE: Move thread to Trash or permanently delete
+router.delete("/threads/:threadId", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { threadId } = req.params;
+
+    const thread = await prisma.gmailThread.findUnique({
+      where: { threadId }
+    });
+
+    if (!thread) {
+      return res.status(404).json({ error: "Thread not found" });
+    }
+
+    if (thread.label === "TRASH") {
+      // Permanently delete from local DB
+      await prisma.gmailThread.delete({
+        where: { threadId }
+      });
+
+      // Sync permanent delete to Google Gmail API
+      try {
+        await deleteGmailThreadViaApi(organizationId, threadId, true);
+      } catch (apiErr: any) {
+        console.warn(`[GMAIL API] Permanent delete failed on Gmail API for thread ${threadId}:`, apiErr.message);
+      }
+
+      return res.status(200).json({ success: true, message: "Thread permanently deleted" });
+    } else {
+      // Move to Trash folder locally
+      await prisma.gmailThread.update({
+        where: { threadId },
+        data: { label: "TRASH" }
+      });
+
+      // Sync trash operation to Google Gmail API
+      try {
+        await deleteGmailThreadViaApi(organizationId, threadId, false);
+      } catch (apiErr: any) {
+        console.warn(`[GMAIL API] Trash sync failed on Gmail API for thread ${threadId}:`, apiErr.message);
+      }
+
+      return res.status(200).json({ success: true, message: "Thread moved to Trash" });
+    }
+  } catch (error: any) {
+    console.error("Error deleting thread:", error);
+    return res.status(500).json({ error: "Failed to delete thread", details: error.message });
   }
 });
 
