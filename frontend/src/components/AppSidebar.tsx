@@ -143,33 +143,37 @@ export default function AppSidebar() {
       </aside>
 
       {/* ── Mobile bottom bar ───────────────────────────────────────────── */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur border-t border-slate-800 flex items-center justify-around">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2 py-1.5 gap-1.5 shadow-2xl safe-bottom">
         {[
-          { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,  label: "WA" },
-          { href: "/instagram", icon: <Instagram className="h-5 w-5" />, label: "IG" },
-          { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,   label: "YT" },
+          { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,  label: "WhatsApp" },
+          { href: "/instagram", icon: <Instagram className="h-5 w-5" />, label: "Instagram" },
+          { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,   label: "YouTube" },
           { href: "/gmail",     icon: <Mail className="h-5 w-5" />,      label: "Gmail" },
-          { href: "/linkedin",  icon: <LinkedIn className="h-5 w-5" />,  label: "LI" },
+          { href: "/linkedin",  icon: <LinkedIn className="h-5 w-5" />,  label: "LinkedIn" },
           { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,  label: "Flows" },
           { href: "/reviews",   icon: <Star className="h-5 w-5" />,      label: "Reviews" },
           { href: "/gmb",       icon: <Store className="h-5 w-5" />,     label: "Listing" },
           { href: "/ads",       icon: <Megaphone className="h-5 w-5" />, label: "Ads" },
           { href: "/tools",     icon: <Wrench className="h-5 w-5" />,    label: "Tools" },
           { href: "/settings",  icon: <Settings className="h-5 w-5" />,  label: "Settings" },
-        ].map(item => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex flex-col items-center gap-0.5 py-2.5 px-2 flex-1 transition-colors ${
-              pathname === item.href || pathname.startsWith(item.href + "/")
-                ? "text-primary"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            {item.icon}
-            <span className="text-[8px] font-semibold tracking-wide">{item.label}</span>
-          </Link>
-        ))}
+        ].map(item => {
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`
+                flex flex-col items-center justify-center gap-1 py-1.5 px-3 shrink-0 rounded-xl transition-all duration-200 min-w-[68px]
+                ${active
+                  ? "bg-primary/20 text-primary font-bold border border-primary/30 shadow-sm shadow-primary/20"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"}
+              `}
+            >
+              {item.icon}
+              <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </>
   );
