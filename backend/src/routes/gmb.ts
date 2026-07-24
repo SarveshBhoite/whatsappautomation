@@ -11,6 +11,7 @@ import {
   buildGmbPostPayload,
   logGmbRequest
 } from "../services/gmbSyncService";
+import { syncGmailThreads } from "../services/gmailService";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123"; // Seeded organization ID for developer/sandbox environment

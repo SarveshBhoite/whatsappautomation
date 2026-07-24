@@ -13,6 +13,7 @@ import gmbPerformanceRouter from "./routes/gmbPerformance";
 import googleAdsRouter from "./routes/googleAds";
 import youtubeRouter from "./routes/youtube";
 import seoRouter from "./routes/seo";
+import gmailRouter from "./routes/gmail";
 
 dotenv.config();
 
@@ -60,6 +61,8 @@ app.use("/api/youtube", youtubeRouter);
 // Web SEO Audit Router
 app.use("/api/seo", seoRouter);
 
+// Gmail Router
+app.use("/api/gmail", gmailRouter);
 
 // Health check endpoints (for Render Keep-Alive cron/uptime pings)
 app.get(["/health", "/api/health"], (req, res) => {
@@ -89,6 +92,7 @@ io.on("connection", (socket) => {
 import prisma from "./utils/prisma";
 import { syncGmbReviews, syncGmbPosts, publishPostToGmb } from "./services/gmbSyncService";
 import { YouTubeService } from "./services/youtubeService";
+import { syncGmailThreads } from "./services/gmailService";
 
 // Background Google Business Profile Reviews Sync Scheduler
 async function runBackgroundGmbSync() {
@@ -121,7 +125,6 @@ async function runBackgroundGmbSync() {
           const postsResult = await syncGmbPosts(config.organizationId, io);
           console.log(`[BACKGROUND SCHEDULER] Posts sync for ${config.organizationId}: ${postsResult.length} posts total.`);
         } catch (postErr: any) {
-          // Post sync failures are non-fatal (GMB My Business API may not be enabled)
           console.warn(`[BACKGROUND SCHEDULER] Posts sync skipped for ${config.organizationId}: ${postErr.message}`);
         }
       } catch (err: any) {
@@ -150,6 +153,26 @@ async function runBackgroundYoutubeSync() {
     }
   } catch (err: any) {
     console.error("[BACKGROUND SCHEDULER] YouTube sync scheduler error:", err.message);
+  }
+}
+
+// Background Gmail Threads Polling Scheduler
+async function runBackgroundGmailSync() {
+  console.log("[BACKGROUND SCHEDULER] Running auto-sync for active Gmail inboxes...");
+  try {
+    const configs = await prisma.gmailConfig.findMany({
+      where: {
+        refreshToken: { not: "" }
+      }
+    });
+
+    console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active Gmail configurations to sync.`);
+
+    for (const config of configs) {
+      await syncGmailThreads(config.organizationId, io);
+    }
+  } catch (err: any) {
+    console.error("[BACKGROUND SCHEDULER] Gmail sync scheduler error:", err.message);
   }
 }
 
@@ -187,6 +210,7 @@ function startGmbSyncScheduler() {
   setInterval(() => {
     runBackgroundGmbSync();
     runBackgroundYoutubeSync();
+    runBackgroundGmailSync();
   }, 15 * 60 * 1000);
 
   // Check and publish scheduled posts every 60 seconds
