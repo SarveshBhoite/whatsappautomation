@@ -1,8 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import { validateLinkedInEnv } from "./services/linkedinService";
+
+validateLinkedInEnv();
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import webhookRouter from "./routes/webhook";
@@ -12,8 +17,8 @@ import gmbRouter from "./routes/gmb";
 import gmbPerformanceRouter from "./routes/gmbPerformance";
 import googleAdsRouter from "./routes/googleAds";
 import youtubeRouter from "./routes/youtube";
+import linkedinRouter from "./routes/linkedin";
 
-dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
@@ -56,6 +61,10 @@ app.use("/api/ads", googleAdsRouter);
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
 
+// LinkedIn Integration Router
+app.use("/api/linkedin", linkedinRouter);
+
+
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -80,6 +89,24 @@ io.on("connection", (socket) => {
 import prisma from "./utils/prisma";
 import { syncGmbReviews, syncGmbPosts, publishPostToGmb } from "./services/gmbSyncService";
 import { YouTubeService } from "./services/youtubeService";
+import { LinkedInService, LinkedInSyncService } from "./services/linkedinService";
+
+// Background LinkedIn Profile & Data Sync Scheduler (Runs every 15 minutes)
+async function runBackgroundLinkedInSync() {
+  console.log("[LINKEDIN] Sync Started");
+  try {
+    const configs = await prisma.linkedInConfig.findMany();
+    console.log(`[LINKEDIN] Found ${configs.length} active LinkedIn configuration(s) to sync.`);
+    for (const config of configs) {
+      if (config.accessToken) {
+        await LinkedInSyncService.syncPersonalProfile(config.organizationId, io);
+      }
+    }
+    console.log("[LINKEDIN] Sync Complete");
+  } catch (err: any) {
+    console.error("[LINKEDIN] API Error - Background sync execution error:", err.message);
+  }
+}
 
 // Background Google Business Profile Reviews Sync Scheduler
 async function runBackgroundGmbSync() {
@@ -178,6 +205,7 @@ function startGmbSyncScheduler() {
   setInterval(() => {
     runBackgroundGmbSync();
     runBackgroundYoutubeSync();
+    runBackgroundLinkedInSync();
   }, 15 * 60 * 1000);
 
   // Check and publish scheduled posts every 60 seconds
@@ -185,11 +213,75 @@ function startGmbSyncScheduler() {
   setInterval(() => { runScheduledPostsSync(); }, 60 * 1000);
 }
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-server.listen(Number(PORT), "::", () => {
-  console.log(`Backend server running on all interfaces (port ${PORT})`);
-  startGmbSyncScheduler();
-});
+import net from "net";
+
+// Helper to check if a port is available
+function checkPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tester = net.createServer()
+      .once("error", (err: any) => {
+        if (err.code === "EADDRINUSE") {
+          resolve(false);
+        } else {
+          resolve(false);
+        }
+      })
+      .once("listening", () => {
+        tester.once("close", () => {
+          resolve(true);
+        }).close();
+      })
+      .listen(port);
+  });
+}
+
+// Start Server with Robust Port Availability Detection & Graceful Error Handling
+async function startServer() {
+  console.log("Backend starting...");
+  console.log(`[LINKEDIN] process.env.LINKEDIN_MEMBER_CLIENT_ID: ${process.env.LINKEDIN_MEMBER_CLIENT_ID || "NOT SET"}`);
+  console.log(`[LINKEDIN] process.env.LINKEDIN_MEMBER_REDIRECT_URI: ${process.env.LINKEDIN_MEMBER_REDIRECT_URI || "NOT SET"}`);
+  console.log("Checking port...");
+
+  const PORT = Number(process.env.PORT) || 5000;
+
+  const isAvailable = await checkPortAvailable(PORT);
+
+  if (!isAvailable) {
+    console.log("");
+    console.log("----------------------------------------");
+    console.log(`Port ${PORT} is already in use.`);
+    console.log("Existing backend process detected.");
+    console.log("Please stop the running instance or choose another port.");
+    console.log("----------------------------------------");
+    console.log("");
+    process.exit(0);
+    return;
+  }
+
+  console.log("Port available.");
+
+  server.on("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      console.log("");
+      console.log("----------------------------------------");
+      console.log(`Port ${PORT} is already in use.`);
+      console.log("Existing backend process detected.");
+      console.log("Please stop the running instance or choose another port.");
+      console.log("----------------------------------------");
+      console.log("");
+      process.exit(0);
+    } else {
+      console.error("Backend server startup error:", err.message);
+      process.exit(1);
+    }
+  });
+
+  server.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}.`);
+    startGmbSyncScheduler();
+  });
+}
+
+startServer();
 
 export { io };

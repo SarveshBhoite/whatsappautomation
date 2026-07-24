@@ -2,6 +2,8 @@ import prisma from "../utils/prisma";
 import { WhatsAppService } from "./whatsappService";
 import { InstagramService } from "./instagramService";
 import { YouTubeService } from "./youtubeService";
+import { LinkedInService } from "./linkedinService";
+
 
 interface FlowGraph {
   nodes: FlowNode[];
@@ -46,6 +48,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             waConfig: true,
             igConfig: true,
             ytConfig: true,
+            linkedInConfig: true,
           },
         },
       },
@@ -62,9 +65,11 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     const isWhatsApp = conversation.platform === "whatsapp";
     const isInstagram = conversation.platform === "instagram";
     const isYouTube = conversation.platform === "youtube";
+    const isLinkedIn = conversation.platform === "linkedin";
     const waConfig = conversation.organization.waConfig;
     const igConfig = conversation.organization.igConfig;
     const ytConfig = conversation.organization.ytConfig;
+    const linkedInConfig = conversation.organization.linkedInConfig;
 
     if (isWhatsApp) {
       if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
@@ -79,6 +84,11 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     } else if (isYouTube) {
       if (!ytConfig || !ytConfig.channelId || !ytConfig.accessToken) {
         console.warn(`YouTube credentials missing for conversation ${conversationId}`);
+        return;
+      }
+    } else if (isLinkedIn) {
+      if (!linkedInConfig) {
+        console.warn(`LinkedIn configuration missing for conversation ${conversationId}`);
         return;
       }
     }
@@ -285,14 +295,21 @@ async function sendNodeMessage(
   const isWhatsApp = platform === "whatsapp";
   const isInstagram = platform === "instagram";
   const isYouTube = platform === "youtube";
+  const isLinkedIn = platform === "linkedin";
 
-  // Refresh token dynamically for YouTube
+  // Refresh token dynamically for YouTube & LinkedIn
   let activeToken = accessToken;
   if (isYouTube) {
     try {
       activeToken = await YouTubeService.refreshAccessToken(organizationId);
     } catch (err: any) {
       console.warn("YouTube sync token refresh warning in flow engine:", err.message);
+    }
+  } else if (isLinkedIn) {
+    try {
+      activeToken = await LinkedInService.refreshAccessToken(organizationId);
+    } catch (err: any) {
+      console.warn("LinkedIn sync token refresh warning in flow engine:", err.message);
     }
   }
 
@@ -306,6 +323,8 @@ async function sendNodeMessage(
         responseData = await InstagramService.sendTextMessage(accessToken, to, content);
       } else if (isYouTube) {
         responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, content);
+      } else if (isLinkedIn) {
+        responseData = await LinkedInService.replyToComment(organizationId, to, content);
       }
     } else if (node.type === "mediaNode") {
       const type = data.mediaType || "image";
@@ -347,6 +366,19 @@ async function sendNodeMessage(
           to,
           mediaText
         );
+      } else if (isLinkedIn) {
+        let mediaText = url;
+        if (type === "document" && filename) {
+          mediaText = `${filename}: ${url}`;
+        }
+        if (caption) {
+          mediaText += ` - ${caption}`;
+        }
+        responseData = await LinkedInService.replyToComment(
+          organizationId,
+          to,
+          mediaText
+        );
       }
       
       // Construct content format for database saving
@@ -370,6 +402,10 @@ async function sendNodeMessage(
         const optionsText = buttons.map((btn, idx) => `\n${idx + 1}. ${btn.title}`).join("");
         const fullText = `${content}${optionsText}`;
         responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, fullText);
+      } else if (isLinkedIn) {
+        const optionsText = buttons.map((btn, idx) => `\n${idx + 1}. ${btn.title}`).join("");
+        const fullText = `${content}${optionsText}`;
+        responseData = await LinkedInService.replyToComment(organizationId, to, fullText);
       }
       // Format content to include button info for frontend rendering
       const btnTitles = buttons.map(b => b.title).join(", ");
@@ -391,6 +427,11 @@ async function sendNodeMessage(
         const optionsText = rows.map((row, idx) => `\n${idx + 1}. ${row.title}${row.description ? ` (${row.description})` : ""}`).join("");
         const fullText = `${content} (${buttonText})${optionsText}`;
         responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, fullText);
+      } else if (isLinkedIn) {
+        const rows = sections.flatMap((sec) => sec.rows) || [];
+        const optionsText = rows.map((row, idx) => `\n${idx + 1}. ${row.title}${row.description ? ` (${row.description})` : ""}`).join("");
+        const fullText = `${content} (${buttonText})${optionsText}`;
+        responseData = await LinkedInService.replyToComment(organizationId, to, fullText);
       }
       const allRows = sections.flatMap((sec) => sec.rows) || [];
       const rowTitles = allRows.map((r) => r.title).join(", ");

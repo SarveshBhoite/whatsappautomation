@@ -17,6 +17,9 @@ model Organization {
   igConfig          InstagramConfig?
   ytConfig          YouTubeConfig?
   gmbConfig         GoogleBusinessConfig?
+  linkedInConfig    LinkedInConfig?
+  linkedInPosts     LinkedInPost[]
+  gmailConfig       GmailConfig?
   flows             Flow[]
   conversations     Conversation[]
   googleReviews     GoogleReview[]
@@ -94,6 +97,88 @@ model YouTubeConfig {
   refreshToken          String?      
   webhookVerifyToken    String       @default(uuid())
 }
+
+model LinkedInConfig {
+  id                    String           @id @default(uuid())
+  organizationId        String           @unique
+  organization          Organization     @relation(fields: [organizationId], references: [id])
+  accessToken           String?
+  refreshToken          String?
+  expiresIn             Int?
+  tokenExpiry           DateTime?
+  companyId             String?
+  companyName           String?
+  memberId              String?
+  memberName            String?
+  memberEmail           String?
+  memberPicture         String?
+  headline              String?
+  vanityName            String?
+  companyLogo           String?
+  website               String?
+  industry              String?
+  description           String?
+  webhookVerifyToken    String           @default(uuid())
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  profile               LinkedInProfile?
+}
+
+model LinkedInProfile {
+  id             String         @id @default(uuid())
+  organizationId String         @unique
+  configId       String         @unique
+  config         LinkedInConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  memberId       String
+  name           String
+  email          String?
+  headline       String?
+  picture        String?
+  locale         String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model LinkedInSyncLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  event          String
+  status         String
+  details        String?
+  timestamp      DateTime     @default(now())
+}
+
+model LinkedInPersonalPost {
+  id             String       @id @default(uuid())
+  organizationId String
+  linkedinPostId String       @unique
+  author         String
+  summary        String
+  mediaUrl       String?
+  publishedAt    DateTime     @default(now())
+  likesCount     Int          @default(0)
+  commentsCount  Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model LinkedInPost {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  linkedinPostId String       @unique
+  author         String
+  summary        String
+  mediaUrl       String?
+  visibility     String       @default("PUBLIC")
+  lifecycleState String       @default("PUBLISHED")
+  publishedAt    DateTime     @default(now())
+  likesCount     Int          @default(0)
+  commentsCount  Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
 
 model Message {
   id             String       @id @default(uuid())
@@ -323,4 +408,58 @@ model GoogleAdConversion {
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 }
+
+model GmailConfig {
+  id                String       @id @default(uuid())
+  organizationId    String       @unique
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  emailAddress      String?
+  accessToken       String?
+  refreshToken      String?
+  autoReplyEnabled  Boolean      @default(false)
+  autoReplyTemplate String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model GmailThread {
+  id             String         @id @default(uuid())
+  threadId       String         @unique
+  organizationId String
+  subject        String?
+  sender         String
+  snippet        String?
+  label          String?
+  status         String         @default("UNREPLIED")
+  messages       GmailMessage[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model GmailMessage {
+  id          String            @id @default(uuid())
+  threadId    String
+  messageId   String            @unique
+  direction   String
+  content     String
+  htmlContent String?
+  sender      String
+  aiDraft     String?
+  attachments GmailAttachment[]
+  createdAt   DateTime          @default(now())
+  gmailThread GmailThread       @relation(fields: [threadId], references: [threadId], onDelete: Cascade)
+}
+
+model GmailAttachment {
+  id             String        @id @default(uuid())
+  messageId      String?
+  gmailMessageId String?
+  gmailMessage   GmailMessage? @relation(fields: [gmailMessageId], references: [id], onDelete: Cascade)
+  filename       String?
+  mimeType       String?
+  size           Int?
+  attachmentId   String?
+  createdAt      DateTime      @default(now())
+}
+
 
