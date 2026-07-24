@@ -237,7 +237,7 @@ router.get("/threads", async (req: Request, res: Response) => {
 router.post("/threads/:threadId/star", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { threadId } = req.params;
+    const threadId = req.params.threadId as string;
     const { isStarred } = req.body;
 
     const thread = await prisma.gmailThread.update({
@@ -265,7 +265,7 @@ router.post("/threads/:threadId/star", async (req: Request, res: Response) => {
 router.post("/threads/:threadId/spam", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { threadId } = req.params;
+    const threadId = req.params.threadId as string;
     const { isSpam } = req.body;
 
     const newLabel = isSpam ? "SPAM" : "INBOX";
@@ -294,7 +294,7 @@ router.post("/threads/:threadId/spam", async (req: Request, res: Response) => {
 router.delete("/threads/:threadId", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { threadId } = req.params;
+    const threadId = req.params.threadId as string;
 
     const thread = await prisma.gmailThread.findUnique({
       where: { threadId }
@@ -365,15 +365,36 @@ router.post("/reply", async (req: Request, res: Response) => {
   }
 });
 
-// POST: Generate AI Draft on-demand for a thread message
-router.post("/generate-ai-reply", async (req: Request, res: Response) => {
+// GET: Single thread with messages
+router.get("/threads/:threadId", async (req: Request, res: Response) => {
+  try {
+    const threadId = req.params.threadId as string;
+    const thread = await prisma.gmailThread.findUnique({
+      where: { threadId },
+      include: {
+        messages: {
+          include: { attachments: true },
+          orderBy: { createdAt: "asc" }
+        }
+      }
+    });
+
+    if (!thread) {
+      return res.status(404).json({ error: "Thread not found" });
+    }
+
+    return res.status(200).json(thread);
+  } catch (error: any) {
+    console.error("Error fetching single thread:", error);
+    return res.status(500).json({ error: "Failed to fetch thread details", details: error.message });
+  }
+});
+
+// POST: Generate on-demand AI draft reply for a thread
+router.post("/threads/:threadId/ai-reply", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { threadId } = req.body;
-
-    if (!threadId) {
-      return res.status(400).json({ error: "Thread ID is required." });
-    }
+    const threadId = req.params.threadId as string;
 
     const thread = await prisma.gmailThread.findUnique({
       where: { threadId },
@@ -389,7 +410,7 @@ router.post("/generate-ai-reply", async (req: Request, res: Response) => {
     }
 
     // Find the latest inbound message
-    const inboundMessages = thread.messages.filter(m => m.direction === "inbound");
+    const inboundMessages = thread.messages.filter((m: any) => m.direction === "inbound");
     const targetMsg = inboundMessages[inboundMessages.length - 1] || thread.messages[thread.messages.length - 1];
 
     const aiDraft = await generateGmailAiDraft(
