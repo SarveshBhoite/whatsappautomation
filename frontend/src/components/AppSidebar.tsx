@@ -12,6 +12,7 @@ const WhatsApp = ({ className }: { className?: string }) => (
   </svg>
 );
 
+
 // Instagram SVG icon
 const Instagram = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -28,6 +29,13 @@ const Youtube = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// LinkedIn SVG icon
+const LinkedIn = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.78a1.64 1.64 0 1 0 0 3.28 1.64 1.64 0 0 0 0-3.28z"/>
+  </svg>
+);
+
 // ─── Nav definition ──────────────────────────────────────────────────────────
 interface NavItem {
   href: string;
@@ -41,6 +49,7 @@ const navItems: NavItem[] = [
   { href: "/instagram", icon: <Instagram className="h-5 w-5" />,   label: "Instagram Chats",  match: "/instagram" },
   { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,     label: "YouTube Comments", match: "/youtube" },
   { href: "/gmail",     icon: <Mail className="h-5 w-5" />,        label: "Gmail Auto-Reply", match: "/gmail" },
+  { href: "/linkedin",  icon: <LinkedIn className="h-5 w-5" />,    label: "LinkedIn Posts",   match: "/linkedin" },
   { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,    label: "Flows",            match: "/flows" },
   { href: "/reviews",   icon: <Star className="h-5 w-5" />,        label: "Google Reviews",   match: "/reviews" },
   { href: "/gmb",       icon: <Store className="h-5 w-5" />,       label: "Google Listing",   match: "/gmb" },
@@ -140,6 +149,7 @@ export default function AppSidebar() {
           { href: "/instagram", icon: <Instagram className="h-5 w-5" />, label: "IG" },
           { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,   label: "YT" },
           { href: "/gmail",     icon: <Mail className="h-5 w-5" />,      label: "Gmail" },
+          { href: "/linkedin",  icon: <LinkedIn className="h-5 w-5" />,  label: "LI" },
           { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,  label: "Flows" },
           { href: "/reviews",   icon: <Star className="h-5 w-5" />,      label: "Reviews" },
           { href: "/gmb",       icon: <Store className="h-5 w-5" />,     label: "Listing" },

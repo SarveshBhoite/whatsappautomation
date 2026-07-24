@@ -1,8 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import webhookRouter from "./routes/webhook";
@@ -14,8 +16,7 @@ import googleAdsRouter from "./routes/googleAds";
 import youtubeRouter from "./routes/youtube";
 import seoRouter from "./routes/seo";
 import gmailRouter from "./routes/gmail";
-
-dotenv.config();
+import linkedinRouter from "./routes/linkedin";
 
 const app = express();
 const server = http.createServer(app);
@@ -63,6 +64,9 @@ app.use("/api/seo", seoRouter);
 
 // Gmail Router
 app.use("/api/gmail", gmailRouter);
+
+// LinkedIn Integration Router
+app.use("/api/linkedin", linkedinRouter);
 
 // Health check endpoints (for Render Keep-Alive cron/uptime pings)
 app.get(["/health", "/api/health"], (req, res) => {
