@@ -195,18 +195,28 @@ export const handleWebhook = async (req: Request, res: Response) => {
     console.log(`Searching database for Phone Number ID: "${phoneNumberId}"`);
 
     // 1. Find Organization matching the Phone Number ID
-    const waConfig = await prisma.whatsAppConfig.findFirst({
+    let waConfig = await prisma.whatsAppConfig.findFirst({
       where: { phoneNumberId },
       include: { organization: true },
     });
 
     if (!waConfig) {
+      // Fallback to default organization if matching by phoneNumberId fails
+      console.warn(`No exact match for Phone Number ID: ${phoneNumberId}. Falling back to default organization...`);
+      const defaultOrg = await prisma.organization.findFirst({
+        include: { waConfig: true }
+      });
+      if (defaultOrg && defaultOrg.waConfig) {
+        waConfig = defaultOrg.waConfig as any;
+      }
+    }
+
+    if (!waConfig) {
       console.warn(`❌ No organization configuration found for Phone Number ID: ${phoneNumberId}`);
-      return res.sendStatus(200); // return 200 to acknowledge
+      return res.sendStatus(200);
     }
 
     console.log(`✅ Found organization match: "${waConfig.organization.name}" (${waConfig.organizationId})`);
-
     const organizationId = waConfig.organizationId;
 
     // 2. Handle Message Status Updates (Sent, Delivered, Read, Failed)
@@ -250,16 +260,33 @@ export const handleWebhook = async (req: Request, res: Response) => {
         let content = "";
         let mimeType: string | undefined = undefined;
 
-        // Extract message content based on type
+        // Extract message content cleanly based on Meta type
         if (type === "text") {
           content = message.text?.body || "";
+        } else if (type === "button") {
+          content = message.button?.text || message.button?.payload || "";
         } else if (type === "interactive") {
           const interactiveType = message.interactive?.type;
           if (interactiveType === "button_reply") {
             content = message.interactive.button_reply?.title || "";
           } else if (interactiveType === "list_reply") {
             content = message.interactive.list_reply?.title || "";
+          } else {
+            content = "Interactive response";
           }
+        } else if (type === "location") {
+          const loc = message.location;
+          const locName = loc?.name ? `${loc.name} - ` : "";
+          content = `📍 Location: ${locName}${loc?.address || `${loc?.latitude}, ${loc?.longitude}`}`;
+        } else if (type === "contacts") {
+          const c = message.contacts?.[0];
+          const name = c?.name?.formatted_name || "Contact";
+          const phone = c?.phones?.[0]?.phone || "";
+          content = `👤 Shared Contact: ${name} (${phone})`;
+        } else if (type === "reaction") {
+          content = `Reacted: ${message.reaction?.emoji || "👍"}`;
+        } else if (type === "sticker") {
+          content = "🎨 [Sticker]";
         } else if (["image", "document", "video", "audio", "voice"].includes(type)) {
           let mediaId = "";
           let filename: string | undefined = undefined;
@@ -282,7 +309,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           if (mediaId) {
             // Download file and save locally
             const localUrl = await WhatsAppService.downloadMedia(
-              waConfig.phoneNumberId || "100000000000000",
+              waConfig.phoneNumberId || "1192785647248309",
               waConfig.accessToken || "",
               mediaId,
               mimeType || "application/octet-stream"
@@ -296,7 +323,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
             content = "Media reference empty";
           }
         } else {
-          content = `Unsupported message type: ${type}`;
+          // Meta unsupported payload or system message
+          content = "💬 System Message / Unsupported Media Payload";
         }
 
         // Find or create the conversation using unique index organizationId_platform_customerPhone
@@ -320,8 +348,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
               isBotPaused: false,
             },
           });
-        } else if (conversation.customerName !== contactName) {
-          // Keep customer name updated
+        } else if (conversation.customerName !== contactName && contactName !== "WhatsApp User") {
+          // Keep customer name updated with WhatsApp Profile Name
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
             data: { customerName: contactName },
@@ -345,7 +373,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           data: {
             conversationId: conversation.id,
             direction: "inbound",
-            messageType: type,
+            messageType: type === "button" || type === "interactive" || type === "location" || type === "contacts" ? "text" : type,
             content,
             mediaMimeType: mimeType,
             waMessageId,
@@ -391,5 +419,3 @@ export const handleWebhook = async (req: Request, res: Response) => {
     return res.sendStatus(200); // Return 200 so Meta stops retrying
   }
 };
-
-
