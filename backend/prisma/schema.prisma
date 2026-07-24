@@ -58,6 +58,7 @@ model InstagramConfig {
   organization       Organization @relation(fields: [organizationId], references: [id])
   pageId             String?
   pageAccessToken    String?
+  instagramAccountId String?
   webhookVerifyToken String       @default(uuid())
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
@@ -126,31 +127,39 @@ model Message {
 }
 
 model GoogleBusinessConfig {
-  id                 String       @id @default(uuid())
-  organizationId     String       @unique
-  organization       Organization @relation(fields: [organizationId], references: [id])
-  googleAccountId    String?      // Google Account ID (accounts/12345)
-  googleLocationId   String?      // Google Location ID (locations/67890)
-  googleLocationName String?      // Friendly Business Name (e.g., "Jisnu Digital Solutions - Head Office")
-  googleRefreshToken String?      // Refresh Token for OAuth auto-renew
-  autoReplyEnabled   Boolean      @default(false)
-  autoReplyMinRating Int          @default(4) // Only auto-reply to reviews >= 4 stars
-  autoReplyTemplate  String?      // Dynamic template string (e.g., "Hi {author}, thanks for your {rating}-star review!")
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  id                  String       @id @default(uuid())
+  organizationId      String       @unique
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  googleAccountId     String?      // Google Account ID (accounts/12345)
+  googleLocationId    String?      // Google Location ID (locations/67890)
+  googleLocationName  String?      // Friendly Business Name (e.g., "Jisnu Digital Solutions - Head Office")
+  locationName        String?
+  googleRefreshToken  String?      // Refresh Token for OAuth auto-renew
+  googleClientId      String?
+  googleClientSecret  String?
+  googleReviewUrl     String?
+  googleAdsCustomerId String?
+  autoReplyEnabled    Boolean      @default(false)
+  autoReplyMinRating  Int          @default(4) // Only auto-reply to reviews >= 4 stars
+  autoReplyTemplate   String?      // Dynamic template string (e.g., "Hi {author}, thanks for your {rating}-star review!")
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 }
 
 model GoogleReview {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  gmbReviewId    String       @unique // Google's unique review name/ID
-  authorName     String
+  gmbReviewId    String       @unique @default(uuid()) // Google's unique review name/ID
+  authorName     String       @default("Valued Customer")
+  customerName   String?
   authorPhoto    String?
   rating         Int
   comment        String?
   replyText      String?      // Our posted reply text
+  replyStatus    String?
   repliedAt      DateTime?
+  source         String?      @default("GMB")
   status         String       @default("UNREPLIED") // UNREPLIED, REPLIED, AUTO_REPLIED
   reviewCreatedAt DateTime    @default(now())
   createdAt      DateTime     @default(now())
@@ -158,26 +167,28 @@ model GoogleReview {
 }
 
 model GooglePost {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  gmbPostId      String?      @unique // Google's unique post ID once published
-  postType       String       @default("STANDARD") // STANDARD, EVENT, OFFER
-  summary        String       // Post content text
-  mediaUrl       String?      // Optional image or video URL
-  actionType     String?      // CALL_TO_ACTION: BOOK, ORDER, SHOP, LEARN_MORE, SIGN_UP, CALL
-  actionUrl      String?
-  eventTitle     String?      // For EVENT posts
-  startDate      DateTime?    // For EVENT/OFFER posts
-  endDate        DateTime?    // For EVENT/OFFER posts
-  offerCode      String?      // For OFFER posts
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  gmbPostId       String?      @unique // Google's unique post ID once published
+  postType        String       @default("STANDARD") // STANDARD, EVENT, OFFER
+  summary         String       // Post content text
+  mediaUrl        String?      // Optional image or video URL
+  actionType      String?      // CALL_TO_ACTION: BOOK, ORDER, SHOP, LEARN_MORE, SIGN_UP, CALL
+  actionUrl       String?
+  callToActionType String?
+  callToActionUrl String?
+  eventTitle      String?      // For EVENT posts
+  startDate       DateTime?    // For EVENT/OFFER posts
+  endDate         DateTime?    // For EVENT/OFFER posts
+  offerCode       String?      // For OFFER posts
   termsConditions String?     // For OFFER posts
-  status         String       @default("PUBLISHED") // DRAFT, SCHEDULED, PUBLISHED, FAILED
-  scheduledAt    DateTime?    // Null if published immediately
-  publishedAt    DateTime?
-  errorMessage   String?
-  retryCount     Int          @default(0)
-  createdAt      DateTime     @default(now())
+  status          String       @default("PUBLISHED") // DRAFT, SCHEDULED, PUBLISHED, FAILED
+  scheduledAt     DateTime?    // Null if published immediately
+  publishedAt     DateTime?
+  errorMessage    String?
+  retryCount      Int          @default(0)
+  createdAt       DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
 
