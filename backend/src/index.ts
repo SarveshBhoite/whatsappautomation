@@ -61,9 +61,14 @@ app.use("/api/youtube", youtubeRouter);
 app.use("/api/seo", seoRouter);
 
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy", timestamp: new Date() });
+// Health check endpoints (for Render Keep-Alive cron/uptime pings)
+app.get(["/health", "/api/health"], (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    service: "AutomationCRM API Engine"
+  });
 });
 
 // Socket.io Connection Logic
