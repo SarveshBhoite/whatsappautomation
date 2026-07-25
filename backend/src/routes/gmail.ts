@@ -7,16 +7,22 @@ import {
   generateGmailAiDraft, 
   getGmailAccessToken,
   updateGmailThreadLabels,
-  deleteGmailThreadViaApi
+  deleteGmailThreadViaApi,
+  sendSingleBulkEmail
 } from "../services/gmailService";
-import { io } from "../index";
+import multer from "multer";
+
+const upload = multer({ limits: { fileSize: 15 * 1024 * 1024 } });
+const activeCampaignTasks = new Map<string, { status: "SENDING" | "PAUSED" | "CANCELLED" }>();
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
 
 // Helper to resolve org ID from request headers
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+  const headerVal = req.headers["x-organization-id"];
+  if (Array.isArray(headerVal)) return headerVal[0] || DEFAULT_ORG_ID;
+  return headerVal || DEFAULT_ORG_ID;
 };
 
 // GET: Fetch Gmail configuration settings
@@ -178,7 +184,7 @@ router.get("/oauth/callback", async (req: Request, res: Response) => {
 
     // Sync threads immediately on success
     try {
-      await syncGmailThreads(orgId, io);
+      await syncGmailThreads(orgId, (global as any).io);
     } catch (syncErr) {
       console.warn("OAuth initial sync failed:", syncErr);
     }
@@ -442,7 +448,7 @@ router.post("/sync", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const label = (req.body.label as string) || (req.query.label as string) || "INBOX";
-    const result = await syncGmailThreads(organizationId, io, label);
+    const result = await syncGmailThreads(organizationId, (global as any).io, label);
     return res.status(200).json({ success: true, message: "Sync completed", syncedCount: result.syncedCount });
   } catch (error: any) {
     console.error("Manual sync failed:", error);
@@ -553,5 +559,496 @@ router.delete("/rules/:id", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to delete rule", details: error.message });
   }
 });
+
+// ─── BULK EMAIL CAMPAIGN & TEMPLATE ROUTES ───────────────────────────────────
+
+// POST: Extract emails & custom column placeholder data from uploaded file (Excel, CSV, PDF)
+router.post("/campaigns/extract-file", upload.single("file"), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const filename = req.file.originalname.toLowerCase();
+    const buffer = req.file.buffer;
+    let extractedRows: Array<{ email: string; name?: string; company?: string; designation?: string; customData?: any }> = [];
+
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+    if (filename.endsWith(".xlsx") || filename.endsWith(".xls") || filename.endsWith(".csv")) {
+      const xlsx = require("xlsx");
+      const workbook = xlsx.read(buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonRows: any[] = xlsx.utils.sheet_to_json(sheet, { defval: "" });
+
+      for (const row of jsonRows) {
+        // Find email key in row
+        const rowKeys = Object.keys(row);
+        const emailKey = rowKeys.find(k => k.toLowerCase().includes("email") || k.toLowerCase().includes("e-mail") || k.toLowerCase() === "to");
+        
+        let foundEmail = "";
+        if (emailKey && row[emailKey]) {
+          const match = String(row[emailKey]).match(emailRegex);
+          if (match && match.length > 0) {
+            foundEmail = match[0].toLowerCase().trim();
+          }
+        }
+
+        // If email not found by key, search all values in the row
+        if (!foundEmail) {
+          const rowStr = Object.values(row).join(" ");
+          const match = rowStr.match(emailRegex);
+          if (match && match.length > 0) {
+            foundEmail = match[0].toLowerCase().trim();
+          }
+        }
+
+        if (foundEmail) {
+          const nameKey = rowKeys.find(k => k.toLowerCase().includes("name") || k.toLowerCase().includes("recipient") || k.toLowerCase().includes("first"));
+          const companyKey = rowKeys.find(k => k.toLowerCase().includes("company") || k.toLowerCase().includes("organization") || k.toLowerCase().includes("business"));
+          const desigKey = rowKeys.find(k => k.toLowerCase().includes("designation") || k.toLowerCase().includes("title") || k.toLowerCase().includes("role"));
+
+          extractedRows.push({
+            email: foundEmail,
+            name: nameKey ? String(row[nameKey]).trim() : undefined,
+            company: companyKey ? String(row[companyKey]).trim() : undefined,
+            designation: desigKey ? String(row[desigKey]).trim() : undefined,
+            customData: row
+          });
+        }
+      }
+    } else if (filename.endsWith(".pdf")) {
+      const pdfParse = require("pdf-parse");
+      const pdfData = await pdfParse(buffer);
+      const pdfText = pdfData.text || "";
+      const matches: string[] = pdfText.match(emailRegex) || [];
+      const uniqueEmails: string[] = Array.from(new Set(matches.map((e: string) => e.toLowerCase().trim())));
+      extractedRows = uniqueEmails.map((email: string) => ({
+        email,
+        name: email.split("@")[0],
+        customData: { email }
+      }));
+    } else {
+      return res.status(400).json({ error: "Unsupported file format. Please upload .xlsx, .xls, .csv, or .pdf file." });
+    }
+
+    // Deduplicate emails & validate
+    const seen = new Set<string>();
+    const validRecipients: typeof extractedRows = [];
+    let duplicateCount = 0;
+    let invalidCount = 0;
+
+    for (const item of extractedRows) {
+      if (!item.email || !emailRegex.test(item.email)) {
+        invalidCount++;
+        continue;
+      }
+      if (seen.has(item.email)) {
+        duplicateCount++;
+        continue;
+      }
+      seen.add(item.email);
+      validRecipients.push(item);
+    }
+
+    return res.status(200).json({
+      success: true,
+      totalExtracted: extractedRows.length,
+      validCount: validRecipients.length,
+      duplicateCount,
+      invalidCount,
+      recipients: validRecipients
+    });
+  } catch (error: any) {
+    console.error("Error extracting file emails:", error);
+    return res.status(500).json({ error: "Failed to extract emails from uploaded file", details: error.message });
+  }
+});
+
+// GET: List all bulk campaigns
+router.get("/campaigns", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    let campaigns: any[] = [];
+
+    if (prisma.gmailBulkCampaign && typeof prisma.gmailBulkCampaign.findMany === "function") {
+      campaigns = await prisma.gmailBulkCampaign.findMany({
+        where: { organizationId },
+        include: { recipients: true },
+        orderBy: { createdAt: "desc" }
+      });
+    } else {
+      campaigns = await prisma.$queryRawUnsafe(`
+        SELECT * FROM "gmail_bulk_campaigns"
+        WHERE "organizationId" = '${organizationId}'
+        ORDER BY "createdAt" DESC
+      `);
+    }
+
+    return res.status(200).json(campaigns);
+  } catch (error: any) {
+    console.error("Error fetching campaigns:", error);
+    return res.status(500).json({ error: "Failed to fetch bulk campaigns", details: error.message });
+  }
+});
+
+// GET: Single campaign details with recipient report
+router.get("/campaigns/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const campaign = await prisma.gmailBulkCampaign.findUnique({
+      where: { id },
+      include: { recipients: true }
+    });
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+    return res.status(200).json(campaign);
+  } catch (error: any) {
+    console.error("Error fetching campaign details:", error);
+    return res.status(500).json({ error: "Failed to fetch campaign details", details: error.message });
+  }
+});
+
+// POST: Create and launch or schedule a bulk campaign
+router.post("/campaigns", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { name, subject, bodyTemplate, recipients, delaySeconds = 3, scheduledAt } = req.body;
+
+    if (!name || !subject || !bodyTemplate || !Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({ error: "Name, subject, message body, and at least one recipient are required." });
+    }
+
+    const initialStatus = scheduledAt ? "SCHEDULED" : "SENDING";
+
+    let campaign: any;
+
+    if (prisma.gmailBulkCampaign && typeof prisma.gmailBulkCampaign.create === "function") {
+      campaign = await prisma.gmailBulkCampaign.create({
+        data: {
+          organizationId,
+          name,
+          subject,
+          bodyTemplate,
+          delaySeconds: Number(delaySeconds) || 3,
+          scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+          status: initialStatus,
+          totalRecipients: recipients.length,
+          recipients: {
+            create: recipients.map((r: any) => ({
+              email: r.email,
+              name: r.name || null,
+              company: r.company || null,
+              designation: r.designation || null,
+              customData: r.customData ? JSON.stringify(r.customData) : null,
+              status: "PENDING"
+            }))
+          }
+        },
+        include: { recipients: true }
+      });
+    } else {
+      // Raw SQL Fallback if Prisma Client runtime hasn't reloaded the model dynamically
+      const rawCampaigns: any[] = await prisma.$queryRawUnsafe(`
+        INSERT INTO "gmail_bulk_campaigns" ("id", "organizationId", "name", "subject", "bodyTemplate", "delaySeconds", "scheduledAt", "status", "totalRecipients", "sentCount", "failedCount", "skippedCount", "createdAt", "updatedAt")
+        VALUES (gen_random_uuid(), '${organizationId}', '${name.replace(/'/g, "''")}', '${subject.replace(/'/g, "''")}', '${bodyTemplate.replace(/'/g, "''")}', ${Number(delaySeconds) || 3}, ${scheduledAt ? `'${new Date(scheduledAt).toISOString()}'` : 'NULL'}, '${initialStatus}', ${recipients.length}, 0, 0, 0, NOW(), NOW())
+        RETURNING *
+      `);
+      campaign = rawCampaigns[0];
+
+      for (const r of recipients) {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "gmail_campaign_recipients" ("id", "campaignId", "email", "name", "company", "designation", "customData", "status", "createdAt", "updatedAt")
+          VALUES (gen_random_uuid(), '${campaign.id}', '${r.email.replace(/'/g, "''")}', ${r.name ? `'${r.name.replace(/'/g, "''")}'` : 'NULL'}, ${r.company ? `'${r.company.replace(/'/g, "''")}'` : 'NULL'}, ${r.designation ? `'${r.designation.replace(/'/g, "''")}'` : 'NULL'}, ${r.customData ? `'${JSON.stringify(r.customData).replace(/'/g, "''")}'` : 'NULL'}, 'PENDING', NOW(), NOW())
+        `);
+      }
+    }
+
+    if (!scheduledAt) {
+      runCampaignSendingProcess(campaign.id, organizationId).catch(console.error);
+    }
+
+    return res.status(200).json(campaign);
+  } catch (error: any) {
+    console.error("Error creating campaign:", error);
+    return res.status(500).json({ error: "Failed to create campaign", details: error.message });
+  }
+});
+
+// POST: Control campaign status (Pause / Resume / Cancel)
+router.post("/campaigns/:id/control", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const id = req.params.id as string;
+    const { action } = req.body; // "PAUSE" | "RESUME" | "CANCEL"
+
+    const campaign = await prisma.gmailBulkCampaign.findUnique({
+      where: { id }
+    });
+
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    let newStatus = campaign.status;
+
+    if (action === "PAUSE") {
+      newStatus = "PAUSED";
+      activeCampaignTasks.set(id, { status: "PAUSED" });
+    } else if (action === "RESUME") {
+      newStatus = "SENDING";
+      activeCampaignTasks.set(id, { status: "SENDING" });
+      runCampaignSendingProcess(id, organizationId).catch(console.error);
+    } else if (action === "CANCEL") {
+      newStatus = "CANCELLED";
+      activeCampaignTasks.set(id, { status: "CANCELLED" });
+    }
+
+    const updated = await prisma.gmailBulkCampaign.update({
+      where: { id },
+      data: { status: newStatus }
+    });
+
+    return res.status(200).json(updated);
+  } catch (error: any) {
+    console.error("Error controlling campaign:", error);
+    return res.status(500).json({ error: "Failed to update campaign state", details: error.message });
+  }
+});
+
+// GET: Download CSV report for campaign
+router.get("/campaigns/:id/report", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    let campaign: any = null;
+    let recipients: any[] = [];
+
+    if (prisma.gmailBulkCampaign && typeof prisma.gmailBulkCampaign.findUnique === "function") {
+      campaign = await prisma.gmailBulkCampaign.findUnique({
+        where: { id },
+        include: { recipients: true }
+      });
+      if (campaign) recipients = campaign.recipients || [];
+    } else {
+      const rawC: any[] = await prisma.$queryRawUnsafe(`SELECT * FROM "gmail_bulk_campaigns" WHERE "id" = '${id}'`);
+      campaign = rawC[0];
+      if (campaign) {
+        recipients = await prisma.$queryRawUnsafe(`SELECT * FROM "gmail_campaign_recipients" WHERE "campaignId" = '${id}'`);
+      }
+    }
+
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    const header = "Email,Name,Company,Designation,Status,Error Message,Sent At\n";
+    const rows = recipients.map((r: any) => {
+      const email = `"${(r.email || "").replace(/"/g, '""')}"`;
+      const name = `"${(r.name || "").replace(/"/g, '""')}"`;
+      const company = `"${(r.company || "").replace(/"/g, '""')}"`;
+      const desig = `"${(r.designation || "").replace(/"/g, '""')}"`;
+      const status = `"${(r.status || "").replace(/"/g, '""')}"`;
+      const errMsg = `"${(r.errorMessage || "").replace(/"/g, '""')}"`;
+      const sentAt = r.sentAt ? `"${new Date(r.sentAt).toISOString()}"` : '""';
+      return `${email},${name},${company},${desig},${status},${errMsg},${sentAt}`;
+    }).join("\n");
+
+    const csvContent = header + rows;
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="campaign-${campaign.name.replace(/[^a-zA-Z0-9]/g, "_")}-report.csv"`);
+    return res.send(csvContent);
+  } catch (error: any) {
+    console.error("Error generating report:", error);
+    return res.status(500).json({ error: "Failed to generate campaign report", details: error.message });
+  }
+});
+
+// GET: Fetch email templates
+router.get("/templates", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const templates = await prisma.gmailEmailTemplate.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" }
+    });
+    return res.status(200).json(templates);
+  } catch (error: any) {
+    console.error("Error fetching templates:", error);
+    return res.status(500).json({ error: "Failed to fetch templates", details: error.message });
+  }
+});
+
+// POST: Save new email template
+router.post("/templates", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { name, subject, body } = req.body;
+
+    if (!name || !subject || !body) {
+      return res.status(400).json({ error: "Template name, subject, and body are required." });
+    }
+
+    const template = await prisma.gmailEmailTemplate.create({
+      data: { organizationId, name, subject, body }
+    });
+
+    return res.status(200).json(template);
+  } catch (error: any) {
+    console.error("Error creating template:", error);
+    return res.status(500).json({ error: "Failed to create template", details: error.message });
+  }
+});
+
+// DELETE: Delete template
+router.delete("/templates/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    await prisma.gmailEmailTemplate.delete({
+      where: { id }
+    });
+    return res.status(200).json({ success: true, message: "Template deleted successfully" });
+  } catch (error: any) {
+    console.error("Error deleting template:", error);
+    return res.status(500).json({ error: "Failed to delete template", details: error.message });
+  }
+});
+
+// ─── HELPER: Background Campaign Executor with Anti-Spam Delays ───────────────
+async function runCampaignSendingProcess(campaignId: string, orgId: string) {
+  activeCampaignTasks.set(campaignId, { status: "SENDING" });
+
+  const campaign = await prisma.gmailBulkCampaign.findUnique({
+    where: { id: campaignId },
+    include: { recipients: true }
+  });
+
+  if (!campaign) return;
+
+  const pendingRecipients = campaign.recipients.filter(r => r.status === "PENDING");
+  let sentCount = campaign.sentCount;
+  let failedCount = campaign.failedCount;
+
+  for (const recipient of pendingRecipients) {
+    const taskState = activeCampaignTasks.get(campaignId);
+    if (taskState?.status === "PAUSED" || taskState?.status === "CANCELLED") {
+      console.log(`[BULK CAMPAIGN] Campaign ${campaignId} ${taskState.status}. Halting execution.`);
+      return;
+    }
+
+    // Build personalized template text replacing placeholders like {{Name}}, {{Company}}, {{Designation}}
+    let personalizedBody = campaign.bodyTemplate;
+    let personalizedSubject = campaign.subject;
+
+    let parsedCustom: any = {};
+    try {
+      if (recipient.customData) parsedCustom = JSON.parse(recipient.customData);
+    } catch (e) {}
+
+    const placeholderMap: Record<string, string> = {
+      "{{name}}": recipient.name || parsedCustom.name || "Valued Recipient",
+      "{{email}}": recipient.email,
+      "{{company}}": recipient.company || parsedCustom.company || "Your Company",
+      "{{designation}}": recipient.designation || parsedCustom.designation || "Team",
+    };
+
+    // Include all custom key values from uploaded Excel columns
+    Object.keys(parsedCustom).forEach(k => {
+      placeholderMap[`{{${k.toLowerCase().trim()}}}`] = String(parsedCustom[k] || "");
+    });
+
+    Object.keys(placeholderMap).forEach(key => {
+      const regex = new RegExp(key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), "gi");
+      personalizedBody = personalizedBody.replace(regex, placeholderMap[key]);
+      personalizedSubject = personalizedSubject.replace(regex, placeholderMap[key]);
+    });
+
+    try {
+      await sendSingleBulkEmail(orgId, recipient.email, personalizedSubject, personalizedBody);
+      sentCount++;
+
+      if (prisma.gmailCampaignRecipient && typeof prisma.gmailCampaignRecipient.update === "function") {
+        await prisma.gmailCampaignRecipient.update({
+          where: { id: recipient.id },
+          data: { status: "SENT", sentAt: new Date() }
+        });
+        await prisma.gmailBulkCampaign.update({
+          where: { id: campaignId },
+          data: { sentCount }
+        });
+      } else {
+        await prisma.$executeRawUnsafe(`
+          UPDATE "gmail_campaign_recipients"
+          SET "status" = 'SENT', "sentAt" = NOW(), "updatedAt" = NOW()
+          WHERE "id" = '${recipient.id}'
+        `);
+        await prisma.$executeRawUnsafe(`
+          UPDATE "gmail_bulk_campaigns"
+          SET "sentCount" = ${sentCount}, "updatedAt" = NOW()
+          WHERE "id" = '${campaignId}'
+        `);
+      }
+    } catch (sendErr: any) {
+      failedCount++;
+      const errorMsg = (sendErr?.response?.data?.error?.message || sendErr.message || "Failed to send").replace(/'/g, "''");
+
+      if (prisma.gmailCampaignRecipient && typeof prisma.gmailCampaignRecipient.update === "function") {
+        await prisma.gmailCampaignRecipient.update({
+          where: { id: recipient.id },
+          data: { status: "FAILED", errorMessage: errorMsg }
+        });
+        await prisma.gmailBulkCampaign.update({
+          where: { id: campaignId },
+          data: { failedCount }
+        });
+      } else {
+        await prisma.$executeRawUnsafe(`
+          UPDATE "gmail_campaign_recipients"
+          SET "status" = 'FAILED', "errorMessage" = '${errorMsg}', "updatedAt" = NOW()
+          WHERE "id" = '${recipient.id}'
+        `);
+        await prisma.$executeRawUnsafe(`
+          UPDATE "gmail_bulk_campaigns"
+          SET "failedCount" = ${failedCount}, "updatedAt" = NOW()
+          WHERE "id" = '${campaignId}'
+        `);
+      }
+    }
+
+    // Emit live Socket.io progress update to frontend
+    try {
+      const globalIo = (global as any).io;
+      if (globalIo) {
+        globalIo.to(orgId).emit("gmail-campaign-progress", {
+          campaignId,
+          sentCount,
+          failedCount,
+          totalRecipients: campaign.totalRecipients
+        });
+      }
+    } catch (e) {}
+
+    // Anti-spam delay between emails (e.g. 3-5 seconds default)
+    const delay = (campaign.delaySeconds || 3) * 1000;
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  // Mark campaign completed
+  if (prisma.gmailBulkCampaign && typeof prisma.gmailBulkCampaign.update === "function") {
+    await prisma.gmailBulkCampaign.update({
+      where: { id: campaignId },
+      data: { status: "COMPLETED" }
+    });
+  } else {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "gmail_bulk_campaigns"
+      SET "status" = 'COMPLETED', "updatedAt" = NOW()
+      WHERE "id" = '${campaignId}'
+    `);
+  }
+
+  activeCampaignTasks.delete(campaignId);
+}
 
 export default router;

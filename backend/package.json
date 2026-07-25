@@ -17,12 +17,17 @@
   "description": "",
   "dependencies": {
     "@prisma/client": "^6.0.0",
+    "@types/multer": "^2.2.0",
+    "@types/pdf-parse": "^1.1.5",
     "axios": "^1.18.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "socket.io": "^4.8.3"
+    "multer": "^2.2.0",
+    "pdf-parse": "^1.1.1",
+    "socket.io": "^4.8.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

@@ -273,10 +273,32 @@ export default function GmailDashboard() {
   const [threads, setThreads] = useState<GmailThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<GmailThread | null>(null);
   
-  // Navigation Tab: "MAIL" or "SETTINGS"
-  const [activeTab, setActiveTab] = useState<"MAIL" | "SETTINGS">("MAIL");
+  // Navigation Tab: "MAIL" | "SETTINGS" | "CAMPAIGNS"
+  const [activeTab, setActiveTab] = useState<"MAIL" | "SETTINGS" | "CAMPAIGNS">("MAIL");
   const [selectedLabel, setSelectedLabel] = useState("INBOX");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Bulk Email Campaign State
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<any | null>(null);
+  
+  // New Campaign Form State
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignSubject, setCampaignSubject] = useState("");
+  const [campaignBody, setCampaignBody] = useState("");
+  const [campaignDelay, setCampaignDelay] = useState(3);
+  const [scheduledDate, setScheduledDate] = useState("");
+
+  // Extracted Recipients State
+  const [extractedRecipients, setExtractedRecipients] = useState<any[]>([]);
+  const [extractedStats, setExtractedStats] = useState<{ total: number; valid: number; duplicates: number; invalid: number } | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [launchingCampaign, setLaunchingCampaign] = useState(false);
+
+  // Template Form State
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Config state
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
@@ -419,8 +441,174 @@ export default function GmailDashboard() {
     }
   };
 
+  // Fetch Campaigns & Templates
+  const fetchCampaigns = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCampaigns(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch campaigns:", err);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmail/templates`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch templates:", err);
+    }
+  };
+
+  // Upload file & extract emails
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    setErrorMsg(null);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns/extract-file`, {
+        method: "POST",
+        headers: { "x-organization-id": DEFAULT_ORG_ID },
+        body: formData
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setExtractedRecipients(data.recipients || []);
+        setExtractedStats({
+          total: data.totalExtracted || 0,
+          valid: data.validCount || 0,
+          duplicates: data.duplicateCount || 0,
+          invalid: data.invalidCount || 0
+        });
+      } else {
+        const errData = await res.json();
+        setErrorMsg(errData.error || "Failed to parse recipient file.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg("Network error uploading recipient file.");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  // Create & Launch Campaign
+  const handleLaunchCampaign = async () => {
+    if (!campaignName.trim() || !campaignSubject.trim() || !campaignBody.trim() || extractedRecipients.length === 0) {
+      setErrorMsg("Please fill in all campaign fields and upload a valid recipient file.");
+      return;
+    }
+
+    setLaunchingCampaign(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({
+          name: campaignName,
+          subject: campaignSubject,
+          bodyTemplate: campaignBody,
+          recipients: extractedRecipients,
+          delaySeconds: Number(campaignDelay) || 3,
+          scheduledAt: scheduledDate ? new Date(scheduledDate).toISOString() : undefined
+        })
+      });
+
+      if (res.ok) {
+        setCampaignName("");
+        setCampaignSubject("");
+        setCampaignBody("");
+        setExtractedRecipients([]);
+        setExtractedStats(null);
+        setScheduledDate("");
+        await fetchCampaigns();
+      } else {
+        const errData = await res.json();
+        setErrorMsg(errData.error || "Failed to launch campaign.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg("Network error launching campaign.");
+    } finally {
+      setLaunchingCampaign(false);
+    }
+  };
+
+  // Pause / Resume / Cancel Campaign
+  const handleControlCampaign = async (id: string, action: "PAUSE" | "RESUME" | "CANCEL") => {
+    try {
+      await fetch(`${BACKEND_URL}/api/gmail/campaigns/${id}/control`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({ action })
+      });
+      await fetchCampaigns();
+    } catch (err) {
+      console.error("Control action failed:", err);
+    }
+  };
+
+  // Save Template
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim() || !campaignSubject.trim() || !campaignBody.trim()) {
+      setErrorMsg("Subject, body, and template name are required to save a template.");
+      return;
+    }
+
+    setSavingTemplate(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmail/templates`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({
+          name: templateName,
+          subject: campaignSubject,
+          body: campaignBody
+        })
+      });
+
+      if (res.ok) {
+        setTemplateName("");
+        await fetchTemplates();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchCampaigns();
+    fetchTemplates();
 
     const socket = io(BACKEND_URL);
     socketRef.current = socket;
@@ -433,6 +621,16 @@ export default function GmailDashboard() {
     socket.on("gmail-updated", () => {
       console.log("Gmail update event received!");
       fetchData(selectedLabel);
+    });
+
+    socket.on("gmail-campaign-progress", (data: any) => {
+      console.log("Campaign progress update:", data);
+      setCampaigns(prev => prev.map(c => {
+        if (c.id === data.campaignId) {
+          return { ...c, sentCount: data.sentCount, failedCount: data.failedCount };
+        }
+        return c;
+      }));
     });
 
     return () => {
@@ -753,8 +951,19 @@ export default function GmailDashboard() {
           {/* System Settings Group */}
           <div className="flex flex-col gap-1.5 border-t border-slate-200 pt-5">
             <span className="px-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
-              Management
+              Campaigns & Automation
             </span>
+            <button
+              onClick={() => setActiveTab("CAMPAIGNS")}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
+                activeTab === "CAMPAIGNS"
+                  ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
+            >
+              <Send className={`h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5 duration-200 ${activeTab === "CAMPAIGNS" ? "text-emerald-600" : "text-slate-500"}`} />
+              <span>Bulk Email Campaign</span>
+            </button>
             <button
               onClick={handleOpenSettings}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
@@ -796,10 +1005,12 @@ export default function GmailDashboard() {
             </div>
             <div>
               <h1 className="font-black text-lg tracking-tight text-slate-900">
-                {activeTab === "SETTINGS" ? "Automation Configuration" : `Mailbox: ${selectedLabel}`}
+                {activeTab === "CAMPAIGNS" ? "Bulk Email Campaigns" : activeTab === "SETTINGS" ? "Automation Configuration" : `Mailbox: ${selectedLabel}`}
               </h1>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {activeTab === "SETTINGS" 
+                {activeTab === "CAMPAIGNS"
+                  ? "Extract recipients from Excel/CSV/PDF & send personalized email campaigns"
+                  : activeTab === "SETTINGS" 
                   ? "Define keywords, responses, and template settings" 
                   : "On-demand AI sentiment response manager"}
               </p>
@@ -860,6 +1071,306 @@ export default function GmailDashboard() {
             >
               Sign In with Google <Sparkles className="h-4 w-4" />
             </button>
+          </div>
+        ) : activeTab === "CAMPAIGNS" ? (
+          /* -------------------- BULK CAMPAIGNS TAB VIEW -------------------- */
+          <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
+            <div className="max-w-6xl mx-auto flex flex-col gap-8">
+              
+              {/* Campaign Creator Card */}
+              <div className="border border-slate-200 rounded-3xl bg-white p-6 flex flex-col gap-6 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div>
+                    <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                      <Send className="h-5 w-5 text-emerald-600" /> Create Bulk Email Campaign
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">Upload recipient files (Excel, CSV, or PDF) and compose personalized emails with dynamic placeholders.</p>
+                  </div>
+
+                  {/* Saved Templates Selector */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-500">Templates:</span>
+                    <select
+                      onChange={(e) => {
+                        const t = templates.find(temp => temp.id === e.target.value);
+                        if (t) {
+                          setCampaignSubject(t.subject);
+                          setCampaignBody(t.body);
+                        }
+                      }}
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="">Load Saved Template...</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Left Column: Details & Upload */}
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Campaign Name</label>
+                      <input
+                        type="text"
+                        value={campaignName}
+                        onChange={(e) => setCampaignName(e.target.value)}
+                        placeholder="e.g. Q3 Client Outreach"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-semibold"
+                      />
+                    </div>
+
+                    {/* File Upload Box */}
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Upload Recipient File (.xlsx, .csv, .pdf)</label>
+                      <label className="border-2 border-dashed border-slate-200 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/40 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition text-center group">
+                        <Paperclip className="h-6 w-6 text-slate-400 group-hover:text-emerald-600 mb-1" />
+                        <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700">
+                          {uploadingFile ? "Parsing File..." : "Click to select Excel / CSV / PDF"}
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">Auto-extracts emails & columns</span>
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.csv,.pdf"
+                          onChange={handleFileUpload}
+                          disabled={uploadingFile}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Extracted File Stats Badge */}
+                    {extractedStats && (
+                      <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                            <Check className="h-4 w-4 text-emerald-600" /> Recipients Validated
+                          </span>
+                          <span className="text-xs font-extrabold bg-emerald-600 text-white px-2 py-0.5 rounded-lg">
+                            {extractedStats.valid} Ready
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600 pt-1 border-t border-emerald-200/60">
+                          <div>Total: <strong>{extractedStats.total}</strong></div>
+                          <div>Duplicates: <strong className="text-amber-600">{extractedStats.duplicates}</strong></div>
+                          <div>Invalid: <strong className="text-red-500">{extractedStats.invalid}</strong></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Anti-Spam Sending Delay & Schedule */}
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1" title="Prevents account throttling / spam flags">Anti-Spam Delay (Sec)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={60}
+                          value={campaignDelay}
+                          onChange={(e) => setCampaignDelay(Number(e.target.value))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Schedule Later</label>
+                        <input
+                          type="datetime-local"
+                          value={scheduledDate}
+                          onChange={(e) => setScheduledDate(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-[10px] text-slate-900 font-semibold focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Email Composer */}
+                  <div className="md:col-span-2 flex flex-col gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Email Subject</label>
+                      <input
+                        type="text"
+                        value={campaignSubject}
+                        onChange={(e) => setCampaignSubject(e.target.value)}
+                        placeholder="e.g. Special Offer for {{Company}}"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email Body Message</label>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                          <span>Placeholders:</span>
+                          <span className="font-mono bg-slate-100 text-slate-700 px-1 rounded border border-slate-200">{"{{Name}}"}</span>
+                          <span className="font-mono bg-slate-100 text-slate-700 px-1 rounded border border-slate-200">{"{{Company}}"}</span>
+                          <span className="font-mono bg-slate-100 text-slate-700 px-1 rounded border border-slate-200">{"{{Designation}}"}</span>
+                        </div>
+                      </div>
+                      <textarea
+                        value={campaignBody}
+                        onChange={(e) => setCampaignBody(e.target.value)}
+                        placeholder="Hello {{Name}},&#10;&#10;We are reaching out regarding {{Company}}..."
+                        rows={7}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-sans resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={templateName}
+                          onChange={(e) => setTemplateName(e.target.value)}
+                          placeholder="Template Name..."
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-emerald-500 w-36"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveTemplate}
+                          disabled={savingTemplate || !campaignSubject.trim() || !campaignBody.trim()}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 transition flex items-center gap-1 shadow-sm disabled:opacity-50"
+                        >
+                          <Save className="h-3.5 w-3.5 text-slate-500" /> Save Template
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleLaunchCampaign}
+                        disabled={launchingCampaign || extractedRecipients.length === 0 || !campaignSubject.trim() || !campaignBody.trim()}
+                        className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs transition duration-200 flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+                      >
+                        <Send className="h-4 w-4" />
+                        {launchingCampaign ? "Launching Campaign..." : scheduledDate ? "Schedule Campaign" : "Send Bulk Campaign"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recipient Preview Table */}
+                {extractedRecipients.length > 0 && (
+                  <div className="border-t border-slate-100 pt-5">
+                    <span className="text-xs font-extrabold text-slate-800 mb-3 block">Recipient Preview ({extractedRecipients.length})</span>
+                    <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-2xl divide-y divide-slate-100">
+                      {extractedRecipients.slice(0, 50).map((r, i) => (
+                        <div key={i} className="p-3 bg-white flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-slate-900">{r.email}</span>
+                            {r.name && <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">{r.name}</span>}
+                            {r.company && <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">{r.company}</span>}
+                          </div>
+                          <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md">Valid</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Campaign History & Real-Time Trackers */}
+              <div className="border border-slate-200 rounded-3xl bg-white p-6 flex flex-col gap-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <Layers className="h-5 w-5 text-emerald-600" /> Campaign History & Real-Time Tracking
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Monitor progress, pause/cancel sending, and download detailed delivery reports.</p>
+                  </div>
+                  <button
+                    onClick={fetchCampaigns}
+                    className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Refresh
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  {campaigns.map((c) => {
+                    const percent = c.totalRecipients > 0 ? Math.round(((c.sentCount + c.failedCount) / c.totalRecipients) * 100) : 0;
+                    return (
+                      <div key={c.id} className="p-5 border border-slate-200 rounded-2xl bg-slate-50/50 flex flex-col gap-4">
+                        <div className="flex items-center justify-between flex-wrap gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-bold text-slate-900">{c.name}</h3>
+                              <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${
+                                c.status === "SENDING" ? "bg-emerald-50 text-emerald-600 border-emerald-200 animate-pulse" :
+                                c.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                c.status === "PAUSED" ? "bg-amber-50 text-amber-600 border-amber-200" :
+                                c.status === "CANCELLED" ? "bg-red-50 text-red-600 border-red-200" :
+                                "bg-slate-100 text-slate-600 border-slate-200"
+                              }`}>
+                                {c.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">Subject: <strong>{c.subject}</strong></p>
+                          </div>
+
+                          {/* Control Buttons */}
+                          <div className="flex items-center gap-2">
+                            {c.status === "SENDING" && (
+                              <button
+                                onClick={() => handleControlCampaign(c.id, "PAUSE")}
+                                className="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-bold transition"
+                              >
+                                Pause
+                              </button>
+                            )}
+                            {c.status === "PAUSED" && (
+                              <button
+                                onClick={() => handleControlCampaign(c.id, "RESUME")}
+                                className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition"
+                              >
+                                Resume
+                              </button>
+                            )}
+                            {(c.status === "SENDING" || c.status === "PAUSED" || c.status === "SCHEDULED") && (
+                              <button
+                                onClick={() => handleControlCampaign(c.id, "CANCEL")}
+                                className="px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold transition"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            <a
+                              href={`${BACKEND_URL}/api/gmail/campaigns/${c.id}/report`}
+                              download
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition flex items-center gap-1 shadow-sm"
+                            >
+                              <FileText className="h-3.5 w-3.5 text-slate-500" /> Download Report
+                            </a>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                            <span>Progress: {c.sentCount + c.failedCount} / {c.totalRecipients} ({percent}%)</span>
+                            <div className="flex items-center gap-3 text-[10px]">
+                              <span className="text-emerald-600 font-bold">Sent: {c.sentCount}</span>
+                              <span className="text-red-500 font-bold">Failed: {c.failedCount}</span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                            <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {campaigns.length === 0 && (
+                    <div className="p-10 text-center border border-dashed border-slate-300 rounded-2xl text-slate-400 text-xs">
+                      No bulk email campaigns launched yet. Create your first campaign above!
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
           </div>
         ) : activeTab === "SETTINGS" ? (
           /* -------------------- SETTINGS TAB VIEW -------------------- */
@@ -1069,7 +1580,14 @@ export default function GmailDashboard() {
                           </span>
                           <span className="text-[9px] text-slate-400 flex items-center gap-0.5 shrink-0">
                             <Clock className="h-2.5 w-2.5" />
-                            {new Date(thread.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                            {(() => {
+                              const d = new Date(thread.updatedAt);
+                              const today = new Date();
+                              if (d.toDateString() === today.toDateString()) {
+                                return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                              }
+                              return d.toLocaleDateString([], { month: "short", day: "numeric", year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined });
+                            })()}
                           </span>
                         </div>
                         <h4 className={`text-xs truncate ${isUnreplied ? "font-bold text-slate-800" : "font-medium text-slate-600"}`}>
@@ -1211,7 +1729,13 @@ export default function GmailDashboard() {
                               </span>
                               <span>•</span>
                               <span>
-                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                {new Date(msg.createdAt).toLocaleString([], {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })}
                               </span>
                             </div>
                             

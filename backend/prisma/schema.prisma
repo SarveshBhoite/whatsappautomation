@@ -488,3 +488,52 @@ model GmailAutoReplyRule {
 
   @@map("gmail_auto_reply_rules")
 }
+
+model GmailBulkCampaign {
+  id              String                   @id @default(uuid())
+  organizationId  String
+  name            String
+  subject         String
+  bodyTemplate    String
+  status          String                   @default("DRAFT") // DRAFT, SCHEDULED, SENDING, PAUSED, COMPLETED, CANCELLED
+  scheduledAt     DateTime?
+  totalRecipients Int                      @default(0)
+  sentCount       Int                      @default(0)
+  failedCount     Int                      @default(0)
+  skippedCount    Int                      @default(0)
+  delaySeconds    Int                      @default(3) // Anti-spam delay between emails
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  recipients      GmailCampaignRecipient[]
+
+  @@map("gmail_bulk_campaigns")
+}
+
+model GmailCampaignRecipient {
+  id           String            @id @default(uuid())
+  campaignId   String
+  campaign     GmailBulkCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  email        String
+  name         String?
+  company      String?
+  designation  String?
+  customData   String?           // JSON string of all column key-values
+  status       String            @default("PENDING") // PENDING, SENT, FAILED, SKIPPED
+  errorMessage String?
+  sentAt       DateTime?
+  createdAt    DateTime          @default(now())
+
+  @@map("gmail_campaign_recipients")
+}
+
+model GmailEmailTemplate {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  subject        String
+  body           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("gmail_email_templates")
+}

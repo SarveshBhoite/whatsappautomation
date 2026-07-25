@@ -171,14 +171,27 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
       const gmailMessages = threadData.messages || [];
       if (gmailMessages.length === 0) continue;
 
-      // Get first message headers to populate thread info
+      // Get headers to populate thread info
       const firstMsg = gmailMessages[0];
+      const lastMsg = gmailMessages[gmailMessages.length - 1];
+      
       const headers = firstMsg.payload?.headers || [];
       const subject = headers.find((h: any) => h.name.toLowerCase() === "subject")?.value || "No Subject";
       const sender = headers.find((h: any) => h.name.toLowerCase() === "from")?.value || "Unknown Sender";
       const snippet = threadData.snippet || firstMsg.snippet || "";
 
-      // Upsert thread locally
+      // Extract actual email date from last message internalDate or Date header
+      const lastMsgHeaders = lastMsg.payload?.headers || [];
+      const dateHeader = lastMsgHeaders.find((h: any) => h.name.toLowerCase() === "date")?.value;
+      let actualEmailDate = new Date();
+
+      if (lastMsg.internalDate) {
+        actualEmailDate = new Date(parseInt(lastMsg.internalDate, 10));
+      } else if (dateHeader) {
+        actualEmailDate = new Date(dateHeader);
+      }
+
+      // Upsert thread locally with exact email timestamp
       const localThread = await prisma.gmailThread.upsert({
         where: { threadId },
         update: {
@@ -186,7 +199,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           sender,
           snippet,
           label,
-          updatedAt: new Date(),
+          updatedAt: actualEmailDate,
         },
         create: {
           threadId,
@@ -196,12 +209,25 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           snippet,
           label,
           status: "UNREPLIED",
+          createdAt: actualEmailDate,
+          updatedAt: actualEmailDate,
         }
       });
 
       // Save new messages in this thread
       for (const msg of gmailMessages) {
         const messageId = msg.id;
+
+        // Extract message timestamp from internalDate or Date header
+        const msgHeaders = msg.payload?.headers || [];
+        const msgDateHeader = msgHeaders.find((h: any) => h.name.toLowerCase() === "date")?.value;
+        let msgDate = new Date();
+
+        if (msg.internalDate) {
+          msgDate = new Date(parseInt(msg.internalDate, 10));
+        } else if (msgDateHeader) {
+          msgDate = new Date(msgDateHeader);
+        }
 
         // Check if message is already stored
         const existingMsg = await prisma.gmailMessage.findUnique({
@@ -218,12 +244,11 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           });
           const userEmail = config?.emailAddress?.toLowerCase() || "";
           
-          const msgHeaders = msg.payload?.headers || [];
           const msgFrom = msgHeaders.find((h: any) => h.name.toLowerCase() === "from")?.value || "";
           const isInbound = userEmail ? !msgFrom.toLowerCase().includes(userEmail) : true;
           const direction = isInbound ? "inbound" : "outbound";
 
-          // Save the message
+          // Save the message with exact email sent date
           await prisma.gmailMessage.create({
             data: {
               threadId,
@@ -232,6 +257,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
               content: body,
               htmlContent: parsed.html || null,
               sender: msgFrom,
+              createdAt: msgDate,
             }
           });
 
@@ -522,4 +548,84 @@ export async function deleteGmailThreadViaApi(orgId: string, threadId: string, p
     console.error(`[GMAIL SERVICE] Delete failed on Gmail API for thread ${threadId}:`, err?.response?.data || err.message);
     throw err;
   }
+}
+
+/**
+ * Sends an outbound bulk campaign email via Gmail API with custom RFC 2822 raw payload.
+ */
+export async function sendSingleBulkEmail(
+  orgId: string, 
+  toEmail: string, 
+  subject: string, 
+  bodyText: string
+): Promise<any> {
+  const token = await getGmailAccessToken(orgId);
+
+  const emailParts = [
+    `To: ${toEmail}`,
+    `Subject: ${subject}`,
+    `Content-Type: text/html; charset="UTF-8"`,
+    `MIME-Version: 1.0`,
+    "",
+    bodyText.replace(/\n/g, "<br/>")
+  ];
+
+  const rawEmail = Buffer.from(emailParts.join("\r\n"))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const response = await axios.post(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    { raw: rawEmail },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+  const sentMessage = response.data;
+  const sentMessageId = sentMessage.id;
+  const sentThreadId = sentMessage.threadId || sentMessageId;
+
+  // Store thread locally so it appears inside the dashboard Inbox / Sent section
+  try {
+    await prisma.gmailThread.upsert({
+      where: { threadId: sentThreadId },
+      update: {
+        subject,
+        sender: `To: ${toEmail}`,
+        snippet: bodyText.substring(0, 100),
+        label: "SENT",
+        updatedAt: new Date()
+      },
+      create: {
+        threadId: sentThreadId,
+        organizationId: orgId,
+        subject,
+        sender: `To: ${toEmail}`,
+        snippet: bodyText.substring(0, 100),
+        label: "SENT",
+        status: "REPLIED"
+      }
+    });
+
+    await prisma.gmailMessage.create({
+      data: {
+        threadId: sentThreadId,
+        messageId: sentMessageId,
+        direction: "outbound",
+        content: bodyText,
+        sender: "Me (Bulk Campaign)",
+        createdAt: new Date()
+      }
+    });
+  } catch (dbErr: any) {
+    console.warn(`[GMAIL SERVICE] Failed to store outbound bulk message locally: ${dbErr.message}`);
+  }
+
+  return response.data;
 }

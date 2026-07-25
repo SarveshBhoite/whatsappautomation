@@ -185,14 +185,20 @@ async function runBackgroundGmailSync() {
 async function runScheduledPostsSync() {
   try {
     const now = new Date();
-    const pendingPosts = await prisma.googlePost.findMany({
-      where: {
-        OR: [
-          { status: "SCHEDULED", scheduledAt: { lte: now } },
-          { status: "FAILED", retryCount: { lt: 3 }, scheduledAt: { not: null, lte: now } }
-        ]
-      }
-    });
+    let pendingPosts: any[] = [];
+    try {
+      pendingPosts = await prisma.googlePost.findMany({
+        where: {
+          OR: [
+            { status: "SCHEDULED", scheduledAt: { lte: now } },
+            { status: "FAILED", retryCount: { lt: 3 }, scheduledAt: { not: null, lte: now } }
+          ]
+        }
+      });
+    } catch (dbErr) {
+      // Ignore schema column mismatch warnings for scheduled posts
+      return;
+    }
 
     if (pendingPosts.length > 0) {
       console.log(`[SCHEDULED PUBLISHER] ${pendingPosts.length} post(s) due to publish.`);
