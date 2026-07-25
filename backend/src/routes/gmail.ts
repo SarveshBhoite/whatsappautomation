@@ -573,7 +573,9 @@ router.post("/campaigns/extract-file", upload.single("file"), async (req: Reques
     const buffer = req.file.buffer;
     let extractedRows: Array<{ email: string; name?: string; company?: string; designation?: string; customData?: any }> = [];
 
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    // Flexible regex for custom domain extensions (.com, .org, .co.in, .tech, .ai, .io, etc.)
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,15}/g;
+    const testEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,15}$/;
 
     if (filename.endsWith(".xlsx") || filename.endsWith(".xls") || filename.endsWith(".csv")) {
       const xlsx = require("xlsx");
@@ -640,7 +642,7 @@ router.post("/campaigns/extract-file", upload.single("file"), async (req: Reques
     let invalidCount = 0;
 
     for (const item of extractedRows) {
-      if (!item.email || !emailRegex.test(item.email)) {
+      if (!item.email || !testEmailRegex.test(item.email)) {
         invalidCount++;
         continue;
       }
