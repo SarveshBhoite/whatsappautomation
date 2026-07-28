@@ -252,6 +252,53 @@ export class WhatsAppService {
     return response.data;
   }
 
+  // Upload local media file to Meta WhatsApp Cloud API and return Meta Media ID
+  public static async uploadMedia(
+    phoneNumberId: string,
+    accessToken: string,
+    filePathOrUrl: string,
+    mimeType: string = "image/jpeg"
+  ): Promise<string | null> {
+    try {
+      let localPath = filePathOrUrl;
+      // Convert relative URL or URL to local disk filepath if saved in public directory
+      if (filePathOrUrl.startsWith("/") || filePathOrUrl.startsWith("\\")) {
+        localPath = path.join(process.cwd(), "public", filePathOrUrl);
+      } else if (filePathOrUrl.includes("/uploads/")) {
+        const relative = filePathOrUrl.substring(filePathOrUrl.indexOf("/uploads/"));
+        localPath = path.join(process.cwd(), "public", relative);
+      }
+
+      if (!fs.existsSync(localPath)) {
+        console.warn(`[WHATSAPP MEDIA UPLOAD] File not found at disk path: ${localPath}`);
+        return null;
+      }
+
+      const FormData = require("form-data");
+      const form = new FormData();
+      form.append("messaging_product", "whatsapp");
+      form.append("file", fs.createReadStream(localPath));
+      form.append("type", mimeType);
+
+      const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/media`;
+      const response = await axios.post(url, form, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...form.getHeaders(),
+        },
+      });
+
+      if (response.data && response.data.id) {
+        console.log(`[WHATSAPP MEDIA UPLOAD SUCCESS] Uploaded ${localPath} -> Meta Media ID: ${response.data.id}`);
+        return response.data.id;
+      }
+      return null;
+    } catch (err: any) {
+      console.error("[WHATSAPP MEDIA UPLOAD ERROR]", err?.response?.data || err.message);
+      return null;
+    }
+  }
+
   // Send Media Message (Image, Document, Video, Audio)
   public static async sendMediaMessage(
     phoneNumberId: string,
@@ -269,14 +316,30 @@ export class WhatsAppService {
     }
     const url = this.getApiUrl(phoneNumberId);
 
-    // Check if mediaUrlOrId is a URL or a Meta Media ID
-    const isUrl = mediaUrlOrId.startsWith("http://") || mediaUrlOrId.startsWith("https://");
+    // Check if mediaUrlOrId is a public HTTPS URL, a local file path, or a raw Meta Media ID
+    let isHttps = mediaUrlOrId.startsWith("https://");
+    let targetMediaId: string | null = null;
+
+    if (/^\d{10,}$/.test(mediaUrlOrId)) {
+      // Raw numeric Meta Media ID (e.g. "1868110550830190")
+      targetMediaId = mediaUrlOrId;
+    } else if (!isHttps && (mediaUrlOrId.includes("/uploads/") || mediaUrlOrId.startsWith("/") || mediaUrlOrId.includes("localhost") || mediaUrlOrId.includes("127.0.0.1"))) {
+      // Local file path — upload to Meta Cloud API to get a Media ID
+      const mime = mediaType === "image" ? "image/jpeg" : mediaType === "video" ? "video/mp4" : mediaType === "audio" ? "audio/mp3" : "application/pdf";
+      targetMediaId = await this.uploadMedia(phoneNumberId, accessToken, mediaUrlOrId, mime);
+    } else if (!mediaUrlOrId.startsWith("http://") && !mediaUrlOrId.startsWith("https://")) {
+      // Non-HTTP, non-path string — treat as raw Meta Media ID
+      targetMediaId = mediaUrlOrId;
+    }
 
     const mediaObject: any = {};
-    if (isUrl) {
+    if (targetMediaId) {
+      mediaObject.id = targetMediaId;
+    } else if (isHttps) {
       mediaObject.link = mediaUrlOrId;
     } else {
-      mediaObject.id = mediaUrlOrId;
+      console.warn(`[WHATSAPP MEDIA SEND] Could not resolve media ID for: ${mediaUrlOrId}`);
+      throw new Error(`Unable to resolve media ID or public HTTPS URL for ${mediaUrlOrId}`);
     }
 
     if (mediaType === "document" && filename) {

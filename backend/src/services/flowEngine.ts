@@ -468,21 +468,43 @@ async function sendNodeMessage(
       }
     } else if (node.type === "mediaNode") {
       const type = data.mediaType || "image";
-      const url = data.mediaUrl || "";
+      let rawUrl = data.mediaUrl || "";
       const filename = data.filename || "";
       const caption = data.caption || "";
-      
+
+      // Handle mediaUrl: raw Meta Media ID (numeric), "meta:" prefixed ID, local path, or full HTTPS URL
+      let url = rawUrl;
+      if (rawUrl.startsWith("meta:")) {
+        // Pre-cached Meta Media ID: strip prefix
+        url = rawUrl.substring(5);
+      } else if (/^\d{10,}$/.test(rawUrl)) {
+        // Already a raw numeric Meta Media ID
+        url = rawUrl;
+      } else if (rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+        // Relative local path like /uploads/seo_result_1.jpg - pass as-is for upload
+        url = rawUrl;
+      }
+
+      console.log(`[FLOW ENGINE] mediaNode ${node.id}: type=${type}, url=${url.substring(0, 30)}, caption=${caption.substring(0, 40)}`);
+
       messageType = type;
       if (isWhatsApp) {
-        responseData = await WhatsAppService.sendMediaMessage(
-          phoneNumberId,
-          accessToken,
-          to,
-          type as any,
-          url,
-          filename,
-          caption
-        );
+        try {
+          responseData = await WhatsAppService.sendMediaMessage(
+            phoneNumberId,
+            accessToken,
+            to,
+            type as any,
+            url,
+            filename,
+            caption
+          );
+          console.log(`[FLOW ENGINE] mediaNode ${node.id}: SENT successfully`);
+        } catch (mediaErr: any) {
+          console.error(`[FLOW ENGINE] mediaNode ${node.id}: sendMediaMessage FAILED:`, mediaErr?.response?.data || mediaErr.message);
+          const fallbackText = `${caption ? `📸 ${caption}\n\n` : ""}🖼️ Image: ${url}`;
+          responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, fallbackText);
+        }
       } else if (isInstagram) {
         responseData = await InstagramService.sendMediaMessage(
           accessToken,
