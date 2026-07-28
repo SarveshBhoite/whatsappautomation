@@ -300,10 +300,15 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
                 });
 
                 if (matchedRule) {
-                  // We have a match! We send the static automated reply set by the admin
                   const replyText = matchedRule.replyText;
+                  const ruleAny = matchedRule as any;
+                  const attachment = ruleAny.fileUrl && ruleAny.fileName ? {
+                    fileUrl: ruleAny.fileUrl,
+                    fileName: ruleAny.fileName,
+                    mimeType: ruleAny.mimeType || undefined
+                  } : undefined;
                   
-                  await sendGmailReply(orgId, threadId, replyText);
+                  await sendGmailReply(orgId, threadId, replyText, attachment);
                   
                   await prisma.gmailThread.update({
                     where: { threadId },
@@ -410,13 +415,18 @@ export async function generateGmailAiDraft(
 }
 
 /**
- * Sends a reply message within an existing Gmail thread.
+ * Sends a reply message within an existing Gmail thread with optional file attachment.
  */
-export async function sendGmailReply(orgId: string, threadId: string, replyContent: string): Promise<any> {
+export async function sendGmailReply(
+  orgId: string, 
+  threadId: string, 
+  replyContent: string,
+  attachment?: { fileUrl?: string; fileName?: string; mimeType?: string }
+): Promise<any> {
   try {
     const token = await getGmailAccessToken(orgId);
 
-    // Fetch the thread messages to retrieve headers (specifically to set Subject, Message-ID, and In-Reply-To correctly)
+    // Fetch the thread messages to retrieve headers
     const threadRes = await axios.get(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -433,20 +443,56 @@ export async function sendGmailReply(orgId: string, threadId: string, replyConte
     const subjectHeader = lastMsgHeaders.find((h: any) => h.name.toLowerCase() === "subject")?.value || "";
     const msgIdHeader = lastMsgHeaders.find((h: any) => h.name.toLowerCase() === "message-id")?.value || "";
 
-    // Set correct subject (prefixed by Re: if not already present)
     const subject = subjectHeader.toLowerCase().startsWith("re:") ? subjectHeader : `Re: ${subjectHeader}`;
 
-    // Format RFC 2822 email raw payload to preserve thread structure
-    const emailParts = [
-      `To: ${fromHeader}`,
-      `Subject: ${subject}`,
-      `In-Reply-To: ${msgIdHeader}`,
-      `References: ${msgIdHeader}`,
-      `Content-Type: text/plain; charset="UTF-8"`,
-      `MIME-Version: 1.0`,
-      "",
-      replyContent
-    ];
+    let emailParts: string[] = [];
+
+    if (attachment && attachment.fileUrl && attachment.fileName) {
+      const boundary = "====_Boundary_Gmail_AutoReply_" + Date.now().toString(16);
+      let base64Data = "";
+      if (attachment.fileUrl.startsWith("data:")) {
+        base64Data = attachment.fileUrl.split(";base64,")[1] || "";
+      } else {
+        base64Data = Buffer.from(attachment.fileUrl).toString("base64");
+      }
+
+      const mimeType = attachment.mimeType || "application/octet-stream";
+
+      emailParts = [
+        `To: ${fromHeader}`,
+        `Subject: ${subject}`,
+        `In-Reply-To: ${msgIdHeader}`,
+        `References: ${msgIdHeader}`,
+        `MIME-Version: 1.0`,
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        "",
+        `--${boundary}`,
+        `Content-Type: text/plain; charset="UTF-8"`,
+        `Content-Transfer-Encoding: 7bit`,
+        "",
+        replyContent,
+        "",
+        `--${boundary}`,
+        `Content-Type: ${mimeType}; name="${attachment.fileName}"`,
+        `Content-Disposition: attachment; filename="${attachment.fileName}"`,
+        `Content-Transfer-Encoding: base64`,
+        "",
+        base64Data,
+        "",
+        `--${boundary}--`
+      ];
+    } else {
+      emailParts = [
+        `To: ${fromHeader}`,
+        `Subject: ${subject}`,
+        `In-Reply-To: ${msgIdHeader}`,
+        `References: ${msgIdHeader}`,
+        `Content-Type: text/plain; charset="UTF-8"`,
+        `MIME-Version: 1.0`,
+        "",
+        replyContent
+      ];
+    }
 
     const rawEmail = Buffer.from(emailParts.join("\r\n"))
       .toString("base64")
@@ -475,7 +521,7 @@ export async function sendGmailReply(orgId: string, threadId: string, replyConte
         threadId,
         messageId: sendRes.data.id,
         direction: "outbound",
-        content: replyContent,
+        content: attachment?.fileName ? `${replyContent}\n\n[Attachment: ${attachment.fileName}]` : replyContent,
         sender: "Me (CRM Auto-Reply)",
       }
     });

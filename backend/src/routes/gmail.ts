@@ -511,11 +511,21 @@ router.get("/rules", async (req: Request, res: Response) => {
   }
 });
 
-// POST: Create a new auto-reply rule
-router.post("/rules", async (req: Request, res: Response) => {
+// POST: Create a new auto-reply rule (with optional file attachment)
+router.post("/rules", upload.single("file"), async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const { keyword, replyText } = req.body;
+    let fileUrl: string | undefined = req.body.fileUrl;
+    let fileName: string | undefined = req.body.fileName;
+    let mimeType: string | undefined = req.body.mimeType;
+
+    if (req.file) {
+      // Store uploaded file as base64 data URI or file path
+      fileName = req.file.originalname;
+      mimeType = req.file.mimetype;
+      fileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    }
 
     if (!keyword || !replyText) {
       return res.status(400).json({ error: "Keyword and reply text are required." });
@@ -531,13 +541,27 @@ router.post("/rules", async (req: Request, res: Response) => {
       }
     });
 
-    const rule = await prisma.gmailAutoReplyRule.create({
-      data: {
-        organizationId,
-        keyword,
-        replyText
-      }
-    });
+    let rule: any;
+
+    if (prisma.gmailAutoReplyRule && typeof prisma.gmailAutoReplyRule.create === "function") {
+      rule = await prisma.gmailAutoReplyRule.create({
+        data: {
+          organizationId,
+          keyword,
+          replyText,
+          fileUrl: fileUrl || null,
+          fileName: fileName || null,
+          mimeType: mimeType || null
+        }
+      });
+    } else {
+      const raw: any[] = await prisma.$queryRawUnsafe(`
+        INSERT INTO "gmail_auto_reply_rules" ("id", "organizationId", "keyword", "replyText", "fileUrl", "fileName", "mimeType", "isActive", "createdAt", "updatedAt")
+        VALUES (gen_random_uuid(), '${organizationId}', '${keyword.replace(/'/g, "''")}', '${replyText.replace(/'/g, "''")}', ${fileUrl ? `'${fileUrl.replace(/'/g, "''")}'` : 'NULL'}, ${fileName ? `'${fileName.replace(/'/g, "''")}'` : 'NULL'}, ${mimeType ? `'${mimeType.replace(/'/g, "''")}'` : 'NULL'}, true, NOW(), NOW())
+        RETURNING *
+      `);
+      rule = raw[0];
+    }
 
     return res.status(200).json(rule);
   } catch (error: any) {
