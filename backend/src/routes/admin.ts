@@ -56,14 +56,30 @@ router.get("/conversations/:id/messages", async (req: Request, res: Response) =>
 router.get("/flows", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { platform } = req.query;
+    const { platform, category, status, search } = req.query;
+
+    const whereClause: any = { organizationId };
+
+    if (platform) {
+      whereClause.platform = platform as string;
+    }
+    if (category && category !== "All") {
+      whereClause.category = category as string;
+    }
+    if (status && status !== "All") {
+      whereClause.status = status as string;
+    }
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search as string, mode: "insensitive" } },
+        { description: { contains: search as string, mode: "insensitive" } },
+        { category: { contains: search as string, mode: "insensitive" } },
+      ];
+    }
 
     const flows = await prisma.flow.findMany({
-      where: { 
-        organizationId,
-        platform: platform ? (platform as string) : undefined
-      },
-      orderBy: { isActive: "desc" }, // Active first
+      where: whereClause,
+      orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
     });
 
     return res.status(200).json(flows);
@@ -73,45 +89,107 @@ router.get("/flows", async (req: Request, res: Response) => {
   }
 });
 
-// POST: Save or Update a Flow
-router.post("/flows", async (req: Request, res: Response) => {
+// GET: Fetch single flow by ID
+router.get("/flows/:id", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { id, name, description, graphJson, isActive, platform } = req.body;
+    const { id } = req.params;
+
+    const flow = await prisma.flow.findFirst({
+      where: { id: id as string, organizationId },
+    });
+
+    if (!flow) {
+      return res.status(404).json({ error: "Flow not found" });
+    }
+
+    return res.status(200).json(flow);
+  } catch (error: any) {
+    console.error("Error fetching flow:", error);
+    return res.status(500).json({ error: "Failed to fetch flow", details: error.message });
+  }
+});
+
+// POST: Save or Update a Flow
+router.post("/flows", async (req: Request, res: Response) => {
+  console.log("------------------------------------------");
+  console.log("[SAVE FLOW API] Incoming Request Payload:");
+  console.log(JSON.stringify(req.body, null, 2));
+
+  try {
+    const organizationId = getOrgId(req);
+    const { id, name, description, category, status, isDefault, graphJson, isActive, platform } = req.body;
 
     if (!name || !graphJson) {
-      return res.status(400).json({ error: "Missing required fields: name, graphJson" });
+      const valError = "Missing required fields: name, graphJson";
+      console.error("[SAVE FLOW API] Validation Error:", valError);
+      return res.status(400).json({ success: false, error: valError });
     }
 
     const flowPlatform = platform || "whatsapp";
-    let flow;
+    const flowCategory = category || "Custom";
+    let flowStatus = status || (isActive ? "Active" : "Draft");
 
     if (isActive) {
-      // Deactivate other flows OF THE SAME PLATFORM if setting this one to active
+      flowStatus = "Active";
+      // Deactivate all other flows OF THE SAME PLATFORM
       await prisma.flow.updateMany({
         where: { organizationId, platform: flowPlatform, isActive: true },
-        data: { isActive: false },
+        data: { isActive: false, status: "Published" },
       });
     }
 
-    if (id) {
-      // Update existing
-      flow = await prisma.flow.update({
-        where: { id },
-        data: {
-          name,
-          description,
-          graphJson,
-          platform: flowPlatform,
-          isActive: !!isActive,
-        },
+    if (isDefault) {
+      await prisma.flow.updateMany({
+        where: { organizationId, platform: flowPlatform, isDefault: true },
+        data: { isDefault: false },
       });
+    }
+
+    let flow;
+
+    if (id) {
+      // Check if updating to an existing flow ID that exists
+      const existingFlow = await prisma.flow.findUnique({ where: { id } });
+      if (existingFlow) {
+        flow = await prisma.flow.update({
+          where: { id },
+          data: {
+            name,
+            description: description || "",
+            category: flowCategory,
+            status: flowStatus,
+            isDefault: !!isDefault,
+            graphJson,
+            platform: flowPlatform,
+            isActive: !!isActive,
+          },
+        });
+      } else {
+        // If ID does not exist in DB (e.g. temporary ID), create new record
+        flow = await prisma.flow.create({
+          data: {
+            name,
+            description: description || "",
+            category: flowCategory,
+            status: flowStatus,
+            isDefault: !!isDefault,
+            graphJson,
+            platform: flowPlatform,
+            isActive: !!isActive,
+            organizationId,
+          },
+        });
+      }
     } else {
       // Create new
       flow = await prisma.flow.create({
         data: {
           name,
-          description,
+          description: description || "",
+          category: flowCategory,
+          status: flowStatus,
+          isDefault: !!isDefault,
           graphJson,
           platform: flowPlatform,
           isActive: !!isActive,
@@ -120,10 +198,165 @@ router.post("/flows", async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(200).json({ message: "Flow saved successfully", data: flow });
+    const io = req.app.get("io");
+    if (io) {
+      io.to(organizationId).emit(id ? "flow-updated" : "flow-created", flow);
+      if (isActive) {
+        io.to(organizationId).emit("flow-activated", flow);
+      }
+    }
+
+    console.log("[SAVE FLOW API] Response Payload:");
+    console.log(JSON.stringify(flow, null, 2));
+
+    return res.status(200).json({ success: true, message: "Flow saved successfully", data: flow });
   } catch (error: any) {
-    console.error("Error saving flow:", error);
-    return res.status(500).json({ error: "Failed to save flow", details: error.message });
+    console.error("==========================================");
+    console.error("[SAVE FLOW API] EXCEPTION ENCOUNTERED:");
+    console.error("Error Message:", error?.message || error);
+    console.error("Error Code:", error?.code);
+    console.error("Stack Trace:\n", error?.stack);
+    console.error("==========================================");
+
+    let clientMessage = error?.message || "Failed to save flow";
+    if (error?.code === "P2002") {
+      clientMessage = "Flow name already exists.";
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: clientMessage,
+      details: error?.message,
+      code: error?.code,
+      stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined
+    });
+  }
+});
+
+// POST: Activate Flow
+router.post("/flows/:id/activate", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { id } = req.params;
+
+    const targetFlow = await prisma.flow.findFirst({
+      where: { id: id as string, organizationId },
+    });
+
+    if (!targetFlow) {
+      return res.status(404).json({ error: "Flow not found" });
+    }
+
+    // Deactivate ALL other flows for the exact SAME platform
+    await prisma.flow.updateMany({
+      where: {
+        organizationId,
+        platform: targetFlow.platform,
+        isActive: true,
+      },
+      data: { isActive: false, status: "Published" },
+    });
+
+    const updatedFlow = await prisma.flow.update({
+      where: { id: id as string },
+      data: { isActive: true, status: "Active" },
+    });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(organizationId).emit("flow-activated", updatedFlow);
+      io.to(organizationId).emit("flow-updated", updatedFlow);
+    }
+
+    return res.status(200).json({ message: "Flow activated successfully", data: updatedFlow });
+  } catch (error: any) {
+    console.error("Error activating flow:", error);
+    return res.status(500).json({ error: "Failed to activate flow", details: error.message });
+  }
+});
+
+// POST: Archive Flow
+router.post("/flows/:id/archive", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { id } = req.params;
+
+    const updatedFlow = await prisma.flow.update({
+      where: { id: id as string },
+      data: { isActive: false, status: "Archived" },
+    });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(organizationId).emit("flow-updated", updatedFlow);
+    }
+
+    return res.status(200).json({ message: "Flow archived successfully", data: updatedFlow });
+  } catch (error: any) {
+    console.error("Error archiving flow:", error);
+    return res.status(500).json({ error: "Failed to archive flow", details: error.message });
+  }
+});
+
+// POST: Duplicate Flow
+router.post("/flows/:id/duplicate", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { id } = req.params;
+
+    const originalFlow = await prisma.flow.findFirst({
+      where: { id: id as string, organizationId },
+    });
+
+    if (!originalFlow) {
+      return res.status(404).json({ error: "Original flow not found" });
+    }
+
+    const duplicatedFlow = await prisma.flow.create({
+      data: {
+        organizationId,
+        name: `${originalFlow.name} (Copy)`,
+        description: originalFlow.description,
+        category: originalFlow.category,
+        platform: originalFlow.platform,
+        status: "Draft",
+        isActive: false,
+        isDefault: false,
+        graphJson: originalFlow.graphJson as any,
+      },
+    });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(organizationId).emit("flow-created", duplicatedFlow);
+    }
+
+    return res.status(200).json({ message: "Flow duplicated successfully", data: duplicatedFlow });
+  } catch (error: any) {
+    console.error("Error duplicating flow:", error);
+    return res.status(500).json({ error: "Failed to duplicate flow", details: error.message });
+  }
+});
+
+// DELETE: Delete Flow
+router.delete("/flows/:id", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { id } = req.params;
+
+    const deletedFlow = await prisma.flow.delete({
+      where: { id: id as string },
+    });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(organizationId).emit("flow-deleted", { id });
+    }
+
+    return res.status(200).json({ message: "Flow deleted successfully", data: deletedFlow });
+  } catch (error: any) {
+    console.error("Error deleting flow:", error);
+    return res.status(500).json({ error: "Failed to delete flow", details: error.message });
   }
 });
 

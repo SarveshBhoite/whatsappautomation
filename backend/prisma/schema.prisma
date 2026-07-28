@@ -49,7 +49,7 @@ model WhatsAppConfig {
   accessToken        String?
   webhookVerifyToken String       @default(uuid())
   createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  updatedAt          DateTime     @default(now()) @updatedAt
 }
 
 model InstagramConfig {
@@ -61,7 +61,7 @@ model InstagramConfig {
   instagramAccountId String?
   webhookVerifyToken String       @default(uuid())
   createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  updatedAt          DateTime     @default(now()) @updatedAt
 }
 
 model YouTubeConfig {
@@ -73,7 +73,7 @@ model YouTubeConfig {
   accessToken    String?
   refreshToken   String?
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  updatedAt      DateTime     @default(now()) @updatedAt
 }
 
 model Flow {
@@ -82,10 +82,14 @@ model Flow {
   organization   Organization @relation(fields: [organizationId], references: [id])
   platform       String       @default("whatsapp") // "whatsapp", "instagram", "youtube"
   name           String
+  description    String?
+  category       String       @default("Custom") // "Sales", "Hiring", "Support", "Appointment", "Marketing", "Custom"
+  status         String       @default("Draft") // "Draft", "Published", "Active", "Archived"
+  isDefault      Boolean      @default(false)
   graphJson      Json         // ReactFlow nodes and edges
   isActive       Boolean      @default(false)
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  updatedAt      DateTime     @default(now()) @updatedAt
 
   @@unique([organizationId, platform, name])
 }
@@ -101,7 +105,7 @@ model Conversation {
   isBotPaused    Boolean   @default(false) // True when agent takes over
   botPausedUntil DateTime? // Expiration timestamp for manual takeover
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  updatedAt      DateTime  @default(now()) @updatedAt
   messages       Message[]
 
   @@unique([organizationId, platform, customerPhone])
@@ -143,14 +147,14 @@ model GoogleBusinessConfig {
   autoReplyMinRating  Int          @default(4) // Only auto-reply to reviews >= 4 stars
   autoReplyTemplate   String?      // Dynamic template string (e.g., "Hi {author}, thanks for your {rating}-star review!")
   createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  updatedAt           DateTime     @default(now()) @updatedAt
 }
 
 model GoogleReview {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  gmbReviewId    String       @unique @default(uuid()) // Google's unique review name/ID
+  gmbReviewId    String?      @unique // Google's unique review name/ID
   authorName     String       @default("Valued Customer")
   customerName   String?
   authorPhoto    String?
@@ -163,7 +167,7 @@ model GoogleReview {
   status         String       @default("UNREPLIED") // UNREPLIED, REPLIED, AUTO_REPLIED
   reviewCreatedAt DateTime    @default(now())
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  updatedAt      DateTime     @default(now()) @updatedAt
 }
 
 model GooglePost {
@@ -468,7 +472,7 @@ model GmailMessage {
 model GmailAttachment {
   id             String       @id @default(uuid())
   messageId      String
-  message        GmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message        GmailMessage @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
   attachmentId   String       // Gmail API attachment ID
   filename       String
   mimeType       String

@@ -20,7 +20,7 @@ interface FlowGraph {
 }
 
 /**
- * Automaticaly calculates node coordinates for React Flow tree visual rendering.
+ * Automatically calculates node coordinates for React Flow tree visual rendering.
  * Nodes are arranged vertically by parent-child level, and horizontally spaced to avoid overlaps.
  */
 export function autoLayoutFlow(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
@@ -83,7 +83,7 @@ export function autoLayoutFlow(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[]
   });
 
   // Layout geometry parameters
-  const H_SPACING = 300;
+  const H_SPACING = 320;
   const V_SPACING = 220;
   const CENTER_X = 250;
   const START_Y = 50;
@@ -118,17 +118,17 @@ export function autoLayoutFlow(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[]
  */
 function validateGraphJson(graph: any, platform: string): string | null {
   if (!graph || typeof graph !== "object") {
-    console.error("Validation failed: Graph response is not an object.");
+    console.error("Rule Failed: Graph response is not a valid JSON object");
     return "Validation failed: Graph response is not a valid JSON object";
   }
   
   if (!Array.isArray(graph.nodes)) {
-    console.error("Validation failed: 'nodes' array is missing.");
+    console.error("Rule Failed: Missing nodes array");
     return "Validation failed: 'nodes' array is missing or not an array";
   }
   
   if (!Array.isArray(graph.edges)) {
-    console.error("Validation failed: 'edges' array is missing.");
+    console.error("Rule Failed: Missing edges array");
     return "Validation failed: 'edges' array is missing or not an array";
   }
 
@@ -137,36 +137,34 @@ function validateGraphJson(graph: any, platform: string): string | null {
 
   // 1. Validate Nodes
   for (const node of graph.nodes) {
-    console.log("Validating node:", JSON.stringify(node, null, 2));
-
     if (!node || typeof node !== "object") {
-      console.error("Validation failed: A node entry is null or not an object.");
+      console.error("Rule Failed: Null or invalid node entry in list");
       return "Validation failed: A node entry in the list is null or not a valid object";
     }
     
     if (!node.id || typeof node.id !== "string") {
-      console.error("Validation failed: A node is missing a string ID.", JSON.stringify(node));
+      console.error("Rule Failed: Missing node string ID");
       return "Validation failed: A node is missing a valid string 'id'";
     }
     
     if (nodeIds.has(node.id)) {
-      console.error(`Validation failed: Duplicate node ID detected: ${node.id}`);
+      console.error(`Rule Failed: Duplicate node ID detected: '${node.id}'`);
       return `Validation failed: Duplicate node ID detected: '${node.id}'`;
     }
     nodeIds.add(node.id);
 
     if (!node.type) {
-      console.error(`Validation failed: Node ${node.id} is missing a type.`);
+      console.error(`Rule Failed: Node '${node.id}' is missing type`);
       return `Validation failed: Node '${node.id}' is missing a 'type' property`;
     }
 
     if (!validNodeTypes.includes(node.type)) {
-      console.error(`Validation failed: Node ${node.id} has invalid type: ${node.type}`);
+      console.error(`Rule Failed: Unsupported node type '${node.type}' on node '${node.id}'`);
       return `Validation failed: Node '${node.id}' has invalid/unsupported type '${node.type}' (Valid types: ${validNodeTypes.join(", ")})`;
     }
 
     if (!node.data || typeof node.data !== "object") {
-      console.error(`Validation failed: Node ${node.id} is missing 'data' object.`);
+      console.error(`Rule Failed: Node '${node.id}' missing required 'data' object`);
       return `Validation failed: Node '${node.id}' is missing the required 'data' object`;
     }
 
@@ -174,22 +172,22 @@ function validateGraphJson(graph: any, platform: string): string | null {
     if (node.type === "buttonsNode") {
       const buttons = node.data.buttons;
       if (!Array.isArray(buttons)) {
-        console.error(`Validation failed: Node ${node.id} (buttonsNode) is missing 'buttons' array.`);
+        console.error(`Rule Failed: Node '${node.id}' (buttonsNode) missing 'buttons' array`);
         return `Validation failed: Node '${node.id}' (buttonsNode) is missing 'buttons' array in 'data'`;
       }
       const limit = platform === "whatsapp" ? 3 : 13;
       if (buttons.length > limit) {
-        console.error(`Validation failed: Node ${node.id} has ${buttons.length} buttons (limit: ${limit}).`);
+        console.error(`Rule Failed: Node '${node.id}' exceeds button limit (${buttons.length} > ${limit})`);
         return `Validation failed: Node '${node.id}' has ${buttons.length} buttons, which exceeds the platform limit of ${limit} for ${platform}`;
       }
       for (const btn of buttons) {
         if (!btn || typeof btn !== "object") {
-          console.error(`Validation failed: Node ${node.id} contains invalid button element.`);
+          console.error(`Rule Failed: Node '${node.id}' contains invalid button element`);
           return `Validation failed: Node '${node.id}' contains an invalid/null button element in the list`;
         }
         if (!btn.id || !btn.title) {
-          console.error(`Validation failed: Node ${node.id} contains incomplete button structure:`, JSON.stringify(btn));
-          return `Validation failed: Node '${node.id}' contains a button missing 'id' or 'title' (Button: ${JSON.stringify(btn)})`;
+          console.error(`Rule Failed: Node '${node.id}' button missing id or title`);
+          return `Validation failed: Node '${node.id}' contains a button missing 'id' or 'title'`;
         }
       }
     }
@@ -198,29 +196,29 @@ function validateGraphJson(graph: any, platform: string): string | null {
     if (node.type === "listNode") {
       const sections = node.data.listSections;
       if (!Array.isArray(sections)) {
-        console.error(`Validation failed: Node ${node.id} (listNode) is missing 'listSections' array.`);
+        console.error(`Rule Failed: Node '${node.id}' (listNode) missing 'listSections' array`);
         return `Validation failed: Node '${node.id}' (listNode) is missing 'listSections' array in 'data'`;
       }
       let totalRows = 0;
       for (const sec of sections) {
         if (!sec || typeof sec !== "object" || !sec.title || !Array.isArray(sec.rows)) {
-          console.error(`Validation failed: Node ${node.id} contains invalid section structure:`, JSON.stringify(sec));
-          return `Validation failed: Node '${node.id}' contains an invalid 'listSection' structure: ${JSON.stringify(sec)}`;
+          console.error(`Rule Failed: Node '${node.id}' contains invalid listSection structure`);
+          return `Validation failed: Node '${node.id}' contains an invalid 'listSection' structure`;
         }
         totalRows += sec.rows.length;
         for (const row of sec.rows) {
           if (!row || typeof row !== "object") {
-            console.error(`Validation failed: Node ${node.id} contains null/invalid row.`);
-            return `Validation failed: Node '${node.id}' contains a null or invalid row in section '${sec.title}'`;
+            console.error(`Rule Failed: Node '${node.id}' contains null/invalid row`);
+            return `Validation failed: Node '${node.id}' contains a null or invalid row`;
           }
           if (!row.id || !row.title) {
-            console.error(`Validation failed: Node ${node.id} contains incomplete row structure:`, JSON.stringify(row));
-            return `Validation failed: Node '${node.id}' contains a row missing 'id' or 'title' in section '${sec.title}'`;
+            console.error(`Rule Failed: Node '${node.id}' row missing id or title`);
+            return `Validation failed: Node '${node.id}' contains a row missing 'id' or 'title'`;
           }
         }
       }
       if (totalRows > 10) {
-        console.error(`Validation failed: Node ${node.id} has ${totalRows} list items (limit: 10).`);
+        console.error(`Rule Failed: Node '${node.id}' exceeds list item limit (${totalRows} > 10)`);
         return `Validation failed: Node '${node.id}' has ${totalRows} total list items, which exceeds the limit of 10`;
       }
     }
@@ -228,7 +226,7 @@ function validateGraphJson(graph: any, platform: string): string | null {
     // Question input check
     if (node.type === "questionNode") {
       if (!node.data.variableName || typeof node.data.variableName !== "string") {
-        console.error(`Validation failed: Node ${node.id} (questionNode) is missing 'variableName'.`);
+        console.error(`Rule Failed: Node '${node.id}' (questionNode) missing 'variableName'`);
         return `Validation failed: Node '${node.id}' (questionNode) is missing a valid 'variableName' string in 'data'`;
       }
     }
@@ -237,65 +235,63 @@ function validateGraphJson(graph: any, platform: string): string | null {
   // 2. Validate at least one welcomeNode exists
   const hasWelcome = graph.nodes.some((n: any) => n.type === "welcomeNode");
   if (!hasWelcome) {
-    console.error("Validation failed: No welcomeNode found in nodes list.");
+    console.error("Rule Failed: Missing root welcomeNode in nodes list");
     return "Validation failed: The flow does not contain a root 'welcomeNode'";
   }
 
   // 3. Validate Edges
   for (const edge of graph.edges) {
-    console.log("Validating edge:", JSON.stringify(edge, null, 2));
-
     if (!edge || typeof edge !== "object") {
-      console.error("Validation failed: Edge entry is null or not an object.");
+      console.error("Rule Failed: Edge entry is null or not an object");
       return "Validation failed: An edge entry in the list is null or not a valid object";
     }
     
     if (!edge.id || typeof edge.id !== "string") {
-      console.error("Validation failed: Edge is missing a string ID.", JSON.stringify(edge));
+      console.error("Rule Failed: Edge missing string ID");
       return "Validation failed: An edge is missing a valid string 'id'";
     }
     
     if (!edge.source || typeof edge.source !== "string") {
-      console.error(`Validation failed: Edge ${edge.id} is missing a source node ID.`);
+      console.error(`Rule Failed: Edge '${edge.id}' missing source node ID`);
       return `Validation failed: Edge '${edge.id}' is missing a valid string 'source' ID`;
     }
     
     if (!edge.target || typeof edge.target !== "string") {
-      console.error(`Validation failed: Edge ${edge.id} is missing a target node ID.`);
+      console.error(`Rule Failed: Edge '${edge.id}' missing target node ID`);
       return `Validation failed: Edge '${edge.id}' is missing a valid string 'target' ID`;
     }
 
     if (!nodeIds.has(edge.source)) {
-      console.error(`Validation failed: Edge ${edge.id} source '${edge.source}' does not exist.`);
+      console.error(`Rule Failed: Edge '${edge.id}' references non-existent source ID '${edge.source}'`);
       return `Validation failed: Edge '${edge.id}' references a non-existent source node ID: '${edge.source}'`;
     }
     if (!nodeIds.has(edge.target)) {
-      console.error(`Validation failed: Edge ${edge.id} target '${edge.target}' does not exist.`);
+      console.error(`Rule Failed: Edge '${edge.id}' references non-existent target ID '${edge.target}'`);
       return `Validation failed: Edge '${edge.id}' references a non-existent target node ID: '${edge.target}'`;
     }
 
     const sourceNode = graph.nodes.find((n: any) => n.id === edge.source);
     if (sourceNode.type === "buttonsNode") {
       if (!edge.sourceHandle) {
-        console.error(`Validation failed: Edge ${edge.id} connects from buttonsNode ${edge.source} but lacks sourceHandle.`);
+        console.error(`Rule Failed: Missing sourceHandle on edge '${edge.id}' connecting from buttonsNode '${edge.source}'`);
         return `Validation failed: Edge '${edge.id}' connects from buttonsNode '${edge.source}' but is missing a 'sourceHandle' matching a button ID`;
       }
       const buttons = sourceNode.data.buttons || [];
       const hasBtn = buttons.some((btn: any) => btn.id === edge.sourceHandle);
       if (!hasBtn) {
-        console.error(`Validation failed: Edge ${edge.id} references non-existent button ID ${edge.sourceHandle} on source node ${edge.source}.`);
+        console.error(`Rule Failed: Edge '${edge.id}' references non-existent button ID '${edge.sourceHandle}' on node '${edge.source}'`);
         return `Validation failed: Edge '${edge.id}' references a non-existent button ID '${edge.sourceHandle}' on source buttonsNode '${edge.source}'`;
       }
     } else if (sourceNode.type === "listNode") {
       if (!edge.sourceHandle) {
-        console.error(`Validation failed: Edge ${edge.id} connects from listNode ${edge.source} but lacks sourceHandle.`);
+        console.error(`Rule Failed: Missing sourceHandle on edge '${edge.id}' connecting from listNode '${edge.source}'`);
         return `Validation failed: Edge '${edge.id}' connects from listNode '${edge.source}' but is missing a 'sourceHandle' matching a list row ID`;
       }
       const sections = sourceNode.data.listSections || [];
       const allRows = sections.flatMap((sec: any) => sec.rows || []);
       const hasRow = allRows.some((row: any) => row.id === edge.sourceHandle);
       if (!hasRow) {
-        console.error(`Validation failed: Edge ${edge.id} references non-existent list row ID ${edge.sourceHandle} on source node ${edge.source}.`);
+        console.error(`Rule Failed: Edge '${edge.id}' references non-existent list row ID '${edge.sourceHandle}' on node '${edge.source}'`);
         return `Validation failed: Edge '${edge.id}' references a non-existent list row ID '${edge.sourceHandle}' on source listNode '${edge.source}'`;
       }
     }
@@ -305,56 +301,245 @@ function validateGraphJson(graph: any, platform: string): string | null {
 }
 
 /**
- * Automatically corrects common LLM mistakes on flow edges, specifically missing or
- * mismatched sourceHandles originating from buttonsNodes.
+ * Automatically repairs and standardizes any LLM-generated flow graph into the project's exact schema.
+ * Fixes missing welcomeNode, non-standard node types, data fields, button handles, and orphan nodes.
  */
-function autoCorrectGraph(graph: any) {
+function autoRepairGraphJson(graph: any, platform: string): void {
   if (!graph || typeof graph !== "object") return;
-  if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) return;
+  if (!Array.isArray(graph.nodes)) graph.nodes = [];
+  if (!Array.isArray(graph.edges)) graph.edges = [];
 
-  const nodeMap = new Map<string, any>();
-  graph.nodes.forEach((n: any) => {
-    if (n && n.id) nodeMap.set(n.id, n);
+  const typeMap: Record<string, string> = {
+    "welcome": "welcomeNode",
+    "welcomenode": "welcomeNode",
+    "root": "welcomeNode",
+    "rootnode": "welcomeNode",
+    "start": "welcomeNode",
+    "startnode": "welcomeNode",
+    "trigger": "welcomeNode",
+    "triggernode": "welcomeNode",
+    "greeting": "welcomeNode",
+    "greetingnode": "welcomeNode",
+
+    "text": "textNode",
+    "textnode": "textNode",
+    "message": "textNode",
+    "reply": "textNode",
+    "send_message": "textNode",
+
+    "button": "buttonsNode",
+    "buttons": "buttonsNode",
+    "buttonsnode": "buttonsNode",
+    "quick_reply": "buttonsNode",
+    "options": "buttonsNode",
+
+    "list": "listNode",
+    "listnode": "listNode",
+    "menu": "listNode",
+    "select": "listNode",
+
+    "question": "questionNode",
+    "questionnode": "questionNode",
+    "input": "questionNode",
+    "capture": "questionNode",
+    "form": "questionNode",
+
+    "media": "mediaNode",
+    "medianode": "mediaNode",
+    "image": "mediaNode",
+    "video": "mediaNode"
+  };
+
+  const validTypes = ["welcomeNode", "textNode", "buttonsNode", "listNode", "questionNode", "mediaNode"];
+  const usedIds = new Set<string>();
+
+  // 1. Sanitize Node Types and IDs
+  graph.nodes.forEach((node: any, idx: number) => {
+    if (!node || typeof node !== "object") return;
+
+    if (!node.id || typeof node.id !== "string" || usedIds.has(node.id)) {
+      node.id = `node_${idx + 1}`;
+    }
+    usedIds.add(node.id);
+
+    const rawType = (node.type || "").toLowerCase().trim();
+    if (typeMap[rawType]) {
+      node.type = typeMap[rawType];
+    } else if (!validTypes.includes(node.type)) {
+      node.type = "textNode";
+    }
+
+    if (!node.data || typeof node.data !== "object") {
+      node.data = {};
+    }
   });
 
-  for (const edge of graph.edges) {
-    if (!edge || typeof edge !== "object" || !edge.source) continue;
+  // 2. Ensure Root welcomeNode Exists
+  const hasWelcome = graph.nodes.some((n: any) => n.type === "welcomeNode");
+  if (!hasWelcome) {
+    if (graph.nodes.length > 0) {
+      // Find root node (node with 0 incoming edges, or first node)
+      const incoming = new Set(graph.edges.map((e: any) => e.target));
+      const rootCandidate = graph.nodes.find((n: any) => !incoming.has(n.id)) || graph.nodes[0];
+      rootCandidate.type = "welcomeNode";
+      rootCandidate.data = {
+        text: rootCandidate.data?.text || rootCandidate.data?.message || "Hello! Welcome to our automated assistant."
+      };
+      console.log(`[AI Flow Generator Repair] Converted node '${rootCandidate.id}' to root 'welcomeNode'.`);
+    } else {
+      graph.nodes.push({
+        id: "welcome_1",
+        type: "welcomeNode",
+        data: { text: "Hello! Welcome to our automated assistant." }
+      });
+      console.log("[AI Flow Generator Repair] Created root 'welcomeNode'.");
+    }
+  }
 
-    const sourceNode = nodeMap.get(edge.source);
-    if (!sourceNode) continue;
+  // 3. Sanitize Data Objects per Node Type
+  graph.nodes.forEach((node: any) => {
+    if (node.type === "welcomeNode" || node.type === "textNode") {
+      if (!node.data.text || typeof node.data.text !== "string") {
+        node.data.text = "Hello! Thank you for reaching out.";
+      }
+    } else if (node.type === "buttonsNode") {
+      if (!node.data.text || typeof node.data.text !== "string") {
+        node.data.text = "Please choose an option:";
+      }
+      if (!Array.isArray(node.data.buttons) || node.data.buttons.length === 0) {
+        node.data.buttons = [{ id: `btn_${node.id}_1`, title: "Continue" }];
+      }
+      node.data.buttons.forEach((btn: any, bIdx: number) => {
+        if (!btn || typeof btn !== "object") btn = {};
+        if (!btn.id || typeof btn.id !== "string") btn.id = `btn_${node.id}_${bIdx + 1}`;
+        if (!btn.title || typeof btn.title !== "string") btn.title = `Option ${bIdx + 1}`;
+      });
+      const limit = platform === "whatsapp" ? 3 : 13;
+      if (node.data.buttons.length > limit) {
+        node.data.buttons = node.data.buttons.slice(0, limit);
+      }
+    } else if (node.type === "listNode") {
+      if (!node.data.text || typeof node.data.text !== "string") {
+        node.data.text = "Select from the list below:";
+      }
+      if (!node.data.listButtonText || typeof node.data.listButtonText !== "string") {
+        node.data.listButtonText = "View Menu";
+      }
+      if (!Array.isArray(node.data.listSections) || node.data.listSections.length === 0) {
+        node.data.listSections = [
+          { title: "Main Menu", rows: [{ id: `row_${node.id}_1`, title: "Option 1", description: "" }] }
+        ];
+      }
+      node.data.listSections.forEach((sec: any, sIdx: number) => {
+        if (!sec.title || typeof sec.title !== "string") sec.title = `Section ${sIdx + 1}`;
+        if (!Array.isArray(sec.rows) || sec.rows.length === 0) {
+          sec.rows = [{ id: `row_${node.id}_${sIdx + 1}_1`, title: "Option", description: "" }];
+        }
+        sec.rows.forEach((row: any, rIdx: number) => {
+          if (!row || typeof row !== "object") row = {};
+          if (!row.id || typeof row.id !== "string") row.id = `row_${node.id}_${sIdx + 1}_${rIdx + 1}`;
+          if (!row.title || typeof row.title !== "string") row.title = `Option ${rIdx + 1}`;
+          if (typeof row.description !== "string") row.description = "";
+        });
+      });
+    } else if (node.type === "questionNode") {
+      if (!node.data.text || typeof node.data.text !== "string") {
+        node.data.text = "Please enter your response:";
+      }
+      if (!node.data.variableName || typeof node.data.variableName !== "string") {
+        node.data.variableName = "user_input";
+      }
+    } else if (node.type === "mediaNode") {
+      if (!node.data.mediaType || !["image", "video", "audio", "document"].includes(node.data.mediaType)) {
+        node.data.mediaType = "image";
+      }
+      if (typeof node.data.mediaUrl !== "string") node.data.mediaUrl = "";
+      if (typeof node.data.caption !== "string") node.data.caption = "";
+    }
+  });
 
+  // 4. Sanitize and Connect Edges
+  const validNodeIds = new Set(graph.nodes.map((n: any) => n.id));
+  const sanitizedEdges: any[] = [];
+  const edgeIds = new Set<string>();
+
+  graph.edges.forEach((edge: any, idx: number) => {
+    if (!edge || typeof edge !== "object") return;
+    if (!edge.id || typeof edge.id !== "string" || edgeIds.has(edge.id)) {
+      edge.id = `e_${idx + 1}`;
+    }
+    edgeIds.add(edge.id);
+
+    if (!edge.source || !validNodeIds.has(edge.source)) return;
+    if (!edge.target || !validNodeIds.has(edge.target)) return;
+
+    const sourceNode = graph.nodes.find((n: any) => n.id === edge.source);
     if (sourceNode.type === "buttonsNode") {
       const buttons = sourceNode.data?.buttons || [];
       if (buttons.length > 0) {
-        // Case 1: sourceHandle is missing
-        if (!edge.sourceHandle) {
-          edge.sourceHandle = buttons[0].id;
-          console.log(`Auto-fixed edge:\n${edge.id}\n\nAssigned sourceHandle:\n${edge.sourceHandle}`);
-        } else {
-          // Case 2: sourceHandle exists but does not match any button ID
-          const hasExactBtn = buttons.some((btn: any) => btn.id === edge.sourceHandle);
-          if (!hasExactBtn) {
-            // Attempt to match by button title (case-insensitive, trimmed)
-            const matchByTitle = buttons.find((btn: any) => 
-              btn.title.toLowerCase().trim() === edge.sourceHandle?.toLowerCase().trim()
-            );
-            if (matchByTitle) {
-              edge.sourceHandle = matchByTitle.id;
-              console.log(`Auto-fixed edge:\n${edge.id}\n\nAssigned sourceHandle:\n${edge.sourceHandle}`);
-            } else {
-              // Fallback to first button
-              edge.sourceHandle = buttons[0].id;
-              console.log(`Auto-fixed edge:\n${edge.id}\n\nAssigned sourceHandle:\n${edge.sourceHandle}`);
-            }
-          }
+        const hasExact = buttons.some((b: any) => b.id === edge.sourceHandle);
+        if (!hasExact) {
+          const matchByTitle = buttons.find((b: any) =>
+            b.title.toLowerCase().trim() === (edge.sourceHandle || "").toLowerCase().trim()
+          );
+          edge.sourceHandle = matchByTitle ? matchByTitle.id : buttons[0].id;
         }
       }
+    } else if (sourceNode.type === "listNode") {
+      const sections = sourceNode.data?.listSections || [];
+      const allRows = sections.flatMap((sec: any) => sec.rows || []);
+      if (allRows.length > 0) {
+        const hasExact = allRows.some((r: any) => r.id === edge.sourceHandle);
+        if (!hasExact) {
+          const matchByTitle = allRows.find((r: any) =>
+            r.title.toLowerCase().trim() === (edge.sourceHandle || "").toLowerCase().trim()
+          );
+          edge.sourceHandle = matchByTitle ? matchByTitle.id : allRows[0].id;
+        }
+      }
+    } else {
+      delete edge.sourceHandle;
     }
+
+    sanitizedEdges.push(edge);
+  });
+
+  graph.edges = sanitizedEdges;
+
+  // 5. Connect Orphan / Disconnected Nodes
+  if (graph.nodes.length > 1) {
+    const connectedIds = new Set<string>();
+    graph.edges.forEach((e: any) => {
+      connectedIds.add(e.source);
+      connectedIds.add(e.target);
+    });
+
+    const welcomeNode = graph.nodes.find((n: any) => n.type === "welcomeNode");
+    graph.nodes.forEach((node: any, idx: number) => {
+      if (node.type !== "welcomeNode" && !connectedIds.has(node.id)) {
+        const prevNode = graph.nodes[idx - 1] || welcomeNode;
+        if (prevNode) {
+          const newEdge: any = {
+            id: `e_auto_${prevNode.id}_${node.id}`,
+            source: prevNode.id,
+            target: node.id
+          };
+          if (prevNode.type === "buttonsNode" && prevNode.data.buttons?.length > 0) {
+            newEdge.sourceHandle = prevNode.data.buttons[0].id;
+          } else if (prevNode.type === "listNode" && prevNode.data.listSections?.[0]?.rows?.length > 0) {
+            newEdge.sourceHandle = prevNode.data.listSections[0].rows[0].id;
+          }
+          graph.edges.push(newEdge);
+          connectedIds.add(node.id);
+          console.log(`[AI Flow Generator Repair] Connected orphan node '${node.id}' from '${prevNode.id}'.`);
+        }
+      }
+    });
   }
 }
 
 /**
- * Main generator service utilizing Groq's API and applying automated node positions.
+ * Main generator service utilizing Groq API and applying schema validation & auto-repair.
  */
 export async function generateFlow(prompt: string, platform: "whatsapp" | "instagram" | "youtube"): Promise<FlowGraph> {
   const groqKey = process.env.GROQ_KEY;
@@ -363,39 +548,41 @@ export async function generateFlow(prompt: string, platform: "whatsapp" | "insta
   }
 
   const systemPrompt = `You are an expert WhatsApp, Instagram, and YouTube chatbot architect.
-Your job is to generate chatbot flow JSON compatible with our existing CRM Flow Builder.
+Your job is to generate chatbot flow JSON compatible with our existing CRM Flow Builder schema.
 
-Rules:
-Return ONLY valid JSON.
-Do NOT return markdown.
-Do NOT explain anything.
-Do NOT write code blocks.
-Do NOT write any text before or after JSON.
-The response must be directly parsable using JSON.parse().
-Use ONLY existing node types already supported by the project.
-Never invent new node types.
-Do NOT generate node positions.
-Do NOT generate x/y coordinates.
-Generate only the logical conversation structure.
+MANDATORY RULES:
+1. Return ONLY valid JSON. No markdown, no prose explanations.
+2. The root greeting node MUST be a "welcomeNode" with type: "welcomeNode". Every flow MUST start with a welcomeNode.
+3. Use ONLY these official node types:
+   - "welcomeNode": Root greeting node. Has data: { text: string }
+   - "textNode": Standard message reply. Has data: { text: string }
+   - "buttonsNode": Quick reply options. Has data: { text: string, buttons: [{ id: string, title: string }] }. Limit: WhatsApp max 3 buttons, Instagram max 13, YouTube max 13.
+   - "listNode": Interactive menu. Has data: { text: string, listButtonText: string, listSections: [{ title: string, rows: [{ id: string, title: string, description: string }] }] }. Total rows <= 10.
+   - "questionNode": Asks user for text input. Has data: { text: string, variableName: string }.
+   - "mediaNode": Media message. Has data: { mediaType: "image" | "video" | "audio" | "document", mediaUrl: string, caption: string }.
 
-Existing node types:
-1. welcomeNode: Root greeting node. Has data: { text: string }
-2. textNode: Standard text reply message. Has data: { text: string }
-3. buttonsNode: Quick reply options. Has data: { text: string, buttons: [{ id: string, title: string }] }. Limit: WhatsApp max 3 buttons, Instagram max 13 buttons, YouTube max 13 buttons.
-4. listNode: Structured list menu. Has data: { text: string, listButtonText: string, listSections: [{ title: string, rows: [{ id: string, title: string, description: string }] }] }. Total rows <= 10.
-5. questionNode: Asks user for text input and stores it. Has data: { text: string, variableName: string }.
-6. mediaNode: Static media message. Has data: { mediaType: "image" | "video" | "audio" | "document", mediaUrl: string, caption: string }.
+4. Edge specifications:
+   - "id": string
+   - "source": string (source node ID)
+   - "target": string (target node ID)
+   - "sourceHandle": string (MANDATORY if source node is buttonsNode or listNode. Must EXACTLY match a button ID or list row ID)
 
-Edge specifications:
-Edges connect nodes. An edge must contain:
-- "id": string (unique ID)
-- "source": string (source node ID)
-- "target": string (target node ID)
-- "sourceHandle": string (ONLY if source node is buttonsNode or listNode, must match the specific button/row ID)
+REFERENCE SCHEMA TEMPLATE:
+{
+  "nodes": [
+    { "id": "welcome_1", "type": "welcomeNode", "data": { "text": "Welcome to JISNU Digital Solutions!" } },
+    { "id": "btn_menu", "type": "buttonsNode", "data": { "text": "How can we help you today?", "buttons": [{ "id": "b_sales", "title": "Contact Sales" }, { "id": "b_support", "title": "Support" }] } },
+    { "id": "sales_reply", "type": "textNode", "data": { "text": "Our sales team will assist you shortly." } },
+    { "id": "support_reply", "type": "textNode", "data": { "text": "Please describe your issue." } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "welcome_1", "target": "btn_menu" },
+    { "id": "e2", "source": "btn_menu", "sourceHandle": "b_sales", "target": "sales_reply" },
+    { "id": "e3", "source": "btn_menu", "sourceHandle": "b_support", "target": "support_reply" }
+  ]
+}
 
-${platform === "youtube" ? "Special YouTube Rules:\n- When presenting options, use buttonsNode or listNode with clear titles. Interactive choices will be automatically formatted as numbered text options for YouTube comments.\n- Do NOT generate WhatsApp-specific interactive payload mechanisms." : ""}
-
-Generate a logical conversational tree for: ${prompt} on platform: ${platform}.`;
+Generate a conversational tree for: "${prompt}" on platform: "${platform}".`;
 
   let lastError: string | null = null;
   const maxRetries = 2;
@@ -403,7 +590,7 @@ Generate a logical conversational tree for: ${prompt} on platform: ${platform}.`
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`[AI Flow Generator] Dispatching prompt to Groq API (Attempt ${attempt}/${maxRetries})...`);
-      
+
       const response = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
@@ -415,18 +602,18 @@ Generate a logical conversational tree for: ${prompt} on platform: ${platform}.`
             },
             {
               role: "user",
-              content: `Create a chatbot flow description: "${prompt}" for platform "${platform}"`
+              content: `Generate a chatbot flow for: "${prompt}" on platform "${platform}"`
             }
           ],
-          temperature: 0.2, // Low temperature for deterministic JSON output
-          response_format: { type: "json_object" } // Force JSON mode
+          temperature: 0.2,
+          response_format: { type: "json_object" }
         },
         {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${groqKey}`
           },
-          timeout: 25000 // 25s timeout
+          timeout: 25000
         }
       );
 
@@ -435,36 +622,41 @@ Generate a logical conversational tree for: ${prompt} on platform: ${platform}.`
         throw new Error("Received empty response content from Groq");
       }
 
-      console.log("[AI Flow Generator] Raw Groq Response Content:\n" + contentText);
+      console.log("[AI Flow Generator] Raw Groq Response Received.");
 
       // Parse JSON
       let flowGraph: any;
       try {
         flowGraph = JSON.parse(contentText);
-        console.log("[AI Flow Generator] Parsed JSON:\n" + JSON.stringify(flowGraph, null, 2));
       } catch (err: any) {
-        console.error(`[AI Flow Generator] JSON parsing failed: ${err.message}. Raw AI Response Content was:\n${contentText}`);
-        throw new Error(`JSON parsing failed: ${err.message}. Content was: ${contentText}`);
+        console.error(`[AI Flow Generator] JSON parsing failed: ${err.message}`);
+        throw new Error(`JSON parsing failed: ${err.message}`);
       }
 
-      // Auto-correct edge source handles for buttonsNode
-      autoCorrectGraph(flowGraph);
+      // Step 1 & 2: Auto-repair graph structure into project schema
+      autoRepairGraphJson(flowGraph, platform);
 
-      // Validate
-      const validationError = validateGraphJson(flowGraph, platform);
+      // Step 3 & 4: Validate graph against project rules
+      let validationError = validateGraphJson(flowGraph, platform);
       if (validationError) {
-        console.error(`[AI Flow Generator] Validation failed: ${validationError}`);
+        console.warn(`[AI Flow Generator] Validation issue detected: ${validationError}. Applying secondary repair...`);
+        autoRepairGraphJson(flowGraph, platform);
+        validationError = validateGraphJson(flowGraph, platform);
+      }
+
+      if (validationError) {
+        console.error(`[AI Flow Generator] Validation failed after repair: ${validationError}`);
         throw new Error(`Schema validation failed: ${validationError}`);
       }
 
-      // Set platform field for all nodes
+      // Set platform on node data
       flowGraph.nodes.forEach((n: any) => {
         if (n.data) {
           n.data.platform = platform;
         }
       });
 
-      // Calculate Positions
+      // Calculate Positions using visual auto-layout
       const positionedNodes = autoLayoutFlow(flowGraph.nodes, flowGraph.edges);
 
       return {

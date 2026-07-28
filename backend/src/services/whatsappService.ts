@@ -202,13 +202,13 @@ export class WhatsAppService {
     }
     const url = this.getApiUrl(phoneNumberId);
 
-    // Format action sections
+    // Format action sections (Meta WhatsApp API requires max 24 chars for list titles)
     const formattedSections = sections.map((sec) => ({
-      title: sec.title.substring(0, 24), // Meta limits section title to 24 chars
+      title: sec.title ? sec.title.trim().substring(0, 24) : "",
       rows: sec.rows.map((row) => ({
         id: row.id,
-        title: row.title.substring(0, 24), // Meta limits row title to 24 chars
-        description: row.description ? row.description.substring(0, 72) : undefined, // Meta limits desc to 72 chars
+        title: row.title ? row.title.trim().substring(0, 24) : "",
+        description: row.description ? row.description.trim().substring(0, 72) : undefined,
       })),
     }));
 

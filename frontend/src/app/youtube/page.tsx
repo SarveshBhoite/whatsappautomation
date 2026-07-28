@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   MessageSquare, 
   GitMerge, 
@@ -298,14 +298,7 @@ const MediaNodeComponent = ({ data }: any) => {
   );
 };
 
-const nodeTypes = {
-  welcomeNode: WelcomeNodeComponent,
-  textNode: TextNodeComponent,
-  buttonsNode: ButtonsNodeComponent,
-  listNode: ListNodeComponent,
-  questionNode: QuestionNodeComponent,
-  mediaNode: MediaNodeComponent,
-};
+
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -346,6 +339,18 @@ interface InstagramConfig {
 }
 
 export default function Dashboard() {
+  const nodeTypes = useMemo(
+    () => ({
+      welcomeNode: WelcomeNodeComponent,
+      textNode: TextNodeComponent,
+      buttonsNode: ButtonsNodeComponent,
+      listNode: ListNodeComponent,
+      questionNode: QuestionNodeComponent,
+      mediaNode: MediaNodeComponent,
+    }),
+    []
+  );
+
   const [activeTab, setActiveTab] = useState<"chats_youtube" | "videos_shorts" | "comparative" | "demographics" | "flows" | "analytics" | "settings">("analytics");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   MessageSquare, 
   GitMerge, 
@@ -277,14 +277,7 @@ const MediaNodeComponent = ({ data }: any) => {
   );
 };
 
-const nodeTypes = {
-  welcomeNode: WelcomeNodeComponent,
-  textNode: TextNodeComponent,
-  buttonsNode: ButtonsNodeComponent,
-  listNode: ListNodeComponent,
-  questionNode: QuestionNodeComponent,
-  mediaNode: MediaNodeComponent,
-};
+
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
@@ -332,6 +325,18 @@ interface InstagramConfig {
 }
 
 export default function Dashboard() {
+  const nodeTypes = useMemo(
+    () => ({
+      welcomeNode: WelcomeNodeComponent,
+      textNode: TextNodeComponent,
+      buttonsNode: ButtonsNodeComponent,
+      listNode: ListNodeComponent,
+      questionNode: QuestionNodeComponent,
+      mediaNode: MediaNodeComponent,
+    }),
+    []
+  );
+
   const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("chats_instagram");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
@@ -1953,7 +1958,7 @@ export default function Dashboard() {
                                   onChange={(e) => updateListOptionRow(row.id, e.target.value, row.description)}
                                   className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
                                   placeholder="Option Title"
-                                  maxLength={24}
+                                  maxLength={50}
                                 />
                                 <input 
                                   type="text" 

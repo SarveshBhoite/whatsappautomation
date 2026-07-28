@@ -268,9 +268,9 @@ export const handleWebhook = async (req: Request, res: Response) => {
         } else if (type === "interactive") {
           const interactiveType = message.interactive?.type;
           if (interactiveType === "button_reply") {
-            content = message.interactive.button_reply?.title || "";
+            content = message.interactive.button_reply?.id || message.interactive.button_reply?.title || "";
           } else if (interactiveType === "list_reply") {
-            content = message.interactive.list_reply?.title || "";
+            content = message.interactive.list_reply?.id || message.interactive.list_reply?.title || "";
           } else {
             content = "Interactive response";
           }

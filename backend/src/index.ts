@@ -27,6 +27,8 @@ const io = new Server(server, {
   },
 });
 
+app.set("io", io);
+
 app.use(cors());
 app.use(express.json({ limit: "50mb" })); // Increase limit for base64 file uploads
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));

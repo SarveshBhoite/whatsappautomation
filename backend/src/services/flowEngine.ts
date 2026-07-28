@@ -37,6 +37,15 @@ interface FlowEdge {
   sourceHandle?: string; // Maps to button ID or list row ID
 }
 
+function sanitizeForMatch(str: string): string {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+    .replace(/[^\w\s]/gi, "")
+    .trim();
+}
+
 export async function processChatbotFlow(conversationId: string, incomingMessageId: string) {
   try {
     // 1. Fetch Conversation and Message
@@ -93,8 +102,8 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
       }
     }
 
-    // 2. Fetch the Active Flow for the Organization and Platform
-    const activeFlow = await prisma.flow.findFirst({
+    // 2. Fetch the Active Flow for the Organization and Platform (Fallback to default if no active flow)
+    let activeFlow = await prisma.flow.findFirst({
       where: { 
         organizationId: conversation.organizationId, 
         platform: conversation.platform,
@@ -103,7 +112,17 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     });
 
     if (!activeFlow) {
-      console.log(`No active flow found for organization ${conversation.organizationId} on platform ${conversation.platform}`);
+      activeFlow = await prisma.flow.findFirst({
+        where: {
+          organizationId: conversation.organizationId,
+          platform: conversation.platform,
+          isDefault: true
+        }
+      });
+    }
+
+    if (!activeFlow) {
+      console.log(`No active or default flow found for organization ${conversation.organizationId} on platform ${conversation.platform}`);
       return;
     }
 
@@ -137,17 +156,60 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             nextNodeId = rootNode.id;
           }
         } else if (currentNode.type === "buttonsNode" || currentNode.type === "listNode") {
-          // Interactive Nodes: Match user selection
-          const userResponseText = message.content.toLowerCase().trim();
-          
+          // Interactive Nodes: Match user selection by ID, full title, clean title, or number index
+          const userRaw = message.content.trim();
+          const userClean = sanitizeForMatch(userRaw);
+          const userNum = parseInt(userRaw, 10);
+
           if (currentNode.type === "buttonsNode") {
-            const matchingBtn = currentNode.data.buttons?.find(
-              (btn) => btn.title.toLowerCase().trim() === userResponseText
-            );
+            const buttons = currentNode.data.buttons || [];
+            let matchingBtn = buttons.find((btn) => btn.id === userRaw || btn.id.toLowerCase() === userRaw.toLowerCase());
+            
+            if (!matchingBtn) {
+              matchingBtn = buttons.find((btn) => btn.title.toLowerCase().trim() === userRaw.toLowerCase());
+            }
+
+            if (!matchingBtn && userClean) {
+              matchingBtn = buttons.find((btn) => {
+                const btnClean = sanitizeForMatch(btn.title);
+                return (
+                  btnClean === userClean || 
+                  (btnClean.length >= 2 && userClean.includes(btnClean)) || 
+                  (userClean.length >= 2 && btnClean.includes(userClean)) ||
+                  btnClean.startsWith(userClean) ||
+                  userClean.startsWith(btnClean)
+                );
+              });
+            }
+
+            if (!matchingBtn && userClean) {
+              const u = userClean;
+              matchingBtn = buttons.find((btn) => {
+                const bId = btn.id.toLowerCase();
+                const bTitle = btn.title.toLowerCase();
+                if ((u.includes("web") || u.includes("site") || u.includes("dev")) && (bId.includes("web") || bTitle.includes("web"))) return true;
+                if ((u.includes("mkt") || u.includes("market") || u.includes("digital")) && (bId.includes("mkt") || bId.includes("digital") || bTitle.includes("market"))) return true;
+                if ((u.includes("job") || u.includes("career")) && (bId.includes("job") || bTitle.includes("job"))) return true;
+                if ((u.includes("intern")) && (bId.includes("intern") || bTitle.includes("intern"))) return true;
+                if ((u.includes("call") || u.includes("phone")) && (bId.includes("call") || bTitle.includes("call"))) return true;
+                if ((u.includes("mail") || u.includes("email")) && (bId.includes("email") || bTitle.includes("email"))) return true;
+                if ((u.includes("address") || u.includes("office") || u.includes("location")) && (bId.includes("addr") || bTitle.includes("address"))) return true;
+                if ((u.includes("menu") || u.includes("home") || u.includes("main")) && (bId.includes("menu") || bTitle.includes("menu"))) return true;
+                if ((u.includes("feat")) && (bId.includes("feat") || bTitle.includes("feat"))) return true;
+                if ((u.includes("price") || u.includes("cost") || u.includes("rate")) && (bId.includes("price") || bTitle.includes("price"))) return true;
+                if ((u.includes("book") || u.includes("consult")) && (bId.includes("book") || bTitle.includes("consult"))) return true;
+                return false;
+              });
+            }
+
+            if (!matchingBtn && !isNaN(userNum) && userNum >= 1 && userNum <= buttons.length) {
+              matchingBtn = buttons[userNum - 1];
+            }
+
             if (matchingBtn) {
               const matchingEdge = graph.edges.find(
                 (edge) => edge.source === currentNode.id && edge.sourceHandle === matchingBtn.id
-              );
+              ) || graph.edges.find((edge) => edge.source === currentNode.id);
               if (matchingEdge) {
                 nextNodeId = matchingEdge.target;
               }
@@ -155,15 +217,93 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           } else {
             // List menu item matching
             const allRows = currentNode.data.listSections?.flatMap((sec) => sec.rows) || [];
-            const matchingRow = allRows.find(
-              (row) => row.title.toLowerCase().trim() === userResponseText
-            );
+            let matchingRow = allRows.find((row) => row.id === userRaw || row.id.toLowerCase() === userRaw.toLowerCase());
+
+            if (!matchingRow) {
+              matchingRow = allRows.find((row) => row.title.toLowerCase().trim() === userRaw.toLowerCase());
+            }
+
+            if (!matchingRow && userClean) {
+              matchingRow = allRows.find((row) => {
+                const rowClean = sanitizeForMatch(row.title);
+                return (
+                  rowClean === userClean || 
+                  (rowClean.length >= 2 && userClean.includes(rowClean)) || 
+                  (userClean.length >= 2 && rowClean.includes(userClean)) ||
+                  rowClean.startsWith(userClean) ||
+                  userClean.startsWith(rowClean) ||
+                  (row.id && userRaw.toLowerCase().includes(row.id.toLowerCase()))
+                );
+              });
+            }
+
+            if (!matchingRow && userClean) {
+              const u = userClean;
+              matchingRow = allRows.find((row) => {
+                const rId = row.id.toLowerCase();
+                const rTitle = row.title.toLowerCase();
+                if ((u.includes("python") || u.includes("py")) && (rId.includes("py") || rTitle.includes("python"))) return true;
+                if ((u.includes("web") || u.includes("site") || u.includes("react")) && (rId.includes("web") || rTitle.includes("web"))) return true;
+                if ((u.includes("seo") || u.includes("search")) && (rId.includes("seo") || rTitle.includes("seo"))) return true;
+                if ((u.includes("mkt") || u.includes("market") || u.includes("digital")) && (rId.includes("mkt") || rTitle.includes("market"))) return true;
+                if ((u.includes("des") || u.includes("graphic") || u.includes("design")) && (rId.includes("des") || rTitle.includes("design"))) return true;
+                return false;
+              });
+            }
+
+            if (!matchingRow && !isNaN(userNum) && userNum >= 1 && userNum <= allRows.length) {
+              matchingRow = allRows[userNum - 1];
+            }
+
             if (matchingRow) {
               const matchingEdge = graph.edges.find(
                 (edge) => edge.source === currentNode.id && edge.sourceHandle === matchingRow.id
-              );
+              ) || graph.edges.find((edge) => edge.source === currentNode.id);
               if (matchingEdge) {
                 nextNodeId = matchingEdge.target;
+              }
+            }
+          }
+
+          if (!nextNodeId) {
+            // Global Fallback Traversal across all list nodes and button nodes in graph
+            for (const node of graph.nodes) {
+              if (node.type === "listNode") {
+                const rows = node.data.listSections?.flatMap((sec: any) => sec.rows) || [];
+                const row = rows.find((r: any) => 
+                  r.id === userRaw || 
+                  r.id.toLowerCase() === userRaw.toLowerCase() ||
+                  r.title.toLowerCase().trim() === userRaw.toLowerCase() ||
+                  (userClean && sanitizeForMatch(r.title) === userClean) ||
+                  (userClean && userClean.length >= 3 && sanitizeForMatch(r.title).includes(userClean)) ||
+                  (userClean && userClean.length >= 3 && userClean.includes(sanitizeForMatch(r.title)))
+                );
+                if (row) {
+                  const edge = graph.edges.find((e) => e.source === node.id && e.sourceHandle === row.id);
+                  if (edge) {
+                    nextNodeId = edge.target;
+                    console.log(`Global fallback list match: node=${node.id}, row=${row.id} -> nextNode=${nextNodeId}`);
+                    break;
+                  }
+                }
+              } else if (node.type === "buttonsNode") {
+                const buttons = node.data.buttons || [];
+                const btn = buttons.find((b: any) => 
+                  b.id === userRaw || 
+                  b.id.toLowerCase() === userRaw.toLowerCase() ||
+                  b.title.toLowerCase().trim() === userRaw.toLowerCase() ||
+                  (userClean && sanitizeForMatch(b.title) === userClean) ||
+                  (userClean && userClean.length >= 3 && sanitizeForMatch(b.title).includes(userClean)) ||
+                  (userClean && userClean.length >= 3 && userClean.includes(sanitizeForMatch(b.title)))
+                );
+                if (btn) {
+                  const edge = graph.edges.find((e) => e.source === node.id && e.sourceHandle === btn.id);
+                  if (edge) {
+                    nextNodeId = edge.target;
+                    console.log(`Global fallback button match: node=${node.id}, button=${btn.id} -> nextNode=${nextNodeId}`);
+                    break;
+                  }
+                }
               }
             }
           }
