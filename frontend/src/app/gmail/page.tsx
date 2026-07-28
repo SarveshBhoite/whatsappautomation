@@ -50,6 +50,9 @@ interface GmailAutoReplyRule {
   organizationId: string;
   keyword: string;
   replyText: string;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -783,26 +786,33 @@ export default function GmailDashboard() {
     }
   };
 
+  // File Attachment State for Auto-Reply Rule
+  const [ruleFile, setRuleFile] = useState<File | null>(null);
+
   const handleAddRule = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!newKeyword.trim() || !newReplyText.trim()) return;
     setAddingRule(true);
     setErrorMsg(null);
     try {
+      const formData = new FormData();
+      formData.append("keyword", newKeyword.trim());
+      formData.append("replyText", newReplyText.trim());
+      if (ruleFile) {
+        formData.append("file", ruleFile);
+      }
+
       const res = await fetch(`${BACKEND_URL}/api/gmail/rules`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           "x-organization-id": DEFAULT_ORG_ID
         },
-        body: JSON.stringify({
-          keyword: newKeyword.trim(),
-          replyText: newReplyText.trim()
-        })
+        body: formData
       });
       if (res.ok) {
         setNewKeyword("");
         setNewReplyText("");
+        setRuleFile(null);
         await fetchRules();
       } else {
         const errorData = await res.json().catch(() => ({}));
@@ -1445,35 +1455,62 @@ export default function GmailDashboard() {
                 </div>
 
                 {/* Form to add rules */}
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl items-end">
-                  <div className="md:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Matching Phrase / Keyword</label>
-                    <input
-                      type="text"
-                      value={newKeyword}
-                      onChange={(e) => setNewKeyword(e.target.value)}
-                      placeholder="e.g. pricing catalog"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-                    />
+                <div className="flex flex-col gap-4 bg-slate-50 border border-slate-200 p-5 rounded-2xl">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Matching Phrase / Keyword</label>
+                      <input
+                        type="text"
+                        value={newKeyword}
+                        onChange={(e) => setNewKeyword(e.target.value)}
+                        placeholder="e.g. pricing catalog, brochure, rate card"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Instant Reply Text Message</label>
+                      <input
+                        type="text"
+                        value={newReplyText}
+                        onChange={(e) => setNewReplyText(e.target.value)}
+                        placeholder="e.g. Hello! Please find our official catalog attached..."
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-medium"
+                      />
+                    </div>
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Instant Reply Message</label>
-                    <input
-                      type="text"
-                      value={newReplyText}
-                      onChange={(e) => setNewReplyText(e.target.value)}
-                      placeholder="e.g. Hello, our pricing is located at..."
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-                    />
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-slate-200/80">
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-pointer transition shadow-sm">
+                        <Paperclip className="h-4 w-4 text-emerald-600" />
+                        <span>{ruleFile ? ruleFile.name : "Attach File (PDF, Image, Doc)"}</span>
+                        <input
+                          type="file"
+                          onChange={(e) => setRuleFile(e.target.files?.[0] || null)}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {ruleFile && (
+                        <button
+                          type="button"
+                          onClick={() => setRuleFile(null)}
+                          className="text-[11px] text-red-500 hover:text-red-700 font-bold"
+                        >
+                          Clear File
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddRule}
+                      disabled={addingRule || !newKeyword.trim() || !newReplyText.trim()}
+                      className="py-2.5 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-xs font-bold text-white transition duration-200 flex items-center justify-center gap-2 shadow-sm shrink-0 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" /> {addingRule ? "Adding..." : "Save Rule"}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddRule}
-                    disabled={addingRule || !newKeyword.trim() || !newReplyText.trim()}
-                    className="py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-xs font-bold text-white transition duration-200 flex items-center justify-center gap-2 h-[41px] shadow-sm shrink-0 cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4" /> {addingRule ? "Adding..." : "Add Rule"}
-                  </button>
                 </div>
 
                 {/* Rules Table */}
@@ -1482,14 +1519,19 @@ export default function GmailDashboard() {
                   <div className="flex flex-col gap-3">
                     {rules.map((rule) => (
                       <div key={rule.id} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl group hover:border-slate-300 transition-colors">
-                        <div className="flex flex-col gap-1 min-w-0 pr-6">
+                        <div className="flex flex-col gap-1.5 min-w-0 pr-6">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-bold text-slate-600">If subject or body contains:</span>
                             <span className="text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-lg shadow-sm">
                               {rule.keyword}
                             </span>
+                            {rule.fileName && (
+                              <span className="text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                <Paperclip className="h-3 w-3 text-sky-600" /> {rule.fileName}
+                              </span>
+                            )}
                           </div>
-                          <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                          <p className="text-xs text-slate-700 leading-relaxed">
                             <strong className="text-slate-500 font-semibold">Instant Reply:</strong> "{rule.replyText}"
                           </p>
                         </div>

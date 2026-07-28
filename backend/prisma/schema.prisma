@@ -482,6 +482,9 @@ model GmailAutoReplyRule {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   keyword        String       // word or phrase to match (case-insensitive)
   replyText      String       // Reply message to send automatically
+  fileUrl        String?      // Optional uploaded file URL / base64 attachment
+  fileName       String?      // Original file name (e.g. Brochure.pdf)
+  mimeType       String?      // MIME type (application/pdf, image/png, etc.)
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

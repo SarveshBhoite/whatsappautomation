@@ -17,6 +17,7 @@ import youtubeRouter from "./routes/youtube";
 import seoRouter from "./routes/seo";
 import gmailRouter from "./routes/gmail";
 import linkedinRouter from "./routes/linkedin";
+import contentInspectorRouter from "./routes/contentInspector";
 
 const app = express();
 const server = http.createServer(app);
@@ -67,6 +68,9 @@ app.use("/api/gmail", gmailRouter);
 
 // LinkedIn Integration Router
 app.use("/api/linkedin", linkedinRouter);
+
+// AI Content Quality Inspector Router
+app.use("/api/inspector", contentInspectorRouter);
 
 // Health check endpoints (for Render Keep-Alive cron/uptime pings)
 app.get(["/health", "/api/health"], (req, res) => {

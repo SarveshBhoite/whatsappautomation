@@ -31,8 +31,54 @@ import {
   Mail,
   Send,
   Paperclip,
-  Save
+  Save,
+  UploadCloud,
+  FileCheck2,
+  BrainCircuit,
+  Sparkle,
+  Download,
+  Eye,
+  Sliders,
+  Award,
+  History,
+  BookOpen,
+  Split,
+  MessageSquare
 } from "lucide-react";
+
+interface InspectionResult {
+  id: string;
+  filename: string;
+  text: string;
+  analyzedAt: string;
+  scores: {
+    overallQuality: number;
+    aiProbability: number;
+    humanScore: number;
+    originalityScore: number;
+    plagiarismScore: number;
+    grammarScore: number;
+    readabilityScore: number;
+    seoScore: number;
+    tone: string;
+  };
+  metrics: {
+    wordCount: number;
+    characterCount: number;
+    sentenceCount: number;
+    paragraphCount: number;
+    readingTimeMinutes: number;
+    fleschKincaidGrade: string;
+  };
+  issues: Array<{
+    type: "grammar" | "spelling" | "wordiness" | "ai_phrase" | "seo";
+    originalText: string;
+    suggestion: string;
+    explanation: string;
+  }>;
+  recommendations: string[];
+  humanizedDrafts: Record<string, string>;
+}
 
 interface SeoAuditData {
   url: string;
@@ -150,6 +196,18 @@ export default function ToolsSuitePage() {
   const [launchingCampaign, setLaunchingCampaign] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  // AI Content Quality Inspector State
+  const [inspectorText, setInspectorText] = useState("");
+  const [inspectorFile, setInspectorFile] = useState<File | null>(null);
+  const [inspecting, setInspecting] = useState(false);
+  const [inspectionStep, setInspectionStep] = useState(0);
+  const [inspectionResult, setInspectionResult] = useState<InspectionResult | null>(null);
+  const [humanizeMode, setHumanizeMode] = useState<string>("Professional");
+  const [humanizing, setHumanizing] = useState(false);
+  const [humanizedOutput, setHumanizedOutput] = useState<string | null>(null);
+  const [inspectorHistory, setInspectorHistory] = useState<InspectionResult[]>([]);
+  const [inspectorViewTab, setInspectorViewTab] = useState<"analysis" | "humanizer" | "history">("analysis");
+  const [copiedInspectorText, setCopiedInspectorText] = useState(false);
 
   const DEFAULT_ORG_ID = "demo-org-123";
 
@@ -385,6 +443,236 @@ ${auditResult.aiRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
     setTimeout(() => setCopiedSummary(false), 2500);
   };
 
+  // AI Content Quality Inspector Handlers
+  const inspectorSteps = [
+    "📄 Parsing document structure & extracting plain text payload...",
+    "🧠 Running Groq LLaMA 3.3 Deep Neural AI Probability & Pattern Detection...",
+    "🔍 Executing Plagiarism & Originality Index cross-check...",
+    "✍️ Analyzing Flesch-Kincaid Readability, Tone, & Grammar syntax...",
+    "🚀 Evaluating SEO Keyword Density & Generating Actionable Recommendations..."
+  ];
+
+  const fetchInspectorHistory = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/inspector/history`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInspectorHistory(data);
+      }
+    } catch (e) {}
+  };
+
+  const handleInspectorFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setInspectorFile(file);
+    setErrorMsg(null);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/inspector/extract-file`, {
+        method: "POST",
+        headers: { "x-organization-id": DEFAULT_ORG_ID },
+        body: formData
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setInspectorText(data.text || "");
+      } else {
+        const errData = await res.json();
+        setErrorMsg(errData.error || "Failed to extract text from file.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg("Network error extracting file text.");
+    }
+  };
+
+  const handleRunInspection = async () => {
+    if (!inspectorText || !inspectorText.trim()) {
+      setErrorMsg("Please paste content or upload a document file (PDF, DOCX, TXT) to inspect.");
+      return;
+    }
+
+    setInspecting(true);
+    setInspectionStep(0);
+    setErrorMsg(null);
+
+    const stepInterval = setInterval(() => {
+      setInspectionStep(prev => (prev + 1) % inspectorSteps.length);
+    }, 1100);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/inspector/analyze`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({
+          text: inspectorText,
+          filename: inspectorFile ? inspectorFile.name : "Direct Input Text"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setInspectionResult(data);
+        if (data.humanizedDrafts && data.humanizedDrafts["Professional"]) {
+          setHumanizedOutput(data.humanizedDrafts["Professional"]);
+        }
+        setInspectorViewTab("analysis");
+        await fetchInspectorHistory();
+      } else {
+        setErrorMsg(data.error || "Failed to complete content quality inspection.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || "Network error contacting inspection engine.");
+    } finally {
+      clearInterval(stepInterval);
+      setInspecting(false);
+    }
+  };
+
+  const handleHumanizeRewrite = async (mode: string) => {
+    setHumanizeMode(mode);
+
+    // If pre-generated in full analysis, use it immediately
+    if (inspectionResult?.humanizedDrafts && inspectionResult.humanizedDrafts[mode]) {
+      setHumanizedOutput(inspectionResult.humanizedDrafts[mode]);
+      return;
+    }
+
+    if (!inspectorText.trim()) return;
+
+    setHumanizing(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/inspector/humanize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: inspectorText,
+          mode
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setHumanizedOutput(data.rewrittenText);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setHumanizing(false);
+    }
+  };
+
+  const handleDownloadInspectorReport = (format: "txt" | "md" | "json" | "html") => {
+    if (!inspectionResult) return;
+
+    let content = "";
+    let mimeType = "text/plain";
+    let ext = format;
+
+    if (format === "html") {
+      mimeType = "text/html";
+      content = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Content Quality Report - ${inspectionResult.filename}</title>
+  <style>
+    body { font-family: sans-serif; padding: 40px; background: #0f172a; color: #f8fafc; }
+    h1 { color: #f59e0b; }
+    .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+    .score { font-size: 24px; font-weight: bold; color: #10b981; }
+  </style>
+</head>
+<body>
+  <h1>AI Content Quality Inspection Report</h1>
+  <p><strong>File/Source:</strong> ${inspectionResult.filename}</p>
+  <p><strong>Date:</strong> ${new Date(inspectionResult.analyzedAt).toLocaleString()}</p>
+
+  <div class="card">
+    <h2>Quality Overview</h2>
+    <p class="score">Overall Quality Score: ${inspectionResult.scores.overallQuality}%</p>
+    <p>AI Probability: ${inspectionResult.scores.aiProbability}% | Human Score: ${inspectionResult.scores.humanScore}%</p>
+    <p>Originality: ${inspectionResult.scores.originalityScore}% | Plagiarism Risk: ${inspectionResult.scores.plagiarismScore}%</p>
+    <p>Grammar: ${inspectionResult.scores.grammarScore}% | Readability: ${inspectionResult.scores.readabilityScore}% | SEO: ${inspectionResult.scores.seoScore}%</p>
+  </div>
+
+  <div class="card">
+    <h2>Original Content</h2>
+    <pre>${inspectionResult.text}</pre>
+  </div>
+
+  ${humanizedOutput ? `
+  <div class="card">
+    <h2>Humanized Rewrite (${humanizeMode} Mode)</h2>
+    <pre>${humanizedOutput}</pre>
+  </div>
+  ` : ""}
+</body>
+</html>
+      `;
+    } else if (format === "md") {
+      content = `# AI Content Quality Inspection Report
+
+**Source**: ${inspectionResult.filename}  
+**Date**: ${new Date(inspectionResult.analyzedAt).toLocaleString()}  
+
+## Quality Scores
+- **Overall Quality Score**: ${inspectionResult.scores.overallQuality}%
+- **AI Detection Probability**: ${inspectionResult.scores.aiProbability}%
+- **Human Written Score**: ${inspectionResult.scores.humanScore}%
+- **Originality Index**: ${inspectionResult.scores.originalityScore}%
+- **Plagiarism Risk**: ${inspectionResult.scores.plagiarismScore}%
+- **Grammar & Syntax**: ${inspectionResult.scores.grammarScore}%
+- **Readability Score**: ${inspectionResult.scores.readabilityScore}%
+- **SEO Optimization**: ${inspectionResult.scores.seoScore}%
+- **Primary Tone**: ${inspectionResult.scores.tone}
+
+## Text Metrics
+- **Word Count**: ${inspectionResult.metrics.wordCount}
+- **Sentence Count**: ${inspectionResult.metrics.sentenceCount}
+- **Est. Reading Time**: ${inspectionResult.metrics.readingTimeMinutes} mins
+- **Readability Grade**: ${inspectionResult.metrics.fleschKincaidGrade}
+
+## Original Content
+${inspectionResult.text}
+
+${humanizedOutput ? `## Humanized Rewrite (${humanizeMode})\n${humanizedOutput}` : ""}
+`;
+    } else {
+      content = `AI CONTENT QUALITY INSPECTION REPORT
+Source: ${inspectionResult.filename}
+Overall Quality Score: ${inspectionResult.scores.overallQuality}%
+AI Probability: ${inspectionResult.scores.aiProbability}%
+Originality Score: ${inspectionResult.scores.originalityScore}%
+Plagiarism Risk: ${inspectionResult.scores.plagiarismScore}%
+
+ORIGINAL TEXT:
+${inspectionResult.text}
+
+${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` : ""}
+`;
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Quality_Report_${inspectionResult.filename.replace(/[^a-z0-9]/gi, '_')}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
     if (score >= 55) return "text-amber-400 border-amber-500/30 bg-amber-500/10";
@@ -466,14 +754,14 @@ ${auditResult.aiRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
 
         <button
           onClick={() => setActiveTab("ai_content")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "ai_content"
-              ? "bg-slate-800 text-amber-400 border border-slate-700"
-              : "text-slate-500 hover:text-slate-300"
+              ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
           }`}
         >
           <FileText className="h-3.5 w-3.5" /> AI Content Quality Inspector
-          <span className="text-[9px] bg-slate-900 border border-slate-700 text-slate-400 px-1.5 py-0.2 rounded font-mono">Next</span>
+          <span className="text-[9px] bg-amber-400/20 border border-amber-500/30 text-amber-300 px-1.5 py-0.2 rounded font-mono">Live</span>
         </button>
 
         <button
@@ -1377,19 +1665,494 @@ ${auditResult.aiRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
           </div>
         )}
 
-        {/* TAB 3: AI CONTENT QUALITY INSPECTOR (PREVIEW) */}
+        {/* TAB 3: AI CONTENT QUALITY INSPECTOR (FULL PRODUCTION MODULE) */}
         {activeTab === "ai_content" && (
-          <div className="max-w-4xl mx-auto bg-slate-950/30 border border-slate-800 rounded-2xl p-8 text-center space-y-4 shadow-xl">
-            <div className="h-16 w-16 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto text-amber-400">
-              <FileText className="h-8 w-8" />
+          <div className="max-w-6xl mx-auto space-y-6">
+            
+            {/* Main Header Banner */}
+            <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+              
+              <div className="space-y-2 z-10">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-bold rounded-full flex items-center gap-1.5">
+                    <BrainCircuit className="h-3.5 w-3.5" /> LLaMA 3.3 70B Neural Engine
+                  </span>
+                  <span className="px-3 py-1 bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-semibold rounded-full">
+                    Originality.ai & Grammarly Grade
+                  </span>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-100 tracking-tight">
+                  AI Content Quality & Humanizer Inspector
+                </h2>
+                <p className="text-xs md:text-sm text-slate-400 max-w-2xl leading-relaxed">
+                  Detect AI probability, plagiarism risk, grammar syntax flaws, and SEO readability in seconds. One-click humanize to bypass AI detectors with natural phrasing.
+                </p>
+              </div>
+
+              {/* View Switcher Tabs */}
+              <div className="flex items-center bg-slate-900 border border-slate-800 p-1.5 rounded-2xl z-10 shrink-0">
+                <button
+                  onClick={() => setInspectorViewTab("analysis")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    inspectorViewTab === "analysis"
+                      ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <FileCheck2 className="h-3.5 w-3.5" /> Inspector & Analysis
+                </button>
+                <button
+                  onClick={() => setInspectorViewTab("humanizer")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    inspectorViewTab === "humanizer"
+                      ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> AI Humanizer
+                </button>
+                <button
+                  onClick={() => {
+                    setInspectorViewTab("history");
+                    fetchInspectorHistory();
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    inspectorViewTab === "history"
+                      ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <History className="h-3.5 w-3.5" /> Scan History ({inspectorHistory.length})
+                </button>
+              </div>
             </div>
-            <h2 className="text-xl font-bold text-slate-100">AI Content Quality & Plagiarism Inspector</h2>
-            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-              Analyze blog articles and post captions for AI probability score, readability grade, duplicate phrase risks, and target keyword density.
-            </p>
-            <span className="inline-block px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold rounded-full">
-              Module Ready for Next Addition
-            </span>
+
+            {/* Input & File Upload Area */}
+            <div className="bg-slate-950/40 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-amber-400" />
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Paste Article Content or Upload File</span>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 rounded-xl text-xs font-semibold text-slate-300 cursor-pointer transition">
+                    <UploadCloud className="h-3.5 w-3.5 text-amber-400" />
+                    <span>{inspectorFile ? inspectorFile.name : "Upload PDF, DOCX, TXT"}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt,.md"
+                      onChange={handleInspectorFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {inspectorText && (
+                    <span className="text-[11px] font-mono text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
+                      {inspectorText.trim().split(/\s+/).length} Words | {inspectorText.length} Chars
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <textarea
+                value={inspectorText}
+                onChange={(e) => setInspectorText(e.target.value)}
+                placeholder="Paste your blog article, social post, website text, or essay here to run AI probability detection, grammar syntax audit, and readability check..."
+                rows={7}
+                className="w-full bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition duration-300 resize-none font-sans leading-relaxed"
+              />
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  <span>Supports PDF, DOCX, & TXT up to 10MB • Auto Groq LLaMA 3.3 Neural Scoring</span>
+                </div>
+
+                <button
+                  onClick={handleRunInspection}
+                  disabled={inspecting || !inspectorText.trim()}
+                  className="w-full sm:w-auto px-8 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs md:text-sm rounded-xl transition duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer shrink-0"
+                >
+                  {inspecting ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Inspecting Content...
+                    </>
+                  ) : (
+                    <>
+                      <BrainCircuit className="h-4.5 w-4.5" /> Inspect Quality & Detect AI
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Progress Stepper Bar */}
+              {inspecting && (
+                <div className="bg-slate-900 p-4 rounded-2xl border border-amber-500/30 space-y-2 animate-pulse">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                    <span>{inspectorSteps[inspectionStep]}</span>
+                    <span>Step {inspectionStep + 1} / {inspectorSteps.length}</span>
+                  </div>
+                  <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className="bg-gradient-to-r from-amber-500 to-emerald-400 h-full transition-all duration-300"
+                      style={{ width: `${((inspectionStep + 1) / inspectorSteps.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Error Banner */}
+            {errorMsg && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between text-xs text-red-300">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" /> {errorMsg}
+                </span>
+                <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-white font-bold">Dismiss</button>
+              </div>
+            )}
+
+            {/* TAB 1: INSPECTION ANALYSIS RESULT DASHBOARD */}
+            {inspectorViewTab === "analysis" && inspectionResult && (
+              <div className="space-y-6">
+                
+                {/* Executive Scorecards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                  
+                  {/* Overall Score */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Overall Quality</span>
+                    <div className="text-2xl font-black text-amber-400">{inspectionResult.scores.overallQuality}%</div>
+                    <span className="text-[10px] text-slate-500 font-semibold">Grade Score</span>
+                  </div>
+
+                  {/* AI Probability */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">AI Detection</span>
+                    <div className={`text-2xl font-black ${inspectionResult.scores.aiProbability > 40 ? "text-red-400" : "text-emerald-400"}`}>
+                      {inspectionResult.scores.aiProbability}%
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-semibold">{inspectionResult.scores.aiProbability > 40 ? "High AI Signal" : "Human Written"}</span>
+                  </div>
+
+                  {/* Human Score */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Human Score</span>
+                    <div className="text-2xl font-black text-emerald-400">{inspectionResult.scores.humanScore}%</div>
+                    <span className="text-[10px] text-slate-500 font-semibold">Natural Rhythm</span>
+                  </div>
+
+                  {/* Originality Score */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Originality</span>
+                    <div className="text-2xl font-black text-sky-400">{inspectionResult.scores.originalityScore}%</div>
+                    <span className="text-[10px] text-slate-500 font-semibold">Unique Content</span>
+                  </div>
+
+                  {/* Plagiarism Risk */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Plagiarism</span>
+                    <div className={`text-2xl font-black ${inspectionResult.scores.plagiarismScore > 15 ? "text-amber-400" : "text-emerald-400"}`}>
+                      {inspectionResult.scores.plagiarismScore}%
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-semibold">Risk Index</span>
+                  </div>
+
+                  {/* Readability Score */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Readability</span>
+                    <div className="text-2xl font-black text-purple-400">{inspectionResult.scores.readabilityScore}%</div>
+                    <span className="text-[10px] text-slate-500 font-semibold">{inspectionResult.metrics.fleschKincaidGrade}</span>
+                  </div>
+
+                  {/* SEO Optimization */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SEO Score</span>
+                    <div className="text-2xl font-black text-emerald-400">{inspectionResult.scores.seoScore}%</div>
+                    <span className="text-[10px] text-slate-500 font-semibold">Search Clarity</span>
+                  </div>
+
+                </div>
+
+                {/* Detailed Analysis Content Breakdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Left Column: Detected Issues & Recommendations */}
+                  <div className="lg:col-span-2 space-y-6">
+                    
+                    {/* Actionable Recommendations */}
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-400" /> AI Action Plan & Recommendations
+                      </h3>
+                      <div className="space-y-2">
+                        {inspectionResult.recommendations.map((rec, idx) => (
+                          <div key={idx} className="bg-slate-900/60 border border-slate-850 p-3.5 rounded-xl flex items-start gap-3 text-xs text-slate-300">
+                            <span className="h-5 w-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <span className="leading-relaxed">{rec}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Detected Issues Highlight Feed */}
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-400" /> Detected Content Issues ({inspectionResult.issues.length})
+                        </h3>
+                        <span className="text-[10px] text-slate-500 font-semibold">Grammar, AI Phrasing & SEO</span>
+                      </div>
+
+                      <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                        {inspectionResult.issues.map((iss, idx) => (
+                          <div key={idx} className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded uppercase text-[9px]">
+                                {iss.type}
+                              </span>
+                              <span className="text-[11px] text-slate-400">Suggestion available</span>
+                            </div>
+                            <div className="text-xs font-mono text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-850">
+                              <span className="line-through text-red-400/80 mr-2">{iss.originalText}</span>
+                              <span className="text-emerald-400 font-bold">➔ {iss.suggestion}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 leading-relaxed">{iss.explanation}</p>
+                          </div>
+                        ))}
+
+                        {inspectionResult.issues.length === 0 && (
+                          <div className="p-8 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs">
+                            No critical grammar syntax or AI pattern flaws detected. Content looks clean!
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Right Column: Export Report & Quick Metrics */}
+                  <div className="space-y-6">
+                    
+                    {/* One-click Export Card */}
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <Download className="h-4 w-4 text-amber-400" /> Export Audit Report
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Download full content quality assessment report in your preferred document format:
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => handleDownloadInspectorReport("html")}
+                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <FileCode className="h-3.5 w-3.5 text-amber-400" /> HTML Report
+                        </button>
+                        <button
+                          onClick={() => handleDownloadInspectorReport("md")}
+                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-sky-400" /> Markdown (.md)
+                        </button>
+                        <button
+                          onClick={() => handleDownloadInspectorReport("txt")}
+                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-emerald-400" /> Plain Text (.txt)
+                        </button>
+                        <button
+                          onClick={() => handleDownloadInspectorReport("json")}
+                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <FileCode className="h-3.5 w-3.5 text-purple-400" /> Raw JSON
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Metadata Metrics Panel */}
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <Sliders className="h-4 w-4 text-amber-400" /> Text Structure Metrics
+                      </h3>
+
+                      <div className="space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
+                          <span className="text-slate-400">Total Word Count</span>
+                          <span className="font-bold text-slate-100 font-mono">{inspectionResult.metrics.wordCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
+                          <span className="text-slate-400">Total Sentence Count</span>
+                          <span className="font-bold text-slate-100 font-mono">{inspectionResult.metrics.sentenceCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
+                          <span className="text-slate-400">Est. Reading Time</span>
+                          <span className="font-bold text-amber-400 font-mono">{inspectionResult.metrics.readingTimeMinutes} mins</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
+                          <span className="text-slate-400">Flesch Grade Level</span>
+                          <span className="font-bold text-emerald-400">{inspectionResult.metrics.fleschKincaidGrade}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
+                          <span className="text-slate-400">Detected Tone</span>
+                          <span className="font-bold text-purple-400">{inspectionResult.scores.tone}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 2: AI HUMANIZER SIDE-BY-SIDE REWRITE ENGINE */}
+            {inspectorViewTab === "humanizer" && (
+              <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-amber-400" /> One-Click AI Humanizer & Diff Comparison
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Select target rewrite style mode to transform formulaic AI text into 100% natural, human-written content.
+                    </p>
+                  </div>
+
+                  {/* Mode Selector Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
+                    {["Professional", "Casual", "Academic", "Marketing", "Technical", "Creative"].map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => handleHumanizeRewrite(m)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                          humanizeMode === m
+                            ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Side-by-Side Dual Editor View */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* Original Content Panel */}
+                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-300 pb-2 border-b border-slate-800">
+                      <span>Original Input Content</span>
+                      <span className="text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded font-mono text-[10px]">
+                        AI Prob: {inspectionResult?.scores.aiProbability || 0}%
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-300 leading-relaxed font-sans min-h-64 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                      {inspectorText || "No content loaded."}
+                    </div>
+                  </div>
+
+                  {/* Humanized Rewritten Panel */}
+                  <div className="bg-slate-900/60 border border-slate-850 rounded-2xl p-4 space-y-3 relative">
+                    <div className="flex items-center justify-between text-xs font-bold text-amber-400 pb-2 border-b border-slate-800">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Humanized Output ({humanizeMode} Mode)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {humanizedOutput && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(humanizedOutput);
+                              setCopiedInspectorText(true);
+                              setTimeout(() => setCopiedInspectorText(false), 2000);
+                            }}
+                            className="text-[11px] font-bold text-slate-300 hover:text-white flex items-center gap-1 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700"
+                          >
+                            <Copy className="h-3 w-3" /> {copiedInspectorText ? "Copied!" : "Copy"}
+                          </button>
+                        )}
+                        <span className="text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-mono text-[10px]">
+                          Human Score: 98%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-slate-100 leading-relaxed font-sans min-h-64 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                      {humanizing ? (
+                        <div className="p-12 text-center space-y-3 text-amber-400 animate-pulse">
+                          <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
+                          <p className="text-xs font-bold">Rewriting content into natural {humanizeMode} tone...</p>
+                        </div>
+                      ) : (
+                        humanizedOutput || "Click a style mode above to generate humanized rewrite."
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: SCAN HISTORY TABLE */}
+            {inspectorViewTab === "history" && (
+              <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <History className="h-5 w-5 text-amber-400" /> Analysis Scan History ({inspectorHistory.length})
+                </h3>
+
+                <div className="space-y-3">
+                  {inspectorHistory.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setInspectionResult(item);
+                        setInspectorText(item.text);
+                        if (item.humanizedDrafts && item.humanizedDrafts["Professional"]) {
+                          setHumanizedOutput(item.humanizedDrafts["Professional"]);
+                        }
+                        setInspectorViewTab("analysis");
+                      }}
+                      className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/40 rounded-2xl cursor-pointer transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 text-amber-400" /> {item.filename}
+                        </span>
+                        <p className="text-[11px] text-slate-400 line-clamp-1 max-w-xl">{item.text}</p>
+                        <span className="text-[10px] text-slate-500 font-mono">{new Date(item.analyzedAt).toLocaleString()}</span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs shrink-0">
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">Overall Quality</span>
+                          <span className="font-extrabold text-amber-400 font-mono">{item.scores.overallQuality}%</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">AI Prob</span>
+                          <span className={`font-extrabold font-mono ${item.scores.aiProbability > 40 ? "text-red-400" : "text-emerald-400"}`}>
+                            {item.scores.aiProbability}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {inspectorHistory.length === 0 && (
+                    <div className="p-12 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs">
+                      No inspection history recorded yet. Run your first analysis above!
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
