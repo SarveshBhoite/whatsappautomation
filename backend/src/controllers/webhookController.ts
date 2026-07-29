@@ -3,6 +3,9 @@ import prisma from "../utils/prisma";
 import { io } from "../index";
 import { processChatbotFlow } from "../services/flowEngine";
 import { WhatsAppService } from "../services/whatsappService";
+import { InstagramService } from "../services/instagramService";
+
+const processedComments = new Set<string>();
 
 // GET: Webhook Verification
 export const verifyWebhook = async (req: Request, res: Response) => {
@@ -31,9 +34,59 @@ export const handleWebhook = async (req: Request, res: Response) => {
   try {
     const body = req.body;
 
-    // Handle Instagram Webhook Events
-    if (body.object === "page") {
+    // Handle Instagram Webhook Events (Messages & Comments)
+    if (body.object === "page" || body.object === "instagram") {
       const entry = body.entry?.[0];
+
+      // 1. Check for Instagram Comments Webhook Event (entry.changes)
+      const commentChange = entry?.changes?.[0];
+      if (commentChange && commentChange.field === "comments") {
+        const commentValue = commentChange.value;
+        const commentId = commentValue?.id;
+        const commentText = commentValue?.text;
+        const fromUser = commentValue?.from?.username || commentValue?.from?.id;
+        const fromUserId = commentValue?.from?.id;
+
+        const igConfig = await prisma.instagramConfig.findFirst({
+          include: { organization: true }
+        });
+
+        // Prevent self-loop / duplicate replies when the business page posts a reply
+        const isSelfComment = fromUser === "jisnu_digitalsolution_pvt_ltd" || 
+                              fromUserId === igConfig?.instagramAccountId || 
+                              fromUserId === igConfig?.pageId;
+
+        if (isSelfComment) {
+          console.log(`[INSTAGRAM COMMENT WEBHOOK] Ignored comment from business page self/bot (${fromUser}).`);
+          return res.sendStatus(200);
+        }
+
+        // Deduplication check: Ensure ONLY 1 auto-reply per comment ID
+        if (commentId && processedComments.has(commentId)) {
+          console.log(`[INSTAGRAM COMMENT WEBHOOK] Comment ${commentId} already replied to. Skipping duplicate.`);
+          return res.sendStatus(200);
+        }
+
+        if (commentId) {
+          processedComments.add(commentId);
+          // Keep set clean in memory (expire after 1 hour)
+          setTimeout(() => processedComments.delete(commentId), 60 * 60 * 1000);
+        }
+
+        console.log(`[INSTAGRAM COMMENT WEBHOOK] From: @${fromUser}, Comment: "${commentText}", ID: ${commentId}`);
+
+        if (commentId && commentText && igConfig?.pageAccessToken) {
+          try {
+            const replyText = `Thanks for commenting @${fromUser}! How can we assist you today? Feel free to DM us! 🚀`;
+            await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, replyText);
+            console.log(`[INSTAGRAM COMMENT AUTO-REPLY SENT] to comment ${commentId}`);
+          } catch (err: any) {
+            console.error(`Failed to auto-reply to Instagram comment ${commentId}:`, err?.response?.data || err.message);
+          }
+        }
+        return res.sendStatus(200);
+      }
+
       const messagingObj = entry?.messaging?.[0];
       if (!messagingObj) {
         return res.sendStatus(200);
@@ -54,14 +107,29 @@ export const handleWebhook = async (req: Request, res: Response) => {
       const pageId = isEcho ? senderId : recipientId;
       const customerPhone = isEcho ? recipientId : senderId;
 
-      // 1. Resolve InstagramConfig by pageId
-      const igConfig = await prisma.instagramConfig.findFirst({
-        where: { pageId },
+      // 1. Resolve InstagramConfig by pageId or instagramAccountId
+      let igConfig = await prisma.instagramConfig.findFirst({
+        where: {
+          OR: [
+            { pageId },
+            { instagramAccountId: pageId }
+          ]
+        },
         include: { organization: true }
       });
 
       if (!igConfig) {
-        console.warn(`No Instagram configuration found for Page ID: ${pageId}`);
+        // Fallback to first available config if only 1 config exists
+        const count = await prisma.instagramConfig.count();
+        if (count === 1) {
+          igConfig = await prisma.instagramConfig.findFirst({
+            include: { organization: true }
+          });
+        }
+      }
+
+      if (!igConfig) {
+        console.warn(`No Instagram configuration found for Page ID / IG Account ID: ${pageId}`);
         return res.sendStatus(200);
       }
 
@@ -104,7 +172,17 @@ export const handleWebhook = async (req: Request, res: Response) => {
         },
       });
 
-      const contactName = "Instagram User";
+      let contactName = `Instagram User (${customerPhone.substring(0, 5)}...)`;
+      if (!isEcho && igConfig.pageAccessToken) {
+        try {
+          const profile = await InstagramService.getUserProfile(igConfig.pageAccessToken, customerPhone);
+          if (profile && (profile.name || profile.username)) {
+            contactName = profile.name || `@${profile.username}`;
+          }
+        } catch (err: any) {
+          console.warn("Failed to fetch user profile:", err.message);
+        }
+      }
 
       if (!conversation) {
         conversation = await prisma.conversation.create({
@@ -113,27 +191,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
             platform: "instagram",
             customerPhone,
             customerName: contactName,
-            isBotPaused: isEcho,
-            botPausedUntil: isEcho ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
+            isBotPaused: false,
+            botPausedUntil: null,
           },
         });
-      } else if (isEcho) {
-        const pauseDuration = 24 * 60 * 60 * 1000;
-        const botPausedUntil = new Date(Date.now() + pauseDuration);
-        conversation = await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: {
-            isBotPaused: true,
-            botPausedUntil,
-          },
-        });
-
-        // Broadcast bot status update
-        io.to(organizationId).emit("bot-status-change", {
-          conversationId: conversation.id,
-          isBotPaused: true,
-          botPausedUntil,
-        });
+      } else {
+        // Update customerName if it was default fallback or changed
+        if (contactName !== "Instagram User" && conversation.customerName !== contactName) {
+          conversation = await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { customerName: contactName },
+          });
+        }
       }
 
       // Save message in DB

@@ -120,4 +120,34 @@ export class InstagramService {
 
     return response.data;
   }
+
+  // Fetch User Profile (Name, Username, Profile Picture)
+  public static async getUserProfile(accessToken: string, igsid: string) {
+    if (this.isMock(accessToken)) {
+      return { name: "Instagram User", username: "instagram_user" };
+    }
+    try {
+      const url = `https://graph.facebook.com/v19.0/${igsid}?fields=name,username,profile_pic&access_token=${accessToken}`;
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error: any) {
+      console.warn(`Failed to fetch Instagram profile for ${igsid}:`, error?.response?.data || error.message);
+      return null;
+    }
+  }
+
+  // Reply to a Post Comment
+  public static async replyToComment(accessToken: string, commentId: string, text: string) {
+    if (this.isMock(accessToken)) {
+      console.log(`[MOCK INSTAGRAM REPLY TO COMMENT ${commentId}]: "${text}"`);
+      return { id: `mock_comment_reply_${Date.now()}` };
+    }
+    const url = `https://graph.facebook.com/v19.0/${commentId}/replies`;
+    const response = await axios.post(
+      url,
+      { message: text },
+      { headers: this.getHeaders(accessToken) }
+    );
+    return response.data;
+  }
 }

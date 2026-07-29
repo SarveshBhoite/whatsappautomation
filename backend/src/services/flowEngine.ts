@@ -142,15 +142,21 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
         nextNodeId = rootNode.id;
       }
     } else {
-      const currentNode = graph.nodes.find((n) => n.id === currentNodeId);
-      
-      if (currentNode) {
-        const userText = message.content.toLowerCase().trim();
-        const isStartKeyword = ["hi", "hello", "hey", "menu", "start", "restart"].includes(userText);
-        const hasOutgoingEdges = graph.edges.some((e) => e.source === currentNode.id);
+      const userText = message.content.toLowerCase().trim();
+      const isStartKeyword = ["hi", "hii", "hiii", "hello", "hey", "menu", "start", "restart"].includes(userText) || userText.startsWith("hi ") || userText.startsWith("hello ");
 
-        if (isStartKeyword || !hasOutgoingEdges) {
-          console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: ${isStartKeyword ? "keyword" : "terminal node"})`);
+      if (isStartKeyword) {
+        console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: keyword "${userText}")`);
+        const rootNode = findRootNode(graph);
+        if (rootNode) {
+          nextNodeId = rootNode.id;
+        }
+      } else {
+        const currentNode = graph.nodes.find((n) => n.id === currentNodeId);
+        const hasOutgoingEdges = currentNode ? graph.edges.some((e) => e.source === currentNode.id) : false;
+
+        if (!currentNode || !hasOutgoingEdges) {
+          console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: terminal/unknown node)`);
           const rootNode = findRootNode(graph);
           if (rootNode) {
             nextNodeId = rootNode.id;
@@ -309,19 +315,12 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           }
 
           if (!nextNodeId) {
-            // Did not match options, re-send options (optionally notify client)
-            const sendToken = isWhatsApp 
-              ? waConfig!.accessToken! 
-              : isInstagram 
-                ? igConfig!.pageAccessToken! 
-                : ytConfig!.accessToken!;
-            const sendId = isWhatsApp 
-              ? waConfig!.phoneNumberId! 
-              : isInstagram 
-                ? igConfig!.pageId! 
-                : ytConfig!.channelId!;
-            await sendNodeMessage(sendId, sendToken, conversation.customerPhone, currentNode, conversationId, conversation.organizationId, conversation.platform);
-            return;
+            // Did not match options, reset to root node to re-trigger the flow
+            console.log(`User input "${message.content}" did not match any options at node ${currentNode.id}. Restarting flow from root node...`);
+            const rootNode = findRootNode(graph);
+            if (rootNode) {
+              nextNodeId = rootNode.id;
+            }
           }
         } else if (currentNode.type === "questionNode") {
           // Input Node: Save response to Database metadata or contact record
@@ -342,14 +341,6 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           if (outgoingEdge) {
             nextNodeId = outgoingEdge.target;
           }
-        }
-      } else {
-        // The node ID stored in the conversation belongs to an old/deleted flow configuration.
-        // Self-heal and reset the customer back to the welcome node of the new active flow.
-        console.log(`Current node ID "${currentNodeId}" not found in active graph. Resetting to root welcome node.`);
-        const rootNode = findRootNode(graph);
-        if (rootNode) {
-          nextNodeId = rootNode.id;
         }
       }
     }
