@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  MessageCircle, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail
+  MessageCircle, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Bot
 } from "lucide-react";
 
 // WhatsApp SVG icon
@@ -45,6 +45,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { href: "/ai-agent",  icon: <Bot className="h-5 w-5" />,         label: "AI Agent Studio",  match: "/ai-agent" },
   { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,    label: "WhatsApp Chats",   match: "/whatsapp" },
   { href: "/instagram", icon: <Instagram className="h-5 w-5" />,   label: "Instagram Chats",  match: "/instagram" },
   { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,     label: "YouTube Comments", match: "/youtube" },

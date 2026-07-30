@@ -18,6 +18,7 @@ import seoRouter from "./routes/seo";
 import gmailRouter from "./routes/gmail";
 import linkedinRouter from "./routes/linkedin";
 import contentInspectorRouter from "./routes/contentInspector";
+import aiAgentRouter from "./routes/aiAgent";
 
 const app = express();
 const server = http.createServer(app);
@@ -73,6 +74,9 @@ app.use("/api/linkedin", linkedinRouter);
 
 // AI Content Quality Inspector Router
 app.use("/api/inspector", contentInspectorRouter);
+
+// AI Agent Studio & Knowledge Base Engine Router
+app.use("/api/ai-agent", aiAgentRouter);
 
 // Health check endpoints (for Render Keep-Alive cron/uptime pings)
 app.get(["/health", "/api/health"], (req, res) => {

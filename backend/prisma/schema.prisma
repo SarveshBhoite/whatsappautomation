@@ -28,6 +28,9 @@ model Organization {
   googleQuestions     GoogleQuestion[]
   googleAdCampaigns   GoogleAdCampaign[]
   googleAdAccounts    GoogleAdAccount[]
+  aiAgentConfig       AiAgentConfig?
+  aiKnowledgeItems    AiKnowledgeItem[]
+  aiCapturedLeads     AiCapturedLead[]
 }
 
 model User {
@@ -544,3 +547,60 @@ model GmailEmailTemplate {
 
   @@map("gmail_email_templates")
 }
+
+// ─── AI Agent Studio & Knowledge Base Training System ──────────────────────
+model AiAgentConfig {
+  id                String       @id @default(uuid())
+  organizationId    String       @unique
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentName         String       @default("AI Sales Specialist")
+  personalityPrompt String       @default("You are a warm, highly knowledgeable, human-like sales and customer support representative. Chat naturally in a friendly, conversational tone. Understand customer requirements, answer questions based strictly on trained company data, attach relevant portfolio screenshots or PDFs when requested, and collect contact details if they ask to be called back.")
+  greetingMessage   String?      @default("Hello! How can I assist you with our services today?")
+  activeMode        String       @default("AI_AGENT") // "AI_AGENT" or "STATIC_FLOW"
+  isActive          Boolean      @default(true)
+  whatsappAiEnabled Boolean      @default(true)
+  instagramAiEnabled Boolean     @default(false)
+  youtubeAiEnabled  Boolean      @default(false)
+  linkedinAiEnabled Boolean      @default(false)
+  autoSendMedia     Boolean      @default(true)
+  fallbackAction    String       @default("human_callback") // human_callback, pause_bot, static_flow
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@map("ai_agent_configs")
+}
+
+model AiKnowledgeItem {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category       String       @default("SERVICES") // SERVICES, PRICING, JOBS, PORTFOLIO, FAQ, OTHER
+  topic          String
+  keywords       String       // Comma-separated or JSON list of keyword tags
+  content        String       // Detailed training knowledge content (Markdown or plain text)
+  mediaUrl       String?      // Screenshot, image, or PDF deck attachment URL
+  mediaType      String?      // "image", "document", "video"
+  mediaTitle     String?      // Display title for attachment (e.g. "Web_App_Portfolio.pdf")
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("ai_knowledge_items")
+}
+
+model AiCapturedLead {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerPhone  String
+  customerName   String?
+  email          String?
+  topicDiscussed String?
+  notes          String?
+  status         String       @default("NEW") // NEW, CONTACTED, CLOSED
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("ai_captured_leads")
+}
+

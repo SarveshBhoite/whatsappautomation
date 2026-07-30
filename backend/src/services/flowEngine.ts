@@ -3,7 +3,7 @@ import { WhatsAppService } from "./whatsappService";
 import { InstagramService } from "./instagramService";
 import { YouTubeService } from "./youtubeService";
 import { LinkedInService } from "./linkedinService";
-
+import { processAiAgentChat } from "./aiAgentEngine";
 
 interface FlowGraph {
   nodes: FlowNode[];
@@ -58,6 +58,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             igConfig: true,
             ytConfig: true,
             linkedInConfig: true,
+            aiAgentConfig: true,
           },
         },
       },
@@ -80,26 +81,23 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     const ytConfig = conversation.organization.ytConfig;
     const linkedInConfig = conversation.organization.linkedInConfig;
 
+    // Check Platform Checklist for AI Agent Mode vs Static Flow Mode
+    const aiConfig = conversation.organization.aiAgentConfig;
+    let isPlatformAiEnabled = false;
+
     if (isWhatsApp) {
-      if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
-        console.warn(`WhatsApp credentials missing for conversation ${conversationId}`);
-        return;
-      }
+      isPlatformAiEnabled = !aiConfig || aiConfig.whatsappAiEnabled !== false;
     } else if (isInstagram) {
-      if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
-        console.warn(`Instagram credentials missing for conversation ${conversationId}`);
-        return;
-      }
+      isPlatformAiEnabled = aiConfig?.instagramAiEnabled === true;
     } else if (isYouTube) {
-      if (!ytConfig || !ytConfig.channelId || !ytConfig.accessToken) {
-        console.warn(`YouTube credentials missing for conversation ${conversationId}`);
-        return;
-      }
+      isPlatformAiEnabled = aiConfig?.youtubeAiEnabled === true;
     } else if (isLinkedIn) {
-      if (!linkedInConfig) {
-        console.warn(`LinkedIn configuration missing for conversation ${conversationId}`);
-        return;
-      }
+      isPlatformAiEnabled = aiConfig?.linkedinAiEnabled === true;
+    }
+
+    if (isPlatformAiEnabled && aiConfig?.isActive !== false) {
+      console.log(`[FLOW ENGINE] AI Agent enabled for platform "${conversation.platform}" (Conversation: ${conversationId}). Routing to AI Agent Engine...`);
+      return await processAiAgentChat(conversationId, incomingMessageId);
     }
 
     // 2. Fetch the Active Flow for the Organization and Platform (Fallback to default if no active flow)
