@@ -820,24 +820,26 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setConversations(data);
       }
     } catch (err) {
-      console.error("Error fetching conversations:", err);
+      console.warn("Could not fetch conversations:", err);
     }
   };
 
   const fetchMessages = async (convId: string) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`);
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setMessages(data);
       }
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      console.warn("Could not fetch messages:", err);
     }
   };
 
@@ -846,12 +848,13 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (data) {
         setConfig(data);
       }
     } catch (err) {
-      console.error("Error fetching config:", err);
+      console.warn("Could not fetch config:", err);
     }
   };
 
@@ -883,12 +886,13 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (data) {
         setIgConfig(data);
       }
     } catch (err) {
-      console.error("Error fetching Instagram config:", err);
+      console.warn("Could not fetch Instagram config:", err);
     }
   };
 
@@ -918,26 +922,27 @@ export default function Dashboard() {
   const fetchGoogleConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
-      if (res.ok) {
-        const data = await res.json();
-        setGoogleConfig(data);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data) return;
 
-        // Parse Google location path into split fields
-        let accountId = "";
-        let locationId = data.googleLocationId || "";
-        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-          const parts = locationId.split("/");
-          accountId = parts[1] || "";
-          locationId = parts[3] || "";
-        } else if (locationId.includes("locations/")) {
-          locationId = locationId.replace("locations/", "");
-        }
-        setFormGoogleAccountId(accountId);
-        setFormGoogleLocationId(locationId);
-        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
+      setGoogleConfig(data);
+
+      // Parse Google location path into split fields
+      let accountId = "";
+      let locationId = data.googleLocationId || "";
+      if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
+        const parts = locationId.split("/");
+        accountId = parts[1] || "";
+        locationId = parts[3] || "";
+      } else if (locationId.includes("locations/")) {
+        locationId = locationId.replace("locations/", "");
       }
+      setFormGoogleAccountId(accountId);
+      setFormGoogleLocationId(locationId);
+      setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
     } catch (err) {
-      console.error("Error fetching Google GMB config:", err);
+      console.warn("Could not connect to backend server for Google GMB config:", err);
     }
   };
 
@@ -949,8 +954,7 @@ export default function Dashboard() {
       const cleanAccountId = formGoogleAccountId.replace("accounts/", "").trim();
       const cleanLocationId = formGoogleLocationId.replace("locations/", "").trim();
 
-      // Build location path string
-      const finalLocationId = cleanAccountId
+      const combinedLocationId = cleanAccountId && cleanLocationId 
         ? `accounts/${cleanAccountId}/locations/${cleanLocationId}`
         : cleanLocationId;
 
@@ -961,29 +965,13 @@ export default function Dashboard() {
           "x-organization-id": DEFAULT_ORG_ID
         },
         body: JSON.stringify({
-          orgId: DEFAULT_ORG_ID,
           ...googleConfig,
-          googleLocationId: finalLocationId,
-          googleAdsCustomerId: formGoogleAdsCustomerId
+          orgId: DEFAULT_ORG_ID,
+          googleLocationId: combinedLocationId,
+          googleAdsCustomerId: formGoogleAdsCustomerId.trim()
         })
       });
       if (res.ok) {
-        const data = await res.json();
-        setGoogleConfig(data);
-
-        let accountId = "";
-        let locationId = data.googleLocationId || "";
-        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-          const parts = locationId.split("/");
-          accountId = parts[1] || "";
-          locationId = parts[3] || "";
-        } else if (locationId.includes("locations/")) {
-          locationId = locationId.replace("locations/", "");
-        }
-        setFormGoogleAccountId(accountId);
-        setFormGoogleLocationId(locationId);
-        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
-
         setGoogleSaveStatus("success");
         setTimeout(() => setGoogleSaveStatus("idle"), 3000);
       } else {
@@ -1006,6 +994,7 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/flows?platform=${platform}`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         const active = data[0];

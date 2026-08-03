@@ -569,7 +569,7 @@ export class MetaAdsService {
     try {
       const resp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/campaigns`, {
         params: {
-          fields: "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time",
+          fields: "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(maximum){impressions,clicks,spend,reach,conversions,actions}",
           access_token: config.accessToken,
         },
       });
@@ -578,6 +578,24 @@ export class MetaAdsService {
       let syncedCount = 0;
 
       for (const mc of metaCamps) {
+        const insights = mc.insights?.data?.[0] || {};
+        const impressions = insights.impressions ? Number(insights.impressions) : 0;
+        const clicks = insights.clicks ? Number(insights.clicks) : 0;
+        const spend = insights.spend ? Number(insights.spend) : 0;
+        const reach = insights.reach ? Number(insights.reach) : 0;
+        
+        let conversions = 0;
+        if (Array.isArray(insights.actions)) {
+          const convAction = insights.actions.find((a: any) => 
+            a.action_type === "onsite_conversion.messaging_conversation_started_7d" ||
+            a.action_type === "lead" ||
+            a.action_type === "offsite_conversion.fb_pixel_lead" ||
+            a.action_type === "messaging_conversation_started_7d" ||
+            a.action_type === "purchase"
+          );
+          if (convAction) conversions = Number(convAction.value) || 0;
+        }
+
         await prisma.metaAdCampaign.upsert({
           where: { metaCampaignId: mc.id },
           update: {
@@ -587,6 +605,11 @@ export class MetaAdsService {
             effectiveStatus: mc.effective_status || mc.status || "PAUSED",
             dailyBudget: mc.daily_budget ? Number(mc.daily_budget) / 100 : null,
             lifetimeBudget: mc.lifetime_budget ? Number(mc.lifetime_budget) / 100 : null,
+            impressions,
+            clicks,
+            spend,
+            conversions,
+            reach,
           },
           create: {
             organizationId,
@@ -598,12 +621,17 @@ export class MetaAdsService {
             effectiveStatus: mc.effective_status || mc.status || "PAUSED",
             dailyBudget: mc.daily_budget ? Number(mc.daily_budget) / 100 : null,
             lifetimeBudget: mc.lifetime_budget ? Number(mc.lifetime_budget) / 100 : null,
+            impressions,
+            clicks,
+            spend,
+            conversions,
+            reach,
           },
         });
         syncedCount++;
       }
 
-      return { syncedCount, message: `Successfully synced ${syncedCount} campaign(s) from Meta Graph API.` };
+      return { syncedCount, message: `Successfully synced ${syncedCount} campaign(s) with real-time insights from Meta Graph API.` };
     } catch (err: any) {
       console.error("[MetaAdsService] Graph API Sync Error:", err.response?.data?.error?.message || err.message);
       throw new Error(`Meta Graph API Sync Failed: ${err.response?.data?.error?.message || err.message}`);

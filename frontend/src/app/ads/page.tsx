@@ -1689,7 +1689,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               onChange={(e) => setSelectedAccountId(e.target.value)}
               className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700/50 text-xs text-slate-100 focus:outline-none focus:border-slate-600 transition-all min-w-[210px]"
             >
-              <option value="">JISNU Digital Solutions PVT LTD (act_123456789)</option>
+              {accounts.length === 0 && (
+                <option value="act_1454270479625110">JISNU Digital Solution's Marketing Agency (act_1454270479625110)</option>
+              )}
               {accounts.map(acc => (
                 <option key={acc.adAccountId} value={acc.adAccountId}>
                   {acc.name || acc.businessName || "Meta Ad Account"} ({acc.adAccountId})

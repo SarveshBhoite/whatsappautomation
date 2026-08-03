@@ -248,47 +248,43 @@ router.post("/send", async (req: Request, res: Response) => {
     });
 
     return res.status(200).json({ message: "Message sent successfully", data: savedMessage });
-    } catch (error: any) {
-      const metaErrorDetails = error.response?.data || error.message;
-      console.error("Error sending manual message:", JSON.stringify(metaErrorDetails, null, 2));
-
-      // Save message in DB with 'failed' status so CRM Inbox displays it with error indication
-      let savedMessage = null;
-      try {
-        savedMessage = await prisma.message.create({
-          data: {
-            conversationId,
-            direction: "outbound",
-            messageType: messageType || "text",
-            content: contentForDb || mediaUrlOrId,
-            status: "failed",
-            senderName: "Agent",
-            quotedMessageId: quotedMessageId || null,
-          },
-        });
-
-        const fullMessage = await prisma.message.findUnique({
-          where: { id: savedMessage.id },
-          include: { quotedMessage: true },
-        });
-
-        io.to(conversation.organizationId).emit("new-message", {
-          conversationId,
-          message: fullMessage,
-        });
-      } catch (dbErr) {
-        console.error("Failed to record failed message to DB:", dbErr);
-      }
-
-      return res.status(500).json({
-        error: "Failed to send WhatsApp message via Meta Graph API",
-        details: metaErrorDetails,
-        savedMessage,
-      });
-    }
   } catch (error: any) {
-    console.error("Error in message handler:", error);
-    return res.status(500).json({ error: "Internal server error", details: error.message });
+    const metaErrorDetails = error.response?.data || error.message;
+    console.error("Error sending manual message:", JSON.stringify(metaErrorDetails, null, 2));
+
+    // Save message in DB with 'failed' status so CRM Inbox displays it with error indication
+    let savedMessage = null;
+    try {
+      savedMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          direction: "outbound",
+          messageType: messageType || "text",
+          content: contentForDb || mediaUrlOrId,
+          status: "failed",
+          senderName: "Agent",
+          quotedMessageId: quotedMessageId || null,
+        },
+      });
+
+      const fullMessage = await prisma.message.findUnique({
+        where: { id: savedMessage.id },
+        include: { quotedMessage: true },
+      });
+
+      io.to(conversation.organizationId).emit("new-message", {
+        conversationId,
+        message: fullMessage,
+      });
+    } catch (dbErr) {
+      console.error("Failed to record failed message to DB:", dbErr);
+    }
+
+    return res.status(500).json({
+      error: "Failed to send WhatsApp message via Meta Graph API",
+      details: metaErrorDetails,
+      savedMessage,
+    });
   }
 });
 

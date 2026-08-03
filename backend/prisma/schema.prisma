@@ -598,6 +598,11 @@ model MetaAdCampaign {
   effectiveStatus String?       @default("PAUSED")
   dailyBudget     Float?
   lifetimeBudget  Float?
+  impressions     Int           @default(0)
+  clicks          Int           @default(0)
+  spend           Float         @default(0)
+  conversions     Int           @default(0)
+  reach           Int           @default(0)
   bidStrategy     String?
   startTime       DateTime?
   stopTime        DateTime?
