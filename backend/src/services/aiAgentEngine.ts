@@ -99,7 +99,7 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
 
     recentMessages.reverse(); // Chronological order
 
-    // 3. Retrieve Trained Knowledge Base Items for this Organization
+    // 3. Retrieve ALL Trained Knowledge Base Items for this Organization (Full AI Brain)
     const allKnowledgeItems = await prisma.aiKnowledgeItem.findMany({
       where: {
         organizationId: orgId,
@@ -107,60 +107,52 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       },
     });
 
-    // Score and rank knowledge items by relevance to the customer's query
     const customerQuery = incomingMsg.content || "";
-    const scoredItems = allKnowledgeItems.map(item => ({
-      item,
-      score: scoreKnowledgeMatch(customerQuery, item as KnowledgeItem),
-    }));
 
-    scoredItems.sort((a, b) => b.score - a.score);
-
-    // Select top relevant knowledge items (up to 8) + general items
-    const relevantItems = scoredItems.slice(0, 8).map(s => s.item);
-
-    // Format Knowledge Context for LLM prompt
+    // Format Full Knowledge Base Context so AI has complete company knowledge regardless of keywords
     let knowledgeContextText = "";
-    if (relevantItems.length > 0) {
-      knowledgeContextText = relevantItems.map(k => `
-[TOPIC: ${k.topic}] (Category: ${k.category})
-Keywords: ${k.keywords}
-Content: ${k.content}
-${k.mediaUrl ? `Attached Media ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.mediaTitle || 'Attachment'}", URL: ${k.mediaUrl})` : 'No attached media'}
+    if (allKnowledgeItems.length > 0) {
+      knowledgeContextText = allKnowledgeItems.map(k => `
+[KNOWLEDGE TOPIC: ${k.topic}] (Category: ${k.category})
+Keywords Tagged: ${k.keywords}
+Detailed Information: ${k.content}
+${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.mediaTitle || 'Attachment'}", URL: ${k.mediaUrl})` : 'No media asset attached'}
 ---`).join("\n");
     } else {
-      knowledgeContextText = "No specific training document matched. Use general company policy: answer politely, offer to connect with a senior specialist, or ask for their contact details.";
+      knowledgeContextText = "Company Information: Jisnu Digital Solutions PVT LTD - High performance website development, custom web applications, technical SEO, and paid ad campaigns. Phone: +91 9136870930, Email: info@jisnudigital.com, Address: Wakad, Pune 411057.";
     }
 
-    // 4. Build Groq AI Prompt
+    // 4. Build Groq AI System Prompt with Human Conversational Intelligence
     const groqApiKey = process.env.GROQ_KEY;
     if (!groqApiKey) {
       console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from environment.");
       return;
     }
 
-    const systemPrompt = `You are "${agentName}", an intelligent, human-like sales consultant and support representative.
+    const systemPrompt = `You are "${agentName}", a warm, highly intelligent, and human-like sales and growth consultant for our company.
 
-### YOUR PERSONALITY & BEHAVIOR INSTRUCTIONS:
+### YOUR PERSONALITY & DIALOGUE GOALS:
 ${personalityPrompt}
 
-### STRICT GROUND RULES:
-1. **Chat Naturally**: Respond like a real human writing a WhatsApp/Chat message. Keep answers helpful, concise, engaging, and professional. Avoid robotic option lists or bulleted menus unless listing services naturally.
-2. **Use Trained Data**: Base your answers strictly on the trained company knowledge provided below. Do NOT make up fake prices, fake addresses, or unverified facts.
-3. **Handle Media & Screenshots Contextually**:
-   - If the customer asks to see previous work, portfolio, screenshots, rate cards, brochures, case studies, or proof of work, check the Attached Media IDs in the knowledge context.
-   - If a relevant media attachment exists, set "attachKnowledgeId": "<THE_KNOWLEDGE_ITEM_ID>" in your JSON output.
-4. **Lead & Callback Capture**:
-   - If the customer asks for a custom quote, requests a phone callback, asks a question outside your trained knowledge, or wants to speak to management, politely offer to have a team specialist call them.
-   - If they share their name, email, or phone number, extract it in the "capturedLead" object.
+### STRICT HUMAN CONVERSATIONAL RULES:
+1. **Be Warm, Natural & Conversational**: Speak like a real senior sales executive chatting on WhatsApp. Keep messages clear, polite, and engaging. Never sound like a robotic form or list of options.
+2. **Handle Greetings & Freeform Questions Intelligently**:
+   - If the customer says "Hi", "Hello", "Good morning", or asks general questions without specific keywords, greet them warmly, ask about their business goals, and offer assistance.
+3. **Use Trained Data**: Answer questions based on the trained company data provided below.
+4. **Contextual Media & Screenshot Sending**:
+   - If the customer asks to see sample work, portfolio, screenshots, rate cards, brochures, or case studies, look at the Media Asset IDs in the Knowledge Base.
+   - If a relevant media asset exists, set "attachKnowledgeId": "<THE_MEDIA_KNOWLEDGE_ITEM_ID>" in your JSON response.
+5. **Proactive Contact & Lead Capture**:
+   - If the customer asks about custom pricing, expresses interest in starting a project, asks to speak to management, or needs a callback, politely ask for their **Name and Phone Number** so a specialist can call them.
+   - If the customer provides their name, phone number, email, or requirement details, extract them in the "capturedLead" object.
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
 
-### RECENT CHAT HISTORY (Last Messages):
+### RECENT CHAT HISTORY (Last 10 Messages):
 ${recentMessages.map(m => `${m.direction === 'inbound' ? 'Customer' : 'Agent (' + agentName + ')'}: ${m.content}`).join("\n")}
 
-### REQUIRED OUTPUT FORMAT:
+### REQUIRED JSON OUTPUT FORMAT:
 You MUST return ONLY valid JSON matching this exact structure:
 {
   "replyText": "Your natural human chat response text here",
