@@ -1624,13 +1624,13 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
     });
   }, [fetchMetaConfig, fetchAccounts, fetchCampaigns, fetchApprovals]);
 
-  // Aggregate Metrics
+  // Aggregate Metrics from live synced Meta campaigns
   const totalCampaigns = campaigns.length;
-  const activeCampaigns = campaigns.filter(c => c.status === "ACTIVE").length;
-  const totalSpend = campaigns.reduce((acc, c) => acc + (c.dailyBudget || 500) * (c.status === "ACTIVE" ? 1 : 0), 0);
-  const totalImpressions = campaigns.reduce((acc, c) => acc + (c.impressions || (c.status === "ACTIVE" ? 12450 : 0)), 0);
-  const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicks || (c.status === "ACTIVE" ? 890 : 0)), 0);
-  const totalConversions = campaigns.reduce((acc, c) => acc + (c.conversions || (c.status === "ACTIVE" ? 42 : 0)), 0);
+  const activeCampaigns = campaigns.filter(c => c.status === "ACTIVE" || c.effectiveStatus === "ACTIVE").length;
+  const totalSpend = campaigns.reduce((acc, c) => acc + (c.spend || 0), 0);
+  const totalImpressions = campaigns.reduce((acc, c) => acc + (c.impressions || 0), 0);
+  const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0);
+  const totalConversions = campaigns.reduce((acc, c) => acc + (c.conversions || 0), 0);
   const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) + "%" : "0.00%";
   const avgCpc = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : "0.00";
   const costPerConv = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : "0.00";
@@ -1856,7 +1856,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           <p className="text-[10px] text-slate-500 uppercase tracking-wider">Clicks</p>
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-emerald-400">{currencySymbol}{fmt(c.cost || 0)}</p>
+                          <p className="text-sm font-bold text-emerald-400">{currencySymbol}{fmt(c.spend || c.cost || 0)}</p>
                           <p className="text-[10px] text-slate-500 uppercase tracking-wider">Spend</p>
                         </div>
                       </div>
@@ -1889,7 +1889,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   <tr>
                     <th className="p-4">Campaign Name</th>
                     <th className="p-4">Objective</th>
-                    <th className="p-4">Daily Budget</th>
+                    <th className="p-4">Impressions</th>
+                    <th className="p-4">Clicks</th>
+                    <th className="p-4">Total Spend</th>
+                    <th className="p-4">Conversions</th>
                     <th className="p-4">Status</th>
                     <th className="p-4">Graph API ID</th>
                     <th className="p-4 text-right">Actions</th>
@@ -1904,7 +1907,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           {c.objective}
                         </span>
                       </td>
-                      <td className="p-4 font-semibold text-emerald-400">{currencySymbol}{c.dailyBudget?.toFixed(2) || "500.00"}/day</td>
+                      <td className="p-4 font-semibold text-slate-200">{fmt(c.impressions || 0)}</td>
+                      <td className="p-4 font-semibold text-slate-200">{fmt(c.clicks || 0)}</td>
+                      <td className="p-4 font-semibold text-emerald-400">{currencySymbol}{fmt(c.spend || 0)}</td>
+                      <td className="p-4 font-semibold text-purple-400">{fmt(c.conversions || 0)}</td>
                       <td className="p-4"><Pill status={c.status} /></td>
                       <td className="p-4 font-mono text-slate-400 text-[11px] truncate max-w-[150px]">{c.metaCampaignId}</td>
                       <td className="p-4 text-right space-x-2">

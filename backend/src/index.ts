@@ -320,8 +320,8 @@ function startGmbSyncScheduler() {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-server.listen(Number(PORT), "::", () => {
-  console.log(`Backend server running on all interfaces (port ${PORT})`);
+server.listen(Number(PORT), () => {
+  console.log(`Backend server running on port ${PORT}`);
   startGmbSyncScheduler();
   // Pre-upload SEO proof images to Meta and store Media IDs in active flow
   preCacheSeoMediaIds();
