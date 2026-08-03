@@ -1,11 +1,11 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model Organization {
@@ -31,199 +31,251 @@ model Organization {
   aiAgentConfig       AiAgentConfig?
   aiKnowledgeItems    AiKnowledgeItem[]
   aiCapturedLeads     AiCapturedLead[]
+  metaAdConfig        MetaAdConfig?
+  metaAdAccounts      MetaAdAccount[]
+  metaAdCampaigns     MetaAdCampaign[]
 }
 
 model User {
   id             String       @id @default(uuid())
   email          String       @unique
   name           String?
-  role           String       @default("agent") // "admin" or "agent"
+  role           String       @default("agent")
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model WhatsAppConfig {
   id                 String       @id @default(uuid())
   organizationId     String       @unique
   organization       Organization @relation(fields: [organizationId], references: [id])
-  phoneNumberId      String?
-  wabaId             String?
-  accessToken        String?
-  webhookVerifyToken String       @default(uuid())
+  phoneNumberId      String
+  wabaId             String
+  accessToken        String
+  webhookVerifyToken String
   createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @default(now()) @updatedAt
+  updatedAt          DateTime     @updatedAt
 }
 
 model InstagramConfig {
   id                 String       @id @default(uuid())
   organizationId     String       @unique
   organization       Organization @relation(fields: [organizationId], references: [id])
-  pageId             String?
-  pageAccessToken    String?
-  instagramAccountId String?
-  webhookVerifyToken String       @default(uuid())
+  pageId             String
+  instagramAccountId String
+  pageAccessToken    String
+  webhookVerifyToken String
   createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @default(now()) @updatedAt
+  updatedAt          DateTime     @updatedAt
 }
 
 model YouTubeConfig {
   id             String       @id @default(uuid())
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id])
-  channelId      String?
-  channelName    String?      // Handle or Display Name (e.g. @MyBrand)
-  accessToken    String?
+  channelId      String
+  channelTitle   String?
+  accessToken    String
   refreshToken   String?
+  tokenExpiresAt DateTime?
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @default(now()) @updatedAt
+  updatedAt      DateTime     @updatedAt
+}
+
+model LinkedInConfig {
+  id             String    @id @default(uuid())
+  organizationId String    @unique
+  authorUrn      String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  accessToken    String
+  refreshToken   String?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model LinkedInPost {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  postId         String       @unique
+  authorUrn      String
+  commentary     String
+  mediaUrl       String?
+  mediaType      String       @default("NONE")
+  createdAt      DateTime     @default(now())
+}
+
+model GmailConfig {
+  id             String    @id @default(uuid())
+  organizationId String    @unique
+  emailAddress   String
+  accessToken    String
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  historyId      String?
+  isAutoReplyOn  Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+model GmailAutoReplyRule {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  keyword        String
+  replyTemplate  String
+  useAiDraft     Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model GoogleBusinessConfig {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  accountId      String
+  locationId     String
+  accountName    String?
+  locationName   String?
+  accessToken    String
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model GoogleReview {
+  id             String               @id @default(uuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  reviewId       String               @unique
+  reviewerName   String
+  reviewerPhoto  String?
+  starRating     String
+  comment        String?
+  createTime     DateTime
+  updateTime     DateTime
+  reviewReply    GoogleReviewReply?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+model GoogleReviewReply {
+  id           String       @id @default(uuid())
+  reviewId     String       @unique
+  googleReview GoogleReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  comment      String
+  updateTime   DateTime
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model GooglePost {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String?      @unique
+  summary        String
+  topicType      String       @default("STANDARD")
+  callToAction   String?
+  actionUrl      String?
+  mediaUrl       String?      @default("")
+  mediaFormat    String?      @default("PHOTO")
+  state          String       @default("LIVE")
+  createTime     DateTime     @default(now())
+  updateTime     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model GoogleQuestion {
+  id             String               @id @default(uuid())
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  name           String               @unique
+  authorName     String
+  authorPhoto    String?
+  text           String
+  upvoteCount    Int                  @default(0)
+  createTime     DateTime
+  updateTime     DateTime
+  answers        GoogleAnswer[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+model GoogleAnswer {
+  id             String         @id @default(uuid())
+  questionId     String
+  question       GoogleQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  name           String?        @unique
+  authorName     String
+  authorPhoto    String?
+  text           String
+  upvoteCount    Int            @default(0)
+  createTime     DateTime
+  updateTime     DateTime
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model Flow {
   id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  platform       String       @default("whatsapp") // "whatsapp", "instagram", "youtube"
   name           String
   description    String?
-  category       String       @default("Custom") // "Sales", "Hiring", "Support", "Appointment", "Marketing", "Custom"
-  status         String       @default("Draft") // "Draft", "Published", "Active", "Archived"
-  isDefault      Boolean      @default(false)
-  graphJson      Json         // ReactFlow nodes and edges
+  platform       String       @default("whatsapp")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  flowGraph      Json
   isActive       Boolean      @default(false)
+  isDefault      Boolean      @default(false)
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @default(now()) @updatedAt
-
-  @@unique([organizationId, platform, name])
+  updatedAt      DateTime     @updatedAt
 }
 
 model Conversation {
-  id             String    @id @default(uuid())
+  id             String       @id @default(uuid())
+  customerPhone  String
+  customerName   String?
+  platform       String       @default("whatsapp")
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  platform       String    // "whatsapp", "instagram", "youtube"
-  customerPhone  String    // E.164 phone number, IG scoped ID, or YouTube comment ID
-  customerName   String?
-  currentNodeId  String?   // Tracks progress in the FlowGraph
-  isBotPaused    Boolean   @default(false) // True when agent takes over
-  botPausedUntil DateTime? // Expiration timestamp for manual takeover
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now()) @updatedAt
+  currentStepId  String?
+  flowState      Json?
+  isBotPaused    Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   messages       Message[]
 
-  @@unique([organizationId, platform, customerPhone])
+  @@unique([organizationId, customerPhone, platform])
 }
 
 model Message {
   id             String       @id @default(uuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
-  direction      String       // "inbound" or "outbound"
-  messageType    String       // "text", "image", "document", "interactive_response"
-  content        String       // Text content or Media URL
-  mediaMimeType  String?
-  waMessageId    String?      // Meta's ID to map status updates
-  status         String       @default("sent") // sent, delivered, read, failed
-  senderName     String?      // "Bot" or Agent's Name
+  direction      String
+  messageType    String       @default("text")
+  content        String
+  waMessageId    String?      @unique
+  status         String       @default("delivered")
+  senderName     String?
   createdAt      DateTime     @default(now())
-
-  // Quote reply relations
-  quotedMessageId String?
-  quotedMessage   Message?    @relation("MessageReplies", fields: [quotedMessageId], references: [id])
-  replies         Message[]   @relation("MessageReplies")
 }
 
-model GoogleBusinessConfig {
-  id                  String       @id @default(uuid())
-  organizationId      String       @unique
-  organization        Organization @relation(fields: [organizationId], references: [id])
-  googleAccountId     String?      // Google Account ID (accounts/12345)
-  googleLocationId    String?      // Google Location ID (locations/67890)
-  googleLocationName  String?      // Friendly Business Name (e.g., "Jisnu Digital Solutions - Head Office")
-  locationName        String?
-  googleRefreshToken  String?      // Refresh Token for OAuth auto-renew
-  googleClientId      String?
-  googleClientSecret  String?
-  googleReviewUrl     String?
-  googleAdsCustomerId String?
-  autoReplyEnabled    Boolean      @default(false)
-  autoReplyMinRating  Int          @default(4) // Only auto-reply to reviews >= 4 stars
-  autoReplyTemplate   String?      // Dynamic template string (e.g., "Hi {author}, thanks for your {rating}-star review!")
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @default(now()) @updatedAt
-}
-
-model GoogleReview {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  gmbReviewId    String?      @unique // Google's unique review name/ID
-  authorName     String       @default("Valued Customer")
-  customerName   String?
-  authorPhoto    String?
-  rating         Int
-  comment        String?
-  replyText      String?      // Our posted reply text
-  replyStatus    String?
-  repliedAt      DateTime?
-  source         String?      @default("GMB")
-  status         String       @default("UNREPLIED") // UNREPLIED, REPLIED, AUTO_REPLIED
-  reviewCreatedAt DateTime    @default(now())
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @default(now()) @updatedAt
-}
-
-model GooglePost {
-  id              String       @id @default(uuid())
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  gmbPostId       String?      @unique // Google's unique post ID once published
-  postType        String       @default("STANDARD") // STANDARD, EVENT, OFFER
-  summary         String       // Post content text
-  mediaUrl        String?      // Optional image or video URL
-  actionType      String?      // CALL_TO_ACTION: BOOK, ORDER, SHOP, LEARN_MORE, SIGN_UP, CALL
-  actionUrl       String?
-  callToActionType String?
-  callToActionUrl String?
-  eventTitle      String?      // For EVENT posts
-  startDate       DateTime?    // For EVENT/OFFER posts
-  endDate         DateTime?    // For EVENT/OFFER posts
-  offerCode       String?      // For OFFER posts
-  termsConditions String?     // For OFFER posts
-  status          String       @default("PUBLISHED") // DRAFT, SCHEDULED, PUBLISHED, FAILED
-  scheduledAt     DateTime?    // Null if published immediately
-  publishedAt     DateTime?
-  errorMessage    String?
-  retryCount      Int          @default(0)
-  createdAt       DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-}
-
-model GoogleQuestion {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  gmbQuestionId  String       @unique
-  authorName     String
-  text           String
-  aiAnswer       String?
-  answerText     String?
-  status         String       @default("UNANSWERED") // UNANSWERED, ANSWERED, AUTO_ANSWERED
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-}
-
-// ─── Google Ads Account (one per connected customer ID per org) ──────────────
 model GoogleAdAccount {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  customerId     String       // Google Ads customer ID (numeric, no dashes)
-  name           String?      // Account descriptive name
-  currencyCode   String?      // e.g. INR, USD
-  timeZone       String?
-  isManager      Boolean      @default(false)
-  isActive       Boolean      @default(true)
+  customerId     String
+  descriptiveName String?
+  currencyCode   String       @default("USD")
+  timeZone       String       @default("UTC")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -231,272 +283,21 @@ model GoogleAdAccount {
 }
 
 model GoogleAdCampaign {
-  id                  String            @id @default(uuid())
-  organizationId      String
-  organization        Organization      @relation(fields: [organizationId], references: [id])
-  customerId          String            // which Google Ads account this belongs to
-  googleAdsCampaignId String?           @unique
-  name                String
-  campaignType        String            @default("SEARCH") // SEARCH, DISPLAY, VIDEO, SMART, PERFORMANCE_MAX
-  biddingStrategy     String?           // MANUAL_CPC, TARGET_CPA, TARGET_ROAS, MAXIMIZE_CLICKS, etc.
-  targetCpa           Float?
-  targetRoas          Float?
-  budget              Float
-  budgetResourceName  String?
-  startDate           DateTime
-  endDate             DateTime?
-  status              String            @default("PAUSED") // ENABLED, PAUSED, REMOVED
-  headlines           Json              @default("[]")
-  descriptions        Json              @default("[]")
-  keywords            Json              @default("[]")
-  finalUrl            String?
-  geoTargets          Json              @default("[]") // list of geo target IDs
-  adSchedule         Json              @default("[]")
-  networkSearch       Boolean           @default(true)
-  networkDisplay      Boolean           @default(false)
-  adGroups            GoogleAdGroup[]
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-}
-
-model GoogleAdGroup {
-  id                    String          @id @default(uuid())
-  organizationId        String
-  campaignId            String
-  campaign              GoogleAdCampaign @relation(fields: [campaignId], references: [id])
-  customerId            String
-  googleAdGroupId       String?
-  googleCampaignId      String?         // the Google-side campaign ID
-  name                  String
-  status                String          @default("ENABLED") // ENABLED, PAUSED, REMOVED
-  adGroupType           String          @default("SEARCH_STANDARD")
-  cpcBidMicros          BigInt?         // CPC bid in micros
-  targetCpaMicros       BigInt?
-  ads                   GoogleAd[]
-  keywords              GoogleAdKeyword[]
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-
-  @@unique([googleAdGroupId])
-}
-
-model GoogleAd {
-  id                 String         @id @default(uuid())
-  organizationId     String
-  adGroupId          String
-  adGroup            GoogleAdGroup  @relation(fields: [adGroupId], references: [id])
-  customerId         String
-  googleAdId         String?
-  googleAdGroupId    String?
-  adType             String         @default("RESPONSIVE_SEARCH_AD") // RESPONSIVE_SEARCH_AD, EXPANDED_TEXT_AD, RESPONSIVE_DISPLAY_AD
-  status             String         @default("ENABLED")
-  headlines          Json           @default("[]")
-  descriptions       Json           @default("[]")
-  finalUrls          Json           @default("[]")
-  displayUrl         String?
-  path1              String?
-  path2              String?
-  strengthLabel      String?        // POOR, AVERAGE, GOOD, EXCELLENT
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-}
-
-model GoogleAdKeyword {
-  id                 String          @id @default(uuid())
-  organizationId     String
-  adGroupId          String
-  adGroup            GoogleAdGroup   @relation(fields: [adGroupId], references: [id])
-  customerId         String
-  googleKeywordId    String?
-  googleAdGroupId    String?
-  text               String
-  matchType          String          @default("BROAD") // BROAD, PHRASE, EXACT
-  isNegative         Boolean         @default(false)
-  status             String          @default("ENABLED")
-  cpcBidMicros       BigInt?
-  qualityScore       Int?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-}
-
-model GoogleAdExtension {
-  id                 String          @id @default(uuid())
-  organizationId     String
-  customerId         String
-  googleResourceName String?
-  extensionType      String          // SITELINK, CALLOUT, CALL, LOCATION, IMAGE, PRICE, PROMOTION
-  status             String          @default("ENABLED")
-  data               Json            // flexible blob for all extension type fields
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-}
-
-model GoogleAdConversion {
-  id                    String         @id @default(uuid())
-  organizationId        String
-  customerId            String
-  googleResourceName    String?
-  googleConversionId    String?
-  name                  String
-  category              String         @default("PURCHASE") // PURCHASE, SIGNUP, LEAD, PAGE_VIEW, etc.
-  valuePerConversion    Float?
-  countingType          String         @default("ONE_PER_CLICK") // ONE_PER_CLICK, MANY_PER_CLICK
-  conversionWindow      Int            @default(30) // days
-  status                String         @default("ENABLED")
-  tag                   String?        // tracking tag snippet
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-}
-
-model LinkedInConfig {
-  id                    String           @id @default(uuid())
-  organizationId        String           @unique
-  organization          Organization     @relation(fields: [organizationId], references: [id])
-  accessToken           String?
-  refreshToken          String?
-  expiresIn             Int?
-  tokenExpiry           DateTime?
-  companyId             String?
-  companyName           String?
-  memberId              String?
-  memberName            String?
-  memberEmail           String?
-  memberPicture         String?
-  headline              String?
-  vanityName            String?
-  companyLogo           String?
-  website               String?
-  industry              String?
-  description           String?
-  webhookVerifyToken    String           @default(uuid())
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  profile               LinkedInProfile?
-}
-
-model LinkedInProfile {
-  id             String         @id @default(uuid())
-  organizationId String         @unique
-  configId       String         @unique
-  config         LinkedInConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-  memberId       String
-  name           String
-  email          String?
-  headline       String?
-  picture        String?
-  locale         String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model LinkedInSyncLog {
-  id             String       @id @default(uuid())
-  organizationId String
-  event          String
-  status         String
-  details        String?
-  timestamp      DateTime     @default(now())
-}
-
-model LinkedInPersonalPost {
-  id             String       @id @default(uuid())
-  organizationId String
-  linkedinPostId String       @unique
-  author         String
-  summary        String
-  mediaUrl       String?
-  publishedAt    DateTime     @default(now())
-  likesCount     Int          @default(0)
-  commentsCount  Int          @default(0)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-}
-
-model LinkedInPost {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  linkedinPostId String       @unique
-  author         String
-  summary        String
-  mediaUrl       String?
-  visibility     String       @default("PUBLIC")
-  lifecycleState String       @default("PUBLISHED")
-  publishedAt    DateTime     @default(now())
-  likesCount     Int          @default(0)
-  commentsCount  Int          @default(0)
+  customerId     String
+  campaignId     String       @unique
+  name           String
+  status         String       @default("PAUSED")
+  advertisingChannelType String @default("SEARCH")
+  amountMicros   BigInt       @default(0)
+  impressions    BigInt       @default(0)
+  clicks         BigInt       @default(0)
+  costMicros     BigInt       @default(0)
+  conversions    Float        @default(0.0)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-}
-
-model GmailConfig {
-  id                String       @id @default(uuid())
-  organizationId    String       @unique
-  organization      Organization @relation(fields: [organizationId], references: [id])
-  emailAddress      String?
-  accessToken       String?
-  refreshToken      String?
-  autoReplyEnabled  Boolean      @default(false)
-  autoReplyTemplate String?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-}
-
-model GmailThread {
-  id             String         @id @default(uuid())
-  threadId       String         @unique // Gmail API thread ID
-  organizationId String
-  subject        String?
-  sender         String
-  snippet        String?
-  status         String         @default("UNREPLIED") // UNREPLIED, REPLIED, SKIPPED
-  label          String         @default("INBOX")
-  isStarred      Boolean        @default(false)
-  isSpam         Boolean        @default(false)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  messages       GmailMessage[]
-}
-
-model GmailMessage {
-  id             String            @id @default(uuid())
-  threadId       String
-  thread         GmailThread       @relation(fields: [threadId], references: [threadId], onDelete: Cascade)
-  messageId      String            @unique // Gmail API message ID
-  direction      String            // "inbound" or "outbound"
-  content        String            // Body of email
-  htmlContent    String?           // Rich HTML body if present
-  sender         String
-  aiDraft        String?           // Cached AI reply if awaiting review/action
-  createdAt      DateTime          @default(now())
-  attachments    GmailAttachment[]
-}
-
-model GmailAttachment {
-  id             String       @id @default(uuid())
-  messageId      String
-  message        GmailMessage @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
-  attachmentId   String       // Gmail API attachment ID
-  filename       String
-  mimeType       String
-  size           Int
-  createdAt      DateTime     @default(now())
-}
-
-model GmailAutoReplyRule {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  keyword        String       // word or phrase to match (case-insensitive)
-  replyText      String       // Reply message to send automatically
-  fileUrl        String?      // Optional uploaded file URL / base64 attachment
-  fileName       String?      // Original file name (e.g. Brochure.pdf)
-  mimeType       String?      // MIME type (application/pdf, image/png, etc.)
-  isActive       Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  @@map("gmail_auto_reply_rules")
 }
 
 model GmailBulkCampaign {
@@ -505,13 +306,13 @@ model GmailBulkCampaign {
   name            String
   subject         String
   bodyTemplate    String
-  status          String                   @default("DRAFT") // DRAFT, SCHEDULED, SENDING, PAUSED, COMPLETED, CANCELLED
+  status          String                   @default("DRAFT")
   scheduledAt     DateTime?
   totalRecipients Int                      @default(0)
   sentCount       Int                      @default(0)
   failedCount     Int                      @default(0)
   skippedCount    Int                      @default(0)
-  delaySeconds    Int                      @default(3) // Anti-spam delay between emails
+  delaySeconds    Int                      @default(3)
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
   recipients      GmailCampaignRecipient[]
@@ -527,8 +328,8 @@ model GmailCampaignRecipient {
   name         String?
   company      String?
   designation  String?
-  customData   String?           // JSON string of all column key-values
-  status       String            @default("PENDING") // PENDING, SENT, FAILED, SKIPPED
+  customData   String?
+  status       String            @default("PENDING")
   errorMessage String?
   sentAt       DateTime?
   createdAt    DateTime          @default(now())
@@ -556,14 +357,14 @@ model AiAgentConfig {
   agentName         String       @default("AI Sales Specialist")
   personalityPrompt String       @default("You are a warm, highly knowledgeable, human-like sales and customer support representative. Chat naturally in a friendly, conversational tone. Understand customer requirements, answer questions based strictly on trained company data, attach relevant portfolio screenshots or PDFs when requested, and collect contact details if they ask to be called back.")
   greetingMessage   String?      @default("Hello! How can I assist you with our services today?")
-  activeMode        String       @default("AI_AGENT") // "AI_AGENT" or "STATIC_FLOW"
+  activeMode        String       @default("AI_AGENT")
   isActive          Boolean      @default(true)
   whatsappAiEnabled Boolean      @default(true)
   instagramAiEnabled Boolean     @default(false)
   youtubeAiEnabled  Boolean      @default(false)
   linkedinAiEnabled Boolean      @default(false)
   autoSendMedia     Boolean      @default(true)
-  fallbackAction    String       @default("human_callback") // human_callback, pause_bot, static_flow
+  fallbackAction    String       @default("human_callback")
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -574,13 +375,13 @@ model AiKnowledgeItem {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category       String       @default("SERVICES") // SERVICES, PRICING, JOBS, PORTFOLIO, FAQ, OTHER
+  category       String       @default("SERVICES")
   topic          String
-  keywords       String       // Comma-separated or JSON list of keyword tags
-  content        String       // Detailed training knowledge content (Markdown or plain text)
-  mediaUrl       String?      // Screenshot, image, or PDF deck attachment URL
-  mediaType      String?      // "image", "document", "video"
-  mediaTitle     String?      // Display title for attachment (e.g. "Web_App_Portfolio.pdf")
+  keywords       String
+  content        String
+  mediaUrl       String?
+  mediaType      String?
+  mediaTitle     String?
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -597,10 +398,103 @@ model AiCapturedLead {
   email          String?
   topicDiscussed String?
   notes          String?
-  status         String       @default("NEW") // NEW, CONTACTED, CLOSED
+  status         String       @default("NEW")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@map("ai_captured_leads")
 }
 
+// ─── Meta Ads Models ─────────────────────────────────────────────────────────
+model MetaAdConfig {
+  id                 String       @id @default(uuid())
+  organizationId     String       @unique
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  appId              String?
+  appSecret          String?
+  accessToken        String?
+  adAccountId        String?
+  pageId             String?
+  instagramAccountId String?
+  pixelId            String?
+  webhookVerifyToken String       @default(uuid())
+  systemStatus       String       @default("DISCONNECTED")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model MetaAdAccount {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  adAccountId    String
+  name           String?
+  accountStatus  Int          @default(1)
+  currency       String       @default("USD")
+  timezoneName   String       @default("UTC")
+  businessId     String?
+  businessName   String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, adAccountId])
+}
+
+model MetaAdCampaign {
+  id              String        @id @default(uuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  adAccountId     String
+  metaCampaignId  String?       @unique
+  name            String
+  objective       String        @default("MESSAGES")
+  buyingType      String        @default("AUCTION")
+  status          String        @default("PAUSED")
+  effectiveStatus String?       @default("PAUSED")
+  dailyBudget     Float?
+  lifetimeBudget  Float?
+  bidStrategy     String?
+  startTime       DateTime?
+  stopTime        DateTime?
+  adSets          MetaAdSet[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model MetaAdSet {
+  id               String         @id @default(uuid())
+  organizationId   String
+  campaignId       String
+  campaign         MetaAdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adAccountId      String
+  metaAdSetId      String?        @unique
+  name             String
+  status           String         @default("PAUSED")
+  dailyBudget      Float?
+  lifetimeBudget   Float?
+  billingEvent     String         @default("IMPRESSIONS")
+  optimizationGoal String         @default("MESSAGES")
+  destinationType  String         @default("WHATSAPP")
+  targeting        Json           @default("{}")
+  ads              MetaAd[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model MetaAd {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  adSetId            String
+  adSet              MetaAdSet    @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  adAccountId        String
+  metaAdId           String?      @unique
+  name               String
+  status             String       @default("PAUSED")
+  effectiveStatus    String?      @default("PENDING_REVIEW")
+  approvalStatus     String       @default("PENDING_REVIEW")
+  reviewResultReason String?
+  creative           Json         @default("{}")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}

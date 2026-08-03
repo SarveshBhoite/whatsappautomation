@@ -357,7 +357,6 @@ export async function syncGmbPosts(orgId: string, io?: any) {
         data: {
           organizationId: orgId,
           gmbPostId: gmbPost.name,
-          title: "",
           createdAt: gmbPost.createTime ? new Date(gmbPost.createTime) : new Date(),
           ...data
         }

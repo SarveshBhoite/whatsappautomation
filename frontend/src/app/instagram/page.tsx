@@ -1,22 +1,23 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { 
-  MessageSquare, 
-  GitMerge, 
-  Settings, 
-  Send, 
-  Bot, 
-  User, 
-  Phone, 
-  Check, 
-  CheckCheck, 
-  Paperclip, 
-  Smile, 
-  Plus, 
-  Save, 
-  Key, 
-  FileText, 
+import {
+  Sparkles,
+  MessageSquare,
+  GitMerge,
+  Settings,
+  Send,
+  Bot,
+  User,
+  Phone,
+  Check,
+  CheckCheck,
+  Paperclip,
+  Smile,
+  Plus,
+  Save,
+  Key,
+  FileText,
   Image as ImageIcon,
   HelpCircle,
   ExternalLink,
@@ -29,16 +30,17 @@ import {
   ArrowLeft,
   Star,
   RefreshCw,
-  Store
+  Store,
+  Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
-import ReactFlow, { 
-  MiniMap, 
-  Controls, 
-  Background, 
-  useNodesState, 
-  useEdgesState, 
+import ReactFlow, {
+  MiniMap,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
   addEdge,
   Connection,
   Edge,
@@ -46,6 +48,8 @@ import ReactFlow, {
   Position
 } from "reactflow";
 import "reactflow/dist/style.css";
+import InstagramCommentsPage from "./comments/page";
+import InstagramProfilePage from "./profile/page";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -75,7 +79,7 @@ const WhatsApp = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
     className={className}
     {...props}
   >
-    <path d="M12.012 2c-5.506 0-9.988 4.482-9.988 9.988 0 1.76.46 3.473 1.332 4.977l-1.417 5.176 5.3-.1389a9.92 9.92 0 0 0 4.773 1.218h.004c5.504 0 9.988-4.484 9.988-9.99A9.957 9.957 0 0 0 12.012 2zm5.727 14.17c-.25.7-1.442 1.272-1.992 1.353-.48.072-.942.348-3.048-.52-2.532-1.045-4.14-3.626-4.266-3.794-.124-.168-.948-1.258-.948-2.398 0-1.14.595-1.704.82-1.93.226-.226.495-.282.66-.282.164 0 .328.003.472.01.148.007.348-.056.545.422.2.488.683 1.662.743 1.78.06.12.098.26.018.42-.08.16-.118.26-.237.4-.118.14-.253.31-.36.42-.12.12-.244.25-.104.49.14.24.62 1.022 1.33 1.652.915.816 1.685 1.07 1.925 1.19.24.12.378.1.517-.06.14-.16.596-.694.755-.93.16-.236.32-.2.538-.12.217.08 1.378.65 1.616.77.238.12.396.18.455.28.06.1.06.58-.19 1.28z"/>
+    <path d="M12.012 2c-5.506 0-9.988 4.482-9.988 9.988 0 1.76.46 3.473 1.332 4.977l-1.417 5.176 5.3-.1389a9.92 9.92 0 0 0 4.773 1.218h.004c5.504 0 9.988-4.484 9.988-9.99A9.957 9.957 0 0 0 12.012 2zm5.727 14.17c-.25.7-1.442 1.272-1.992 1.353-.48.072-.942.348-3.048-.52-2.532-1.045-4.14-3.626-4.266-3.794-.124-.168-.948-1.258-.948-2.398 0-1.14.595-1.704.82-1.93.226-.226.495-.282.66-.282.164 0 .328.003.472.01.148.007.348-.056.545.422.2.488.683 1.662.743 1.78.06.12.098.26.018.42-.08.16-.118.26-.237.4-.118.14-.253.31-.36.42-.12.12-.244.25-.104.49.14.24.62 1.022 1.33 1.652.915.816 1.685 1.07 1.925 1.19.24.12.378.1.517-.06.14-.16.596-.694.755-.93.16-.236.32-.2.538-.12.217.08 1.378.65 1.616.77.238.12.396.18.455.28.06.1.06.58-.19 1.28z" />
   </svg>
 );
 
@@ -128,16 +132,16 @@ const ButtonsNodeComponent = ({ data }: any) => {
       <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 whitespace-pre-wrap">
         {data.text || <span className="text-slate-500 italic">Type button header message...</span>}
       </div>
-      
+
       <div className="flex flex-col gap-1.5 mt-1">
         {data.buttons?.map((btn: any) => (
           <div key={btn.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-center text-[10px] ${textColor} font-semibold shadow-sm border-l-2 ${borderL}`}>
             {btn.title}
-            <Handle 
-              type="source" 
-              position={Position.Right} 
-              id={btn.id} 
-              className={`${handleBgLight} !w-2 !h-2 -mr-1`} 
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={btn.id}
+              className={`${handleBgLight} !w-2 !h-2 -mr-1`}
             />
           </div>
         ))}
@@ -179,11 +183,11 @@ const ListNodeComponent = ({ data }: any) => {
           <div key={row.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-left text-[10px] text-slate-200 font-semibold shadow-sm border-l-2 ${borderL}`}>
             <div className="truncate font-medium">{row.title}</div>
             {row.description && <div className="text-[8px] text-slate-500 font-normal truncate mt-0.5">{row.description}</div>}
-            <Handle 
-              type="source" 
-              position={Position.Right} 
-              id={row.id} 
-              className={`${handleBgLight} !w-2 !h-2 -mr-1`} 
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={row.id}
+              className={`${handleBgLight} !w-2 !h-2 -mr-1`}
             />
           </div>
         ))}
@@ -259,9 +263,9 @@ const MediaNodeComponent = ({ data }: any) => {
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
       <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
         {isDoc ? <FileText className={`h-3 w-3 ${textColor}`} /> :
-         isVideo ? <Video className={`h-3 w-3 ${textColor}`} /> :
-         isAudio ? <Headphones className={`h-3 w-3 ${textColor}`} /> :
-         <ImageIcon className={`h-3 w-3 ${textColor}`} />}
+          isVideo ? <Video className={`h-3 w-3 ${textColor}`} /> :
+            isAudio ? <Headphones className={`h-3 w-3 ${textColor}`} /> :
+              <ImageIcon className={`h-3 w-3 ${textColor}`} />}
         Media response ({data.mediaType || "image"})
       </div>
       <div className="text-[10px] text-slate-300 font-semibold truncate bg-slate-900/40 p-1.5 rounded border border-slate-850/60 font-mono mb-1.5 max-w-[180px]">
@@ -337,7 +341,7 @@ export default function Dashboard() {
     []
   );
 
-  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("chats_instagram");
+  const [activeTab, setActiveTab] = useState<"chats_instagram" | "comments" | "profile" | "flows" | "settings">("chats_instagram");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
@@ -345,7 +349,7 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (tab === "chats_whatsapp" || tab === "chats_instagram" || tab === "flows" || tab === "settings") {
+      if (["chats_instagram", "comments", "profile", "flows", "settings"].includes(tab || "")) {
         setActiveTab(tab as any);
       }
 
@@ -363,7 +367,7 @@ export default function Dashboard() {
       }
     }
   }, []);
-  
+
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -383,6 +387,57 @@ export default function Dashboard() {
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
   const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google">("whatsapp");
+
+  // Instagram Comments Real-time Automation Feed
+  interface IgCommentFeedItem {
+    id: string;
+    fromUser: string;
+    commentText: string;
+    createdAt: string;
+    status: "ACTIVE" | "REPLIED";
+    autoReplyText: string;
+  }
+
+  const [igComments, setIgComments] = useState<IgCommentFeedItem[]>([]);
+  const [simulatingComment, setSimulatingComment] = useState(false);
+
+  const fetchIgComments = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIgComments(data.comments || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch Instagram comments:", err);
+    }
+  };
+
+  const handleSimulateComment = async () => {
+    try {
+      setSimulatingComment(true);
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments/simulate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": DEFAULT_ORG_ID
+        },
+        body: JSON.stringify({
+          fromUser: "akash.raw__",
+          commentText: "Awesome post!"
+        })
+      });
+      if (res.ok) {
+        fetchIgComments();
+      }
+    } catch (err) {
+      console.error("Failed to simulate comment:", err);
+    } finally {
+      setSimulatingComment(false);
+    }
+  };
 
   // Google GMB Config
   const [googleConfig, setGoogleConfig] = useState({
@@ -431,7 +486,7 @@ export default function Dashboard() {
     const reader = new FileReader();
     reader.onload = async () => {
       const base64 = (reader.result as string).split(",")[1];
-      
+
       let type = "document";
       if (file.type.startsWith("image/")) type = "image";
       else if (file.type.startsWith("video/")) type = "video";
@@ -482,9 +537,9 @@ export default function Dashboard() {
           if (file.type.startsWith("image/")) type = "image";
           else if (file.type.startsWith("video/")) type = "video";
           else if (file.type.startsWith("audio/")) type = "audio";
-          
-          updateSelectedNode({ 
-            mediaUrl: data.url, 
+
+          updateSelectedNode({
+            mediaUrl: data.url,
             filename: file.name,
             mediaType: type
           });
@@ -591,10 +646,10 @@ export default function Dashboard() {
     const updatedSections = sections.map((sec: any) => {
       const updatedRows = sec.rows?.map((row: any) => {
         if (row.id === rowId) {
-          return { 
-            ...row, 
-            title: newTitle, 
-            description: newDesc !== undefined ? newDesc : row.description 
+          return {
+            ...row,
+            title: newTitle,
+            description: newDesc !== undefined ? newDesc : row.description
           };
         }
         return row;
@@ -671,9 +726,9 @@ export default function Dashboard() {
           if (prev.some((m) => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
-        
+
         // Mark conversation as read in state
-        setConversations((prev) => 
+        setConversations((prev) =>
           prev.map((c) => {
             if (c.id === data.conversationId) {
               return { ...c, messages: [data.message], updatedAt: new Date().toISOString() };
@@ -689,7 +744,7 @@ export default function Dashboard() {
 
     // Handle Status Updates (Ticks)
     socket.on("message-status-update", (data: { waMessageId: string; status: string; customerPhone: string }) => {
-      setMessages((prev) => 
+      setMessages((prev) =>
         prev.map((m) => {
           if (m.waMessageId === data.waMessageId) {
             return { ...m, status: data.status as any };
@@ -705,7 +760,7 @@ export default function Dashboard() {
       if (currentActiveConv && currentActiveConv.id === data.conversationId) {
         setActiveConv((prev) => prev ? { ...prev, isBotPaused: data.isBotPaused, botPausedUntil: data.botPausedUntil } : null);
       }
-      setConversations((prev) => 
+      setConversations((prev) =>
         prev.map((c) => {
           if (c.id === data.conversationId) {
             return { ...c, isBotPaused: data.isBotPaused, botPausedUntil: data.botPausedUntil };
@@ -715,11 +770,20 @@ export default function Dashboard() {
       );
     });
 
+    // Handle Real-time Instagram Comments
+    socket.on("instagram-comment-received", (newComment: IgCommentFeedItem) => {
+      setIgComments((prev) => {
+        if (prev.some((c) => c.id === newComment.id)) return prev;
+        return [newComment, ...prev];
+      });
+    });
+
     // Initial Fetch
     fetchConversations();
     fetchConfig();
     fetchInstagramConfig();
     fetchGoogleConfig();
+    fetchIgComments();
     fetchActiveFlow("whatsapp");
 
     return () => {
@@ -896,8 +960,8 @@ export default function Dashboard() {
           "Content-Type": "application/json",
           "x-organization-id": DEFAULT_ORG_ID
         },
-        body: JSON.stringify({ 
-          orgId: DEFAULT_ORG_ID, 
+        body: JSON.stringify({
+          orgId: DEFAULT_ORG_ID,
           ...googleConfig,
           googleLocationId: finalLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId
@@ -948,7 +1012,7 @@ export default function Dashboard() {
         setFlowId(active.id);
         setFlowName(active.name);
         setFlowDesc(active.description || "");
-        
+
         // Parse and set Graph JSON
         const graph = active.graphJson;
         if (graph && graph.nodes) {
@@ -976,16 +1040,16 @@ export default function Dashboard() {
 
   const initializeDefaultGraph = () => {
     setNodes([
-      { 
-        id: "welcome_1", 
-        type: "welcomeNode", 
-        data: { 
-          text: selectedPlatform === "instagram" 
+      {
+        id: "welcome_1",
+        type: "welcomeNode",
+        data: {
+          text: selectedPlatform === "instagram"
             ? "Welcome to our Instagram DM channel! How can we help you today?"
             : "Welcome to our support desk! How can we help you today?",
           platform: selectedPlatform
-        }, 
-        position: { x: 250, y: 50 } 
+        },
+        position: { x: 250, y: 50 }
       }
     ] as any);
     setEdges([]);
@@ -1037,7 +1101,7 @@ export default function Dashboard() {
 
     const text = inputText;
     const qId = quotedMessage?.id || null;
-    
+
     setQuotedMessage(null);
     setInputText("");
 
@@ -1079,6 +1143,27 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteConversation = async (convId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this chat conversation?")) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}`, {
+        method: "DELETE",
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        setConversations((prev) => prev.filter((c) => c.id !== convId));
+        if (activeConv?.id === convId) {
+          setActiveConv(null);
+          setMobileChatOpen(false);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+    }
+  };
+
   // React Flow connections helper
   const onConnect = (params: Connection | Edge) => setEdges((eds) => addEdge(params, eds));
 
@@ -1095,9 +1180,9 @@ export default function Dashboard() {
     } else if (type === "listNode") {
       label = "Pop-up list options menu";
       data.listButtonText = "View Menu";
-      data.listSections = [{ 
-        title: "Options", 
-        rows: [{ id: `row_${Date.now()}`, title: "Option 1", description: "" }] 
+      data.listSections = [{
+        title: "Options",
+        rows: [{ id: `row_${Date.now()}`, title: "Option 1", description: "" }]
       }];
     } else if (type === "questionNode") {
       label = "Collect Text input question";
@@ -1114,10 +1199,10 @@ export default function Dashboard() {
       id,
       type: type, // Matches DB flow types
       position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
-      data: { 
+      data: {
         ...data,
         platform: selectedPlatform,
-        label: `${nodes.length + 1}. ${label}` 
+        label: `${nodes.length + 1}. ${label}`
       }
     };
     setNodes((nds) => [...nds, newNode]);
@@ -1125,9 +1210,76 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
+      {/* TOP SECTION NAVIGATION HEADER */}
+      <header className="px-6 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0 z-20">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+            <Instagram className="h-4 w-4" />
+          </div>
+          <div>
+            <h1 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              Instagram Suite
+              <span className="text-[9px] bg-pink-500/10 text-pink-400 border border-pink-500/20 px-2 py-0.5 rounded-full font-mono lowercase">
+                graph api engine
+              </span>
+            </h1>
+          </div>
+        </div>
+
+        {/* Section Tabs */}
+        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 gap-1 text-xs">
+          <button
+            onClick={() => setActiveTab("chats_instagram")}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "chats_instagram"
+                ? "bg-pink-500/15 text-pink-400 border border-pink-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <MessageSquare className="h-3.5 w-3.5" /> Instagram DMs
+          </button>
+
+          <button
+            onClick={() => setActiveTab("comments")}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "comments"
+                ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Comment Automation
+          </button>
+
+          <button
+            onClick={() => setActiveTab("profile")}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "profile"
+                ? "bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <User className="h-3.5 w-3.5" /> Profile & API Config
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("flows");
+              setSelectedPlatform("instagram");
+            }}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "flows"
+                ? "bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <GitMerge className="h-3.5 w-3.5" /> Flow Builder
+          </button>
+        </div>
+      </header>
+
       {/* 2. MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
-        
+
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
           const currentPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
@@ -1137,9 +1289,8 @@ export default function Dashboard() {
           return (
             <div className="flex h-full w-full overflow-hidden">
               {/* Conversations Sidebar ΓÇö full screen on mobile when no chat open, fixed width on desktop */}
-              <div className={`${
-                mobileChatOpen ? "hidden" : "flex"
-              } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
+              <div className={`${mobileChatOpen ? "hidden" : "flex"
+                } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
                 <div className="p-4 border-b border-slate-800 flex justify-between items-center">
                   <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
@@ -1148,9 +1299,9 @@ export default function Dashboard() {
                     </span>
                   </h2>
                 </div>
-                
+
                 {/* Conversation items list */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-900 scrollbar-none no-scrollbar">
                   {filteredConversations.length === 0 ? (
                     <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
                       {isInstagramTab ? (
@@ -1209,9 +1360,8 @@ export default function Dashboard() {
               </div>
 
               {/* Chat Conversation Pane ΓÇö full screen on mobile when chat open */}
-              <div className={`${
-                mobileChatOpen ? "flex" : "hidden"
-              } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
+              <div className={`${mobileChatOpen ? "flex" : "hidden"
+                } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
                 {activeConv ? (
                   <>
                     {/* Chat header */}
@@ -1251,11 +1401,10 @@ export default function Dashboard() {
                       {/* Bot active / pause controllers */}
                       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                         {/* Bot status badge ΓÇö hidden on very small screens, visible on sm+ */}
-                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${
-                          activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        }`}>
+                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${activeConv.isBotPaused
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                          : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          }`}>
                           {activeConv.isBotPaused ? (
                             <><User className="h-3.5 w-3.5" /><span>Bot Paused</span></>
                           ) : (
@@ -1263,25 +1412,32 @@ export default function Dashboard() {
                           )}
                         </div>
                         {/* Compact bot status icon ΓÇö mobile only */}
-                        <div className={`sm:hidden p-2 rounded-xl border transition-all ${
-                          activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        }`}>
+                        <div className={`sm:hidden p-2 rounded-xl border transition-all ${activeConv.isBotPaused
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                          : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          }`}>
                           {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                         </div>
 
                         <button
                           type="button"
                           onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${
-                            activeConv.isBotPaused 
-                              ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" 
-                              : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
-                          }`}
+                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${activeConv.isBotPaused
+                            ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950"
+                            : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
+                            }`}
                         >
                           <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
                           <span className="sm:hidden">{activeConv.isBotPaused ? "Resume" : "Pause"}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteConversation(activeConv.id, e)}
+                          className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer"
+                          title="Delete Chat Conversation"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </button>
 
                       </div>
@@ -1290,12 +1446,12 @@ export default function Dashboard() {
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
                       {messages.map((msg) => {
                         const isInbound = msg.direction === "inbound";
-                        
+
                         // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
                         const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
                         let quoteText = "";
                         let messageBody = msg.content;
-                        
+
                         if (msg.quotedMessage) {
                           const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
                           const contentSnippet = msg.quotedMessage.content.split("|")[0];
@@ -1368,28 +1524,26 @@ export default function Dashboard() {
                               </div>
 
                               {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${
-                                isInbound 
-                                  ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none" 
-                                  : activeConv?.platform === "instagram"
-                                    ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                    : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
-                              }`}>
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${isInbound
+                                ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none"
+                                : activeConv?.platform === "instagram"
+                                  ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
+                                  : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
+                                }`}>
                                 {msg.senderName && !isInbound && (
                                   <span className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/80" : "text-slate-800/70"}`}>
                                     {msg.senderName}
                                   </span>
                                 )}
-                                
+
                                 {/* Render Quoted Reply Box inside Bubble */}
                                 {hasQuote && (
-                                  <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${
-                                    isInbound 
-                                      ? "bg-slate-900/40 border-slate-500 text-slate-400" 
-                                      : activeConv?.platform === "instagram"
-                                        ? "bg-violet-950/40 border-violet-400 text-violet-200"
-                                        : "bg-emerald-600/30 border-emerald-950 text-slate-900"
-                                  }`}>
+                                  <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${isInbound
+                                    ? "bg-slate-900/40 border-slate-500 text-slate-400"
+                                    : activeConv?.platform === "instagram"
+                                      ? "bg-violet-950/40 border-violet-400 text-violet-200"
+                                      : "bg-emerald-600/30 border-emerald-950 text-slate-900"
+                                    }`}>
                                     {quoteText}
                                   </div>
                                 )}
@@ -1422,34 +1576,34 @@ export default function Dashboard() {
                                     <div className="flex flex-col gap-2">
                                       {msg.messageType === "image" ? (
                                         <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                          <img 
-                                            src={getMediaUrl(mediaUrl)} 
-                                            alt="Sent Media" 
+                                          <img
+                                            src={getMediaUrl(mediaUrl)}
+                                            alt="Sent Media"
                                             className="object-cover w-full h-32 hover:scale-105 transition-all duration-300 cursor-zoom-in"
                                             onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
                                           />
                                         </div>
                                       ) : msg.messageType === "video" ? (
                                         <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                          <video 
-                                            src={getMediaUrl(mediaUrl)} 
-                                            controls 
+                                          <video
+                                            src={getMediaUrl(mediaUrl)}
+                                            controls
                                             className="object-cover w-full h-36"
                                           />
                                         </div>
                                       ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
                                         <div className="max-w-[240px] py-1">
-                                          <audio 
-                                            src={getMediaUrl(mediaUrl)} 
-                                            controls 
+                                          <audio
+                                            src={getMediaUrl(mediaUrl)}
+                                            controls
                                             className="w-full h-10"
                                           />
                                         </div>
                                       ) : (
-                                        <a 
-                                          href={getMediaUrl(mediaUrl)} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer" 
+                                        <a
+                                          href={getMediaUrl(mediaUrl)}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
                                           className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
                                         >
                                           <FileText className="h-8 w-8 stroke-1" />
@@ -1469,7 +1623,7 @@ export default function Dashboard() {
                                 })() : (
                                   <div className="flex flex-col gap-2">
                                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
-                                    
+
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
                                       <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
@@ -1500,14 +1654,12 @@ export default function Dashboard() {
                                               activeListMenuMsgId === msg.id ? null : msg.id
                                             );
                                           }}
-                                          className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${
-                                            activeConv?.platform === "instagram" ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500"
-                                          } border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer`}
+                                          className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${activeConv?.platform === "instagram" ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500"
+                                            } border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer`}
                                         >
                                           <span className="flex items-center gap-1.5">
-                                            <FileText className={`h-3.5 w-3.5 ${
-                                              activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-500"
-                                            }`} />
+                                            <FileText className={`h-3.5 w-3.5 ${activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-500"
+                                              }`} />
                                             {listButtonText}
                                           </span>
                                           <span className="text-[10px] text-slate-400 font-normal">Select</span>
@@ -1539,13 +1691,12 @@ export default function Dashboard() {
                                 )}
 
                                 {/* Ticks status and time */}
-                                <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${
-                                  isInbound 
-                                    ? "text-slate-500" 
-                                    : activeConv?.platform === "instagram"
-                                      ? "text-pink-100/85"
-                                      : "text-slate-800/80"
-                                }`}>
+                                <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${isInbound
+                                  ? "text-slate-500"
+                                  : activeConv?.platform === "instagram"
+                                    ? "text-pink-100/85"
+                                    : "text-slate-800/80"
+                                  }`}>
                                   <span>
                                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </span>
@@ -1576,9 +1727,9 @@ export default function Dashboard() {
                             {quotedMessage.content.split("|")[0]}
                           </span>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setQuotedMessage(null)} 
+                        <button
+                          type="button"
+                          onClick={() => setQuotedMessage(null)}
                           className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
                         >
                           ├ù
@@ -1588,7 +1739,7 @@ export default function Dashboard() {
 
                     {/* Message input bar */}
                     <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
-                      
+
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
                         <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
@@ -1638,16 +1789,16 @@ export default function Dashboard() {
                         </div>
                       )}
 
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
                         accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
                       />
 
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={() => {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
@@ -1656,8 +1807,8 @@ export default function Dashboard() {
                       >
                         <Smile className="h-5 w-5" />
                       </button>
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={() => {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
@@ -1666,7 +1817,7 @@ export default function Dashboard() {
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
-                      
+
                       <input
                         type="text"
                         value={inputText}
@@ -1685,19 +1836,30 @@ export default function Dashboard() {
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
-                    <div className="max-w-md flex flex-col items-center gap-4">
-                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-xl border ${isInstagramTab ? "bg-pink-500/10 text-pink-400 border-pink-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}`}>
-                        {isInstagramTab ? (
-                          <Instagram className="h-10 w-10 stroke-1" />
-                        ) : (
-                          <Bot className="h-10 w-10 stroke-1" />
-                        )}
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-100">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales & Support CRM</h3>
-                      <p className="text-sm text-slate-400">
-                        Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
-                      </p>
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50 overflow-y-auto">
+                    <div className="max-w-md w-full flex flex-col items-center gap-5">
+                      {isInstagramTab ? (
+                        <div className="w-full flex flex-col items-center justify-center py-12 px-4 text-center animate-fadeIn">
+                          <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-xl border bg-pink-500/10 text-pink-400 border-pink-500/20 mb-4">
+                            <Instagram className="h-10 w-10 stroke-1" />
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-100">Instagram Inbox</h3>
+                          <p className="text-sm text-slate-400 max-w-md mt-2">
+                            Select a conversation from the left sidebar to start chatting, view messages, or handle customer replies.
+                          </p>
+                        </div>
+                      ) : (
+                        /* Default WhatsApp Sales CRM Placeholder */
+                        <>
+                          <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-xl border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                            <Bot className="h-10 w-10 stroke-1" />
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-100">WhatsApp Sales & Support CRM</h3>
+                          <p className="text-sm text-slate-400">
+                            Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1706,751 +1868,768 @@ export default function Dashboard() {
           );
         })()}
 
-        {/* TAB 2: VISUAL FLOW BUILDER */}
+        {/* TAB 2: COMMENT AUTOMATION */}
+        {activeTab === "comments" && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <InstagramCommentsPage />
+          </div>
+        )}
+
+        {/* TAB 3: PROFILE & API CONFIG */}
+        {activeTab === "profile" && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <InstagramProfilePage />
+          </div>
+        )}
+
+        {/* TAB 4: VISUAL FLOW BUILDER */}
         {activeTab === "flows" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Header toolbar */}
-            <div className="h-14 border-b border-slate-800 bg-slate-950/20 px-6 flex items-center justify-between z-10">
-              <div className="flex items-center gap-4">
-                <input 
-                  type="text" 
-                  value={flowName} 
-                  onChange={(e) => setFlowName(e.target.value)}
-                  className="bg-transparent font-bold text-sm text-slate-200 border-b border-transparent hover:border-slate-700 focus:border-emerald-500 focus:outline-none py-1"
-                />
-                
-                <div className="h-6 w-px bg-slate-800 mx-2" />
-                
-                <select
-                  value={selectedPlatform}
-                  onChange={(e) => setSelectedPlatform(e.target.value as "whatsapp" | "instagram")}
-                  className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="whatsapp">WhatsApp Flow</option>
-                  <option value="instagram">Instagram Flow</option>
-                </select>
-              </div>
+      {/* Header toolbar */}
+      <div className="h-14 border-b border-slate-800 bg-slate-950/20 px-6 flex items-center justify-between z-10">
+        <div className="flex items-center gap-4">
+          <input
+            type="text"
+            value={flowName}
+            onChange={(e) => setFlowName(e.target.value)}
+            className="bg-transparent font-bold text-sm text-slate-200 border-b border-transparent hover:border-slate-700 focus:border-emerald-500 focus:outline-none py-1"
+          />
 
-              {/* Node tools */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 mr-2">Add Message Blocks:</span>
-                <button 
-                  onClick={() => addFlowNode("textNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Text Msg
-                </button>
-                <button 
-                  onClick={() => addFlowNode("buttonsNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Buttons Options
-                </button>
-                <button 
-                  onClick={() => addFlowNode("listNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
-                >
-                  <Plus className="h-3.5 w-3.5" /> List Menu
-                </button>
-                 <button 
-                  onClick={() => addFlowNode("questionNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Input Question
-                </button>
-                <button 
-                  onClick={() => addFlowNode("mediaNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Media Msg
-                </button>
+          <div className="h-6 w-px bg-slate-800 mx-2" />
 
-                <div className="h-6 w-px bg-slate-800 mx-2" />
+          <select
+            value={selectedPlatform}
+            onChange={(e) => setSelectedPlatform(e.target.value as "whatsapp" | "instagram")}
+            className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
+          >
+            <option value="whatsapp">WhatsApp Flow</option>
+            <option value="instagram">Instagram Flow</option>
+          </select>
+        </div>
 
-                <button
-                  onClick={saveFlow}
-                  disabled={flowSaveStatus === "saving"}
-                  className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Save className="h-3.5 w-3.5" /> 
-                  {flowSaveStatus === "saving" ? "Saving..." : flowSaveStatus === "success" ? "Saved!" : "Save Flow"}
-                </button>
-              </div>
+        {/* Node tools */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 mr-2">Add Message Blocks:</span>
+          <button
+            onClick={() => addFlowNode("textNode")}
+            className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" /> Text Msg
+          </button>
+          <button
+            onClick={() => addFlowNode("buttonsNode")}
+            className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" /> Buttons Options
+          </button>
+          <button
+            onClick={() => addFlowNode("listNode")}
+            className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" /> List Menu
+          </button>
+          <button
+            onClick={() => addFlowNode("questionNode")}
+            className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" /> Input Question
+          </button>
+          <button
+            onClick={() => addFlowNode("mediaNode")}
+            className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" /> Media Msg
+          </button>
+
+          <div className="h-6 w-px bg-slate-800 mx-2" />
+
+          <button
+            onClick={saveFlow}
+            disabled={flowSaveStatus === "saving"}
+            className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {flowSaveStatus === "saving" ? "Saving..." : flowSaveStatus === "success" ? "Saved!" : "Save Flow"}
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas workspace using React Flow & Selected Node Panel */}
+      <div className="flex-1 w-full bg-slate-950 relative flex">
+        <div className="flex-1 h-full">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            fitView
+          >
+            <Controls className="bg-slate-900 border border-slate-800 text-slate-200" />
+            <MiniMap className="bg-slate-900 border border-slate-850" nodeColor={() => '#10b981'} maskColor="rgba(15, 23, 42, 0.6)" />
+            <Background color="#334155" gap={16} />
+          </ReactFlow>
+        </div>
+
+        {/* Node properties editor panel (Right Sidebar) */}
+        {selectedNode && (
+          <div className="w-80 border-l border-slate-800 bg-slate-950/60 p-5 overflow-y-auto flex flex-col gap-4 text-xs shrink-0 z-20">
+            <h3 className="font-bold text-sm text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-1.5 uppercase tracking-wider">
+              <Bot className="h-4 w-4 text-emerald-400" /> Node Properties
+            </h3>
+
+            {/* Common Name/Label */}
+            <div className="flex flex-col gap-1">
+              <label className="text-slate-400 font-semibold">Label / Name</label>
+              <input
+                type="text"
+                value={selectedNode.data.label || ""}
+                onChange={(e) => updateSelectedNode({ label: e.target.value })}
+                className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+              />
             </div>
 
-            {/* Canvas workspace using React Flow & Selected Node Panel */}
-            <div className="flex-1 w-full bg-slate-950 relative flex">
-              <div className="flex-1 h-full">
-                <ReactFlow
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={onConnect}
-                  nodeTypes={nodeTypes}
-                  fitView
-                >
-                  <Controls className="bg-slate-900 border border-slate-800 text-slate-200" />
-                  <MiniMap className="bg-slate-900 border border-slate-850" nodeColor={() => '#10b981'} maskColor="rgba(15, 23, 42, 0.6)" />
-                  <Background color="#334155" gap={16} />
-                </ReactFlow>
+            {/* Common Message Text */}
+            {selectedNode.type !== "mediaNode" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-slate-400 font-semibold">Message Text</label>
+                <textarea
+                  value={selectedNode.data.text || ""}
+                  onChange={(e) => updateSelectedNode({ text: e.target.value })}
+                  rows={4}
+                  className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                  placeholder="Type WhatsApp reply content..."
+                />
               </div>
+            )}
 
-              {/* Node properties editor panel (Right Sidebar) */}
-              {selectedNode && (
-                <div className="w-80 border-l border-slate-800 bg-slate-950/60 p-5 overflow-y-auto flex flex-col gap-4 text-xs shrink-0 z-20">
-                  <h3 className="font-bold text-sm text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Bot className="h-4 w-4 text-emerald-400" /> Node Properties
-                  </h3>
-                  
-                  {/* Common Name/Label */}
+            {/* If node is a media node, edit media properties */}
+            {selectedNode.type === "mediaNode" && (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-slate-400 font-semibold">Media Type</label>
+                  <select
+                    value={selectedNode.data.mediaType || "image"}
+                    onChange={(e) => updateSelectedNode({ mediaType: e.target.value })}
+                    className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="image">Image</option>
+                    <option value="video">Video</option>
+                    <option value="audio">Audio</option>
+                    <option value="document">Document</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-slate-400 font-semibold">Media URL / Path</label>
+                    <label className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer">
+                      Upload File
+                      <input
+                        type="file"
+                        onChange={handleFlowMediaUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={selectedNode.data.mediaUrl || ""}
+                    onChange={(e) => updateSelectedNode({ mediaUrl: e.target.value })}
+                    className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                    placeholder="e.g. /uploads/image.png or http://..."
+                  />
+                </div>
+
+                {selectedNode.data.mediaType === "document" && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-slate-400 font-semibold">Label / Name</label>
-                    <input 
-                      type="text" 
-                      value={selectedNode.data.label || ""}
-                      onChange={(e) => updateSelectedNode({ label: e.target.value })}
+                    <label className="text-slate-400 font-semibold">Display Filename</label>
+                    <input
+                      type="text"
+                      value={selectedNode.data.filename || ""}
+                      onChange={(e) => updateSelectedNode({ filename: e.target.value })}
                       className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                      placeholder="e.g. brochure.pdf"
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-slate-400 font-semibold">Caption Text (Optional)</label>
+                  <textarea
+                    value={selectedNode.data.caption || ""}
+                    onChange={(e) => updateSelectedNode({ caption: e.target.value })}
+                    rows={3}
+                    className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                    placeholder="Media caption text..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* If node is a question, collect variables */}
+            {selectedNode.type === "questionNode" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-slate-400 font-semibold">Save Response to Variable</label>
+                <input
+                  type="text"
+                  value={selectedNode.data.variableName || ""}
+                  onChange={(e) => updateSelectedNode({ variableName: e.target.value })}
+                  className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                  placeholder="e.g. client_email"
+                />
+              </div>
+            )}
+
+            {/* If list node, manage list menu properties */}
+            {selectedNode.type === "listNode" && (() => {
+              const sections = selectedNode.data.listSections || [];
+              const rows = sections.flatMap((sec: any) => sec.rows || []) || [];
+              const limit = selectedPlatform === "whatsapp" ? 10 : 13;
+
+              return (
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-slate-400 font-semibold">Menu Button Text</label>
+                    <input
+                      type="text"
+                      value={selectedNode.data.listButtonText || ""}
+                      onChange={(e) => updateSelectedNode({ listButtonText: e.target.value })}
+                      className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                      placeholder="e.g. View Menu"
                     />
                   </div>
 
-                  {/* Common Message Text */}
-                  {selectedNode.type !== "mediaNode" && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 font-semibold">Message Text</label>
-                      <textarea 
-                        value={selectedNode.data.text || ""}
-                        onChange={(e) => updateSelectedNode({ text: e.target.value })}
-                        rows={4}
-                        className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
-                        placeholder="Type WhatsApp reply content..."
-                      />
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center mt-2">
+                    <label className="text-slate-400 font-semibold">Menu Options (Max {limit} Items)</label>
+                    {rows.length < limit && (
+                      <button
+                        type="button"
+                        onClick={addListOptionRow}
+                        className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                      >
+                        + Add Option
+                      </button>
+                    )}
+                  </div>
 
-                  {/* If node is a media node, edit media properties */}
-                  {selectedNode.type === "mediaNode" && (
-                    <div className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 font-semibold">Media Type</label>
-                        <select
-                          value={selectedNode.data.mediaType || "image"}
-                          onChange={(e) => updateSelectedNode({ mediaType: e.target.value })}
-                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        >
-                          <option value="image">Image</option>
-                          <option value="video">Video</option>
-                          <option value="audio">Audio</option>
-                          <option value="document">Document</option>
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col gap-1">
+                  <div className="space-y-3">
+                    {rows.map((row: any, index: number) => (
+                      <div key={row.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1.5 relative">
                         <div className="flex justify-between items-center">
-                          <label className="text-slate-400 font-semibold">Media URL / Path</label>
-                          <label className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer">
-                            Upload File
-                            <input 
-                              type="file" 
-                              onChange={handleFlowMediaUpload}
-                              className="hidden" 
-                            />
-                          </label>
-                        </div>
-                        <input 
-                          type="text" 
-                          value={selectedNode.data.mediaUrl || ""}
-                          onChange={(e) => updateSelectedNode({ mediaUrl: e.target.value })}
-                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-                          placeholder="e.g. /uploads/image.png or http://..."
-                        />
-                      </div>
-
-                      {selectedNode.data.mediaType === "document" && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-slate-400 font-semibold">Display Filename</label>
-                          <input 
-                            type="text" 
-                            value={selectedNode.data.filename || ""}
-                            onChange={(e) => updateSelectedNode({ filename: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
-                            placeholder="e.g. brochure.pdf"
-                          />
-                        </div>
-                      )}
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 font-semibold">Caption Text (Optional)</label>
-                        <textarea 
-                          value={selectedNode.data.caption || ""}
-                          onChange={(e) => updateSelectedNode({ caption: e.target.value })}
-                          rows={3}
-                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
-                          placeholder="Media caption text..."
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* If node is a question, collect variables */}
-                  {selectedNode.type === "questionNode" && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 font-semibold">Save Response to Variable</label>
-                      <input 
-                        type="text" 
-                        value={selectedNode.data.variableName || ""}
-                        onChange={(e) => updateSelectedNode({ variableName: e.target.value })}
-                        className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
-                        placeholder="e.g. client_email"
-                      />
-                    </div>
-                  )}
-
-                  {/* If list node, manage list menu properties */}
-                  {selectedNode.type === "listNode" && (() => {
-                    const sections = selectedNode.data.listSections || [];
-                    const rows = sections.flatMap((sec: any) => sec.rows || []) || [];
-                    const limit = selectedPlatform === "whatsapp" ? 10 : 13;
-
-                    return (
-                      <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-slate-400 font-semibold">Menu Button Text</label>
-                          <input 
-                            type="text" 
-                            value={selectedNode.data.listButtonText || ""}
-                            onChange={(e) => updateSelectedNode({ listButtonText: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
-                            placeholder="e.g. View Menu"
-                          />
-                        </div>
-
-                        <div className="flex justify-between items-center mt-2">
-                          <label className="text-slate-400 font-semibold">Menu Options (Max {limit} Items)</label>
-                          {rows.length < limit && (
-                            <button 
-                              type="button"
-                              onClick={addListOptionRow}
-                              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
-                            >
-                              + Add Option
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="space-y-3">
-                          {rows.map((row: any, index: number) => (
-                            <div key={row.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1.5 relative">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-slate-500 font-semibold">Option {index + 1}</span>
-                                <button 
-                                  type="button"
-                                  onClick={() => removeListOptionRow(row.id)}
-                                  className="text-red-400 hover:text-red-300 font-bold text-xs"
-                                >
-                                  ├ù
-                                </button>
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                <input 
-                                  type="text" 
-                                  value={row.title}
-                                  onChange={(e) => updateListOptionRow(row.id, e.target.value, row.description)}
-                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
-                                  placeholder="Option Title"
-                                  maxLength={50}
-                                />
-                                <input 
-                                  type="text" 
-                                  value={row.description || ""}
-                                  onChange={(e) => updateListOptionRow(row.id, row.title, e.target.value)}
-                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-450 text-[10px] focus:outline-none focus:border-emerald-500"
-                                  placeholder="Optional description (WhatsApp only)"
-                                  maxLength={72}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                          {rows.length === 0 && (
-                            <span className="text-[10px] text-slate-500 italic block text-center mt-1">No options added yet. Click Add Option.</span>
-                          )}
-                        </div>
-                        
-                        {/* Warning banner for Instagram fallback */}
-                        <div className="bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 p-2.5 rounded-lg leading-relaxed mt-2">
-                          <strong>Note:</strong> Instagram does not support native List menus; they will fallback to Quick Reply buttons.
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* If buttons node, manage button options */}
-                  {selectedNode.type === "buttonsNode" && (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center">
-                        <label className="text-slate-400 font-semibold">Options (Max {selectedPlatform === "whatsapp" ? 3 : 13} Buttons)</label>
-                        {(!selectedNode.data.buttons || selectedNode.data.buttons.length < (selectedPlatform === "whatsapp" ? 3 : 13)) && (
-                          <button 
+                          <span className="text-[10px] text-slate-500 font-semibold">Option {index + 1}</span>
+                          <button
                             type="button"
-                            onClick={addOptionButton}
-                            className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                            onClick={() => removeListOptionRow(row.id)}
+                            className="text-red-400 hover:text-red-300 font-bold text-xs"
                           >
-                            + Add Button
+                            ├ù
                           </button>
-                        )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            value={row.title}
+                            onChange={(e) => updateListOptionRow(row.id, e.target.value, row.description)}
+                            className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
+                            placeholder="Option Title"
+                            maxLength={50}
+                          />
+                          <input
+                            type="text"
+                            value={row.description || ""}
+                            onChange={(e) => updateListOptionRow(row.id, row.title, e.target.value)}
+                            className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-450 text-[10px] focus:outline-none focus:border-emerald-500"
+                            placeholder="Optional description (WhatsApp only)"
+                            maxLength={72}
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1.5">
-                        {selectedNode.data.buttons?.map((btn: any, index: number) => (
-                          <div key={btn.id} className="flex gap-1.5 items-center">
-                            <input 
-                              type="text" 
-                              value={btn.title}
-                              onChange={(e) => updateOptionButton(btn.id, e.target.value)}
-                              className="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
-                              placeholder={`Button ${index + 1}`}
-                            />
-                            <button 
-                              type="button"
-                              onClick={() => removeOptionButton(btn.id)}
-                              className="text-red-400 hover:text-red-300 px-1 font-bold text-xs"
-                            >
-                              ├ù
-                            </button>
-                          </div>
-                        ))}
-                        {(!selectedNode.data.buttons || selectedNode.data.buttons.length === 0) && (
-                          <span className="text-[10px] text-slate-500 italic">No buttons added yet. Click Add Button.</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {/* Delete Node Action */}
-                  <div className="border-t border-slate-800 pt-4 mt-2">
-                    <button
-                      type="button"
-                      onClick={deleteSelectedNode}
-                      className="w-full bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-950 font-bold py-2 rounded-lg transition-all text-[11px]"
-                    >
-                      Delete Block
-                    </button>
+                    ))}
+                    {rows.length === 0 && (
+                      <span className="text-[10px] text-slate-500 italic block text-center mt-1">No options added yet. Click Add Option.</span>
+                    )}
+                  </div>
+
+                  {/* Warning banner for Instagram fallback */}
+                  <div className="bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 p-2.5 rounded-lg leading-relaxed mt-2">
+                    <strong>Note:</strong> Instagram does not support native List menus; they will fallback to Quick Reply buttons.
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+              );
+            })()}
 
-        {/* TAB 3: SETTINGS & ONBOARDING */}
-        {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-8 w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
-              <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
-                <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
-              </h2>
-              
-              {/* Secondary sub-tabs selector */}
-              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start sm:self-auto shadow-inner gap-1">
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("whatsapp")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
-                >
-                  <WhatsApp className="h-3.5 w-3.5" /> WhatsApp Setup
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("instagram")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-pink-500 text-white shadow-md shadow-pink-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
-                >
-                  <Instagram className="h-3.5 w-3.5" /> Instagram Setup
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("google")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-primary text-slate-950 shadow-md shadow-primary/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
-                >
-                  <Star className="h-3.5 w-3.5 text-slate-950" /> Google Setup
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Configuration Inputs */}
-              <div className="md:col-span-2 space-y-6">
-                {settingsSubTab === "whatsapp" ? (
-                  <>
-                    {/* WhatsApp Credentials Form */}
-                    <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Key className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp API Credentials
-                      </h3>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
-                        <input
-                          type="text"
-                          value={config.phoneNumberId}
-                          onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
-                          placeholder="e.g. 1048473820293"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
-                        <input
-                          type="text"
-                          value={config.wabaId}
-                          onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
-                          placeholder="e.g. 1048473820999"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
-                        <textarea
-                          value={config.accessToken}
-                          onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
-                          placeholder="Paste EAAG... permanent access token here"
-                          rows={4}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between">
-                        <button
-                          type="submit"
-                          disabled={saveStatus === "saving"}
-                          className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
-                        >
-                          <Save className="h-4 w-4" />
-                          {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
-                        </button>
-                        
-                        {saveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
-                        )}
-                      </div>
-                    </form>
-
-                    {/* WhatsApp Webhook Integration */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp Webhook Configuration
-                      </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
-                      </p>
-
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
-                      </div>
-
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
-                      </div>
-
-                      <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 flex gap-3">
-                        <Bot className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-emerald-300">Important Webhook Fields</span>
-                          <span className="text-[11px] text-slate-400">
-                            In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>message_deliveries</strong> webhook fields.
-                          </span>
-                        </div>
-                      </div>
+            {/* If buttons node, manage button options */}
+            {selectedNode.type === "buttonsNode" && (
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-slate-400 font-semibold">Options (Max {selectedPlatform === "whatsapp" ? 3 : 13} Buttons)</label>
+                  {(!selectedNode.data.buttons || selectedNode.data.buttons.length < (selectedPlatform === "whatsapp" ? 3 : 13)) && (
+                    <button
+                      type="button"
+                      onClick={addOptionButton}
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                    >
+                      + Add Button
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {selectedNode.data.buttons?.map((btn: any, index: number) => (
+                    <div key={btn.id} className="flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={btn.title}
+                        onChange={(e) => updateOptionButton(btn.id, e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
+                        placeholder={`Button ${index + 1}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeOptionButton(btn.id)}
+                        className="text-red-400 hover:text-red-300 px-1 font-bold text-xs"
+                      >
+                        ├ù
+                      </button>
                     </div>
-                  </>
-                ) : settingsSubTab === "instagram" ? (
-                  <>
-                    {/* Instagram Credentials Form */}
-                    <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Instagram className="h-4.5 w-4.5 text-pink-500" /> Instagram DM Credentials
-                      </h3>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Instagram Business Account ID</label>
-                        <input
-                          type="text"
-                          value={igConfig.instagramAccountId}
-                          onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
-                          placeholder="e.g. 17841401234567890"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Facebook Page ID</label>
-                        <input
-                          type="text"
-                          value={igConfig.pageId}
-                          onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
-                          placeholder="e.g. 10203040506070"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Page Access Token (Permanent)</label>
-                        <textarea
-                          value={igConfig.pageAccessToken}
-                          onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
-                          placeholder="Paste Page Access Token here"
-                          rows={4}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between">
-                        <button
-                          type="submit"
-                          disabled={igSaveStatus === "saving"}
-                          className="bg-pink-500 hover:bg-pink-400 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-pink-500/10 cursor-pointer"
-                        >
-                          <Save className="h-4 w-4" />
-                          {igSaveStatus === "saving" ? "Saving..." : igSaveStatus === "success" ? "Saved Successfully!" : "Save Instagram Credentials"}
-                        </button>
-                        
-                        {igSaveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
-                        )}
-                      </div>
-                    </form>
-
-                    {/* Instagram Webhook Integration */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-pink-400" /> Instagram Webhook Configuration
-                      </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>Instagram Webhook</strong> product parameters list.
-                      </p>
-
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
-                      </div>
-
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
-                      </div>
-
-                      <div className="bg-pink-500/5 border border-pink-500/10 rounded-xl p-3.5 flex gap-3">
-                        <Bot className="h-5 w-5 text-pink-400 shrink-0 mt-0.5" />
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-pink-300">Important Webhook Fields</span>
-                          <span className="text-[11px] text-slate-400">
-                            In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>messaging_postbacks</strong> webhook fields under the <strong>Instagram</strong> section.
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Google GMB Credentials Form */}
-                    <form onSubmit={saveGoogleConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Star className="h-4.5 w-4.5 text-primary" /> Google Business Configuration
-                      </h3>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Location / Business Name</label>
-                          <input
-                            type="text"
-                            value={googleConfig.locationName || ""}
-                            onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
-                            placeholder="e.g. Jisnu Digitals Pune"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Place ID (Link redirection)</label>
-                          <input
-                            type="text"
-                            value={googleConfig.googlePlaceId || ""}
-                            onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
-                            placeholder="e.g. ChIJK7R7jG-5wjsR..."
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Live Google Business Review Redirect URL</label>
-                        <input
-                          type="text"
-                          value={googleConfig.googleReviewUrl || ""}
-                          onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
-                          placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Business Account ID (Optional)</label>
-                          <input
-                            type="text"
-                            value={formGoogleAccountId}
-                            onChange={(e) => setFormGoogleAccountId(e.target.value)}
-                            placeholder="e.g. 1048273892019"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
-                          <input
-                            type="text"
-                            value={formGoogleLocationId}
-                            onChange={(e) => setFormGoogleLocationId(e.target.value)}
-                            placeholder="e.g. 15154699825689004204"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Ads Customer ID</label>
-                          <input
-                            type="text"
-                            value={formGoogleAdsCustomerId}
-                            onChange={(e) => setFormGoogleAdsCustomerId(e.target.value)}
-                            placeholder="e.g. 123-456-7890"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between">
-                        <button
-                          type="submit"
-                          disabled={googleSaveStatus === "saving"}
-                          className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
-                        >
-                          <Save className="h-4 w-4" />
-                          {googleSaveStatus === "saving" ? "Saving..." : googleSaveStatus === "success" ? "Saved Config Successfully!" : "Save Google Configurations"}
-                        </button>
-                        {googleSaveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save Google config.</span>
-                        )}
-                      </div>
-                    </form>
-
-                    {/* Google OAuth Live Connection Panel */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-primary" /> Google Business Profile Authorization
-                      </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Connect your live Google Business Profile account so the system can automatically monitor reviews and post automated replies on your behalf.
-                      </p>
-
-                      <div className="flex items-center gap-3.5 bg-slate-900/50 border border-slate-850 p-4 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={handleGoogleOAuthConnect}
-                          disabled={googleOauthStatus === "connecting"}
-                          className="bg-primary hover:bg-secondary text-slate-950 font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-50"
-                        >
-                          <RefreshCw className={`h-4.5 w-4.5 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                          {googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect Google Account"}
-                        </button>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-slate-200">
-                            {googleConfig.googleRefreshToken ? "Status: CONNECTED" : "Google Login (OAuth)"}
-                          </span>
-                          <span className="text-[10px] text-slate-500 leading-normal">
-                            {googleConfig.googleRefreshToken 
-                              ? "Your Google Business account token is active. Ready to manage reviews."
-                              : "Click to authorize GMB review API access via Google's secure portal."}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {googleOauthStatus === "success" && (
-                        <span className="text-xs text-emerald-400 font-medium block animate-fadeIn">Google profile connected successfully!</span>
-                      )}
-                      {googleOauthStatus === "error" && (
-                        <span className="text-xs text-red-400 font-medium block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Quick instructions sidebar */}
-              <div className="space-y-6">
-                <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-5 space-y-4 shadow-xl">
-                  <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <HelpCircle className="h-4 w-4 text-emerald-400" /> Setup Instructions
-                  </h4>
-                  
-                  {settingsSubTab === "whatsapp" ? (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-emerald-500 marker:font-bold animate-fadeIn">
-                      <li>
-                        Create a Meta Developer app under your Meta developer account.
-                      </li>
-                      <li>
-                        Add the <strong>WhatsApp</strong> product to your Meta Developer app.
-                      </li>
-                      <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permission: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">whatsapp_business_messaging</code>.
-                      </li>
-                      <li>
-                        Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>WhatsApp Business Account ID</strong> and paste them on the credentials form.
-                      </li>
-                      <li>
-                        Register the unique WhatsApp Callback URL and Verify Token in your Meta Dashboard.
-                      </li>
-                    </ul>
-                  ) : settingsSubTab === "instagram" ? (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-pink-500 marker:font-bold animate-fadeIn">
-                      <li>
-                        Create a Meta Developer app under your Meta developer account.
-                      </li>
-                      <li>
-                        Add the <strong>Messenger</strong> product to your Meta Developer app.
-                      </li>
-                      <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code>.
-                      </li>
-                      <li>
-                        Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
-                      </li>
-                      <li>
-                        Register the unique Instagram Callback URL and Verify Token in your Meta Dashboard under Webhook settings.
-                      </li>
-                    </ul>
-                  ) : (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
-                      <li>
-                        Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
-                      </li>
-                      <li>
-                        Input the Live Google Review URL so positive review selections can easily redirect consumers to the listing page.
-                      </li>
-                      <li>
-                        Obtain the <strong>Location ID</strong> directly from your GMB profile parameters.
-                      </li>
-                      <li>
-                        Click the <strong>Connect Google Account</strong> button and follow instructions on the screen to authenticate.
-                      </li>
-                    </ul>
+                  ))}
+                  {(!selectedNode.data.buttons || selectedNode.data.buttons.length === 0) && (
+                    <span className="text-[10px] text-slate-500 italic">No buttons added yet. Click Add Button.</span>
                   )}
                 </div>
               </div>
+            )}
+            {/* Delete Node Action */}
+            <div className="border-t border-slate-800 pt-4 mt-2">
+              <button
+                type="button"
+                onClick={deleteSelectedNode}
+                className="w-full bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-950 font-bold py-2 rounded-lg transition-all text-[11px]"
+              >
+                Delete Block
+              </button>
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
+  )
+}
+
+{/* TAB 3: SETTINGS & ONBOARDING */ }
+{
+  activeTab === "settings" && (
+    <div className="flex-1 overflow-y-auto p-8 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
+        <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
+          <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
+        </h2>
+
+        {/* Secondary sub-tabs selector */}
+        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start sm:self-auto shadow-inner gap-1">
+          <button
+            type="button"
+            onClick={() => setSettingsSubTab("whatsapp")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <WhatsApp className="h-3.5 w-3.5" /> WhatsApp Setup
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettingsSubTab("instagram")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-pink-500 text-white shadow-md shadow-pink-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <Instagram className="h-3.5 w-3.5" /> Instagram Setup
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettingsSubTab("google")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-primary text-slate-950 shadow-md shadow-primary/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <Star className="h-3.5 w-3.5 text-slate-950" /> Google Setup
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Configuration Inputs */}
+        <div className="md:col-span-2 space-y-6">
+          {settingsSubTab === "whatsapp" ? (
+            <>
+              {/* WhatsApp Credentials Form */}
+              <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Key className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp API Credentials
+                </h3>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
+                  <input
+                    type="text"
+                    value={config.phoneNumberId}
+                    onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
+                    placeholder="e.g. 1048473820293"
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
+                  <input
+                    type="text"
+                    value={config.wabaId}
+                    onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
+                    placeholder="e.g. 1048473820999"
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
+                  <textarea
+                    value={config.accessToken}
+                    onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
+                    placeholder="Paste EAAG... permanent access token here"
+                    rows={4}
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between">
+                  <button
+                    type="submit"
+                    disabled={saveStatus === "saving"}
+                    className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                  >
+                    <Save className="h-4 w-4" />
+                    {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
+                  </button>
+
+                  {saveStatus === "error" && (
+                    <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
+                  )}
+                </div>
+              </form>
+
+              {/* WhatsApp Webhook Integration */}
+              <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Database className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp Webhook Configuration
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
+                </p>
+
+                <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                  <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
+                  <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
+                </div>
+
+                <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                  <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
+                  <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
+                </div>
+
+                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 flex gap-3">
+                  <Bot className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-emerald-300">Important Webhook Fields</span>
+                    <span className="text-[11px] text-slate-400">
+                      In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>message_deliveries</strong> webhook fields.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : settingsSubTab === "instagram" ? (
+            <>
+              {/* Instagram Credentials Form */}
+              <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Instagram className="h-4.5 w-4.5 text-pink-500" /> Instagram DM Credentials
+                </h3>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">Instagram Business Account ID</label>
+                  <input
+                    type="text"
+                    value={igConfig.instagramAccountId}
+                    onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
+                    placeholder="e.g. 17841401234567890"
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">Facebook Page ID</label>
+                  <input
+                    type="text"
+                    value={igConfig.pageId}
+                    onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
+                    placeholder="e.g. 10203040506070"
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">Page Access Token (Permanent)</label>
+                  <textarea
+                    value={igConfig.pageAccessToken}
+                    onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
+                    placeholder="Paste Page Access Token here"
+                    rows={4}
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono text-xs"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between">
+                  <button
+                    type="submit"
+                    disabled={igSaveStatus === "saving"}
+                    className="bg-pink-500 hover:bg-pink-400 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-pink-500/10 cursor-pointer"
+                  >
+                    <Save className="h-4 w-4" />
+                    {igSaveStatus === "saving" ? "Saving..." : igSaveStatus === "success" ? "Saved Successfully!" : "Save Instagram Credentials"}
+                  </button>
+
+                  {igSaveStatus === "error" && (
+                    <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
+                  )}
+                </div>
+              </form>
+
+              {/* Instagram Webhook Integration */}
+              <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Database className="h-4.5 w-4.5 text-pink-400" /> Instagram Webhook Configuration
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>Instagram Webhook</strong> product parameters list.
+                </p>
+
+                <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                  <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
+                  <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
+                </div>
+
+                <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                  <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
+                  <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
+                </div>
+
+                <div className="bg-pink-500/5 border border-pink-500/10 rounded-xl p-3.5 flex gap-3">
+                  <Bot className="h-5 w-5 text-pink-400 shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-pink-300">Important Webhook Fields</span>
+                    <span className="text-[11px] text-slate-400">
+                      In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>messaging_postbacks</strong> webhook fields under the <strong>Instagram</strong> section.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Google GMB Credentials Form */}
+              <form onSubmit={saveGoogleConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Star className="h-4.5 w-4.5 text-primary" /> Google Business Configuration
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Location / Business Name</label>
+                    <input
+                      type="text"
+                      value={googleConfig.locationName || ""}
+                      onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
+                      placeholder="e.g. Jisnu Digitals Pune"
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Google Place ID (Link redirection)</label>
+                    <input
+                      type="text"
+                      value={googleConfig.googlePlaceId || ""}
+                      onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
+                      placeholder="e.g. ChIJK7R7jG-5wjsR..."
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold">Live Google Business Review Redirect URL</label>
+                  <input
+                    type="text"
+                    value={googleConfig.googleReviewUrl || ""}
+                    onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
+                    placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Google Business Account ID (Optional)</label>
+                    <input
+                      type="text"
+                      value={formGoogleAccountId}
+                      onChange={(e) => setFormGoogleAccountId(e.target.value)}
+                      placeholder="e.g. 1048273892019"
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
+                    <input
+                      type="text"
+                      value={formGoogleLocationId}
+                      onChange={(e) => setFormGoogleLocationId(e.target.value)}
+                      placeholder="e.g. 15154699825689004204"
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-400 font-semibold">Google Ads Customer ID</label>
+                    <input
+                      type="text"
+                      value={formGoogleAdsCustomerId}
+                      onChange={(e) => setFormGoogleAdsCustomerId(e.target.value)}
+                      placeholder="e.g. 123-456-7890"
+                      className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between">
+                  <button
+                    type="submit"
+                    disabled={googleSaveStatus === "saving"}
+                    className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                  >
+                    <Save className="h-4 w-4" />
+                    {googleSaveStatus === "saving" ? "Saving..." : googleSaveStatus === "success" ? "Saved Config Successfully!" : "Save Google Configurations"}
+                  </button>
+                  {googleSaveStatus === "error" && (
+                    <span className="text-xs text-red-400 font-medium">Failed to save Google config.</span>
+                  )}
+                </div>
+              </form>
+
+              {/* Google OAuth Live Connection Panel */}
+              <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Database className="h-4.5 w-4.5 text-primary" /> Google Business Profile Authorization
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Connect your live Google Business Profile account so the system can automatically monitor reviews and post automated replies on your behalf.
+                </p>
+
+                <div className="flex items-center gap-3.5 bg-slate-900/50 border border-slate-850 p-4 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={handleGoogleOAuthConnect}
+                    disabled={googleOauthStatus === "connecting"}
+                    className="bg-primary hover:bg-secondary text-slate-950 font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4.5 w-4.5 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
+                    {googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect Google Account"}
+                  </button>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-200">
+                      {googleConfig.googleRefreshToken ? "Status: CONNECTED" : "Google Login (OAuth)"}
+                    </span>
+                    <span className="text-[10px] text-slate-500 leading-normal">
+                      {googleConfig.googleRefreshToken
+                        ? "Your Google Business account token is active. Ready to manage reviews."
+                        : "Click to authorize GMB review API access via Google's secure portal."}
+                    </span>
+                  </div>
+                </div>
+
+                {googleOauthStatus === "success" && (
+                  <span className="text-xs text-emerald-400 font-medium block animate-fadeIn">Google profile connected successfully!</span>
+                )}
+                {googleOauthStatus === "error" && (
+                  <span className="text-xs text-red-400 font-medium block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Quick instructions sidebar */}
+        <div className="space-y-6">
+          <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-5 space-y-4 shadow-xl">
+            <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <HelpCircle className="h-4 w-4 text-emerald-400" /> Setup Instructions
+            </h4>
+
+            {settingsSubTab === "whatsapp" ? (
+              <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-emerald-500 marker:font-bold animate-fadeIn">
+                <li>
+                  Create a Meta Developer app under your Meta developer account.
+                </li>
+                <li>
+                  Add the <strong>WhatsApp</strong> product to your Meta Developer app.
+                </li>
+                <li>
+                  Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permission: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">whatsapp_business_messaging</code>.
+                </li>
+                <li>
+                  Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>WhatsApp Business Account ID</strong> and paste them on the credentials form.
+                </li>
+                <li>
+                  Register the unique WhatsApp Callback URL and Verify Token in your Meta Dashboard.
+                </li>
+              </ul>
+            ) : settingsSubTab === "instagram" ? (
+              <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-pink-500 marker:font-bold animate-fadeIn">
+                <li>
+                  Create a Meta Developer app under your Meta developer account.
+                </li>
+                <li>
+                  Add the <strong>Messenger</strong> product to your Meta Developer app.
+                </li>
+                <li>
+                  Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code>.
+                </li>
+                <li>
+                  Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
+                </li>
+                <li>
+                  Register the unique Instagram Callback URL and Verify Token in your Meta Dashboard under Webhook settings.
+                </li>
+              </ul>
+            ) : (
+              <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
+                <li>
+                  Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
+                </li>
+                <li>
+                  Input the Live Google Review URL so positive review selections can easily redirect consumers to the listing page.
+                </li>
+                <li>
+                  Obtain the <strong>Location ID</strong> directly from your GMB profile parameters.
+                </li>
+                <li>
+                  Click the <strong>Connect Google Account</strong> button and follow instructions on the screen to authenticate.
+                </li>
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+      </main >
+    </div >
   );
 }

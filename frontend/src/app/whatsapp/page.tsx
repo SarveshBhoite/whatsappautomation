@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
+  MessageCircle,
   MessageSquare, 
   GitMerge, 
   Settings, 
@@ -46,6 +47,8 @@ import ReactFlow, {
   Position
 } from "reactflow";
 import "reactflow/dist/style.css";
+import WhatsAppBulkBroadcastPage from "./bulk/page";
+import WhatsAppTemplatesPage from "./templates/page";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -337,7 +340,7 @@ export default function Dashboard() {
     []
   );
 
-  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "flows" | "settings">("chats_whatsapp");
+  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "meta_templates" | "flows" | "settings">("chats_whatsapp");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
@@ -345,7 +348,7 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (tab === "chats_whatsapp" || tab === "chats_instagram" || tab === "flows" || tab === "settings") {
+      if (["chats_whatsapp", "chats_instagram", "bulk_broadcast", "meta_templates", "flows", "settings"].includes(tab || "")) {
         setActiveTab(tab as any);
       }
 
@@ -671,20 +674,20 @@ export default function Dashboard() {
           if (prev.some((m) => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
-        
-        // Mark conversation as read in state
-        setConversations((prev) => 
-          prev.map((c) => {
-            if (c.id === data.conversationId) {
-              return { ...c, messages: [data.message], updatedAt: new Date().toISOString() };
-            }
-            return c;
-          })
-        );
-      } else {
-        // Reload conversation list
-        fetchConversations();
       }
+      
+      // Update conversations list state so last message & timestamp update in real-time
+      setConversations((prev) => 
+        prev.map((c) => {
+          if (c.id === data.conversationId) {
+            return { ...c, messages: [data.message], updatedAt: new Date().toISOString() };
+          }
+          return c;
+        })
+      );
+
+      // Re-fetch conversation list to pick up any new conversations
+      fetchConversations();
     });
 
     // Handle Status Updates (Ticks)
@@ -1125,6 +1128,87 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
+      {/* TOP SECTION NAVIGATION HEADER */}
+      <header className="px-6 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0 z-20">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <MessageSquare className="h-4 w-4" />
+          </div>
+          <div>
+            <h1 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              WhatsApp Suite
+              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono lowercase">
+                official cloud api
+              </span>
+            </h1>
+          </div>
+        </div>
+
+        {/* Section Tabs */}
+        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 gap-1 text-xs">
+          <button
+            onClick={() => setActiveTab("chats_whatsapp")}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "chats_whatsapp"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <MessageCircle className="h-3.5 w-3.5" /> WhatsApp Chats
+          </button>
+
+          <button
+            onClick={() => setActiveTab("bulk_broadcast")}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "bulk_broadcast"
+                ? "bg-teal-500/15 text-teal-400 border border-teal-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <Send className="h-3.5 w-3.5" /> Bulk Broadcast
+          </button>
+
+          <button
+            onClick={() => setActiveTab("meta_templates")}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "meta_templates"
+                ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" /> Meta Templates
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("flows");
+              setSelectedPlatform("whatsapp");
+            }}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "flows"
+                ? "bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <GitMerge className="h-3.5 w-3.5" /> Flow Builder
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("settings");
+              setSettingsSubTab("whatsapp");
+            }}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "settings"
+                ? "bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <Settings className="h-3.5 w-3.5" /> API Settings
+          </button>
+        </div>
+      </header>
+
       {/* 2. MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         
@@ -1706,7 +1790,21 @@ export default function Dashboard() {
           );
         })()}
 
-        {/* TAB 2: VISUAL FLOW BUILDER */}
+        {/* TAB 2: BULK BROADCAST CAMPAIGN */}
+        {activeTab === "bulk_broadcast" && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <WhatsAppBulkBroadcastPage />
+          </div>
+        )}
+
+        {/* TAB 3: META TEMPLATES MANAGER */}
+        {activeTab === "meta_templates" && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <WhatsAppTemplatesPage />
+          </div>
+        )}
+
+        {/* TAB 4: VISUAL FLOW BUILDER */}
         {activeTab === "flows" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Header toolbar */}

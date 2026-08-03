@@ -19,6 +19,7 @@ import gmailRouter from "./routes/gmail";
 import linkedinRouter from "./routes/linkedin";
 import contentInspectorRouter from "./routes/contentInspector";
 import aiAgentRouter from "./routes/aiAgent";
+import metaAdsRouter from "./routes/metaAds";
 
 const app = express();
 const server = http.createServer(app);
@@ -35,12 +36,17 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" })); // Increase limit for base64 file uploads
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Ensure uploads folder exists
+// Ensure uploads folders exist
 const uploadsDir = path.join(process.cwd(), "uploads");
+const publicUploadsDir = path.join(process.cwd(), "public", "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+if (!fs.existsSync(publicUploadsDir)) {
+  fs.mkdirSync(publicUploadsDir, { recursive: true });
+}
 app.use("/uploads", express.static(uploadsDir));
+app.use("/uploads", express.static(publicUploadsDir));
 
 // Webhook Router
 app.use("/api/webhook", webhookRouter);
@@ -59,6 +65,9 @@ app.use("/api/gmb/performance", gmbPerformanceRouter);
 
 // Google Ads Campaign & Analytics Router
 app.use("/api/ads", googleAdsRouter);
+
+// Meta Ads (Facebook & Instagram) Router
+app.use("/api/meta-ads", metaAdsRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
@@ -107,6 +116,68 @@ import prisma from "./utils/prisma";
 import { syncGmbReviews, syncGmbPosts, publishPostToGmb } from "./services/gmbSyncService";
 import { YouTubeService } from "./services/youtubeService";
 import { syncGmailThreads } from "./services/gmailService";
+import { WhatsAppService } from "./services/whatsappService";
+
+// Pre-upload SEO + Ads proof images to Meta Cloud API at startup and patch the active flow nodes
+async function preCacheSeoMediaIds() {
+  try {
+    const waConfig = await prisma.whatsAppConfig.findFirst();
+    if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
+      console.log("[SEO MEDIA PRE-CACHE] No WhatsApp config found, skipping pre-upload.");
+      return;
+    }
+    const proofImages = [
+      // SEO proof images
+      { nodeId: "seo_result_media_1", file: "/uploads/seo_result_1.jpg", mime: "image/jpeg" },
+      { nodeId: "seo_result_media_2", file: "/uploads/seo_result_2.jpg", mime: "image/jpeg" },
+      { nodeId: "seo_result_media_3", file: "/uploads/seo_result_3.jpg", mime: "image/jpeg" },
+      // Ads proof images
+      { nodeId: "ads_result_media_1", file: "/uploads/ads_result_1.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_2", file: "/uploads/ads_result_2.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_3", file: "/uploads/ads_result_3.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_4", file: "/uploads/ads_result_4.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_5", file: "/uploads/ads_result_5.jpg", mime: "image/jpeg" },
+      // Static Website proof images
+      { nodeId: "static_web_media_1", file: "/uploads/static_web_proof_1.png", mime: "image/png" },
+      { nodeId: "static_web_media_2", file: "/uploads/static_web_proof_2.png", mime: "image/png" },
+      // Dynamic Website proof images
+      { nodeId: "dynamic_web_media_1", file: "/uploads/dynamic_web_proof_1.png", mime: "image/png" },
+      { nodeId: "dynamic_web_media_2", file: "/uploads/dynamic_web_proof_2.png", mime: "image/png" },
+    ];
+    const activeFlow = await prisma.flow.findFirst({ where: { isActive: true } });
+    if (!activeFlow) {
+      console.log("[SEO MEDIA PRE-CACHE] No active flow found, skipping.");
+      return;
+    }
+    const graph: any = activeFlow.graphJson;
+    let updated = false;
+    for (const img of proofImages) {
+      const node = graph.nodes.find((n: any) => n.id === img.nodeId);
+      if (!node) continue;
+      // Only upload if current mediaUrl is a local path (not already a raw numeric Meta media ID)
+      const currentUrl: string = node.data.mediaUrl || "";
+      if (/^\d{10,}$/.test(currentUrl)) {
+        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} already has Meta ID ${currentUrl}, skipping.`);
+        continue;
+      }
+      console.log(`[SEO MEDIA PRE-CACHE] Uploading ${img.file} for node ${img.nodeId}...`);
+      const mediaId = await WhatsAppService.uploadMedia(waConfig.phoneNumberId, waConfig.accessToken, img.file, img.mime);
+      if (mediaId) {
+        node.data.mediaUrl = mediaId;
+        updated = true;
+        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} -> Meta ID: ${mediaId}`);
+      } else {
+        console.warn(`[SEO MEDIA PRE-CACHE] Failed to upload ${img.file}`);
+      }
+    }
+    if (updated) {
+      await prisma.flow.update({ where: { id: activeFlow.id }, data: { graphJson: graph } });
+      console.log("[SEO MEDIA PRE-CACHE] Flow updated with Meta Media IDs.");
+    }
+  } catch (err: any) {
+    console.error("[SEO MEDIA PRE-CACHE] Error:", err.message);
+  }
+}
 
 // Background Google Business Profile Reviews Sync Scheduler
 async function runBackgroundGmbSync() {
@@ -243,6 +314,8 @@ const PORT = process.env.PORT || 5000;
 server.listen(Number(PORT), "::", () => {
   console.log(`Backend server running on all interfaces (port ${PORT})`);
   startGmbSyncScheduler();
+  // Pre-upload SEO proof images to Meta and store Media IDs in active flow
+  preCacheSeoMediaIds();
 });
 
 export { io };

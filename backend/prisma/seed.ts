@@ -116,26 +116,86 @@ async function main() {
       },
       {
         id: "mkt_overview",
-        type: "textNode",
+        type: "buttonsNode",
         position: { x: 350, y: 650 },
-        data: { label: "Digital Marketing Overview", text: `📈 ${brandName} Digital Marketing Overview:\n\n• Search Engine Optimization (SEO)\n• Google & Meta Paid Ad Campaigns\n• Social Media Branding & Growth\n• Google Business Profile Optimization` }
+        data: {
+          label: "Digital Marketing Services",
+          text: `📈 ${brandName} Digital Marketing Services:\n\nSelect a marketing service below to explore SEO proof of work, pricing & details:`,
+          buttons: [
+            { id: "btn_mkt_seo", title: "SEO Proof & Services" },
+            { id: "btn_mkt_ads", title: "Google & Meta Ads" },
+            { id: "btn_mkt_menu", title: "Main Menu" }
+          ]
+        }
       },
       {
-        id: "mkt_services",
+        id: "seo_proof_intro",
         type: "textNode",
         position: { x: 350, y: 820 },
-        data: { label: "Marketing Services", text: `🎯 Our Dedicated Marketing Services:\n\n1. On-Page & Technical SEO\n2. High-ROI Google Search & Shopping Ads\n3. Meta (FB & IG) Target Growth Campaigns\n4. Professional Content Copywriting & Graphics` }
+        data: { label: "SEO Proof of Work Intro", text: `🏆 Real Client SEO Proof of Work & Rankings:\n\nHere are live Google Page 1 & Local Search rankings achieved for our clients by ${brandName}:` }
+      },
+      {
+        id: "seo_result_media_1",
+        type: "mediaNode",
+        position: { x: 350, y: 990 },
+        data: { label: "SEO Result - Data Engineering", mediaType: "image", mediaUrl: "/uploads/seo_result_1.jpg", caption: "📊 Proof 1: Google Page 1 Rank #1 for 'best data engineering course in pune'" }
+      },
+      {
+        id: "seo_result_media_2",
+        type: "mediaNode",
+        position: { x: 350, y: 1160 },
+        data: { label: "SEO Result - Occupational Therapy", mediaType: "image", mediaUrl: "/uploads/seo_result_2.jpg", caption: "📍 Proof 2: Google Local Map Pack Rank #1 for 'occupational therapy in wakad'" }
+      },
+      {
+        id: "seo_result_media_3",
+        type: "mediaNode",
+        position: { x: 350, y: 1330 },
+        data: { label: "SEO Result - Kids Therapy Clinic", mediaType: "image", mediaUrl: "/uploads/seo_result_3.jpg", caption: "⭐ Proof 3: Top Ranked Local Business for 'kids therapy clinic nearby wakad'" }
+      },
+      {
+        id: "seo_action_btns",
+        type: "buttonsNode",
+        position: { x: 350, y: 1500 },
+        data: {
+          label: "SEO Action Options",
+          text: "Would you like to boost your website ranking on Google Page 1?",
+          buttons: [
+            { id: "btn_seo_book", title: "Book Consultation" },
+            { id: "btn_seo_pkg", title: "Marketing Packages" },
+            { id: "btn_seo_menu", title: "Main Menu" }
+          ]
+        }
+      },
+      {
+        id: "ads_overview",
+        type: "textNode",
+        position: { x: 550, y: 820 },
+        data: { label: "Paid Ads Overview", text: `🎯 High-ROI Google & Meta Paid Ad Campaigns:\n\n• Targeted Google Search & Shopping Ads\n• High-Converting Meta (FB & IG) Ads\n• Lead Generation & Retargeting Setup\n• Continuous ROI Optimization & Tracking` }
+      },
+      {
+        id: "ads_action_btns",
+        type: "buttonsNode",
+        position: { x: 550, y: 990 },
+        data: {
+          label: "Ads Action Options",
+          text: "Ready to scale your business leads with paid ad campaigns?",
+          buttons: [
+            { id: "btn_ads_book", title: "Book Consultation" },
+            { id: "btn_ads_pkg", title: "Marketing Packages" },
+            { id: "btn_ads_menu", title: "Main Menu" }
+          ]
+        }
       },
       {
         id: "mkt_pricing",
         type: "textNode",
-        position: { x: 350, y: 990 },
+        position: { x: 350, y: 1670 },
         data: { label: "Marketing Pricing", text: `💳 Digital Marketing Packages:\n\n• Starter Package: Local SEO & Social Management\n• Growth Package: Full Performance Ads & SEO\n• Enterprise Package: Multi-Channel Brand Growth` }
       },
       {
         id: "mkt_consult_btn",
         type: "buttonsNode",
-        position: { x: 350, y: 1160 },
+        position: { x: 350, y: 1840 },
         data: {
           label: "Book Marketing Consultation",
           text: "Ready to accelerate your business growth with JISNU?",
@@ -445,9 +505,21 @@ async function main() {
       { id: "e_wd3", source: "web_dev_pricing", target: "web_dev_consult_btn" },
       { id: "e_wd4", source: "web_dev_consult_btn", sourceHandle: "btn_web_book", target: "lead_form_name" },
       { id: "e_wd5", source: "web_dev_consult_btn", sourceHandle: "btn_web_menu", target: "main_menu" },
-      { id: "e_m1", source: "mkt_overview", target: "mkt_services" },
-      { id: "e_m2", source: "mkt_services", target: "mkt_pricing" },
-      { id: "e_m3", source: "mkt_pricing", target: "mkt_consult_btn" },
+      { id: "e_m1", source: "mkt_overview", sourceHandle: "btn_mkt_seo", target: "seo_proof_intro" },
+      { id: "e_m2", source: "mkt_overview", sourceHandle: "btn_mkt_ads", target: "ads_overview" },
+      { id: "e_m3", source: "mkt_overview", sourceHandle: "btn_mkt_menu", target: "main_menu" },
+      { id: "e_m_seo1", source: "seo_proof_intro", target: "seo_result_media_1" },
+      { id: "e_m_seo2", source: "seo_result_media_1", target: "seo_result_media_2" },
+      { id: "e_m_seo3", source: "seo_result_media_2", target: "seo_result_media_3" },
+      { id: "e_m_seo4", source: "seo_result_media_3", target: "seo_action_btns" },
+      { id: "e_m_seo_b1", source: "seo_action_btns", sourceHandle: "btn_seo_book", target: "lead_form_name" },
+      { id: "e_m_seo_b2", source: "seo_action_btns", sourceHandle: "btn_seo_pkg", target: "mkt_pricing" },
+      { id: "e_m_seo_b3", source: "seo_action_btns", sourceHandle: "btn_seo_menu", target: "main_menu" },
+      { id: "e_m_ads1", source: "ads_overview", target: "ads_action_btns" },
+      { id: "e_m_ads_b1", source: "ads_action_btns", sourceHandle: "btn_ads_book", target: "lead_form_name" },
+      { id: "e_m_ads_b2", source: "ads_action_btns", sourceHandle: "btn_ads_pkg", target: "mkt_pricing" },
+      { id: "e_m_ads_b3", source: "ads_action_btns", sourceHandle: "btn_ads_menu", target: "main_menu" },
+      { id: "e_m_prc", source: "mkt_pricing", target: "mkt_consult_btn" },
       { id: "e_m4", source: "mkt_consult_btn", sourceHandle: "btn_mkt_book", target: "lead_form_name" },
       { id: "e_m5", source: "mkt_consult_btn", sourceHandle: "btn_mkt_menu", target: "main_menu" },
       { id: "e_lf1", source: "lead_form_name", target: "lead_form_phone" },
