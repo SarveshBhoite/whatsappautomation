@@ -33,76 +33,91 @@ export const verifyWebhook = async (req: Request, res: Response) => {
 export const handleWebhook = async (req: Request, res: Response) => {
   try {
     const body = req.body;
+    console.log(`[WEBHOOK RECEIVED] Path: ${req.path}, Object: ${body?.object}`);
+    console.log("FULL PAYLOAD:", JSON.stringify(body, null, 2));
 
     // Handle Instagram Webhook Events (Messages & Comments)
     if (body.object === "page" || body.object === "instagram") {
-      const entry = body.entry?.[0];
+      console.log("=== INCOMING INSTAGRAM WEBHOOK PAYLOAD ===");
+      console.log(JSON.stringify(body, null, 2));
 
-      // 1. Check for Instagram Comments Webhook Event (entry.changes)
-      const commentChange = entry?.changes?.[0];
-      if (commentChange && commentChange.field === "comments") {
-        const commentValue = commentChange.value;
-        const commentId = commentValue?.id;
-        const commentText = commentValue?.text;
-        const fromUser = commentValue?.from?.username || commentValue?.from?.id;
-        const fromUserId = commentValue?.from?.id;
+      const entries = body.entry || [];
+      for (const entry of entries) {
+        // 1. Check for Instagram Comments Webhook Event (entry.changes)
+        const commentChange = entry?.changes?.[0];
+        if (commentChange && commentChange.field === "comments") {
+          const commentValue = commentChange.value;
+          const commentId = commentValue?.id;
+          const commentText = commentValue?.text;
+          const mediaId = commentValue?.media?.id || "default_post";
+          const fromUser = commentValue?.from?.username || commentValue?.from?.id;
+          const fromUserId = commentValue?.from?.id;
 
-        const igConfig = await prisma.instagramConfig.findFirst({
-          include: { organization: true }
-        });
+          const igConfig = await prisma.instagramConfig.findFirst({
+            include: { organization: true }
+          });
 
-        // Prevent self-loop / duplicate replies when the business page posts a reply
-        const isSelfComment = fromUser === "jisnu_digitalsolution_pvt_ltd" || 
-                              fromUserId === igConfig?.instagramAccountId || 
-                              fromUserId === igConfig?.pageId;
+          // Prevent self-loop / duplicate replies when the business page posts a reply
+          const isSelfComment = fromUser === "jisnu_digitalsolution_pvt_ltd" || 
+                                fromUserId === igConfig?.instagramAccountId || 
+                                fromUserId === igConfig?.pageId;
 
-        if (isSelfComment) {
-          console.log(`[INSTAGRAM COMMENT WEBHOOK] Ignored comment from business page self/bot (${fromUser}).`);
-          return res.sendStatus(200);
-        }
-
-        // Deduplication check: Ensure ONLY 1 auto-reply per comment ID
-        if (commentId && processedComments.has(commentId)) {
-          console.log(`[INSTAGRAM COMMENT WEBHOOK] Comment ${commentId} already replied to. Skipping duplicate.`);
-          return res.sendStatus(200);
-        }
-
-        if (commentId) {
-          processedComments.add(commentId);
-          // Keep set clean in memory (expire after 1 hour)
-          setTimeout(() => processedComments.delete(commentId), 60 * 60 * 1000);
-        }
-
-        console.log(`[INSTAGRAM COMMENT WEBHOOK] From: @${fromUser}, Comment: "${commentText}", ID: ${commentId}`);
-
-        if (commentId && commentText && igConfig?.pageAccessToken) {
-          try {
-            const replyText = `Thanks for commenting @${fromUser}! How can we assist you today? Feel free to DM us! 🚀`;
-            await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, replyText);
-            console.log(`[INSTAGRAM COMMENT AUTO-REPLY SENT] to comment ${commentId}`);
-          } catch (err: any) {
-            console.error(`Failed to auto-reply to Instagram comment ${commentId}:`, err?.response?.data || err.message);
+          if (isSelfComment) {
+            console.log(`[INSTAGRAM COMMENT WEBHOOK] Ignored comment from business page self/bot (${fromUser}).`);
+            continue;
           }
+
+          // Network retry guard: Only prevent duplicate network retries for the exact same comment ID within 10s
+          if (commentId && processedComments.has(commentId)) {
+            continue;
+          }
+
+          if (commentId) {
+            processedComments.add(commentId);
+            setTimeout(() => processedComments.delete(commentId), 10 * 1000);
+          }
+
+          console.log(`[INSTAGRAM COMMENT WEBHOOK] From: @${fromUser}, Post: ${mediaId}, Comment: "${commentText}", ID: ${commentId}`);
+
+          const replyText = `Thanks for commenting @${fromUser}! We appreciate your support. 🚀`;
+
+          if (commentId && igConfig?.pageAccessToken) {
+            try {
+              await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, replyText);
+              console.log(`[INSTAGRAM COMMENT AUTO-REPLY SENT] to comment ${commentId}`);
+            } catch (err: any) {
+              console.warn(`Note on auto-reply for Instagram comment ${commentId}:`, err?.response?.data || err.message);
+            }
+          }
+
+          // Emit real-time comment notification via Socket.IO so it always shows in CRM portal
+          const io = req.app.get("io");
+          if (io && igConfig?.organizationId) {
+            io.to(igConfig.organizationId).emit("instagram-comment-received", {
+              id: commentId || `cmt_${Date.now()}`,
+              fromUser,
+              commentText,
+              createdAt: new Date().toISOString(),
+              status: "REPLIED",
+              autoReplyText: replyText
+            });
+          }
+          continue;
         }
-        return res.sendStatus(200);
-      }
 
-      const messagingObj = entry?.messaging?.[0];
-      if (!messagingObj) {
-        return res.sendStatus(200);
-      }
+        const messagingList = entry?.messaging || [];
+        for (const messagingObj of messagingList) {
+          const senderId = messagingObj.sender?.id;
+          const recipientId = messagingObj.recipient?.id;
+          const message = messagingObj.message;
 
-      const senderId = messagingObj.sender?.id;
-      const recipientId = messagingObj.recipient?.id;
-      const message = messagingObj.message;
+          if (!message || !senderId || !recipientId) {
+            continue;
+          }
 
-      if (!message || !senderId || !recipientId) {
-        return res.sendStatus(200);
-      }
-
-      const mid = message.mid;
-      const isEcho = message.is_echo === true;
-      const timestamp = new Date(messagingObj.timestamp || Date.now());
+          const mid = message.mid;
+          const isEcho = message.is_echo === true;
+          const timestamp = new Date(messagingObj.timestamp || Date.now());
 
       const pageId = isEcho ? senderId : recipientId;
       const customerPhone = isEcho ? recipientId : senderId;
@@ -130,7 +145,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
       if (!igConfig) {
         console.warn(`No Instagram configuration found for Page ID / IG Account ID: ${pageId}`);
-        return res.sendStatus(200);
+        continue;
       }
 
       const organizationId = igConfig.organizationId;
@@ -180,7 +195,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
             contactName = profile.name || `@${profile.username}`;
           }
         } catch (err: any) {
-          console.warn("Failed to fetch user profile:", err.message);
+          // Profile lookup permissions require instagram_manage_messages; fallback cleanly
+          console.warn("Instagram user profile lookup skipped:", err?.message || err);
         }
       }
 
@@ -232,9 +248,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
           console.error("Error executing Instagram chatbot flow engine:", err);
         });
       }
-
-      return res.sendStatus(200);
     }
+  }
+
+  return res.sendStatus(200);
+}
 
     // Handle WhatsApp Webhook Events
     if (body.object !== "whatsapp_business_account") {
@@ -304,11 +322,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // If updated, notify the agents in real-time
         if (updatedMessage.count > 0) {
-          io.to(organizationId).emit("message-status-update", {
-            waMessageId,
-            status,
-            customerPhone: recipient_id,
-          });
+          const socketIo = req.app.get("io") || io;
+          if (socketIo) {
+            socketIo.to(organizationId).emit("message-status-update", {
+              waMessageId,
+              status,
+              customerPhone: recipient_id,
+            });
+          }
         }
       }
       return res.sendStatus(200);
@@ -463,10 +484,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // Broadcast new message to UI agents
         console.log(`Broadcasting new-message event via Socket.IO to Room: "${organizationId}"`);
-        io.to(organizationId).emit("new-message", {
-          conversationId: conversation.id,
-          message: fullMessage,
-        });
+        const socketIo = req.app.get("io") || io;
+        if (socketIo) {
+          socketIo.to(organizationId).emit("new-message", {
+            conversationId: conversation.id,
+            message: fullMessage,
+          });
+        }
 
         // 4. Trigger Chatbot Flow Logic (if bot is not paused)
         if (!conversation.isBotPaused) {

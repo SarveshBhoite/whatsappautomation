@@ -17,6 +17,7 @@ import youtubeRouter from "./routes/youtube";
 import seoRouter from "./routes/seo";
 import gmailRouter from "./routes/gmail";
 import linkedinRouter from "./routes/linkedin";
+import metaAdsRouter from "./routes/metaAds";
 
 const app = express();
 const server = http.createServer(app);
@@ -62,6 +63,9 @@ app.use("/api/gmb/performance", gmbPerformanceRouter);
 
 // Google Ads Campaign & Analytics Router
 app.use("/api/ads", googleAdsRouter);
+
+// Meta Ads (Facebook & Instagram) Router
+app.use("/api/meta-ads", metaAdsRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);

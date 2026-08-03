@@ -367,4 +367,34 @@ export class WhatsAppService {
     });
     return response.data;
   }
+
+  // Send Approved WhatsApp Template Message (Allows initiating conversations outside 24h window)
+  public static async sendTemplateMessage(
+    phoneNumberId: string,
+    accessToken: string,
+    to: string,
+    templateName: string = "hello_world",
+    languageCode: string = "en_US"
+  ) {
+    if (this.isMock(phoneNumberId, accessToken)) {
+      console.log(`[MOCK WHATSAPP SEND TEMPLATE] to ${to}: Template "${templateName}" (${languageCode})`);
+      return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
+    }
+    const url = this.getApiUrl(phoneNumberId);
+    const data: any = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: languageCode }
+      }
+    };
+
+    const response = await axios.post(url, data, {
+      headers: this.getHeaders(accessToken),
+    });
+    return response.data;
+  }
 }
