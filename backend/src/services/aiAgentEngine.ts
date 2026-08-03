@@ -140,8 +140,8 @@ ${personalityPrompt}
    - If the customer says "Hi", "Hello", "Good morning", or asks general questions without specific keywords, greet them warmly, ask about their business goals, and offer assistance.
 3. **Use Trained Data**: Answer questions based on the trained company data provided below.
 4. **Contextual Media & Screenshot Sending**:
-   - If the customer asks to see sample work, portfolio, screenshots, rate cards, brochures, or case studies, look at the Media Asset IDs in the Knowledge Base.
-   - If a relevant media asset exists, set "attachKnowledgeId": "<THE_MEDIA_KNOWLEDGE_ITEM_ID>" in your JSON response.
+   - If the customer asks to see sample work, portfolio, screenshots, rate cards, brochures, or proof of work, look at the Media Asset IDs in the Knowledge Base.
+   - If one or multiple relevant media assets exist, return an array of IDs in "attachKnowledgeIds": ["ID1", "ID2"] in your JSON response.
 5. **Proactive Contact & Lead Capture**:
    - If the customer asks about custom pricing, expresses interest in starting a project, asks to speak to management, or needs a callback, politely ask for their **Name and Phone Number** so a specialist can call them.
    - If the customer provides their name, phone number, email, or requirement details, extract them in the "capturedLead" object.
@@ -156,7 +156,7 @@ ${recentMessages.map(m => `${m.direction === 'inbound' ? 'Customer' : 'Agent (' 
 You MUST return ONLY valid JSON matching this exact structure:
 {
   "replyText": "Your natural human chat response text here",
-  "attachKnowledgeId": "optional_knowledge_item_id_or_null",
+  "attachKnowledgeIds": ["optional_knowledge_item_id_1", "optional_knowledge_item_id_2"],
   "capturedLead": {
     "name": "extracted_name_or_null",
     "email": "extracted_email_or_null",
@@ -192,7 +192,7 @@ You MUST return ONLY valid JSON matching this exact structure:
       return;
     }
 
-    let parsedResult: AiAgentResponse;
+    let parsedResult: any;
     try {
       parsedResult = JSON.parse(rawChoiceContent);
     } catch (parseErr) {
@@ -201,14 +201,23 @@ You MUST return ONLY valid JSON matching this exact structure:
     }
 
     const replyText = parsedResult.replyText || "Thank you for reaching out! Let me connect you with our team specialist for full details.";
-    const attachKnowledgeId = parsedResult.attachKnowledgeId;
+    
+    // Support single ID or array of IDs
+    let rawAttachIds: string[] = [];
+    if (Array.isArray(parsedResult.attachKnowledgeIds)) {
+      rawAttachIds = parsedResult.attachKnowledgeIds;
+    } else if (parsedResult.attachKnowledgeId) {
+      rawAttachIds = [parsedResult.attachKnowledgeId];
+    }
 
-    // 6. Handle Contextual Media Attachment (Screenshot / PDF Deck)
-    let attachedItem: KnowledgeItem | null = null;
-    if (attachKnowledgeId && autoSendMedia) {
-      const found = allKnowledgeItems.find(k => k.id === attachKnowledgeId);
-      if (found && found.mediaUrl) {
-        attachedItem = found as KnowledgeItem;
+    // 6. Collect all matching Knowledge Media Items
+    const attachedItems: KnowledgeItem[] = [];
+    if (autoSendMedia && rawAttachIds.length > 0) {
+      for (const id of rawAttachIds) {
+        const found = allKnowledgeItems.find(k => k.id === id);
+        if (found && found.mediaUrl) {
+          attachedItems.push(found as KnowledgeItem);
+        }
       }
     }
 
@@ -274,7 +283,9 @@ You MUST return ONLY valid JSON matching this exact structure:
     });
 
     // Dispatch Attached Media (Screenshot / PDF) if requested
-    if (attachedItem && attachedItem.mediaUrl) {
+    for (const attachedItem of attachedItems) {
+      if (!attachedItem.mediaUrl) continue;
+
       const mediaType = attachedItem.mediaType || "image";
       const mediaUrl = attachedItem.mediaUrl;
       const mediaCaption = attachedItem.mediaTitle || attachedItem.topic;
