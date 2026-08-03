@@ -107,7 +107,21 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       },
     });
 
-    const customerQuery = incomingMsg.content || "";
+    const rawContent = incomingMsg.content || "";
+    const msgType = incomingMsg.messageType || "text";
+    
+    // Build a human-readable customer query — for media types, describe what was received
+    let customerQuery = rawContent;
+    if (["image", "document", "video", "audio", "voice"].includes(msgType)) {
+      const mediaLabel = msgType === "document" ? `a document named "${rawContent}"` 
+        : msgType === "image" ? "an image"
+        : msgType === "video" ? "a video"
+        : "an audio file";
+      customerQuery = `[The customer just sent ${mediaLabel}. Acknowledge receipt naturally and continue collecting any remaining information needed based on the recent chat context. Do NOT ask them to send the file again — it has been received.]`;
+    } else if (rawContent.startsWith("[Received ")) {
+      // Already patched by webhook controller for media acknowledgement
+      customerQuery = rawContent;
+    }
 
     // Format Full Knowledge Base Context so AI has complete company knowledge regardless of keywords
     let knowledgeContextText = "";
