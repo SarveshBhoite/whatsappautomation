@@ -259,12 +259,13 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     // Dispatch Text Message
     let outWaId: string | null = null;
     if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
-      outWaId = await WhatsAppService.sendTextMessage(
+      const resData = await WhatsAppService.sendTextMessage(
         waConfig.phoneNumberId,
         waConfig.accessToken,
         customerPhone,
         replyText
       );
+      outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
     } else if (isInstagram && igConfig?.pageId && igConfig?.pageAccessToken) {
       await InstagramService.sendTextMessage(
         igConfig.pageAccessToken,
@@ -322,7 +323,7 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
 
       let mediaWaId: string | null = null;
       if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
-        mediaWaId = await WhatsAppService.sendMediaMessage(
+        const resMediaData = await WhatsAppService.sendMediaMessage(
           waConfig.phoneNumberId,
           waConfig.accessToken,
           customerPhone,
@@ -331,6 +332,7 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
           attachedItem.mediaTitle || undefined,
           mediaCaption || undefined
         );
+        mediaWaId = resMediaData?.messages?.[0]?.id || resMediaData?.message_id || null;
       } else if (isInstagram && igConfig?.pageAccessToken) {
         await InstagramService.sendMediaMessage(
           igConfig.pageAccessToken,
