@@ -18,7 +18,9 @@ import seoRouter from "./routes/seo";
 import gmailRouter from "./routes/gmail";
 import linkedinRouter from "./routes/linkedin";
 import contentInspectorRouter from "./routes/contentInspector";
+import aiAgentRouter from "./routes/aiAgent";
 import metaAdsRouter from "./routes/metaAds";
+import reportsRouter from "./routes/reports";
 
 const app = express();
 const server = http.createServer(app);
@@ -80,8 +82,14 @@ app.use("/api/gmail", gmailRouter);
 // LinkedIn Integration Router
 app.use("/api/linkedin", linkedinRouter);
 
-// AI Content Quality Inspector Router
-app.use("/api/inspector", contentInspectorRouter);
+// AI Content Inspector Router
+app.use("/api/content-inspector", contentInspectorRouter);
+
+// Reports Router
+app.use("/api/reports", reportsRouter);
+
+// AI Agent Studio & Knowledge Base Engine Router
+app.use("/api/ai-agent", aiAgentRouter);
 
 // Health check endpoints (for Render Keep-Alive cron/uptime pings)
 app.get(["/health", "/api/health"], (req, res) => {
@@ -150,10 +158,10 @@ async function preCacheSeoMediaIds() {
     for (const img of proofImages) {
       const node = graph.nodes.find((n: any) => n.id === img.nodeId);
       if (!node) continue;
-      // Only upload if current mediaUrl is a local path (not already a raw numeric Meta media ID)
+      // Only upload if current mediaUrl is a local path (not already a raw numeric Meta media ID or ImageKit/HTTP URL)
       const currentUrl: string = node.data.mediaUrl || "";
-      if (/^\d{10,}$/.test(currentUrl)) {
-        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} already has Meta ID ${currentUrl}, skipping.`);
+      if (/^\d{10,}$/.test(currentUrl) || currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
+        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} already has valid URL/Meta ID (${currentUrl.substring(0, 35)}...), skipping.`);
         continue;
       }
       console.log(`[SEO MEDIA PRE-CACHE] Uploading ${img.file} for node ${img.nodeId}...`);
@@ -292,6 +300,8 @@ async function runScheduledPostsSync() {
   }
 }
 
+import { LinkedInSchedulerEngine } from "./services/linkedinService";
+
 function startGmbSyncScheduler() {
   console.log("[BACKGROUND SCHEDULER] Scheduled auto-sync to run every 15 minutes.");
   setInterval(() => {
@@ -303,6 +313,9 @@ function startGmbSyncScheduler() {
   // Check and publish scheduled posts every 60 seconds
   console.log("[BACKGROUND SCHEDULER] Scheduled post publisher to run every 60 seconds.");
   setInterval(() => { runScheduledPostsSync(); }, 60 * 1000);
+
+  // Start LinkedIn Post Scheduler Engine (60s loop)
+  LinkedInSchedulerEngine.startScheduler();
 }
 
 // Start Server

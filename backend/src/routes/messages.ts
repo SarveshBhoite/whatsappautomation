@@ -281,7 +281,7 @@ router.post("/send", async (req: Request, res: Response) => {
     }
 
     return res.status(500).json({
-      error: "Failed to send WhatsApp message via Meta Graph API",
+      error: "Failed to send message via platform API",
       details: metaErrorDetails,
       savedMessage,
     });

@@ -421,9 +421,9 @@ router.post("/threads/:threadId/ai-reply", async (req: Request, res: Response) =
 
     const aiDraft = await generateGmailAiDraft(
       organizationId,
-      targetMsg.content,
+      targetMsg.content || "",
       thread.subject || "Inquiry",
-      targetMsg.sender
+      targetMsg.sender || ""
     );
 
     if (!aiDraft) {

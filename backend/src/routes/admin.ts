@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "../services/whatsappService";
+import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
 
 const router = Router();
+const DEFAULT_ORG_ID = "demo-org-123";
 
 // Middleware to inject default org ID if not provided (Simplifies dev/sandbox testing)
 const getOrgId = (req: Request): string => {
@@ -665,53 +667,39 @@ router.post("/upload", async (req: Request, res: Response) => {
     const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
     const urlEndpoint = process.env.IMAGEKIT_URL_ENDPOINT;
 
-    // 1. If ImageKit is configured, upload directly to cloud CDN
-    if (privateKey && urlEndpoint) {
-      console.log("Uploading file to ImageKit cloud storage...");
-      
-      // Construct native FormData for multipart/form-data upload
-      const formData = new FormData();
-      formData.append("file", fileBase64); // ImageKit accepts raw base64 strings in multipart form
-      formData.append("fileName", filename);
-      formData.append("useUniqueFileName", "true");
-
-      const axios = require("axios");
-      const token = Buffer.from(`${privateKey}:`).toString("base64");
-      
-      const response = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
-        headers: {
-          Authorization: `Basic ${token}`,
-          // Axios automatically manages multipart boundary when receiving a FormData instance
-        }
+    if (!privateKey || !urlEndpoint) {
+      console.error("[ADMIN UPLOAD ERROR]: IMAGEKIT_PRIVATE_KEY or IMAGEKIT_URL_ENDPOINT is missing in backend/.env");
+      return res.status(500).json({
+        error: "Cloud Storage Configuration Error",
+        message: "ImageKit credentials are missing in backend/.env. Localhost upload fallbacks are disabled."
       });
-
-      console.log("ImageKit upload success. Public URL:", response.data.url);
-      return res.status(200).json({ url: response.data.url });
     }
 
-    // 2. Fallback: upload locally but dynamically construct an absolute public URL
-    console.log("ImageKit credentials not configured. Falling back to local upload.");
-    const path = require("path");
-    const fs = require("fs");
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const cleanFilename = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const filePath = path.join(uploadsDir, cleanFilename);
-    const fileBuffer = Buffer.from(fileBase64, "base64");
-    fs.writeFileSync(filePath, fileBuffer);
-
-    // Resolve host dynamically (e.g. ngrok tunnel URL or production domain)
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    const proto = req.headers['x-forwarded-proto'] || 'http';
-    const fileUrl = `${proto}://${host}/uploads/${cleanFilename}`;
+    console.log("[ADMIN UPLOAD] Uploading file to ImageKit cloud storage...");
     
-    console.log("Local upload success. Public URL:", fileUrl);
-    return res.status(200).json({ url: fileUrl });
+    const formData = new FormData();
+    formData.append("file", fileBase64);
+    formData.append("fileName", filename);
+    formData.append("useUniqueFileName", "true");
+
+    const axios = require("axios");
+    const token = Buffer.from(`${privateKey}:`).toString("base64");
+    
+    const response = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
+      headers: {
+        Authorization: `Basic ${token}`,
+      }
+    });
+
+    const publicUrl = response.data?.url;
+    if (!publicUrl || publicUrl.includes("localhost")) {
+      return res.status(500).json({ error: "ImageKit Upload Failed", message: "Invalid CDN URL returned by ImageKit API." });
+    }
+
+    console.log("[ADMIN UPLOAD SUCCESS]: ImageKit CDN URL:", publicUrl);
+    return res.status(200).json({ url: publicUrl });
   } catch (error: any) {
-    const errorResponse = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-    console.error("Error writing upload to storage:", errorResponse);
+    console.error("[ADMIN UPLOAD FAILED]: ImageKit upload error:", error?.response?.data || error.message || error);
     return res.status(500).json({ error: "Failed to upload file", details: error.message });
   }
 });
@@ -916,7 +904,7 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
               isBotPaused: false
             }
           });
-        } else if (leadName && conversation.customerName.startsWith("Lead (")) {
+        } else if (leadName && (conversation.customerName || "").startsWith("Lead (")) {
           // Update customerName if name was provided
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
