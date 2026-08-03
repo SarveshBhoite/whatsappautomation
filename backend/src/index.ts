@@ -154,10 +154,10 @@ async function preCacheSeoMediaIds() {
     for (const img of proofImages) {
       const node = graph.nodes.find((n: any) => n.id === img.nodeId);
       if (!node) continue;
-      // Only upload if current mediaUrl is a local path (not already a raw numeric Meta media ID)
+      // Only upload if current mediaUrl is a local path (not already a raw numeric Meta media ID or ImageKit/HTTP URL)
       const currentUrl: string = node.data.mediaUrl || "";
-      if (/^\d{10,}$/.test(currentUrl)) {
-        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} already has Meta ID ${currentUrl}, skipping.`);
+      if (/^\d{10,}$/.test(currentUrl) || currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
+        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} already has valid URL/Meta ID (${currentUrl.substring(0, 35)}...), skipping.`);
         continue;
       }
       console.log(`[SEO MEDIA PRE-CACHE] Uploading ${img.file} for node ${img.nodeId}...`);
