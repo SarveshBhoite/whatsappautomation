@@ -561,6 +561,7 @@ model AiAgentConfig {
   greetingMessage    String?      @default("Hello! How can I assist you with our services today?")
   activeMode         String       @default("AI_AGENT")
   isActive           Boolean      @default(true)
+  groqApiKey         String?
   whatsappAiEnabled  Boolean      @default(true)
   instagramAiEnabled Boolean      @default(false)
   youtubeAiEnabled   Boolean      @default(false)

@@ -123,9 +123,9 @@ ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.med
     }
 
     // 4. Build Groq AI System Prompt with Human Conversational Intelligence
-    const groqApiKey = process.env.GROQ_KEY;
+    const groqApiKey = (aiConfig as any)?.groqApiKey?.trim() || process.env.GROQ_KEY;
     if (!groqApiKey) {
-      console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from environment.");
+      console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from configuration & environment.");
       return;
     }
 

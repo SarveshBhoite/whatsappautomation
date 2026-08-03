@@ -35,6 +35,7 @@ interface AiAgentConfig {
   greetingMessage: string;
   activeMode: "AI_AGENT" | "STATIC_FLOW";
   isActive: boolean;
+  groqApiKey?: string | null;
   whatsappAiEnabled?: boolean;
   instagramAiEnabled?: boolean;
   youtubeAiEnabled?: boolean;
@@ -79,6 +80,7 @@ export default function AiAgentStudioPage() {
   });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configToast, setConfigToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   // Knowledge Items state
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
@@ -523,6 +525,36 @@ export default function AiAgentStudioPage() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-sm text-white focus:outline-none focus:border-primary leading-relaxed"
                     placeholder="Describe how the AI should converse, handle objections, and present company details..."
                   />
+                </div>
+
+                {/* GROQ LLM API KEY (BYOK) CARD */}
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-white flex items-center gap-2">
+                        <span>⚡ Custom Groq AI API Key (Optional)</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-400 border border-amber-500/30">BYOK Enterprise</span>
+                      </h3>
+                      <p className="text-[10px] text-slate-400">Leave blank to use system default master key, or enter your client API key for dedicated rate limits.</p>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={config.groqApiKey || ""}
+                      onChange={(e) => setConfig({ ...config, groqApiKey: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono pr-20"
+                      placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-white bg-slate-800/80 rounded-lg transition-all"
+                    >
+                      {showApiKey ? "Hide Key" : "Show Key"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* PLATFORM CHECKLIST CARD */}

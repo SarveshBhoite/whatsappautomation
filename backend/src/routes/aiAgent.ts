@@ -52,6 +52,7 @@ router.post("/config", async (req: Request, res: Response) => {
       greetingMessage, 
       activeMode, 
       isActive, 
+      groqApiKey,
       whatsappAiEnabled,
       instagramAiEnabled,
       youtubeAiEnabled,
@@ -60,7 +61,7 @@ router.post("/config", async (req: Request, res: Response) => {
       fallbackAction 
     } = req.body;
 
-    const updated = await prisma.aiAgentConfig.upsert({
+    const updated = await (prisma.aiAgentConfig as any).upsert({
       where: { organizationId },
       update: {
         agentName: agentName !== undefined ? agentName : undefined,
@@ -68,6 +69,7 @@ router.post("/config", async (req: Request, res: Response) => {
         greetingMessage: greetingMessage !== undefined ? greetingMessage : undefined,
         activeMode: activeMode !== undefined ? activeMode : undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
+        groqApiKey: groqApiKey !== undefined ? (groqApiKey ? String(groqApiKey).trim() : null) : undefined,
         whatsappAiEnabled: whatsappAiEnabled !== undefined ? Boolean(whatsappAiEnabled) : undefined,
         instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : undefined,
         youtubeAiEnabled: youtubeAiEnabled !== undefined ? Boolean(youtubeAiEnabled) : undefined,
@@ -82,6 +84,7 @@ router.post("/config", async (req: Request, res: Response) => {
         greetingMessage: greetingMessage || "Hello! How can I help you today?",
         activeMode: activeMode || "AI_AGENT",
         isActive: isActive !== undefined ? Boolean(isActive) : true,
+        groqApiKey: groqApiKey ? String(groqApiKey).trim() : null,
         whatsappAiEnabled: whatsappAiEnabled !== undefined ? Boolean(whatsappAiEnabled) : true,
         instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : false,
         youtubeAiEnabled: youtubeAiEnabled !== undefined ? Boolean(youtubeAiEnabled) : false,
