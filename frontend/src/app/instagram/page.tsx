@@ -799,7 +799,7 @@ export default function Dashboard() {
   // Reset active conversation if it belongs to a different channel than the active tab
   useEffect(() => {
     if (activeConv) {
-      const expectedPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
+      const expectedPlatform = (activeTab as any) === "chats_whatsapp" ? "whatsapp" : "instagram";
       if ((activeConv.platform || "whatsapp") !== expectedPlatform) {
         setActiveConv(null);
         setMessages([]);
@@ -1281,8 +1281,8 @@ export default function Dashboard() {
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
 
         {/* TAB 1: REAL-TIME CHATS PANEL */}
-        {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
-          const currentPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
+        {((activeTab as any) === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
+          const currentPlatform = (activeTab as any) === "chats_whatsapp" ? "whatsapp" : "instagram";
           const filteredConversations = conversations.filter(c => (c.platform || "whatsapp") === currentPlatform);
           const isInstagramTab = activeTab === "chats_instagram";
 

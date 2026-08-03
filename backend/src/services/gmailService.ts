@@ -308,7 +308,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
                     mimeType: ruleAny.mimeType || undefined
                   } : undefined;
                   
-                  await sendGmailReply(orgId, threadId, replyText, attachment);
+                  await sendGmailReply(orgId, threadId, replyText || "", attachment);
                   
                   await prisma.gmailThread.update({
                     where: { threadId },

@@ -5,6 +5,16 @@ async function seedCompanyAiAgentData() {
 
   const organizationId = "demo-org-123";
 
+  // Ensure default Organization exists
+  await prisma.organization.upsert({
+    where: { id: organizationId },
+    update: {},
+    create: {
+      id: organizationId,
+      name: "Jisnu Digital Solutions",
+    },
+  });
+
   // 1. Configure AI Agent Persona & Set Mode to AI_AGENT
   const config = await prisma.aiAgentConfig.upsert({
     where: { organizationId },

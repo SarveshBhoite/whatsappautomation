@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "../services/whatsappService";
+import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
 
 const router = Router();
+const DEFAULT_ORG_ID = "demo-org-123";
 
 // Middleware to inject default org ID if not provided (Simplifies dev/sandbox testing)
 const getOrgId = (req: Request): string => {
@@ -916,7 +918,7 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
               isBotPaused: false
             }
           });
-        } else if (leadName && conversation.customerName.startsWith("Lead (")) {
+        } else if (leadName && (conversation.customerName || "").startsWith("Lead (")) {
           // Update customerName if name was provided
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
