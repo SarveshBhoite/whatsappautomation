@@ -173,7 +173,7 @@ You MUST return ONLY valid JSON matching this exact structure:
         model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Incoming Customer Message: "${customerQuery}"` }
+          { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
         ],
         temperature: 0.6,
         response_format: { type: "json_object" }
@@ -351,6 +351,6 @@ You MUST return ONLY valid JSON matching this exact structure:
 
     console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
   } catch (error: any) {
-    console.error("[AI AGENT ENGINE] Error processing AI chat:", error.message || error);
+    console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
   }
 }
