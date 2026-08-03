@@ -19,6 +19,8 @@ model Organization {
   gmbConfig           GoogleBusinessConfig?
   linkedInConfig      LinkedInConfig?
   linkedInPosts       LinkedInPost[]
+  linkedInSchedules   LinkedInSchedule[]
+  aiContentHistories  AIContentHistory[]
   gmailConfig         GmailConfig?
   gmailAutoReplyRules GmailAutoReplyRule[]
   flows               Flow[]
@@ -426,6 +428,41 @@ model LinkedInPost {
   updatedAt      DateTime     @updatedAt
 }
 
+model LinkedInSchedule {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  summary        String
+  mediaUrl       String?
+  scheduledAt    DateTime?
+  status         String       @default("SCHEDULED") // DRAFT, SCHEDULED, PUBLISHED, FAILED, CANCELLED
+  approvalStatus String?      @default("APPROVED") // PENDING_APPROVAL, APPROVED, REJECTED
+  approvedBy     String?
+  rejectionReason String?
+  retryCount     Int          @default(0)
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model AIContentHistory {
+  id               String       @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  userId           String?
+  prompt           String
+  generatedContent String
+  generatedText    String?
+  mode             String       @default("Post Generator")
+  tone             String?
+  model            String       @default("Groq-llama-3.3-70b-versatile")
+  modelName        String?      @default("Groq-llama-3.3-70b-versatile")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now()) @updatedAt
+
+  @@map("ai_content_histories")
+}
+
 model GmailConfig {
   id                String       @id @default(uuid())
   organizationId    String       @unique
@@ -544,3 +581,5 @@ model GmailEmailTemplate {
 
   @@map("gmail_email_templates")
 }
+
+

@@ -31,7 +31,6 @@ router.get("/config", async (req, res) => {
         data: {
           organizationId: orgId,
           locationName: "Jisnu Digitals Pune",
-          googlePlaceId: "",
           googleReviewUrl: "",
           autoReplyEnabled: false,
           autoReplyMinRating: 4,
@@ -53,7 +52,6 @@ router.post("/config", async (req, res) => {
     const { 
       orgId = DEFAULT_ORG_ID,
       locationName,
-      googlePlaceId,
       googleReviewUrl,
       googleLocationId,
       googleClientId,
@@ -69,7 +67,6 @@ router.post("/config", async (req, res) => {
       where: { organizationId: orgId },
       update: {
         locationName,
-        googlePlaceId,
         googleReviewUrl,
         googleLocationId,
         googleClientId,
@@ -83,7 +80,6 @@ router.post("/config", async (req, res) => {
       create: {
         organizationId: orgId,
         locationName: locationName || "My Business",
-        googlePlaceId,
         googleReviewUrl,
         googleLocationId,
         googleClientId,
