@@ -397,17 +397,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
           }
 
           if (mediaId) {
-            // Download file and save locally
-            const localUrl = await WhatsAppService.downloadMedia(
+            // Download from Meta and upload to ImageKit CDN
+            const mediaPublicUrl = await WhatsAppService.downloadMedia(
               waConfig.phoneNumberId || "1192785647248309",
               waConfig.accessToken || "",
               mediaId,
-              mimeType || "application/octet-stream"
+              mimeType || "application/octet-stream",
+              filename  // pass original filename for documents
             );
             if (type === "document" && filename) {
-              content = `${filename}|${localUrl}`;
+              content = `${filename}|${mediaPublicUrl}`;
             } else {
-              content = localUrl;
+              content = mediaPublicUrl;
             }
           } else {
             content = "Media reference empty";

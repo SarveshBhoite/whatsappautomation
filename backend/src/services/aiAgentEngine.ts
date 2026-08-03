@@ -300,10 +300,17 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     });
 
     // Broadcast Socket.IO event for live agent dashboard monitoring
-    io.to(orgId).emit("new-message", {
-      conversationId: conversation.id,
-      message: savedTextMessage,
-    });
+    try {
+      const { io: socketIo } = require("../index");
+      if (socketIo) {
+        socketIo.to(orgId).emit("new-message", {
+          conversationId: conversation.id,
+          message: savedTextMessage,
+        });
+      }
+    } catch (ioErr: any) {
+      console.warn("[AI AGENT ENGINE] Socket emit warning:", ioErr.message);
+    }
 
     // Dispatch Attached Media (Screenshot / PDF) if requested
     for (const attachedItem of attachedItems) {
@@ -342,16 +349,24 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
           direction: "outbound",
           messageType: mediaType === "document" ? "document" : "image",
           content: mediaType === "document" ? `${attachedItem.mediaTitle || 'Document.pdf'}|${mediaUrl}` : mediaUrl,
+          mediaUrl: mediaUrl,
           waMessageId: mediaWaId,
           status: "sent",
           senderName: agentName,
         },
       });
 
-      io.to(orgId).emit("new-message", {
-        conversationId: conversation.id,
-        message: savedMediaMessage,
-      });
+      try {
+        const { io: socketIo } = require("../index");
+        if (socketIo) {
+          socketIo.to(orgId).emit("new-message", {
+            conversationId: conversation.id,
+            message: savedMediaMessage,
+          });
+        }
+      } catch (ioErr: any) {
+        console.warn("[AI AGENT ENGINE] Socket media emit warning:", ioErr.message);
+      }
     }
 
     // 8. Handle AI Captured Lead

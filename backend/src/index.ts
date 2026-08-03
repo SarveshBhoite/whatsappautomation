@@ -272,7 +272,7 @@ async function runScheduledPostsSync() {
     const now = new Date();
     let pendingPosts: any[] = [];
     try {
-      pendingPosts = await prisma.googlePost.findMany({
+      pendingPosts = await (prisma.googlePost as any).findMany({
         where: {
           OR: [
             { status: "SCHEDULED", scheduledAt: { lte: now } },

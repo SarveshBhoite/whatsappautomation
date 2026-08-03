@@ -293,13 +293,14 @@ interface Message {
   direction: "inbound" | "outbound";
   messageType: string;
   content: string;
-  mediaMimeType?: string;
   waMessageId?: string;
   status: "sent" | "delivered" | "read" | "failed";
   senderName?: string;
   createdAt: string;
   quotedMessageId?: string | null;
   quotedMessage?: Message | null;
+  mediaUrl?: string | null;
+  mediaMimeType?: string | null;
 }
 
 interface Conversation {
@@ -1480,43 +1481,34 @@ export default function Dashboard() {
 
                                 {/* Render media content or plain text */}
                                 {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
-                                  // Parse structured media content
-                                  let mediaUrl = msg.content;
-                                  let displayFilename = "document.pdf";
-                                  let captionText = "";
+                                  // Use dedicated mediaUrl field (ImageKit CDN URL) or fall back to parsing content
+                                  const resolvedMediaUrl = msg.mediaUrl 
+                                    ? (msg.mediaUrl.startsWith("http") ? msg.mediaUrl : `${BACKEND_URL}${msg.mediaUrl}`)
+                                    : getMediaUrl(msg.content);
+                                  
+                                  // For documents, display name comes from content (filename) or mediaMimeType
+                                  const displayFilename = msg.messageType === "document"
+                                    ? (msg.content.includes("|") ? msg.content.split("|")[0] : msg.content) || "document.pdf"
+                                    : msg.content;
 
-                                  if (msg.messageType === "document") {
-                                    const parts = msg.content.split("|");
-                                    displayFilename = parts[0] || "document.pdf";
-                                    mediaUrl = parts[1] || "";
-                                    const capPart = parts.find(p => p.startsWith("caption:"));
-                                    if (capPart) {
-                                      captionText = capPart.substring(8);
-                                    }
-                                  } else {
-                                    const parts = msg.content.split("|");
-                                    mediaUrl = parts[0] || "";
-                                    const capPart = parts.find(p => p.startsWith("caption:"));
-                                    if (capPart) {
-                                      captionText = capPart.substring(8);
-                                    }
-                                  }
+                                  // Caption (if any) stored after | in content for outbound
+                                  const capPart = msg.content.includes("|caption:") ? msg.content.split("|caption:")[1] : "";
 
                                   return (
                                     <div className="flex flex-col gap-2">
                                       {msg.messageType === "image" ? (
                                         <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
                                           <img 
-                                            src={getMediaUrl(mediaUrl)} 
-                                            alt="Sent Media" 
+                                            src={resolvedMediaUrl} 
+                                            alt="Image" 
                                             className="object-cover w-full h-32 hover:scale-105 transition-all duration-300 cursor-zoom-in"
-                                            onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
+                                            onClick={() => window.open(resolvedMediaUrl, "_blank")}
                                           />
                                         </div>
                                       ) : msg.messageType === "video" ? (
                                         <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
                                           <video 
-                                            src={getMediaUrl(mediaUrl)} 
+                                            src={resolvedMediaUrl} 
                                             controls 
                                             className="object-cover w-full h-36"
                                           />
@@ -1524,29 +1516,37 @@ export default function Dashboard() {
                                       ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
                                         <div className="max-w-[240px] py-1">
                                           <audio 
-                                            src={getMediaUrl(mediaUrl)} 
+                                            src={resolvedMediaUrl} 
                                             controls 
                                             className="w-full h-10"
                                           />
                                         </div>
                                       ) : (
-                                        <a 
-                                          href={getMediaUrl(mediaUrl)} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer" 
-                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
-                                        >
-                                          <FileText className="h-8 w-8 stroke-1" />
-                                          <div className="flex flex-col min-w-0">
-                                            <span className="text-xs font-semibold truncate max-w-[150px]">
-                                              {displayFilename}
-                                            </span>
-                                            <span className="text-[10px] text-slate-500">Document File</span>
+                                        // Document
+                                        resolvedMediaUrl ? (
+                                          <a 
+                                            href={resolvedMediaUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
+                                          >
+                                            <FileText className="h-8 w-8 stroke-1" />
+                                            <div className="flex flex-col min-w-0">
+                                              <span className="text-xs font-semibold truncate max-w-[150px]">
+                                                {displayFilename}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500">{msg.mediaMimeType || "Document"}</span>
+                                            </div>
+                                          </a>
+                                        ) : (
+                                          <div className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10">
+                                            <FileText className="h-6 w-6 stroke-1 opacity-50" />
+                                            <span className="text-xs opacity-60">{displayFilename || "Document"}</span>
                                           </div>
-                                        </a>
+                                        )
                                       )}
-                                      {captionText && (
-                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
+                                      {capPart && (
+                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{capPart}</p>
                                       )}
                                     </div>
                                   );
