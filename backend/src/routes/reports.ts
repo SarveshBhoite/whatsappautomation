@@ -212,7 +212,7 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
       { header: "Growth %", key: "growth", width: 18 },
       { header: "Status", key: "status", width: 20 }
     ];
-    ws1.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
+    ws1.getRow(1).eachCell((cell: any) => { cell.fill = headerFill; cell.font = headerFont; });
     ws1.addRows([
       { category: "Total Campaigns", value: 12, growth: "+15.4%", status: "Active" },
       { category: "Total Published Posts", value: posts.length, growth: "+24.0%", status: "Live" },
@@ -231,7 +231,7 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
       { header: "Published Date", key: "date", width: 16 },
       { header: "Visibility", key: "vis", width: 14 }
     ];
-    ws2.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
+    ws2.getRow(1).eachCell((cell: any) => { cell.fill = headerFill; cell.font = headerFont; });
     posts.forEach(p => {
       ws2.addRow({
         id: p.linkedinPostId || p.id,
@@ -252,7 +252,7 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
       { header: "Estimated Reach", key: "reach", width: 18 },
       { header: "Engagement Rate", key: "rate", width: 18 }
     ];
-    ws3.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
+    ws3.getRow(1).eachCell((cell: any) => { cell.fill = headerFill; cell.font = headerFont; });
     posts.forEach(p => {
       const likes = p.likesCount || 0;
       const comments = p.commentsCount || 0;
@@ -270,7 +270,7 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
       { header: "Impressions", key: "impressions", width: 16 },
       { header: "Clicks", key: "clicks", width: 14 }
     ];
-    ws4.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
+    ws4.getRow(1).eachCell((cell: any) => { cell.fill = headerFill; cell.font = headerFont; });
     for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -290,7 +290,7 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
       { header: "Content", key: "content", width: 50 },
       { header: "Engagement Score", key: "score", width: 20 }
     ];
-    ws5.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
+    ws5.getRow(1).eachCell((cell: any) => { cell.fill = headerFill; cell.font = headerFont; });
     posts.slice(0, 5).forEach((p, idx) => {
       ws5.addRow({
         rank: idx + 1,
@@ -307,7 +307,7 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
       { header: "Total Posts", key: "count", width: 16 },
       { header: "Average Likes", key: "avgLikes", width: 16 }
     ];
-    ws6.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
+    ws6.getRow(1).eachCell((cell: any) => { cell.fill = headerFill; cell.font = headerFont; });
     [
       { tag: "#Automation", count: posts.length, avgLikes: 24 },
       { tag: "#LinkedInGrowth", count: Math.max(1, posts.length - 1), avgLikes: 18 },

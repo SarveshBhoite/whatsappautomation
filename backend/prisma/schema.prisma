@@ -87,22 +87,31 @@ model YouTubeConfig {
 }
 
 model LinkedInConfig {
-  id             String           @id @default(uuid())
-  organizationId String           @unique
-  authorUrn      String?          @default("")
-  companyId      String?
-  companyName    String?
-  memberId       String?
-  memberName     String?
-  expiresIn      Int?
-  organization   Organization     @relation(fields: [organizationId], references: [id])
-  profile        LinkedInProfile?
-  accessToken    String
-  refreshToken   String?
-  tokenExpiry    DateTime?
-  expiresAt      DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                 String           @id @default(uuid())
+  organizationId     String           @unique
+  authorUrn          String?          @default("")
+  companyId          String?
+  companyName        String?
+  memberId           String?
+  memberName         String?
+  memberEmail        String?
+  memberPicture      String?
+  headline           String?
+  vanityName         String?
+  companyLogo        String?
+  website            String?
+  industry           String?
+  description        String?
+  webhookVerifyToken String           @default(uuid())
+  expiresIn          Int?
+  organization       Organization     @relation(fields: [organizationId], references: [id])
+  profile            LinkedInProfile?
+  accessToken        String
+  refreshToken       String?
+  tokenExpiry        DateTime?
+  expiresAt          DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 }
 
 model LinkedInProfile {
@@ -136,38 +145,54 @@ model LinkedInPost {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  postId         String       @unique
-  authorUrn      String
-  commentary     String
+  postId         String       @default(uuid()) @unique
+  linkedinPostId String?      @unique
+  authorUrn      String?      @default("")
+  author         String?
+  commentary     String?      @default("")
+  summary        String?
   mediaUrl       String?
-  mediaType      String       @default("NONE")
+  mediaType      String?      @default("NONE")
+  visibility     String?      @default("PUBLIC")
+  lifecycleState String?      @default("PUBLISHED")
+  publishedAt    DateTime?    @default(now())
+  likesCount     Int?         @default(0)
+  commentsCount  Int?         @default(0)
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now())
 }
 
 model LinkedInPersonalPost {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
-  authorUrn      String?  @default("")
-  text           String
-  publishedAt    DateTime @default(now())
-  createdAt      DateTime @default(now())
+  linkedinPostId String?   @unique
+  authorUrn      String?   @default("")
+  author         String?
+  text           String?   @default("")
+  summary        String?
+  mediaUrl       String?
+  publishedAt    DateTime? @default(now())
+  likesCount     Int?      @default(0)
+  commentsCount  Int?      @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now())
 }
 
 model LinkedInSchedule {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  summary        String
-  mediaUrl       String?
-  scheduledAt    DateTime?
-  status         String       @default("SCHEDULED") // DRAFT, SCHEDULED, PUBLISHED, FAILED, CANCELLED
-  approvalStatus String?      @default("APPROVED") // PENDING_APPROVAL, APPROVED, REJECTED
-  approvedBy     String?
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  summary         String
+  mediaUrl        String?
+  scheduledAt     DateTime?
+  status          String       @default("SCHEDULED")
+  approvalStatus  String?      @default("APPROVED")
+  approvedBy      String?
   rejectionReason String?
-  retryCount     Int          @default(0)
-  errorMessage   String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  retryCount      Int          @default(0)
+  errorMessage    String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 model AIContentHistory {

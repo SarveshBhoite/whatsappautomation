@@ -159,18 +159,22 @@ router.get("/posts", async (req: Request, res: Response) => {
       posts = personalPosts.map(p => ({
         id: p.id,
         organizationId: p.organizationId,
+        postId: p.id,
         linkedinPostId: p.linkedinPostId,
+        authorUrn: p.authorUrn || "",
         author: p.author,
+        commentary: p.text || p.summary || "",
         summary: p.summary,
         mediaUrl: p.mediaUrl,
+        mediaType: p.mediaUrl ? "IMAGE" : "NONE",
         visibility: "PUBLIC",
         lifecycleState: "PUBLISHED",
         publishedAt: p.publishedAt,
         likesCount: p.likesCount,
         commentsCount: p.commentsCount,
         createdAt: p.createdAt,
-        updatedAt: p.updatedAt
-      }));
+        updatedAt: p.updatedAt,
+      })) as any;
     }
 
     return res.status(200).json({
