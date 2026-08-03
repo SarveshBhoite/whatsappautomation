@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import axios from "axios";
-
-const prisma = new PrismaClient();
 
 // Helper to get Google access token
 export async function getGoogleAccessToken(clientId: string, clientSecret: string, refreshToken: string): Promise<string> {

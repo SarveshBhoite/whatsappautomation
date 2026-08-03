@@ -1,13 +1,24 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { LinkedInProfileCard } from "@/components/LinkedInProfileCard";
+import { LinkedInProfileDashboard } from "@/components/LinkedInProfileDashboard";
+import { PostComposer } from "@/components/PostComposer";
+import { RecentPosts } from "@/components/RecentPosts";
+import { ScheduleQueue } from "@/components/ScheduleQueue";
+import { DraftLibrary } from "@/components/DraftLibrary";
+import { CompanyPageCard } from "@/components/CompanyPageCard";
+import { LinkedInAnalyticsDashboard } from "@/components/LinkedInAnalyticsDashboard";
+import { ApprovalWorkflowQueue } from "@/components/ApprovalWorkflowQueue";
+import { ContentCalendar } from "@/components/ContentCalendar";
+import { MediaLibrary } from "@/components/MediaLibrary";
+import { EnterpriseReports } from "@/components/EnterpriseReports";
 import {
   ExternalLink,
   RefreshCw,
-  Clock,
   AlertCircle,
   CheckCircle2,
-  Shield,
   Unplug,
   SlidersHorizontal,
   LayoutDashboard,
@@ -28,7 +39,7 @@ const LinkedInIcon = ({ className = "h-5 w-5", ...props }: React.SVGProps<SVGSVG
     className={className}
     {...props}
   >
-    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.78a1.64 1.64 0 1 0 0 3.28 1.64 1.64 0 0 0 0-3.28z"/>
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.78a1.64 1.64 0 1 0 0 3.28 1.64 1.64 0 0 0 0-3.28z" />
   </svg>
 );
 
@@ -76,6 +87,10 @@ interface LinkedInConfigData {
   memberEmail?: string;
   memberPicture?: string;
   headline?: string;
+  companyId?: string;
+  companyName?: string;
+  companyLogo?: string;
+  website?: string;
   updatedAt?: string;
   profile?: LinkedInProfileData;
   syncLogs?: LinkedInSyncLog[];
@@ -138,6 +153,7 @@ const DashboardSkeleton = () => (
 
 export default function LinkedInPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "posts" | "profile" | "activity" | "settings">("overview");
+  const [activeTheme, setActiveTheme] = useState("aurora");
   const [config, setConfig] = useState<LinkedInConfigData>({});
   const [profile, setProfile] = useState<LinkedInProfileData | null>(null);
   const [syncLogs, setSyncLogs] = useState<LinkedInSyncLog[]>([]);
@@ -171,8 +187,8 @@ export default function LinkedInPage() {
         const fullErr = descParam
           ? `LinkedIn OAuth Error: ${descParam}`
           : errorParam
-          ? `LinkedIn OAuth Error: ${errorParam}`
-          : "Failed to authorize Personal LinkedIn account.";
+            ? `LinkedIn OAuth Error: ${errorParam}`
+            : "Failed to authorize Personal LinkedIn account.";
 
         setStatusMessage({
           type: "error",
@@ -215,6 +231,9 @@ export default function LinkedInPage() {
     }
   };
 
+  const [drafts, setDrafts] = useState<any[]>([]);
+  const [scheduledPosts, setScheduledPosts] = useState<any[]>([]);
+
   // Fetch Member Posts
   const fetchPosts = async () => {
     try {
@@ -231,10 +250,40 @@ export default function LinkedInPage() {
     }
   };
 
+  // Fetch Drafts
+  const fetchDrafts = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/linkedin/drafts`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.drafts) setDrafts(data.drafts);
+      }
+    } catch (err) {
+      console.error("[LINKEDIN] Failed to fetch drafts:", err);
+    }
+  };
+
+  // Fetch Scheduled Posts
+  const fetchScheduled = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/linkedin/scheduled`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.scheduledPosts) setScheduledPosts(data.scheduledPosts);
+      }
+    } catch (err) {
+      console.error("[LINKEDIN] Failed to fetch scheduled posts:", err);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchConfig(), fetchProfile(), fetchPosts()]);
+      await Promise.all([fetchConfig(), fetchProfile(), fetchPosts(), fetchDrafts(), fetchScheduled()]);
       setLoading(false);
     };
     init();
@@ -342,72 +391,72 @@ export default function LinkedInPage() {
   const tokenExpiry = config.tokenExpiry ? new Date(config.tokenExpiry).toLocaleDateString() : "60 Days (OAuth 2.0)";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
+    <div className="flex flex-col h-full overflow-hidden bg-[#F8FAFC] text-slate-900 font-sans">
       {/* MAIN CONTENT BODY */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
-        {/* Top Sub-Nav Navigation Bar */}
-        <div className="h-12 border-b border-slate-800 bg-slate-950/60 px-4 sm:px-6 flex items-center justify-between z-20 shrink-0 gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
-          <div className="flex items-center gap-1.5 shrink-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#F8FAFC] pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
+        {/* Sticky Glass Topbar */}
+        <div className="h-14 border-b border-slate-200 bg-white/80 backdrop-blur-md px-6 flex items-center justify-between z-20 shrink-0 gap-3 shadow-sm">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
             <button
               type="button"
               onClick={() => setActiveTab("overview")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeTab === "overview"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <LayoutDashboard className="h-3.5 w-3.5 text-blue-400" /> Overview
+              <LayoutDashboard className="h-4 w-4" /> Overview
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("posts")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeTab === "posts"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <FileText className="h-3.5 w-3.5 text-blue-400" /> Posts
+              <FileText className="h-4 w-4" /> Posts
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("profile")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeTab === "profile"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <User className="h-3.5 w-3.5 text-blue-400" /> Profile
+              <User className="h-4 w-4" /> Profile
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("activity")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeTab === "activity"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <Activity className="h-3.5 w-3.5 text-blue-400" /> Activity
+              <Activity className="h-4 w-4" /> Activity
             </button>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab("settings")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                 activeTab === "settings"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 bg-white shadow-sm"
               }`}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-blue-400" /> Settings
+              <SlidersHorizontal className="h-4 w-4" /> Settings
             </button>
           </div>
         </div>
@@ -416,25 +465,25 @@ export default function LinkedInPage() {
         {statusMessage && (
           <div className="px-6 pt-4">
             <div
-              className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between shadow-lg ${
+              className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-between shadow-sm ${
                 statusMessage.type === "success"
-                  ? "bg-emerald-950/40 text-emerald-300 border-emerald-800/60"
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                   : statusMessage.type === "error"
-                  ? "bg-red-950/40 text-red-300 border-red-800/60"
-                  : "bg-blue-950/40 text-blue-300 border-blue-800/60"
+                  ? "bg-red-50 text-red-800 border-red-200"
+                  : "bg-blue-50 text-blue-800 border-blue-200"
               }`}
             >
               <div className="flex items-center gap-2">
                 {statusMessage.type === "success" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-red-400" />
+                  <AlertCircle className="h-4 w-4 text-red-600" />
                 )}
                 <span>{statusMessage.text}</span>
               </div>
               <button
                 onClick={() => setStatusMessage(null)}
-                className="text-slate-400 hover:text-slate-200 text-xs font-bold"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
               >
                 ✕
               </button>
@@ -449,18 +498,23 @@ export default function LinkedInPage() {
           <>
             {/* TAB 1: OVERVIEW */}
             {activeTab === "overview" && (
-              <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none"
+              >
                 {/* 1. Clean Header */}
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-600/20 border border-blue-500/30 rounded-xl text-blue-400">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-[#0A66C2] shadow-sm">
                       <LinkedInIcon className="h-6 w-6" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-slate-100 font-sans tracking-tight">
-                        LinkedIn
+                      <h2 className="text-xl font-bold text-slate-900 font-sans tracking-tight">
+                        LinkedIn Workspace
                       </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Personal Member Account</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Enterprise Member Account & Growth Engine</p>
                     </div>
                   </div>
 
@@ -469,9 +523,9 @@ export default function LinkedInPage() {
                       <button
                         onClick={handleSyncNow}
                         disabled={syncing}
-                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                        className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 transition-all"
                       >
-                        <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin text-blue-400" : ""}`} />
+                        <RefreshCw className={`h-4 w-4 text-[#0A66C2] ${syncing ? "animate-spin" : ""}`} />
                         {syncing ? "Syncing..." : "Sync Profile"}
                       </button>
                     )}
@@ -479,112 +533,132 @@ export default function LinkedInPage() {
                     {isConnected ? (
                       <button
                         onClick={handleDisconnect}
-                        className="px-3 py-1.5 rounded-lg bg-red-950/40 text-red-300 hover:bg-red-900/60 border border-red-800/50 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                        className="px-4 py-2 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-sm"
                       >
-                        <Unplug className="h-3.5 w-3.5" /> Disconnect
+                        <Unplug className="h-4 w-4" /> Disconnect
                       </button>
                     ) : (
                       <button
                         onClick={handleConnectOAuth}
-                        className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                        className="px-5 py-2.5 rounded-xl bg-[#0A66C2] hover:bg-[#084e96] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
                       >
-                        <ExternalLink className="h-3.5 w-3.5" /> Connect LinkedIn
+                        <ExternalLink className="h-4 w-4" /> Connect LinkedIn
                       </button>
                     )}
                   </div>
                 </div>
 
-                {/* 2. Clean Profile Card */}
-                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-                    <div className="flex items-center gap-5 min-w-0">
-                      {memberPicture ? (
-                        <img
-                          src={memberPicture}
-                          alt={memberName || "Member Profile"}
-                          className="h-20 w-20 rounded-2xl object-cover border-2 border-blue-500/30 shadow-md shrink-0"
-                        />
-                      ) : (
-                        <div className="h-20 w-20 rounded-2xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
-                          <User className="h-10 w-10" />
-                        </div>
-                      )}
+                {/* 2. Analytics Dashboard Component */}
+                <LinkedInAnalyticsDashboard
+                  stats={{
+                    connectedAccounts: isConnected ? 1 : 0,
+                    publishedCount: posts.length,
+                    scheduledCount: scheduledPosts.length,
+                    draftsCount: drafts.length,
+                    failedCount: scheduledPosts.filter((s) => s.status === "FAILED").length,
+                    successRate: posts.length + scheduledPosts.length > 0 ? Math.round((posts.length / (posts.length + scheduledPosts.filter((s) => s.status === "FAILED").length || 1)) * 100) : 100,
+                    aiUsageCount: config?.syncLogs?.filter((l: any) => l.event?.includes("AI")).length || 0,
+                    pendingApprovalsCount: scheduledPosts.filter((s) => s.approvalStatus === "PENDING_APPROVAL").length
+                  }}
+                />
 
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-lg font-bold text-slate-100 truncate">
-                            {formatSafeValue(memberName, "LinkedIn Member")}
-                          </h3>
-                          <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              isConnected
-                                ? "bg-emerald-950/60 text-emerald-400 border-emerald-800/80"
-                                : "bg-slate-800 text-slate-400 border-slate-700"
-                            }`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
-                            {isConnected ? "Connected" : "Disconnected"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 font-medium truncate">
-                          {formatSafeValue(memberEmail, "Not synchronized")}
-                        </p>
-                        <p className="text-xs text-slate-500 font-normal truncate">
-                          {formatSafeValue(headline, "Personal Member Account")}
-                        </p>
-                      </div>
-                    </div>
+                {/* 3. Modular Profile Card Component */}
+                <LinkedInProfileCard
+                  profile={profile}
+                  config={config}
+                  organizationId={DEFAULT_ORG_ID}
+                  onRefreshSuccess={() => {
+                    fetchConfig();
+                    fetchProfile();
+                  }}
+                  onDisconnectSuccess={() => {
+                    setConfig({});
+                    setProfile(null);
+                    setPosts([]);
+                  }}
+                />
 
-                    <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0">
-                      {isConnected && (
-                        <button
-                          onClick={handleSyncNow}
-                          disabled={syncing}
-                          className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                        >
-                          <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin text-blue-400" : ""}`} /> Refresh Profile
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                {/* 4. Company Page Module */}
+                <CompanyPageCard
+                  companyName={config?.companyName || "Your Company Page"}
+                  companyId={config?.companyId || ""}
+                  companyLogo={config?.companyLogo || ""}
+                  website={config?.website || ""}
+                  isConnected={Boolean(config?.companyId)}
+                />
 
-                {/* 3. Three Clean Summary Cards */}
+                {/* 5. Post Composer Component */}
+                <PostComposer
+                  organizationId={DEFAULT_ORG_ID}
+                  authorName={memberName}
+                  authorPicture={memberPicture}
+                  headline={headline}
+                  onPostPublished={(newPost) => {
+                    setPosts((prev) => [newPost, ...prev]);
+                    fetchConfig();
+                  }}
+                />
+
+                {/* 6. Approval Workflow Queue */}
+                <ApprovalWorkflowQueue
+                  organizationId={DEFAULT_ORG_ID}
+                  pendingPosts={scheduledPosts.filter((s) => s.approvalStatus === "PENDING_APPROVAL")}
+                  onRefresh={fetchScheduled}
+                />
+
+                {/* 7. Content Calendar */}
+                <ContentCalendar
+                  posts={posts}
+                  scheduledPosts={scheduledPosts}
+                  drafts={drafts}
+                />
+
+                {/* 8. Media Asset Library */}
+                <MediaLibrary />
+
+                {/* 9. Enterprise Reporting Engine */}
+                <EnterpriseReports
+                  organizationId={DEFAULT_ORG_ID}
+                  publishedCount={posts.length}
+                  scheduledCount={scheduledPosts.length}
+                />
+
+                {/* 4. Three Clean Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {/* CARD 1: Connection */}
-                  <div className="bg-slate-950/40 border border-slate-850 p-5 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Connection</span>
-                    <span className={`text-2xl font-bold ${isConnected ? "text-emerald-400" : "text-slate-400"}`}>
+                  <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col gap-2 shadow-sm">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Connection</span>
+                    <span className={`text-2xl font-bold ${isConnected ? "text-emerald-600" : "text-slate-500"}`}>
                       {isConnected ? "Connected" : "Disconnected"}
                     </span>
                   </div>
 
                   {/* CARD 2: Last Synchronization */}
-                  <div className="bg-slate-950/40 border border-slate-850 p-5 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Last Synchronization</span>
-                    <span className="text-2xl font-bold text-slate-100 truncate">
+                  <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col gap-2 shadow-sm">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Synchronization</span>
+                    <span className="text-2xl font-bold text-slate-900 truncate">
                       {lastSyncTime}
                     </span>
                   </div>
 
                   {/* CARD 3: Posts */}
-                  <div className="bg-slate-950/40 border border-slate-850 p-5 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Posts</span>
-                    <span className="text-2xl font-bold text-slate-100">
-                      {posts.length > 0 ? posts.length : "Unavailable"}
+                  <div className="bg-white border border-slate-200 p-6 rounded-2xl flex flex-col gap-2 shadow-sm">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Published Posts</span>
+                    <span className="text-2xl font-bold text-slate-900">
+                      {posts.length > 0 ? posts.length : "0"}
                     </span>
                   </div>
                 </div>
 
                 {/* 4. Recent Posts Section */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider border-b border-slate-850 pb-3 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-400" /> Recent Posts
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                  <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-3 flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-[#0A66C2]" /> Recent Posts
                   </h3>
 
                   {posts.length > 0 ? (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs text-slate-300 divide-y divide-slate-850">
+                      <table className="w-full text-left text-xs text-slate-700 divide-y divide-slate-200">
                         <thead>
                           <tr className="text-slate-500 text-[10px] uppercase font-bold">
                             <th className="py-2.5 px-3">Author</th>
@@ -593,13 +667,13 @@ export default function LinkedInPage() {
                             <th className="py-2.5 px-3 text-right">Engagement</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-850/50">
+                        <tbody className="divide-y divide-slate-100">
                           {posts.map((post) => (
-                            <tr key={post.id} className="hover:bg-slate-900/40 transition-colors">
-                              <td className="py-3 px-3 font-semibold text-blue-400">{post.author}</td>
-                              <td className="py-3 px-3 text-slate-200 max-w-md truncate">{post.summary}</td>
-                              <td className="py-3 px-3 font-mono text-slate-400">{new Date(post.publishedAt).toLocaleDateString()}</td>
-                              <td className="py-3 px-3 text-right font-mono text-slate-300">
+                            <tr key={post.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-3 px-3 font-bold text-[#0A66C2]">{post.author}</td>
+                              <td className="py-3 px-3 text-slate-800 max-w-md truncate">{post.summary}</td>
+                              <td className="py-3 px-3 font-mono text-slate-500">{new Date(post.publishedAt).toLocaleDateString()}</td>
+                              <td className="py-3 px-3 text-right font-mono text-slate-700">
                                 👍 {post.likesCount || 0} • 💬 {post.commentsCount || 0}
                               </td>
                             </tr>
@@ -608,10 +682,10 @@ export default function LinkedInPage() {
                       </table>
                     </div>
                   ) : (
-                    <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-800 rounded-xl flex flex-col items-center gap-3 bg-slate-900/40">
-                      <AlertCircle className="h-8 w-8 text-amber-500/80" />
-                      <span className="font-semibold text-slate-200">No LinkedIn posts available.</span>
-                      <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+                    <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center gap-3 bg-slate-50/60">
+                      <AlertCircle className="h-8 w-8 text-amber-500" />
+                      <span className="font-bold text-slate-800">No LinkedIn posts available.</span>
+                      <p className="text-xs text-slate-500 max-w-md leading-relaxed">
                         Personal LinkedIn posts are unavailable with the current LinkedIn Member API permissions.
                       </p>
                     </div>
@@ -650,142 +724,89 @@ export default function LinkedInPage() {
                   <Info className="h-4 w-4 text-blue-400 shrink-0" />
                   <span>Personal analytics and personal posts are not available through the LinkedIn Member API.</span>
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* TAB 2: POSTS */}
             {activeTab === "posts" && (
-              <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2 uppercase tracking-wider">
-                      <FileText className="h-5 w-5 text-blue-400" /> Member Posts & Activity
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-1">View personal posts feed</p>
-                  </div>
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+              >
+                <PostComposer
+                  organizationId={DEFAULT_ORG_ID}
+                  authorName={memberName}
+                  authorPicture={memberPicture}
+                  headline={headline}
+                  onPostPublished={(newPost) => {
+                    setPosts((prev) => [newPost, ...prev]);
+                    fetchConfig();
+                  }}
+                  onDraftSaved={() => {
+                    fetchDrafts();
+                    fetchConfig();
+                  }}
+                  onPostScheduled={() => {
+                    fetchScheduled();
+                    fetchConfig();
+                  }}
+                />
 
-                  <button
-                    onClick={fetchPosts}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 text-blue-400" /> Refresh Feed
-                  </button>
-                </div>
+                <ScheduleQueue
+                  organizationId={DEFAULT_ORG_ID}
+                  scheduledPosts={scheduledPosts}
+                  loading={loading}
+                  onRefresh={fetchScheduled}
+                  onPostPublished={() => {
+                    fetchPosts();
+                    fetchConfig();
+                  }}
+                />
 
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                  {posts.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {posts.map((post) => (
-                        <div key={post.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-blue-400">{post.author}</span>
-                            <span className="text-[10px] text-slate-500">{new Date(post.publishedAt).toLocaleDateString()}</span>
-                          </div>
-                          <p className="text-xs text-slate-200 leading-relaxed">{post.summary}</p>
-                          <div className="text-[11px] text-slate-400 font-mono border-t border-slate-850 pt-2 flex items-center justify-between">
-                            <span>👍 {post.likesCount || 0} Likes</span>
-                            <span>💬 {post.commentsCount || 0} Comments</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-12 text-center text-xs text-slate-400 border border-dashed border-slate-800 rounded-xl flex flex-col items-center gap-3 bg-slate-900/40">
-                      <AlertCircle className="h-10 w-10 text-amber-500/80" />
-                      <span className="font-semibold text-slate-200 text-sm">No LinkedIn posts available.</span>
-                      <p className="text-xs text-slate-400 max-w-md leading-relaxed">
-                        Personal LinkedIn posts are unavailable with the current LinkedIn Member API permissions.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                <DraftLibrary
+                  organizationId={DEFAULT_ORG_ID}
+                  drafts={drafts}
+                  loading={loading}
+                  onRefresh={fetchDrafts}
+                  onPostPublished={() => {
+                    fetchPosts();
+                    fetchConfig();
+                  }}
+                />
+
+                <RecentPosts
+                  posts={posts}
+                  loading={loading}
+                  onRefresh={fetchPosts}
+                />
+              </motion.div>
             )}
 
             {/* TAB 3: PROFILE */}
             {activeTab === "profile" && (
-              <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2 uppercase tracking-wider">
-                      <User className="h-5 w-5 text-blue-400" /> Member Profile Details
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-1">Authenticated LinkedIn member profile information</p>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border-b border-slate-800/80 pb-6 mb-6">
-                    <div className="flex items-center gap-5">
-                      {memberPicture ? (
-                        <img
-                          src={memberPicture}
-                          alt={memberName || "Member Profile"}
-                          className="h-20 w-20 rounded-2xl object-cover border-2 border-blue-500/30 shadow-md shrink-0"
-                        />
-                      ) : (
-                        <div className="h-20 w-20 rounded-2xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
-                          <User className="h-10 w-10" />
-                        </div>
-                      )}
-
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-lg font-bold text-slate-100">
-                            {formatSafeValue(memberName, "LinkedIn Member")}
-                          </h3>
-                          <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              isConnected
-                                ? "bg-emerald-950/60 text-emerald-400 border-emerald-800/80"
-                                : "bg-slate-800 text-slate-400 border-slate-700"
-                            }`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
-                            {isConnected ? "Connected" : "Disconnected"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 font-medium">{formatSafeValue(memberEmail)}</p>
-                        <p className="text-xs text-slate-500 font-normal">{formatSafeValue(headline, "Personal Member Account")}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      {isConnected && (
-                        <button
-                          onClick={handleSyncNow}
-                          disabled={syncing}
-                          className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                        >
-                          <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin text-blue-400" : ""}`} /> Refresh Profile
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-1">
-                      <span className="text-slate-500 font-medium">Full Name</span>
-                      <p className="text-slate-200 font-bold">{formatSafeValue(memberName)}</p>
-                    </div>
-
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-1">
-                      <span className="text-slate-500 font-medium">Email Address</span>
-                      <p className="text-slate-200 font-bold">{formatSafeValue(memberEmail)}</p>
-                    </div>
-
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-1">
-                      <span className="text-slate-500 font-medium">Headline</span>
-                      <p className="text-slate-200 font-bold">{formatSafeValue(headline)}</p>
-                    </div>
-
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-1">
-                      <span className="text-slate-500 font-medium">Last Synchronization</span>
-                      <p className="text-slate-200 font-bold">{lastSyncTime}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="flex-1 overflow-y-auto p-6 sm:p-8 scrollbar-none"
+              >
+                <LinkedInProfileDashboard
+                  profile={profile}
+                  config={config}
+                  posts={posts}
+                  scheduledPosts={scheduledPosts}
+                  drafts={drafts}
+                  organizationId={DEFAULT_ORG_ID}
+                  onRefreshProfile={handleSyncNow}
+                  onDisconnect={handleDisconnect}
+                  onOpenAIAssistant={() => setActiveTab("posts")}
+                  onApplyContent={(text) => {
+                    setActiveTab("posts");
+                  }}
+                />
+              </motion.div>
             )}
 
             {/* TAB 4: ACTIVITY */}

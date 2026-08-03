@@ -20,6 +20,7 @@ import linkedinRouter from "./routes/linkedin";
 import contentInspectorRouter from "./routes/contentInspector";
 import aiAgentRouter from "./routes/aiAgent";
 import metaAdsRouter from "./routes/metaAds";
+import reportsRouter from "./routes/reports";
 
 const app = express();
 const server = http.createServer(app);
@@ -81,8 +82,11 @@ app.use("/api/gmail", gmailRouter);
 // LinkedIn Integration Router
 app.use("/api/linkedin", linkedinRouter);
 
-// AI Content Quality Inspector Router
-app.use("/api/inspector", contentInspectorRouter);
+// AI Content Inspector Router
+app.use("/api/content-inspector", contentInspectorRouter);
+
+// Reports Router
+app.use("/api/reports", reportsRouter);
 
 // AI Agent Studio & Knowledge Base Engine Router
 app.use("/api/ai-agent", aiAgentRouter);
@@ -296,6 +300,8 @@ async function runScheduledPostsSync() {
   }
 }
 
+import { LinkedInSchedulerEngine } from "./services/linkedinService";
+
 function startGmbSyncScheduler() {
   console.log("[BACKGROUND SCHEDULER] Scheduled auto-sync to run every 15 minutes.");
   setInterval(() => {
@@ -307,6 +313,9 @@ function startGmbSyncScheduler() {
   // Check and publish scheduled posts every 60 seconds
   console.log("[BACKGROUND SCHEDULER] Scheduled post publisher to run every 60 seconds.");
   setInterval(() => { runScheduledPostsSync(); }, 60 * 1000);
+
+  // Start LinkedIn Post Scheduler Engine (60s loop)
+  LinkedInSchedulerEngine.startScheduler();
 }
 
 // Start Server
