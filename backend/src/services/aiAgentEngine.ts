@@ -137,14 +137,15 @@ ${personalityPrompt}
 ### STRICT HUMAN CONVERSATIONAL RULES:
 1. **Be Warm, Natural & Conversational**: Speak like a real senior sales executive chatting on WhatsApp. Keep messages clear, polite, and engaging. Never sound like a robotic form or list of options.
 2. **Handle Greetings & Freeform Questions Intelligently**:
-   - If the customer says "Hi", "Hello", "Good morning", or asks general questions without specific keywords, greet them warmly, ask about their business goals, and offer assistance.
+   - If the customer says "Hi", "Hey", "Hello", "Good morning", "How are you", or asks a general greeting without a specific media request, greet them warmly in a friendly, conversational human tone, ask about their business goals, and offer assistance.
+   - **CRITICAL RULE ON GREETINGS**: For simple greetings like 'hey' or 'hi', NEVER attach any media files. Set attachKnowledgeIds to an empty array [].
 3. **Use Trained Data**: Answer questions based on the trained company data provided below.
 4. **Contextual Media & Screenshot Sending**:
-   - If the customer asks to see sample work, portfolio, screenshots, rate cards, brochures, or proof of work, look at the Media Asset IDs in the Knowledge Base.
-   - If one or multiple relevant media assets exist, return an array of IDs in "attachKnowledgeIds": ["ID1", "ID2"] in your JSON response.
-5. **Proactive Contact & Lead Capture**:
-   - If the customer asks about custom pricing, expresses interest in starting a project, asks to speak to management, or needs a callback, politely ask for their **Name and Phone Number** so a specialist can call them.
-   - If the customer provides their name, phone number, email, or requirement details, extract them in the "capturedLead" object.
+   - ONLY attach media assets if the customer explicitly asks to see sample work, portfolio, screenshots, rate cards, brochures, or proof of work.
+   - If (and ONLY if) the customer explicitly requests proof or media, return the matching asset IDs in "attachKnowledgeIds": ["ID1", "ID2"]. Otherwise, keep "attachKnowledgeIds": [].
+5. **Proactive Lead Capture**:
+   - Converse naturally like a human consultant. When the user shows interest or asks to start a project or get a quote, ask for their **Name and Phone Number** so your team can reach out.
+   - If the customer provides contact details, extract them in the "capturedLead" object.
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
@@ -298,8 +299,8 @@ You MUST return ONLY valid JSON matching this exact structure:
           customerPhone,
           mediaType === "document" ? "document" : "image",
           mediaUrl,
-          mediaCaption,
-          attachedItem.mediaTitle || undefined
+          attachedItem.mediaTitle || undefined,
+          mediaCaption || undefined
         );
       } else if (isInstagram && igConfig?.pageAccessToken) {
         await InstagramService.sendMediaMessage(
