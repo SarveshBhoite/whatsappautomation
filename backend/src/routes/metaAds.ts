@@ -20,6 +20,76 @@ router.get("/config", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/oauth/connect
+ * Redirect to Facebook Login for Business OAuth dialog
+ */
+router.get("/oauth/connect", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    const redirect = (req.query.redirect as string) || "/ads";
+    const appId = process.env.META_APP_ID || "36702477879366478";
+    const redirectUri = process.env.META_REDIRECT_URI || "https://crmapi.jisnudigital.com/api/meta/callback";
+    const scopes = "ads_management,ads_read,business_management,pages_read_engagement,pages_show_list";
+    const statePayload = Buffer.from(JSON.stringify({ orgId, redirect })).toString("base64");
+
+    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(statePayload)}`;
+    
+    res.redirect(authUrl);
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error generating OAuth connect URL:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta/callback & /api/meta-ads/callback
+ * Handle Meta OAuth Callback
+ */
+router.get(["/callback", "/meta/callback"], async (req: Request, res: Response) => {
+  try {
+    const code = req.query.code as string;
+    const stateStr = req.query.state as string;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+    let orgId = DEFAULT_ORG_ID;
+    let redirectPath = "/ads";
+    if (stateStr) {
+      try {
+        const decoded = JSON.parse(Buffer.from(stateStr, "base64").toString("utf-8"));
+        if (decoded.orgId) orgId = decoded.orgId;
+        if (decoded.redirect) redirectPath = decoded.redirect;
+      } catch (e) {}
+    }
+
+    if (code) {
+      const appId = process.env.META_APP_ID || "36702477879366478";
+      const appSecret = process.env.META_APP_SECRET || "";
+      const redirectUri = process.env.META_REDIRECT_URI || "https://crmapi.jisnudigital.com/api/meta/callback";
+
+      if (appSecret) {
+        const tokenRes = await fetch(
+          `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`
+        );
+        const tokenData = await tokenRes.json();
+        if (tokenData.access_token) {
+          await MetaAdsService.saveConfig(orgId, {
+            appId,
+            appSecret,
+            accessToken: tokenData.access_token,
+          });
+        }
+      }
+    }
+
+    res.redirect(`${frontendUrl}${redirectPath}?platform=meta&oauth=success`);
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error handling callback:", error.message);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}/ads?platform=meta&oauth=error`);
+  }
+});
+
+/**
  * POST /api/meta-ads/config
  * Save or update Meta Ads configuration
  */

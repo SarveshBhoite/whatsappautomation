@@ -69,6 +69,7 @@ app.use("/api/ads", googleAdsRouter);
 
 // Meta Ads (Facebook & Instagram) Router
 app.use("/api/meta-ads", metaAdsRouter);
+app.use("/api/meta", metaAdsRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);

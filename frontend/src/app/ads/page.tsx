@@ -1463,7 +1463,23 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
     try {
       const res = await fetch(`${BACKEND}/api/meta-ads/campaigns?organizationId=${orgId}`);
       const data = await res.json();
-      if (data.campaigns) setCampaigns(data.campaigns);
+      if (data.campaigns) {
+        setCampaigns(data.campaigns);
+        if (data.campaigns.length === 0) {
+          // Auto-trigger live sync from Meta Graph API if database campaigns list is empty
+          fetch(`${BACKEND}/api/meta-ads/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ organizationId: orgId }),
+          }).then(r => r.json()).then(syncData => {
+            if (syncData.success) {
+              fetch(`${BACKEND}/api/meta-ads/campaigns?organizationId=${orgId}`).then(r => r.json()).then(d => {
+                if (d.campaigns) setCampaigns(d.campaigns);
+              });
+            }
+          });
+        }
+      }
     } catch (e: any) {
       console.warn("Failed to fetch Meta campaigns:", e);
     }
@@ -1647,6 +1663,133 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
     { id: "settings",    label: "Settings",             icon: Settings      },
   ];
 
+  useEffect(() => {
+    if (config?.accessToken || config?.appId || accounts.length > 0 || campaigns.length > 0) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`meta_connected_${orgId}`, "true");
+      }
+    }
+  }, [config, accounts, campaigns, orgId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full bg-slate-950">
+        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  const isStoredConnected = typeof window !== "undefined" && localStorage.getItem(`meta_connected_${orgId}`) === "true";
+  const isUrlConnected = typeof window !== "undefined" && window.location.search.includes("oauth=success");
+  const isMetaConnected = Boolean(
+    config?.accessToken ||
+    config?.appId ||
+    config?.adAccountId ||
+    accounts.length > 0 ||
+    campaigns.length > 0 ||
+    isStoredConnected ||
+    isUrlConnected
+  );
+
+  if (!isMetaConnected) {
+    return (
+      <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-y-auto">
+        {/* Header */}
+        <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/90 backdrop-blur shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+              <Globe className="h-4 w-4 text-white" />
+            </div>
+            <h1 className="font-bold text-slate-100 text-sm">Ads Manager</h1>
+          </div>
+          <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+            <button
+              onClick={() => setPlatform("google")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                platform === "google" ? "bg-primary text-slate-950 shadow" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Megaphone className="h-3.5 w-3.5" />
+              Google Ads
+            </button>
+            <button
+              onClick={() => setPlatform("meta")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                (platform as string) === "meta" ? "bg-blue-600 text-white shadow shadow-blue-500/30" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5" />
+              Meta Ads
+            </button>
+          </div>
+        </header>
+
+        {/* Main Connect Content */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <div className="max-w-lg text-center space-y-6">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center mx-auto shadow-2xl shadow-blue-500/30">
+              <Globe className="h-10 w-10 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-100 mb-2">Connect Meta Ads</h1>
+              <p className="text-slate-400 leading-relaxed">
+                Connect your Facebook & Instagram account to manage campaigns, track performance, run AI-powered ads, and much more — all without leaving your CRM.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-left">
+              {[
+                "Campaign Management",
+                "Ad Set & Creative Control",
+                "Audience & Interest Targeting",
+                "Performance Reports",
+                "Conversion & Pixel Tracking",
+                "AI Ad Copy Generator",
+              ].map((f) => (
+                <div key={f} className="flex items-center gap-2 text-sm text-slate-400">
+                  <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+                  {f}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col items-center gap-3">
+              <a
+                href={`${BACKEND}/api/meta-ads/oauth/connect?orgId=${orgId}&redirect=/ads`}
+                className="flex items-center gap-3 px-6 py-3 rounded-xl bg-white text-slate-900 font-semibold hover:bg-slate-100 transition-all shadow-lg mx-auto w-fit"
+              >
+                <svg className="h-5 w-5 fill-[#1877F2]" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                </svg>
+                Connect with Facebook
+              </a>
+              <button
+                onClick={() => setShowConfigModal(true)}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-all underline decoration-slate-700 underline-offset-4"
+              >
+                Or enter Meta App Credentials manually
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {showConfigModal && (
+          <Modal title="Configure Meta Ads Credentials" onClose={() => setShowConfigModal(false)}>
+            <form onSubmit={handleSaveConfig} className="space-y-4">
+              <Input label="Meta App ID" value={formAppId} onChange={(e: any) => setFormAppId(e.target.value)} placeholder="36702477879366478" />
+              <Input label="Meta App Secret" type="password" value={formAppSecret} onChange={(e: any) => setFormAppSecret(e.target.value)} placeholder="••••••••" />
+              <Input label="User Access Token" type="password" value={formToken} onChange={(e: any) => setFormToken(e.target.value)} placeholder="EAAG..." />
+              <Input label="Ad Account ID" value={formAdAccountId} onChange={(e: any) => setFormAdAccountId(e.target.value)} placeholder="act_1454270479625110" />
+              <Input label="Facebook Page ID" value={formPageId} onChange={(e: any) => setFormPageId(e.target.value)} placeholder="123456789" />
+              <Input label="Pixel ID" value={formPixelId} onChange={(e: any) => setFormPixelId(e.target.value)} placeholder="987654321" />
+              <button type="submit" disabled={savingConfig} className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all">
+                {savingConfig ? "Saving..." : "Save Meta Config"}
+              </button>
+            </form>
+          </Modal>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden">
       {/* ── Top Header Bar (Identical Layout to Google Ads) ── */}
@@ -1676,7 +1819,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white shadow shadow-blue-500/30 transition-all"
             >
               <Globe className="h-3.5 w-3.5" />
-              Meta Ads (FB/IG)
+              Meta Ads
             </button>
           </div>
         </div>
@@ -2602,7 +2745,7 @@ export default function GoogleAdsPage() {
               }`}
             >
               <Globe className="h-3.5 w-3.5" />
-              Meta Ads (FB/IG)
+              Meta Ads
             </button>
           </div>
         </header>
@@ -2687,7 +2830,7 @@ export default function GoogleAdsPage() {
               }`}
             >
               <Globe className="h-3.5 w-3.5" />
-              Meta Ads (FB/IG)
+              Meta Ads
             </button>
           </div>
         </div>
