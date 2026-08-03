@@ -28,6 +28,9 @@ model Organization {
   googleQuestions     GoogleQuestion[]
   googleAdCampaigns   GoogleAdCampaign[]
   googleAdAccounts    GoogleAdAccount[]
+  metaAdConfig        MetaAdConfig?
+  metaAdAccounts      MetaAdAccount[]
+  metaAdCampaigns     MetaAdCampaign[]
 }
 
 model User {
@@ -544,3 +547,99 @@ model GmailEmailTemplate {
 
   @@map("gmail_email_templates")
 }
+
+// ─── Meta Ads Models ─────────────────────────────────────────────────────────
+
+model MetaAdConfig {
+  id                 String       @id @default(uuid())
+  organizationId     String       @unique
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  appId              String?
+  appSecret          String?
+  accessToken        String?
+  adAccountId        String?      // e.g. act_123456789
+  pageId             String?      // Facebook Page ID linked for ad rendering
+  instagramAccountId String?      // Instagram Business ID
+  pixelId            String?
+  webhookVerifyToken String       @default(uuid())
+  systemStatus       String       @default("DISCONNECTED") // CONNECTED, DISCONNECTED, ERROR
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model MetaAdAccount {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  adAccountId    String       // act_123456789
+  name           String?
+  accountStatus  Int          @default(1) // 1=ACTIVE, 2=DISABLED, etc.
+  currency       String       @default("USD")
+  timezoneName   String       @default("UTC")
+  businessId     String?
+  businessName   String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, adAccountId])
+}
+
+model MetaAdCampaign {
+  id              String        @id @default(uuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  adAccountId     String
+  metaCampaignId  String?       @unique
+  name            String
+  objective       String        @default("MESSAGES") // MESSAGES, LEAD_GENERATION, OUTREACH, CONVERSIONS, TRAFFIC
+  buyingType      String        @default("AUCTION")
+  status          String        @default("PAUSED") // ACTIVE, PAUSED, DELETED, ARCHIVED
+  effectiveStatus String?       @default("PAUSED")
+  dailyBudget     Float?
+  lifetimeBudget  Float?
+  bidStrategy     String?
+  startTime       DateTime?
+  stopTime        DateTime?
+  adSets          MetaAdSet[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model MetaAdSet {
+  id               String         @id @default(uuid())
+  organizationId   String
+  campaignId       String
+  campaign         MetaAdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adAccountId      String
+  metaAdSetId      String?        @unique
+  name             String
+  status           String         @default("PAUSED")
+  dailyBudget      Float?
+  lifetimeBudget   Float?
+  billingEvent     String         @default("IMPRESSIONS")
+  optimizationGoal String         @default("MESSAGES") // MESSAGES, LINK_CLICKS, REACH, CONVERSIONS
+  destinationType  String         @default("WHATSAPP") // WHATSAPP, MESSENGER, INSTAGRAM_DIRECT, WEBSITE
+  targeting        Json           @default("{}") // Age, gender, location, interests
+  ads              MetaAd[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model MetaAd {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  adSetId            String
+  adSet              MetaAdSet    @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  adAccountId        String
+  metaAdId           String?      @unique
+  name               String
+  status             String       @default("PAUSED") // ACTIVE, PAUSED, DELETED, ARCHIVED
+  effectiveStatus    String?      @default("PENDING_REVIEW") // ACTIVE, PAUSED, PENDING_REVIEW, DISAPPROVED, WITH_WARNINGS
+  approvalStatus     String       @default("PENDING_REVIEW") // APPROVED, IN_REVIEW, DISAPPROVED, PENDING_REVIEW
+  reviewResultReason String?      // Policy rejection feedback details
+  creative           Json         @default("{}") // headline, primaryText, mediaUrl, callToAction, whatsappNumber
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+

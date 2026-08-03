@@ -4,10 +4,12 @@ import { verifyWebhook, handleWebhook } from "../controllers/webhookController";
 const router = Router();
 
 // GET endpoint for Meta webhook verification
+router.get("/", verifyWebhook);
 router.get("/whatsapp", verifyWebhook);
 router.get("/instagram", verifyWebhook);
 
 // POST endpoint for receiving WhatsApp message payloads
+router.post("/", handleWebhook);
 router.post("/whatsapp", handleWebhook);
 router.post("/instagram", handleWebhook);
 

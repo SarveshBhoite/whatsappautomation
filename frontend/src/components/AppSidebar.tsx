@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  MessageCircle, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail
+  MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText
 } from "lucide-react";
 
 // WhatsApp SVG icon
@@ -79,24 +79,27 @@ export default function AppSidebar() {
 
           {navItems.map((item) => {
             const active = isActive(item.match);
+
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`
-                  w-10 h-10 rounded-xl flex items-center justify-center relative group shrink-0
-                  transition-all duration-200
-                  ${active
-                    ? "bg-primary/15 text-primary shadow-sm shadow-primary/20"
-                    : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
-                `}
-              >
-                {/* Active left accent bar */}
-                {active && (
-                  <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
-                )}
-                {item.icon}
-                {/* Tooltip */}
+              <div key={item.href} className="relative group shrink-0">
+                <Link
+                  href={item.href}
+                  className={`
+                    w-10 h-10 rounded-xl flex items-center justify-center relative
+                    transition-all duration-200
+                    ${active
+                      ? "bg-primary/15 text-primary shadow-sm shadow-primary/20"
+                      : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
+                  `}
+                >
+                  {/* Active left accent bar */}
+                  {active && (
+                    <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
+                  )}
+                  {item.icon}
+                </Link>
+
+                {/* Clean Tooltip on Hover */}
                 <span className="
                   absolute left-full ml-3 px-2.5 py-1.5
                   bg-slate-900 border border-slate-700/60
@@ -108,7 +111,7 @@ export default function AppSidebar() {
                 ">
                   {item.label}
                 </span>
-              </Link>
+              </div>
             );
           })}
         </div>

@@ -86,7 +86,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
         return;
       }
     } else if (isInstagram) {
-      if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
+      if (!igConfig || !igConfig.pageAccessToken) {
         console.warn(`Instagram credentials missing for conversation ${conversationId}`);
         return;
       }
@@ -122,6 +122,20 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     }
 
     if (!activeFlow) {
+      // Fallback: Find any active or default flow for this organization
+      activeFlow = await prisma.flow.findFirst({
+        where: {
+          organizationId: conversation.organizationId,
+          isActive: true
+        }
+      }) || await prisma.flow.findFirst({
+        where: {
+          organizationId: conversation.organizationId
+        }
+      });
+    }
+
+    if (!activeFlow) {
       console.log(`No active or default flow found for organization ${conversation.organizationId} on platform ${conversation.platform}`);
       return;
     }
@@ -142,15 +156,21 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
         nextNodeId = rootNode.id;
       }
     } else {
-      const currentNode = graph.nodes.find((n) => n.id === currentNodeId);
-      
-      if (currentNode) {
-        const userText = message.content.toLowerCase().trim();
-        const isStartKeyword = ["hi", "hello", "hey", "menu", "start", "restart"].includes(userText);
-        const hasOutgoingEdges = graph.edges.some((e) => e.source === currentNode.id);
+      const userText = message.content.toLowerCase().trim();
+      const isStartKeyword = ["hi", "hii", "hiii", "hello", "hey", "menu", "start", "restart"].includes(userText) || userText.startsWith("hi ") || userText.startsWith("hello ");
 
-        if (isStartKeyword || !hasOutgoingEdges) {
-          console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: ${isStartKeyword ? "keyword" : "terminal node"})`);
+      if (isStartKeyword) {
+        console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: keyword "${userText}")`);
+        const rootNode = findRootNode(graph);
+        if (rootNode) {
+          nextNodeId = rootNode.id;
+        }
+      } else {
+        const currentNode = graph.nodes.find((n) => n.id === currentNodeId);
+        const hasOutgoingEdges = currentNode ? graph.edges.some((e) => e.source === currentNode.id) : false;
+
+        if (!currentNode || !hasOutgoingEdges) {
+          console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: terminal/unknown node)`);
           const rootNode = findRootNode(graph);
           if (rootNode) {
             nextNodeId = rootNode.id;
@@ -309,19 +329,12 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           }
 
           if (!nextNodeId) {
-            // Did not match options, re-send options (optionally notify client)
-            const sendToken = isWhatsApp 
-              ? waConfig!.accessToken! 
-              : isInstagram 
-                ? igConfig!.pageAccessToken! 
-                : ytConfig!.accessToken!;
-            const sendId = isWhatsApp 
-              ? waConfig!.phoneNumberId! 
-              : isInstagram 
-                ? igConfig!.pageId! 
-                : ytConfig!.channelId!;
-            await sendNodeMessage(sendId, sendToken, conversation.customerPhone, currentNode, conversationId, conversation.organizationId, conversation.platform);
-            return;
+            // Did not match options, reset to root node to re-trigger the flow
+            console.log(`User input "${message.content}" did not match any options at node ${currentNode.id}. Restarting flow from root node...`);
+            const rootNode = findRootNode(graph);
+            if (rootNode) {
+              nextNodeId = rootNode.id;
+            }
           }
         } else if (currentNode.type === "questionNode") {
           // Input Node: Save response to Database metadata or contact record
@@ -343,14 +356,6 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             nextNodeId = outgoingEdge.target;
           }
         }
-      } else {
-        // The node ID stored in the conversation belongs to an old/deleted flow configuration.
-        // Self-heal and reset the customer back to the welcome node of the new active flow.
-        console.log(`Current node ID "${currentNodeId}" not found in active graph. Resetting to root welcome node.`);
-        const rootNode = findRootNode(graph);
-        if (rootNode) {
-          nextNodeId = rootNode.id;
-        }
       }
     }
 
@@ -364,7 +369,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
       const sendId = isWhatsApp 
         ? waConfig!.phoneNumberId! 
         : isInstagram 
-          ? igConfig!.pageId! 
+          ? (igConfig!.pageId || igConfig!.instagramAccountId || "") 
           : ytConfig!.channelId!;
       await executeNodeChain(sendId, sendToken, conversation.customerPhone, nextNodeId, graph, conversationId, conversation.organizationId, conversation.platform);
     }
@@ -460,7 +465,7 @@ async function sendNodeMessage(
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, content);
       } else if (isInstagram) {
-        responseData = await InstagramService.sendTextMessage(accessToken, to, content);
+        responseData = await InstagramService.sendTextMessage(accessToken, to, content, phoneNumberId);
       } else if (isYouTube) {
         responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, content);
       } else if (isLinkedIn) {
@@ -468,21 +473,43 @@ async function sendNodeMessage(
       }
     } else if (node.type === "mediaNode") {
       const type = data.mediaType || "image";
-      const url = data.mediaUrl || "";
+      let rawUrl = data.mediaUrl || "";
       const filename = data.filename || "";
       const caption = data.caption || "";
-      
+
+      // Handle mediaUrl: raw Meta Media ID (numeric), "meta:" prefixed ID, local path, or full HTTPS URL
+      let url = rawUrl;
+      if (rawUrl.startsWith("meta:")) {
+        // Pre-cached Meta Media ID: strip prefix
+        url = rawUrl.substring(5);
+      } else if (/^\d{10,}$/.test(rawUrl)) {
+        // Already a raw numeric Meta Media ID
+        url = rawUrl;
+      } else if (rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+        // Relative local path like /uploads/seo_result_1.jpg - pass as-is for upload
+        url = rawUrl;
+      }
+
+      console.log(`[FLOW ENGINE] mediaNode ${node.id}: type=${type}, url=${url.substring(0, 30)}, caption=${caption.substring(0, 40)}`);
+
       messageType = type;
       if (isWhatsApp) {
-        responseData = await WhatsAppService.sendMediaMessage(
-          phoneNumberId,
-          accessToken,
-          to,
-          type as any,
-          url,
-          filename,
-          caption
-        );
+        try {
+          responseData = await WhatsAppService.sendMediaMessage(
+            phoneNumberId,
+            accessToken,
+            to,
+            type as any,
+            url,
+            filename,
+            caption
+          );
+          console.log(`[FLOW ENGINE] mediaNode ${node.id}: SENT successfully`);
+        } catch (mediaErr: any) {
+          console.error(`[FLOW ENGINE] mediaNode ${node.id}: sendMediaMessage FAILED:`, mediaErr?.response?.data || mediaErr.message);
+          const fallbackText = `${caption ? `📸 ${caption}\n\n` : ""}🖼️ Image: ${url}`;
+          responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, fallbackText);
+        }
       } else if (isInstagram) {
         responseData = await InstagramService.sendMediaMessage(
           accessToken,
@@ -490,7 +517,8 @@ async function sendNodeMessage(
           type as any,
           url,
           filename,
-          caption
+          caption,
+          phoneNumberId
         );
       } else if (isYouTube) {
         let mediaText = url;
@@ -537,7 +565,7 @@ async function sendNodeMessage(
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendButtonMessage(phoneNumberId, accessToken, to, content, buttons);
       } else if (isInstagram) {
-        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons, phoneNumberId);
       } else if (isYouTube) {
         const optionsText = buttons.map((btn, idx) => `\n${idx + 1}. ${btn.title}`).join("");
         const fullText = `${content}${optionsText}`;
@@ -561,7 +589,7 @@ async function sendNodeMessage(
         // Map list options to Instagram quick replies format
         const rows = sections.flatMap((sec) => sec.rows) || [];
         const buttons = rows.map((row) => ({ id: row.id, title: row.title }));
-        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons, phoneNumberId);
       } else if (isYouTube) {
         const rows = sections.flatMap((sec) => sec.rows) || [];
         const optionsText = rows.map((row, idx) => `\n${idx + 1}. ${row.title}${row.description ? ` (${row.description})` : ""}`).join("");
