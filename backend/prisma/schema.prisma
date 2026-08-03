@@ -460,6 +460,8 @@ model Message {
   direction       String
   messageType     String        @default("text")
   content         String
+  mediaMimeType   String?       // MIME type for media messages (image/jpeg, application/pdf, etc.)
+  mediaUrl        String?       // Accessible public URL or ImageKit URL of the media file
   waMessageId     String?       @unique
   status          String        @default("delivered")
   senderName      String?

@@ -107,7 +107,21 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       },
     });
 
-    const customerQuery = incomingMsg.content || "";
+    const rawContent = incomingMsg.content || "";
+    const msgType = incomingMsg.messageType || "text";
+    
+    // Build a human-readable customer query — for media types, describe what was received
+    let customerQuery = rawContent;
+    if (["image", "document", "video", "audio", "voice"].includes(msgType)) {
+      const mediaLabel = msgType === "document" ? `a document named "${rawContent}"` 
+        : msgType === "image" ? "an image"
+        : msgType === "video" ? "a video"
+        : "an audio file";
+      customerQuery = `[The customer just sent ${mediaLabel}. Acknowledge receipt naturally and continue collecting any remaining information needed based on the recent chat context. Do NOT ask them to send the file again — it has been received.]`;
+    } else if (rawContent.startsWith("[Received ")) {
+      // Already patched by webhook controller for media acknowledgement
+      customerQuery = rawContent;
+    }
 
     // Format Full Knowledge Base Context so AI has complete company knowledge regardless of keywords
     let knowledgeContextText = "";
@@ -134,17 +148,26 @@ ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.med
 ### YOUR PERSONALITY & DIALOGUE GOALS:
 ${personalityPrompt}
 
+### RESPONSE LENGTH — CRITICAL RULE:
+Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. Write plain text only — no bullet points, no markdown bold, no numbered lists. Retrieve information naturally across multiple messages like a real human conversation — never dump everything in one long reply.
+
 ### STRICT HUMAN CONVERSATIONAL RULES:
 1. **Be Warm, Natural & Conversational**: Speak like a real senior sales executive chatting on WhatsApp. Keep messages clear, polite, and engaging. Never sound like a robotic form or list of options.
 2. **Handle Greetings & Freeform Questions Intelligently**:
-   - If the customer says "Hi", "Hello", "Good morning", or asks general questions without specific keywords, greet them warmly, ask about their business goals, and offer assistance.
+   - If the customer says "Hi", "Hey", "Hello", "Good morning", "How are you", or asks a general greeting without a specific media request, greet them warmly in a friendly, conversational human tone, ask about their business goals, and offer assistance.
+   - **CRITICAL RULE ON GREETINGS**: For simple greetings like 'hey' or 'hi', NEVER attach any media files. Set attachKnowledgeIds to an empty array [].
 3. **Use Trained Data**: Answer questions based on the trained company data provided below.
 4. **Contextual Media & Screenshot Sending**:
-   - If the customer asks to see sample work, portfolio, screenshots, rate cards, brochures, or proof of work, look at the Media Asset IDs in the Knowledge Base.
-   - If one or multiple relevant media assets exist, return an array of IDs in "attachKnowledgeIds": ["ID1", "ID2"] in your JSON response.
-5. **Proactive Contact & Lead Capture**:
-   - If the customer asks about custom pricing, expresses interest in starting a project, asks to speak to management, or needs a callback, politely ask for their **Name and Phone Number** so a specialist can call them.
-   - If the customer provides their name, phone number, email, or requirement details, extract them in the "capturedLead" object.
+   - ONLY attach media assets if the customer explicitly asks to see sample work, portfolio, screenshots, rate cards, brochures, or proof of work.
+   - If (and ONLY if) the customer explicitly requests proof or media, return the matching asset IDs in "attachKnowledgeIds": ["ID1", "ID2"]. Otherwise, keep "attachKnowledgeIds": [].
+5. **Deal Closing & Business Lead Capture**:
+   - Converse naturally like a top-performing Senior Growth Consultant closing web & digital marketing deals on WhatsApp.
+   - Build value around our core services (High-Performance Next.js Web Portals, Rank #1 Google SEO, Meta/Google Ads).
+   - When the customer shows interest in custom pricing, starting a project, or getting a quote, naturally close the conversation: "I'd love to schedule a quick 10-minute strategy call with our team. May I have your Full Name, Phone Number, and Email so I can lock in your slot?"
+6. **Job Applicant & Career Inquiries**:
+   - Be warm, encouraging, and professional with job seekers.
+   - Share open positions (Full-Stack Web Developers, Performance Marketers, UI/UX, Sales Executives) and internships.
+   - Ask for their Full Name, Phone Number, Email, Qualification/Years of Experience, and Resume Link (LinkedIn/Drive) — ask one thing at a time, naturally across the conversation.
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
@@ -153,10 +176,10 @@ ${knowledgeContextText}
 ${recentMessages.map(m => `${m.direction === 'inbound' ? 'Customer' : 'Agent (' + agentName + ')'}: ${m.content}`).join("\n")}
 
 ### REQUIRED JSON OUTPUT FORMAT:
-You MUST return ONLY valid JSON matching this exact structure:
+Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no markdown, no long paragraphs:
 {
-  "replyText": "Your natural human chat response text here",
-  "attachKnowledgeIds": ["optional_knowledge_item_id_1", "optional_knowledge_item_id_2"],
+  "replyText": "Your short, natural WhatsApp reply here — plain text, 1-3 sentences only",
+  "attachKnowledgeIds": ["only_when_customer_explicitly_asks_for_media"],
   "capturedLead": {
     "name": "extracted_name_or_null",
     "email": "extracted_email_or_null",
@@ -173,7 +196,7 @@ You MUST return ONLY valid JSON matching this exact structure:
         model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Incoming Customer Message: "${customerQuery}"` }
+          { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
         ],
         temperature: 0.6,
         response_format: { type: "json_object" }
@@ -236,12 +259,13 @@ You MUST return ONLY valid JSON matching this exact structure:
     // Dispatch Text Message
     let outWaId: string | null = null;
     if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
-      outWaId = await WhatsAppService.sendTextMessage(
+      const resData = await WhatsAppService.sendTextMessage(
         waConfig.phoneNumberId,
         waConfig.accessToken,
         customerPhone,
         replyText
       );
+      outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
     } else if (isInstagram && igConfig?.pageId && igConfig?.pageAccessToken) {
       await InstagramService.sendTextMessage(
         igConfig.pageAccessToken,
@@ -277,10 +301,17 @@ You MUST return ONLY valid JSON matching this exact structure:
     });
 
     // Broadcast Socket.IO event for live agent dashboard monitoring
-    io.to(orgId).emit("new-message", {
-      conversationId: conversation.id,
-      message: savedTextMessage,
-    });
+    try {
+      const { io: socketIo } = require("../index");
+      if (socketIo) {
+        socketIo.to(orgId).emit("new-message", {
+          conversationId: conversation.id,
+          message: savedTextMessage,
+        });
+      }
+    } catch (ioErr: any) {
+      console.warn("[AI AGENT ENGINE] Socket emit warning:", ioErr.message);
+    }
 
     // Dispatch Attached Media (Screenshot / PDF) if requested
     for (const attachedItem of attachedItems) {
@@ -292,15 +323,16 @@ You MUST return ONLY valid JSON matching this exact structure:
 
       let mediaWaId: string | null = null;
       if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
-        mediaWaId = await WhatsAppService.sendMediaMessage(
+        const resMediaData = await WhatsAppService.sendMediaMessage(
           waConfig.phoneNumberId,
           waConfig.accessToken,
           customerPhone,
           mediaType === "document" ? "document" : "image",
           mediaUrl,
-          mediaCaption,
-          attachedItem.mediaTitle || undefined
+          attachedItem.mediaTitle || undefined,
+          mediaCaption || undefined
         );
+        mediaWaId = resMediaData?.messages?.[0]?.id || resMediaData?.message_id || null;
       } else if (isInstagram && igConfig?.pageAccessToken) {
         await InstagramService.sendMediaMessage(
           igConfig.pageAccessToken,
@@ -319,16 +351,24 @@ You MUST return ONLY valid JSON matching this exact structure:
           direction: "outbound",
           messageType: mediaType === "document" ? "document" : "image",
           content: mediaType === "document" ? `${attachedItem.mediaTitle || 'Document.pdf'}|${mediaUrl}` : mediaUrl,
+          mediaUrl: mediaUrl,
           waMessageId: mediaWaId,
           status: "sent",
           senderName: agentName,
         },
       });
 
-      io.to(orgId).emit("new-message", {
-        conversationId: conversation.id,
-        message: savedMediaMessage,
-      });
+      try {
+        const { io: socketIo } = require("../index");
+        if (socketIo) {
+          socketIo.to(orgId).emit("new-message", {
+            conversationId: conversation.id,
+            message: savedMediaMessage,
+          });
+        }
+      } catch (ioErr: any) {
+        console.warn("[AI AGENT ENGINE] Socket media emit warning:", ioErr.message);
+      }
     }
 
     // 8. Handle AI Captured Lead
@@ -351,6 +391,6 @@ You MUST return ONLY valid JSON matching this exact structure:
 
     console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
   } catch (error: any) {
-    console.error("[AI AGENT ENGINE] Error processing AI chat:", error.message || error);
+    console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
   }
 }

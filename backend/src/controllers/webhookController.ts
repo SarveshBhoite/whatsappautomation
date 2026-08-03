@@ -397,17 +397,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
           }
 
           if (mediaId) {
-            // Download file and save locally
-            const localUrl = await WhatsAppService.downloadMedia(
+            // Download from Meta and upload to ImageKit CDN
+            const mediaPublicUrl = await WhatsAppService.downloadMedia(
               waConfig.phoneNumberId || "1192785647248309",
               waConfig.accessToken || "",
               mediaId,
-              mimeType || "application/octet-stream"
+              mimeType || "application/octet-stream",
+              filename  // pass original filename for documents
             );
             if (type === "document" && filename) {
-              content = `${filename}|${localUrl}`;
+              content = `${filename}|${mediaPublicUrl}`;
             } else {
-              content = localUrl;
+              content = mediaPublicUrl;
             }
           } else {
             content = "Media reference empty";
@@ -458,22 +459,45 @@ export const handleWebhook = async (req: Request, res: Response) => {
         }
 
         console.log(`Saving message to database: direction=inbound, type=${type}, content="${content}"`);
+        // Determine separate content label and media url for media messages
+        let messageContent = content;
+        let messageMediaUrl: string | undefined = undefined;
+        if (["image", "document", "video", "audio", "voice"].includes(type) && content.includes("|")) {
+          // Document: filename|localUrl
+          const parts = content.split("|");
+          messageContent = parts[0]; // e.g. "Siddhi_Bhoite_8530241573.pdf"
+          messageMediaUrl = parts[1]; // e.g. "/uploads/..."
+        } else if (["image", "video", "audio", "voice"].includes(type)) {
+          messageContent = type === "image" ? "📷 Image" : type === "video" ? "📹 Video" : "🎵 Audio";
+          messageMediaUrl = content; // the local URL
+        }
+
         // Save incoming message in database
         const savedMessage = await prisma.message.create({
           data: {
             conversationId: conversation.id,
             direction: "inbound",
             messageType: type === "button" || type === "interactive" || type === "location" || type === "contacts" ? "text" : type,
-            content,
+            content: messageContent,
             mediaMimeType: mimeType,
+            mediaUrl: messageMediaUrl,
             waMessageId,
-            status: "read", // Inbound messages are read by server immediately
+            status: "read",
             createdAt: timestamp,
             quotedMessageId: quotedMessageId || null,
           },
         });
         console.log(`Saved message in database successfully. Message ID: "${savedMessage.id}"`);
 
+        // For media messages, set the incoming content to a virtual text so AI can acknowledge receipt
+        if (["image", "document", "video", "audio", "voice"].includes(type)) {
+          const mediaLabel = type === "document" ? messageContent : type;
+          // Patch the incomingMsg content so AI engine knows media was received
+          await prisma.message.update({
+            where: { id: savedMessage.id },
+            data: { content: `[Received ${type}: ${messageContent}] Please acknowledge receipt and continue the conversation.` }
+          });
+        }
         // Fetch populated message with the quoted relation
         const fullMessage = await prisma.message.findUnique({
           where: { id: savedMessage.id },
