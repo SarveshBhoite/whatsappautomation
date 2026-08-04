@@ -32,7 +32,7 @@ router.get("/oauth/connect", async (req: Request, res: Response) => {
     const scopes = "ads_management,ads_read,business_management,pages_read_engagement,pages_show_list";
     const statePayload = Buffer.from(JSON.stringify({ orgId, redirect })).toString("base64");
 
-    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(statePayload)}`;
+    const authUrl = `https://www.facebook.com/v26.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(statePayload)}`;
     
     res.redirect(authUrl);
   } catch (error: any) {
@@ -68,7 +68,7 @@ router.get(["/callback", "/meta/callback"], async (req: Request, res: Response) 
 
       if (appSecret) {
         const tokenRes = await fetch(
-          `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`
+          `https://graph.facebook.com/v26.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`
         );
         const tokenData = await tokenRes.json();
         if (tokenData.access_token) {
@@ -158,16 +158,32 @@ router.post("/campaigns", async (req: Request, res: Response) => {
     const orgId = req.body.organizationId || DEFAULT_ORG_ID;
     const {
       name,
-      objective = "MESSAGES",
-      dailyBudget = 10,
+      objective = "OUTCOME_LEADS",
+      buyingType = "AUCTION",
+      specialAdCategory = "NONE",
+      cboEnabled = true,
+      advantagePlus = false,
+      bidStrategy = "LOWEST_COST_WITHOUT_CAP",
+      dailyBudget = 500,
+      lifetimeBudget,
       adSetName,
       destinationType = "WHATSAPP",
+      optimizationGoal = "MESSAGES",
       targeting = {},
+      advantagePlusAudience = true,
+      placements = [],
+      advantagePlusPlacement = true,
+      deviceTypes = ["desktop", "mobile"],
+      attributionWindow = "7d_click_1d_view",
       adName,
+      adFormat = "SINGLE_IMAGE",
       creativeHeadline,
       creativeBody,
+      creativeDescription,
       creativeMediaUrl,
+      callToAction = "WHATSAPP_MESSAGE",
       whatsappNumber,
+      utmParameters,
     } = req.body;
 
     if (!name || !creativeHeadline || !creativeBody) {
@@ -180,15 +196,31 @@ router.post("/campaigns", async (req: Request, res: Response) => {
     const campaign = await MetaAdsService.createCampaign(orgId, {
       name,
       objective,
+      buyingType,
+      specialAdCategory,
+      cboEnabled,
+      advantagePlus,
+      bidStrategy,
       dailyBudget: Number(dailyBudget),
+      lifetimeBudget: lifetimeBudget ? Number(lifetimeBudget) : undefined,
       adSetName: adSetName || `${name} - Ad Set`,
       destinationType,
+      optimizationGoal,
       targeting,
+      advantagePlusAudience,
+      placements,
+      advantagePlusPlacement,
+      deviceTypes,
+      attributionWindow,
       adName: adName || `${name} - Ad`,
+      adFormat,
       creativeHeadline,
       creativeBody,
+      creativeDescription,
       creativeMediaUrl,
+      callToAction,
       whatsappNumber,
+      utmParameters,
     });
 
     res.json({ success: true, campaign });
@@ -221,31 +253,95 @@ router.post("/campaigns/:id/status", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/meta-ads/sync
- * Live sync with Meta Graph API
+ * GET /api/meta-ads/campaigns/:id
+ * Fetch single campaign details with ad sets and ads
  */
-router.post("/sync", async (req: Request, res: Response) => {
+router.get("/campaigns/:id", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
-    const syncResult = await MetaAdsService.syncCampaigns(orgId);
-    res.json({ success: true, result: syncResult });
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const campaignId = req.params.id as string;
+    const campaign = await MetaAdsService.getCampaignById(orgId, campaignId);
+    res.json({ success: true, campaign });
   } catch (error: any) {
-    console.error("[MetaAdsRouter] Error syncing with Meta Graph API:", error.message);
+    console.error("[MetaAdsRouter] Error fetching campaign:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 /**
- * GET /api/meta-ads/approvals
- * Live approval status and policy review inspection
+ * PUT /api/meta-ads/campaigns/:id
+ * Update Meta Campaign parameters (Name, Budget, Status, Bid Strategy)
  */
-router.get("/approvals", async (req: Request, res: Response) => {
+router.put("/campaigns/:id", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const campaignId = req.params.id as string;
+    const updated = await MetaAdsService.updateCampaign(orgId, campaignId, req.body);
+    res.json({ success: true, campaign: updated });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error updating campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/meta-ads/ad-sets/:id
+ * Update Meta Ad Set parameters (Targeting, Budget, Optimization Goal, Placements)
+ */
+router.put("/ad-sets/:id", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const adSetId = req.params.id as string;
+    const updated = await MetaAdsService.updateAdSet(orgId, adSetId, req.body);
+    res.json({ success: true, adSet: updated });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error updating ad set:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/meta-ads/ads/:id
+ * Update Meta Ad Creative parameters (Headline, Body, Image URL, CTA)
+ */
+router.put("/ads/:id", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const adId = req.params.id as string;
+    const updated = await MetaAdsService.updateAd(orgId, adId, req.body);
+    res.json({ success: true, ad: updated });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error updating ad creative:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/audiences
+ * Get Custom & Lookalike Audiences
+ */
+router.get("/audiences", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
-    const summary = await MetaAdsService.getApprovalStatus(orgId);
-    res.json({ success: true, summary });
+    const audiences = await MetaAdsService.getAudiences(orgId);
+    res.json({ success: true, audiences });
   } catch (error: any) {
-    console.error("[MetaAdsRouter] Error fetching approval status:", error.message);
+    console.error("[MetaAdsRouter] Error fetching audiences:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/media
+ * Fetch Live Ad Images and Ad Videos from Meta Graph API Library
+ */
+router.get("/media", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const media = await MetaAdsService.getMediaAssets(orgId);
+    res.json({ success: true, media });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching media assets:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
