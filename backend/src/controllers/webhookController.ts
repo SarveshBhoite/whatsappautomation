@@ -413,9 +413,26 @@ export const handleWebhook = async (req: Request, res: Response) => {
           } else {
             content = "Media reference empty";
           }
+        } else if (type === "unsupported") {
+          const errDetail = message.errors?.[0]?.title || message.errors?.[0]?.details || message.unsupported?.details || "";
+          console.log(`[UNSUPPORTED PAYLOAD DETECTED]:`, JSON.stringify(message, null, 2));
+          if (errDetail.toLowerCase().includes("delete")) {
+            content = "🗑️ [Message deleted by user]";
+          } else if (errDetail.toLowerCase().includes("call")) {
+            content = "📞 [WhatsApp Call notification]";
+          } else if (errDetail) {
+            content = `⚠️ [System Event: ${errDetail}]`;
+          } else {
+            content = "ℹ️ [WhatsApp System Notification]";
+          }
+        } else if (type === "order") {
+          content = `🛒 [WhatsApp Order Received: ${message.order?.catalog_id || ''}]`;
+        } else if (type === "system") {
+          content = `⚙️ [System: ${message.system?.body || message.system?.type || 'WhatsApp Notification'}]`;
         } else {
-          // Meta unsupported payload or system message
-          content = "💬 System Message / Unsupported Media Payload";
+          // Fallback for any other Meta payload type
+          console.log(`[UNKNOWN MESSAGE TYPE PAYLOAD]: type=${type}`, JSON.stringify(message, null, 2));
+          content = `💬 [WhatsApp ${type || 'System'} Event]`;
         }
 
         // Find or create the conversation using unique index organizationId_platform_customerPhone
