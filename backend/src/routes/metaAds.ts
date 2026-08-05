@@ -135,6 +135,36 @@ router.get("/accounts", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/pages
+ * Auto-detect Facebook Pages connected to account
+ */
+router.get("/pages", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const pages = await MetaAdsService.getPages(orgId);
+    res.json({ success: true, pages });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching pages:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/pixels
+ * Auto-detect Meta Pixels linked to Ad Account
+ */
+router.get("/pixels", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const pixels = await MetaAdsService.getPixels(orgId);
+    res.json({ success: true, pixels });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching pixels:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/meta-ads/campaigns
  * Get Meta campaigns
  */

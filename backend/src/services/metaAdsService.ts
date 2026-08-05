@@ -34,6 +34,8 @@ export interface CreateMetaCampaignPayload {
   adSetName?: string;
   destinationType?: string;
   optimizationGoal?: string;
+  pixelId?: string;
+  customEventType?: string;
   targeting?: {
     countries?: string[];
     regions?: string[];
@@ -80,16 +82,18 @@ export class MetaAdsService {
           appId: process.env.META_APP_ID || null,
           accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
           adAccountId: process.env.META_AD_ACCOUNT_ID || null,
+          pixelId: process.env.META_PIXEL_ID || null,
           systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
         },
       });
-    } else if (!config.accessToken && process.env.META_SYSTEM_USER_TOKEN) {
+    } else if ((!config.accessToken && process.env.META_SYSTEM_USER_TOKEN) || (!config.pixelId && process.env.META_PIXEL_ID)) {
       config = await prisma.metaAdConfig.update({
         where: { organizationId },
         data: {
           appId: config.appId || process.env.META_APP_ID || null,
-          accessToken: process.env.META_SYSTEM_USER_TOKEN,
+          accessToken: config.accessToken || process.env.META_SYSTEM_USER_TOKEN,
           adAccountId: config.adAccountId || process.env.META_AD_ACCOUNT_ID || null,
+          pixelId: config.pixelId || process.env.META_PIXEL_ID || null,
           systemStatus: "CONNECTED",
         },
       });
@@ -253,6 +257,26 @@ export class MetaAdsService {
       }
     }
 
+    // Step 4: Page Lead Gen Terms of Service Check
+    if (config.accessToken && config.pageId) {
+      try {
+        const pageResp = await axios.get(`${META_GRAPH_BASE}/${config.pageId}`, {
+          params: {
+            fields: "id,name,leadgen_tos_accepting_user,leadgen_tos_accepted",
+            access_token: config.accessToken,
+          },
+        });
+        const p = pageResp.data;
+        if (p.leadgen_tos_accepted) {
+          messages.push(`Lead Ads TOS accepted for Facebook Page "${p.name}".`);
+        } else {
+          messages.push(`⚠️ Lead Ads TOS NOT ACCEPTED for Facebook Page "${p.name || config.pageId}". Visit https://www.facebook.com/ads/leadgen/tos to accept.`);
+        }
+      } catch (err: any) {
+        messages.push(`Page Lead Ads TOS Status: Ensure Lead Gen TOS accepted at https://www.facebook.com/ads/leadgen/tos`);
+      }
+    }
+
     result.connected = result.tokenValid && result.adAccountAccessible;
     await prisma.metaAdConfig.update({
       where: { organizationId },
@@ -385,19 +409,32 @@ export class MetaAdsService {
 
         // 2. Create Ad Set on Meta
         if (metaCampaignId) {
+          // Meta Graph API ODAX mappings: MESSAGES is not an allowed optimization_goal on Graph API.
+          // For WhatsApp / Messaging destinations, Meta Graph API expects "CONVERSATIONS".
+          let graphOptGoal = payload.optimizationGoal || "LINK_CLICKS";
+          if (graphOptGoal === "MESSAGES") {
+            graphOptGoal = "CONVERSATIONS";
+          }
+
+          const targetingObj: any = {
+            geo_locations: { countries: payload.targeting?.countries || ["IN"] },
+            age_min: payload.targeting?.ageMin || 18,
+            age_max: payload.targeting?.ageMax || 65,
+          };
+
+          if (payload.targeting?.customAudiences && payload.targeting.customAudiences.length > 0) {
+            targetingObj.custom_audiences = payload.targeting.customAudiences.map(id => ({ id }));
+          }
+
           const adSetPayload: any = {
             name: payload.adSetName || `${payload.name} - Ad Set`,
             campaign_id: metaCampaignId,
             daily_budget: payload.dailyBudget ? Math.round(payload.dailyBudget * 100) : 50000,
             billing_event: "IMPRESSIONS",
-            optimization_goal: payload.optimizationGoal || "LINK_CLICKS",
+            optimization_goal: graphOptGoal,
             destination_type: payload.destinationType || "WEBSITE",
             bid_strategy: payload.bidStrategy || "LOWEST_COST_WITHOUT_CAP",
-            targeting: {
-              geo_locations: { countries: payload.targeting?.countries || ["IN"] },
-              age_min: payload.targeting?.ageMin || 18,
-              age_max: payload.targeting?.ageMax || 65,
-            },
+            targeting: targetingObj,
             status: "PAUSED",
             access_token: config.accessToken,
           };
@@ -406,6 +443,11 @@ export class MetaAdsService {
             adSetPayload.destination_type = "ON_AD";
             adSetPayload.optimization_goal = "LEAD_GENERATION";
             adSetPayload.promoted_object = { page_id: config.pageId };
+          } else if (payload.pixelId || config.pixelId) {
+            adSetPayload.promoted_object = {
+              pixel_id: payload.pixelId || config.pixelId,
+              custom_event_type: payload.customEventType || "PURCHASE",
+            };
           }
 
           const adSetResp = await axios.post(
@@ -453,7 +495,22 @@ export class MetaAdsService {
           }
         }
       } catch (err: any) {
+        const errorData = err.response?.data?.error || {};
         console.warn("[MetaAdsService] Graph API creation error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
+
+        // Subcode 1815089: Lead Generation Terms of Service not accepted for Page
+        if (errorData.error_subcode === 1815089) {
+          throw new Error(
+            `Meta Terms of Service Error: Facebook Page (ID: ${config.pageId || 'Linked Page'}) has not accepted Facebook's Lead Generation Terms of Service. Please visit https://www.facebook.com/ads/leadgen/tos to accept the Lead Ads TOS for your Page, or select OUTCOME_TRAFFIC / OUTCOME_SALES as campaign objective.`
+          );
+        }
+
+        let msg = errorData.error_user_msg || errorData.message || err.message;
+        if (msg && msg.includes("optimization_goal must be one of")) {
+          msg = `Invalid optimization goal (${payload.optimizationGoal}). Meta Graph API expects 'CONVERSATIONS' for WhatsApp campaigns, 'LINK_CLICKS', or 'LEAD_GENERATION'.`;
+        }
+
+        throw new Error(`Meta Graph API Error: ${msg}`);
       }
     }
 
@@ -997,6 +1054,52 @@ export class MetaAdsService {
     } catch (err: any) {
       console.warn("[MetaAdsService] Failed to fetch media assets:", err.response?.data?.error?.message || err.message);
       return { images: [], videos: [] };
+    }
+  }
+
+  /**
+   * Fetch connected Facebook Pages directly from Meta Graph API
+   */
+  static async getPages(organizationId: string) {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken) return [];
+
+    try {
+      const resp = await axios.get(`${META_GRAPH_BASE}/me/accounts`, {
+        params: {
+          fields: "id,name,access_token,category,tasks",
+          access_token: config.accessToken,
+        },
+      });
+      return resp.data?.data || [];
+    } catch (err: any) {
+      console.warn("[MetaAdsService] Failed to fetch Facebook Pages:", err.response?.data?.error?.message || err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch connected Meta Pixels directly from Meta Graph API for the active Ad Account
+   */
+  static async getPixels(organizationId: string) {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken || !config.adAccountId) return [];
+
+    const formattedAccountId = config.adAccountId.startsWith("act_")
+      ? config.adAccountId
+      : `act_${config.adAccountId}`;
+
+    try {
+      const resp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/adspixels`, {
+        params: {
+          fields: "id,name,creation_time,last_firing_time",
+          access_token: config.accessToken,
+        },
+      });
+      return resp.data?.data || [];
+    } catch (err: any) {
+      console.warn("[MetaAdsService] Failed to fetch Meta Pixels:", err.response?.data?.error?.message || err.message);
+      return [];
     }
   }
 }
