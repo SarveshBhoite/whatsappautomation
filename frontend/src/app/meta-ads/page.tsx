@@ -5750,7 +5750,6 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   )}
 
                 </div>
-              )}
 
 
             {/* Modal Footer — Stepper Navigation */}
