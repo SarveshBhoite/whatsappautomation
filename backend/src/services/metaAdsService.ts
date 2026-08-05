@@ -391,8 +391,8 @@ export class MetaAdsService {
     // Try posting live to Meta Graph API if Access Token is active
     if (config.accessToken && config.adAccountId) {
       try {
-        // Auto-detect pageId if not present in config
-        let activePageId = config.pageId;
+        // Auto-detect or use selected pageId
+        let activePageId = (payload as any).pageId || config.pageId;
         if (!activePageId) {
           try {
             const pages = await this.getPages(organizationId);
@@ -458,7 +458,12 @@ export class MetaAdsService {
             access_token: config.accessToken,
           };
 
-          if (payload.destinationType === "WHATSAPP") {
+          if (graphObjective === "OUTCOME_AWARENESS") {
+            adSetPayload.optimization_goal = "REACH";
+            if (activePageId) {
+              adSetPayload.promoted_object = { page_id: activePageId };
+            }
+          } else if (payload.destinationType === "WHATSAPP") {
             adSetPayload.destination_type = "WHATSAPP";
             adSetPayload.optimization_goal = "CONVERSATIONS";
             if (activePageId) {
