@@ -391,6 +391,25 @@ export class MetaAdsService {
     // Try posting live to Meta Graph API if Access Token is active
     if (config.accessToken && config.adAccountId) {
       try {
+        // Auto-detect pageId if not present in config
+        let activePageId = config.pageId;
+        if (!activePageId) {
+          try {
+            const pages = await this.getPages(organizationId);
+            if (pages && pages.length > 0) {
+              activePageId = pages[0].id;
+              // Save to config so it persists
+              await prisma.metaAdConfig.update({
+                where: { organizationId },
+                data: { pageId: activePageId },
+              });
+              console.log(`[MetaAdsService] Auto-detected Facebook Page ID: ${activePageId} (${pages[0].name})`);
+            }
+          } catch (pErr: any) {
+            console.warn("[MetaAdsService] Failed to auto-detect Facebook Page ID:", pErr.message);
+          }
+        }
+
         // 1. Create Campaign on Meta
         const campResp = await axios.post(
           `${META_GRAPH_BASE}/${formattedAccountId}/campaigns`,
@@ -439,10 +458,16 @@ export class MetaAdsService {
             access_token: config.accessToken,
           };
 
-          if (graphObjective === "OUTCOME_LEADS" && config.pageId) {
+          if (payload.destinationType === "WHATSAPP") {
+            adSetPayload.destination_type = "WHATSAPP";
+            adSetPayload.optimization_goal = "CONVERSATIONS";
+            if (activePageId) {
+              adSetPayload.promoted_object = { page_id: activePageId };
+            }
+          } else if (graphObjective === "OUTCOME_LEADS" && activePageId) {
             adSetPayload.destination_type = "ON_AD";
             adSetPayload.optimization_goal = "LEAD_GENERATION";
-            adSetPayload.promoted_object = { page_id: config.pageId };
+            adSetPayload.promoted_object = { page_id: activePageId };
           } else if (payload.pixelId || config.pixelId) {
             adSetPayload.promoted_object = {
               pixel_id: payload.pixelId || config.pixelId,
@@ -458,13 +483,13 @@ export class MetaAdsService {
         }
 
         // 3. Create Ad Creative & Ad on Meta
-        if (metaAdSetId && config.pageId) {
+        if (metaAdSetId && activePageId) {
           const creativeResp = await axios.post(
             `${META_GRAPH_BASE}/${formattedAccountId}/adcreatives`,
             {
               name: `${payload.adName || payload.name} Creative`,
               object_story_spec: {
-                page_id: config.pageId,
+                page_id: activePageId,
                 link_data: {
                   message: payload.creativeBody,
                   name: payload.creativeHeadline,

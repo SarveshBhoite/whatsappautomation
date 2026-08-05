@@ -1076,6 +1076,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [formAdAccountId, setFormAdAccountId] = useState("");
   const [formPageId, setFormPageId] = useState("");
   const [formPixelId, setFormPixelId] = useState("");
+  const [fetchedPages, setFetchedPages] = useState<any[]>([]);
+  const [fetchedPixels, setFetchedPixels] = useState<any[]>([]);
 
   // Detail Inspector & Media Library state
   const [selectedCampDetail, setSelectedCampDetail] = useState<any>(null);
@@ -1132,8 +1134,30 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
         setFormToken(data.config.accessToken || "");
         setFormAdAccountId(data.config.adAccountId || "");
         setFormPageId(data.config.pageId || "");
-        setFormPixelId(data.config.pixelId || "");
-        if (data.config.adAccountId) setSelectedAccountId(data.config.adAccountId);
+
+        // Fetch connected Pages directly from Meta Graph API
+        fetch(`${BACKEND}/api/meta-ads/pages?organizationId=${orgId}`)
+          .then(r => r.json())
+          .then(pData => {
+            if (pData.pages && pData.pages.length > 0) {
+              setFetchedPages(pData.pages);
+              if (!data.config.pageId) {
+                setFormPageId(pData.pages[0].id);
+              }
+            }
+          }).catch(() => {});
+
+        // Always fetch connected Meta Pixels from Meta Graph API
+        fetch(`${BACKEND}/api/meta-ads/pixels?organizationId=${orgId}`)
+          .then(r => r.json())
+          .then(pxData => {
+            if (pxData.pixels && pxData.pixels.length > 0) {
+              setFetchedPixels(pxData.pixels);
+              if (!data.config.pixelId || formPixelId !== pxData.pixels[0].id) {
+                setFormPixelId(pxData.pixels[0].id);
+              }
+            }
+          }).catch(() => {});
       }
     } catch (e: any) {
       console.warn("Failed to fetch Meta config:", e);
@@ -1588,6 +1612,36 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               ))}
             </select>
           </div>
+
+          {/* Facebook Page Selector (Auto-Detected) */}
+          {fetchedPages.length > 0 && (
+            <div className="relative">
+              <select
+                value={formPageId}
+                onChange={async (e) => {
+                  const newPageId = e.target.value;
+                  setFormPageId(newPageId);
+                  // Save selection to DB silently
+                  try {
+                    await fetch(`${BACKEND}/api/meta-ads/config`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ organizationId: orgId, pageId: newPageId }),
+                    });
+                    showToast("Active Facebook Page updated! ✓");
+                  } catch (err) {}
+                }}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-blue-500/40 text-xs text-blue-300 focus:outline-none focus:border-blue-500 transition-all"
+                title="Select Active Facebook Page for Campaign Creatives"
+              >
+                {fetchedPages.map(p => (
+                  <option key={p.id} value={p.id}>
+                    📄 {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Date Range Selector */}
           <select
@@ -2164,6 +2218,22 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               </p>
             </div>
 
+            <div className="flex items-center justify-between p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+              <div className="space-y-0.5">
+                <h4 className="font-bold text-slate-100 text-xs">1-Click Facebook OAuth Connect</h4>
+                <p className="text-[11px] text-slate-400">Connect Facebook to automatically sync all Ad Accounts, Facebook Pages, and Pixel IDs.</p>
+              </div>
+              <a
+                href={`${BACKEND}/api/meta-ads/oauth/connect?orgId=${orgId}&redirect=/meta-ads`}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1877F2] text-white font-bold text-xs hover:bg-blue-600 transition-all shadow-md shrink-0"
+              >
+                <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                </svg>
+                Connect Facebook
+              </a>
+            </div>
+
             <form onSubmit={handleSaveConfig} className="space-y-4">
               <Input label="Meta Access Token (Permanent)" value={formToken} onChange={(e: any) => setFormToken(e.target.value)} placeholder="EAAG..." type="password" />
               <Input label="Ad Account ID (act_XXXXXXXXX)" value={formAdAccountId} onChange={(e: any) => setFormAdAccountId(e.target.value)} placeholder="act_123456789" />
@@ -2172,8 +2242,42 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                 <Input label="Meta App Secret" value={formAppSecret} onChange={(e: any) => setFormAppSecret(e.target.value)} placeholder="secret_key" type="password" />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Facebook Page ID" value={formPageId} onChange={(e: any) => setFormPageId(e.target.value)} placeholder="1029384756" />
-                <Input label="Meta Pixel ID" value={formPixelId} onChange={(e: any) => setFormPixelId(e.target.value)} placeholder="9876543210" />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Facebook Page</label>
+                  {fetchedPages.length > 0 ? (
+                    <select
+                      value={formPageId}
+                      onChange={(e) => setFormPageId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+                    >
+                      {fetchedPages.map((p: any) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.id})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input label="" value={formPageId} onChange={(e: any) => setFormPageId(e.target.value)} placeholder="1029384756" />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Meta Pixel</label>
+                  {fetchedPixels.length > 0 ? (
+                    <select
+                      value={formPixelId}
+                      onChange={(e) => setFormPixelId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+                    >
+                      {fetchedPixels.map((px: any) => (
+                        <option key={px.id} value={px.id}>
+                          {px.name} ({px.id})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input label="" value={formPixelId} onChange={(e: any) => setFormPixelId(e.target.value)} placeholder="9876543210" />
+                  )}
+                </div>
               </div>
 
               <div className="pt-2 flex justify-end">
