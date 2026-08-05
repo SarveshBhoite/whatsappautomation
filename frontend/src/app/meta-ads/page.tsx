@@ -3655,7 +3655,6 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       </span>
                     </div>
                   </div>
-                  )}
 
                   {/* GENERIC / OTHER OBJECTIVES SETUP FLOW */}
                   {campObjective !== "OUTCOME_AWARENESS" && campObjective !== "OUTCOME_TRAFFIC" && campObjective !== "OUTCOME_ENGAGEMENT" && campObjective !== "OUTCOME_LEADS" && campObjective !== "OUTCOME_APP_PROMOTION" && (
@@ -3730,7 +3729,6 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       </div>
                     </div>
                   )}
-
                 </div>
               )}
 
@@ -5233,6 +5231,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       </div>
                     </div>
                   )}
+                </div>
+              )}
 
                   {/* STEP 4: Ad Setup & Creative Preview */}
                   {campaignStep === 4 && (
@@ -5750,6 +5750,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   )}
 
                 </div>
+              )}
 
 
             {/* Modal Footer — Stepper Navigation */}
@@ -5801,8 +5802,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                 </div>
               </div>
 
-            </div>
           </div>
+        </div>
       )}
           {/* CREATE AD SET MODAL */}
           {showCreateAdSetModal && (
