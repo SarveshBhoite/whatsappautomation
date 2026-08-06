@@ -380,10 +380,70 @@ export class WhatsAppService {
       data.context = { message_id: contextMessageId };
     }
 
-    const response = await axios.post(url, data, {
-      headers: this.getHeaders(accessToken),
-    });
-    return response.data;
+    try {
+      const response = await axios.post(url, data, {
+        headers: this.getHeaders(accessToken),
+      });
+      return response.data;
+    } catch (err: any) {
+      console.warn(`[WHATSAPP MEDIA SEND LINK WARNING] Direct link send failed for ${mediaUrlOrId}:`, err?.response?.data || err.message);
+
+      // Fallback: If sending direct HTTPS link failed, download media buffer & upload to Meta Cloud API for a Media ID
+      if (isHttps) {
+        try {
+          console.log(`[WHATSAPP MEDIA FALLBACK] Downloading buffer from ${mediaUrlOrId} to upload to Meta...`);
+          const downloadRes = await axios.get(mediaUrlOrId, { responseType: "arraybuffer" });
+          const buffer = Buffer.from(downloadRes.data);
+
+          const FormData = require("form-data");
+          const form = new FormData();
+          form.append("messaging_product", "whatsapp");
+          const fileExt = mediaType === "document" ? "pdf" : mediaType === "video" ? "mp4" : "jpg";
+          const fallbackFilename = filename || `media_${Date.now()}.${fileExt}`;
+          form.append("file", buffer, { filename: fallbackFilename });
+          const mime = mediaType === "image" ? "image/jpeg" : mediaType === "video" ? "video/mp4" : mediaType === "audio" ? "audio/mp3" : "application/pdf";
+          form.append("type", mime);
+
+          const metaUploadUrl = `https://graph.facebook.com/v19.0/${phoneNumberId}/media`;
+          const metaUploadRes = await axios.post(metaUploadUrl, form, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              ...form.getHeaders(),
+            },
+          });
+
+          if (metaUploadRes.data?.id) {
+            const uploadedMediaId = metaUploadRes.data.id;
+            console.log(`[WHATSAPP MEDIA FALLBACK SUCCESS] Meta Media ID obtained: ${uploadedMediaId}`);
+
+            const fallbackData: any = {
+              messaging_product: "whatsapp",
+              recipient_type: "individual",
+              to,
+              type: mediaType,
+              [mediaType]: {
+                id: uploadedMediaId,
+                ...(mediaType === "document" && filename ? { filename } : {}),
+                ...(caption && ["image", "document", "video"].includes(mediaType) ? { caption } : {}),
+              },
+            };
+
+            if (contextMessageId) {
+              fallbackData.context = { message_id: contextMessageId };
+            }
+
+            const fallbackResponse = await axios.post(url, fallbackData, {
+              headers: this.getHeaders(accessToken),
+            });
+            return fallbackResponse.data;
+          }
+        } catch (fallbackErr: any) {
+          console.error("[WHATSAPP MEDIA FALLBACK ERROR]", fallbackErr?.response?.data || fallbackErr.message);
+        }
+      }
+
+      throw err;
+    }
   }
 
   // Send Approved WhatsApp Template Message (Allows initiating conversations outside 24h window)

@@ -76,7 +76,36 @@ router.post("/send", async (req: Request, res: Response) => {
         const fileBuffer = Buffer.from(fileBase64, "base64");
         
         fs.writeFileSync(filePath, fileBuffer);
-        mediaUrlOrId = `/uploads/${cleanFilename}`;
+
+        // Upload to ImageKit CDN so Meta WhatsApp Cloud API receives a valid public HTTPS URL
+        const ikPrivateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+        if (ikPrivateKey) {
+          try {
+            const FormData = require("form-data");
+            const axios = require("axios");
+            const formData = new FormData();
+            formData.append("file", fileBuffer, { filename: cleanFilename });
+            formData.append("fileName", cleanFilename);
+            formData.append("folder", "/crm-uploads");
+            formData.append("useUniqueFileName", "true");
+
+            const ikRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
+              headers: {
+                ...formData.getHeaders(),
+                Authorization: `Basic ${Buffer.from(`${ikPrivateKey}:`).toString("base64")}`,
+              },
+            });
+            mediaUrlOrId = ikRes.data.url;
+            console.log(`[MANUAL UPLOAD] ImageKit upload success: ${mediaUrlOrId}`);
+          } catch (ikErr: any) {
+            console.warn("[MANUAL UPLOAD] ImageKit upload failed, falling back to public backend URL:", ikErr.message);
+            const backendPublicUrl = process.env.BACKEND_URL || "https://crmapi.jisnudigital.com";
+            mediaUrlOrId = `${backendPublicUrl}/uploads/${cleanFilename}`;
+          }
+        } else {
+          const backendPublicUrl = process.env.BACKEND_URL || "https://crmapi.jisnudigital.com";
+          mediaUrlOrId = `${backendPublicUrl}/uploads/${cleanFilename}`;
+        }
       } catch (err: any) {
         console.error("Error writing base64 file to storage:", err.message);
       }
