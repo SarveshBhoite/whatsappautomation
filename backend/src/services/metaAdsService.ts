@@ -359,11 +359,10 @@ export class MetaAdsService {
     try {
       const config = await this.getConfig(organizationId);
       if (config.accessToken) {
-        try {
-          await this.syncCampaigns(organizationId);
-        } catch (syncErr: any) {
-          console.warn("[MetaAdsService] Auto-sync on getCampaigns notice:", syncErr.message);
-        }
+        // Trigger background sync non-blockingly so page loading is instant (<50ms)
+        this.syncCampaigns(organizationId).catch((syncErr: any) => {
+          console.warn("[MetaAdsService] Background sync notice:", syncErr.message);
+        });
       }
 
       const orgFilter = {

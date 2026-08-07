@@ -1885,10 +1885,11 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   };
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchMetaConfig(), fetchAccounts(), fetchCampaigns()]).finally(() => {
-      setLoading(false);
-    });
+    // Initial fast fetch from local DB / cache
+    fetchMetaConfig();
+    fetchAccounts();
+    fetchCampaigns();
+    setLoading(false);
   }, [fetchMetaConfig, fetchAccounts, fetchCampaigns]);
 
   // Derived Ad Sets & Ads
