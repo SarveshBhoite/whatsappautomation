@@ -11,6 +11,13 @@ import {
   Layers, FileText, TrendingDown, Award, Star, RotateCcw,
   Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare, SlidersHorizontal
 } from "lucide-react";
+import CreateCampaignModal from "@/components/meta-ads/CreateCampaignModal";
+import EngagementCampaignFlow from "@/components/meta-ads/EngagementCampaignFlow";
+import SalesCampaignFlow from "@/components/meta-ads/SalesCampaignFlow";
+import TrafficCampaignFlow from "@/components/meta-ads/TrafficCampaignFlow";
+import LeadsCampaignFlow from "@/components/meta-ads/LeadsCampaignFlow";
+import AwarenessCampaignFlow from "@/components/meta-ads/AwarenessCampaignFlow";
+import AppPromotionCampaignFlow from "@/components/meta-ads/AppPromotionCampaignFlow";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
@@ -1221,6 +1228,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [fetchedIgAccounts, setFetchedIgAccounts] = useState<any[]>([]);
   const [fetchedWaNumbers, setFetchedWaNumbers] = useState<any[]>([]);
   const [launching, setLaunching] = useState(false);
+  const [activeCampaignFlow, setActiveCampaignFlow] = useState<string | null>(null);
 
   // Detail Inspector & Media Library state
   const [selectedCampDetail, setSelectedCampDetail] = useState<any>(null);
@@ -2859,8 +2867,109 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
       </div>
 
-      {/* CREATE CAMPAIGN MODAL */}
+      {/* CREATE CAMPAIGN MODAL & WORKSPACE FLOWS */}
       {showCreateModal && (
+        <CreateCampaignModal
+          onClose={() => setShowCreateModal(false)}
+          onContinue={(objective) => {
+            setShowCreateModal(false);
+            setCampObjective(objective);
+            setActiveCampaignFlow(objective);
+          }}
+        />
+      )}
+
+      {activeCampaignFlow === "OUTCOME_ENGAGEMENT" && (
+        <EngagementCampaignFlow
+          orgId={orgId}
+          backendUrl={BACKEND}
+          fetchedPages={fetchedPages}
+          fetchedIgAccounts={fetchedIgAccounts}
+          fetchedWaNumbers={fetchedWaNumbers}
+          onClose={() => setActiveCampaignFlow(null)}
+          onPublished={() => {
+            setActiveCampaignFlow(null);
+            fetchCampaigns();
+          }}
+        />
+      )}
+
+      {activeCampaignFlow === "OUTCOME_SALES" && (
+        <SalesCampaignFlow
+          orgId={orgId}
+          backendUrl={BACKEND}
+          fetchedPages={fetchedPages}
+          fetchedIgAccounts={fetchedIgAccounts}
+          fetchedWaNumbers={fetchedWaNumbers}
+          fetchedPixels={fetchedPixels}
+          onClose={() => setActiveCampaignFlow(null)}
+          onPublished={() => {
+            setActiveCampaignFlow(null);
+            fetchCampaigns();
+          }}
+        />
+      )}
+
+      {activeCampaignFlow === "OUTCOME_TRAFFIC" && (
+        <TrafficCampaignFlow
+          orgId={orgId}
+          backendUrl={BACKEND}
+          fetchedPages={fetchedPages}
+          fetchedIgAccounts={fetchedIgAccounts}
+          fetchedWaNumbers={fetchedWaNumbers}
+          onClose={() => setActiveCampaignFlow(null)}
+          onPublished={() => {
+            setActiveCampaignFlow(null);
+            fetchCampaigns();
+          }}
+        />
+      )}
+
+      {activeCampaignFlow === "OUTCOME_LEADS" && (
+        <LeadsCampaignFlow
+          orgId={orgId}
+          backendUrl={BACKEND}
+          fetchedPages={fetchedPages}
+          fetchedIgAccounts={fetchedIgAccounts}
+          fetchedWaNumbers={fetchedWaNumbers}
+          onClose={() => setActiveCampaignFlow(null)}
+          onPublished={() => {
+            setActiveCampaignFlow(null);
+            fetchCampaigns();
+          }}
+        />
+      )}
+
+      {activeCampaignFlow === "OUTCOME_AWARENESS" && (
+        <AwarenessCampaignFlow
+          orgId={orgId}
+          backendUrl={BACKEND}
+          fetchedPages={fetchedPages}
+          fetchedIgAccounts={fetchedIgAccounts}
+          onClose={() => setActiveCampaignFlow(null)}
+          onPublished={() => {
+            setActiveCampaignFlow(null);
+            fetchCampaigns();
+          }}
+        />
+      )}
+
+      {activeCampaignFlow === "OUTCOME_APP_PROMOTION" && (
+        <AppPromotionCampaignFlow
+          orgId={orgId}
+          backendUrl={BACKEND}
+          fetchedPages={fetchedPages}
+          fetchedIgAccounts={fetchedIgAccounts}
+          onClose={() => setActiveCampaignFlow(null)}
+          onPublished={() => {
+            setActiveCampaignFlow(null);
+            fetchCampaigns();
+          }}
+        />
+      )}
+
+      {/* CREATE CAMPAIGN MODAL (LEGACY FALLBACK) */}
+      {false && showCreateModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
           <div className="relative z-10 bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] w-full max-w-3xl overflow-hidden">
