@@ -40,6 +40,107 @@ function fmt(n: number | string, prefix = "") { const num = Number(n); if (isNaN
 
 function api(path: string, opts?: RequestInit) { return fetch(`${BACKEND}/api/ads${path}`, opts); }
 
+// ─── A/B Test Metric Comparison Options ───────────────────────────────────────
+const abTestPerformanceComparisonOptions = [
+  { value: "COST_PER_RESULT", label: "Cost per result" },
+  { value: "CPC_LINK_CLICK", label: "CPC (cost per link click)" },
+  { value: "COST_PER_1000_REACHED", label: "Cost per 1,000 Meta accounts reached" },
+  { value: "COST_PER_PURCHASE", label: "Cost per purchase" },
+  { value: "STANDARD_EVENTS", label: "Standard events" },
+  { value: "COST_PER_3SEC_VIDEO_PLAY", label: "Cost per 3-second video play" },
+  { value: "COST_PER_ACHIEVEMENT_UNLOCKED", label: "Cost per achievement unlocked" },
+  { value: "COST_PER_AD_RECALL_LIFT", label: "Cost per ad recall lift" },
+  { value: "COST_PER_ADD_PAYMENT_INFO", label: "Cost per add of payment info" },
+  { value: "COST_PER_ADD_TO_CART", label: "Cost per add to cart" },
+  { value: "COST_PER_ADD_TO_WISHLIST", label: "Cost per add to wishlist" },
+  { value: "COST_PER_APP_ACTIVATION", label: "Cost per app activation" },
+  { value: "COST_PER_APP_INSTALL", label: "Cost per app install" },
+  { value: "COST_PER_CHECKOUT_INITIATED", label: "Cost per checkout initiated" },
+  { value: "COST_PER_CONTENT_VIEW", label: "Cost per content view" },
+  { value: "COST_PER_CREDIT_SPEND", label: "Cost per credit spend" },
+  { value: "COST_PER_CUSTOM_EVENT", label: "Cost per custom event" },
+  { value: "COST_PER_EVENT_RESPONSE", label: "Cost per event response" },
+  { value: "COST_PER_LANDING_PAGE_VIEW", label: "Cost per landing page view" },
+  { value: "COST_PER_LEAD", label: "Cost per lead" },
+  { value: "COST_PER_LEVEL_ACHIEVED", label: "Cost per level achieved" },
+  { value: "COST_PER_LIKE", label: "Cost per like" },
+  { value: "COST_PER_MOBILE_APP_D2_RETENTION", label: "Cost per mobile app D2 retention" },
+  { value: "COST_PER_MOBILE_APP_D7_RETENTION", label: "Cost per mobile app D7 retention" },
+  { value: "COST_PER_NEW_MESSAGING_CONTACT", label: "Cost per new messaging contact" },
+  { value: "COST_PER_OTHER_OFFLINE_CONVERSION", label: "Cost per other offline conversion" },
+  { value: "COST_PER_POST_ENGAGEMENT", label: "Cost per post engagement" },
+  { value: "COST_PER_RATING_SUBMITTED", label: "Cost per rating submitted" },
+  { value: "COST_PER_REGISTRATION_COMPLETED", label: "Cost per registration completed" },
+  { value: "COST_PER_SEARCH", label: "Cost per search" },
+  { value: "COST_PER_TUTORIAL_COMPLETED", label: "Cost per tutorial completed" },
+];
+
+// ─── ScrollableSelect Component ────────────────────────────────────────────────
+function ScrollableSelect({
+  value,
+  onChange,
+  options,
+  className = "",
+  maxHeight = "max-h-48"
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string }[];
+  className?: string;
+  maxHeight?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((o) => o.value === value) || options[0];
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none focus:border-sky-500 transition-all ${className}`}
+      >
+        <span className="truncate">{selectedOption?.label || value}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ml-1 ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute z-50 mt-1 w-full bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl overflow-y-auto ${maxHeight} py-1 animate-fadeIn divide-y divide-slate-800/40`}>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                opt.value === value
+                  ? "bg-sky-500/15 text-sky-400 font-bold"
+                  : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-100"
+              }`}
+            >
+              <span className="truncate">{opt.label}</span>
+              {opt.value === value && <Check className="w-3.5 h-3.5 text-sky-400 shrink-0 ml-1" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Small components ─────────────────────────────────────────────────────────
 function Pill({ status }: { status: string }) {
   return <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${sc(status)}`}>{status}</span>;
@@ -1110,8 +1211,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [campObjective, setCampObjective] = useState<string>("OUTCOME_LEADS");
   const [campBudget, setCampBudget] = useState(500);
   const [campDestination, setCampDestination] = useState<"WHATSAPP" | "MESSENGER" | "INSTAGRAM_DIRECT" | "WEBSITE">("WHATSAPP");
-  const [campHeadline, setCampHeadline] = useState("");
-  const [campBody, setCampBody] = useState("");
+  const [campHeadline, setCampHeadline] = useState("Chat with us");
+  const [campBody, setCampBody] = useState("Helping businesses grow digitally with smart strategies and powerful branding. 📈 Meta Ads Google Ads Social Media Management Creative Design, Let’s turn your vision into digital success!");
   const [campMediaUrl, setCampMediaUrl] = useState("");
   const [campWhatsappNum, setCampWhatsappNum] = useState("");
   const [campCountry, setCampCountry] = useState("IN");
@@ -1127,6 +1228,27 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [messageDestinationMode, setMessageDestinationMode] = useState<"AUTOMATIC" | "MANUAL">("AUTOMATIC");
   const [indiaSecuritiesDeclaration, setIndiaSecuritiesDeclaration] = useState(false);
   const [includeWhatsappStatus, setIncludeWhatsappStatus] = useState(true);
+
+  // Manual Traffic Campaign State
+  const [trafficSubStep, setTrafficSubStep] = useState<"CHOICE" | "CONFIG">("CHOICE");
+  const [trafficLiveVideo, setTrafficLiveVideo] = useState(true);
+  const [trafficLiveVideoLocation, setTrafficLiveVideoLocation] = useState("FACEBOOK");
+  const [trafficBudgetStrategy, setTrafficBudgetStrategy] = useState<"CAMPAIGN" | "ADSET">("ADSET");
+  const [trafficShareBudget, setTrafficShareBudget] = useState(true);
+  const [trafficBidStrategy, setTrafficBidStrategy] = useState("HIGHEST_VOLUME");
+  const [trafficAbTest, setTrafficAbTest] = useState(true);
+  const [trafficTestVariable, setTrafficTestVariable] = useState("CREATIVE");
+  const [trafficTestDuration, setTrafficTestDuration] = useState("7_DAYS");
+  const [trafficMetricComparison, setTrafficMetricComparison] = useState("COST_PER_POST_ENGAGEMENT");
+  const [trafficSpecialCategory, setTrafficSpecialCategory] = useState("NONE");
+  const [trafficShowMoreNameOptions, setTrafficShowMoreNameOptions] = useState(false);
+  const [trafficShowMoreDetailsOptions, setTrafficShowMoreDetailsOptions] = useState(false);
+
+  // Traffic Ad Set (Step 3) State
+  const [trafficAdSetName, setTrafficAdSetName] = useState("New Traffic ad set");
+  const [trafficAdSetConversionLocation, setTrafficAdSetConversionLocation] = useState("WEBSITE");
+  const [trafficPerformanceGoal, setTrafficPerformanceGoal] = useState("MAXIMIZE_LINK_CLICKS");
+  const [trafficCostPerResult, setTrafficCostPerResult] = useState("");
 
   // Engagement Specific State (Tailored Messages Setup)
   const [engAdvantagesPlus, setEngAdvantagesPlus] = useState(true);
@@ -1194,8 +1316,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
   // App Promotion Specific State
   const [appPromoName, setAppPromoName] = useState("New App promotion Campaign");
-  const [appPromoLiveVideo, setAppPromoLiveVideo] = useState(false);
+  const [appPromoLiveVideo, setAppPromoLiveVideo] = useState(true);
   const [appPromoLiveVideoLocation, setAppPromoLiveVideoLocation] = useState("FACEBOOK");
+  const [appPromoShowMoreSettings, setAppPromoShowMoreSettings] = useState(false);
   const [appPromoAdvantagePlus, setAppPromoAdvantagePlus] = useState(true);
   const [appPromoBudgetStrategy, setAppPromoBudgetStrategy] = useState<"CAMPAIGN" | "ADSET">("CAMPAIGN");
   const [appPromoBudgetMode, setAppPromoBudgetMode] = useState<"DAILY" | "LIFETIME">("DAILY");
@@ -1212,6 +1335,15 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [appPromoPerformanceGoal, setAppPromoPerformanceGoal] = useState("MAXIMIZE_INSTALLS");
   const [appPromoCostPerResult, setAppPromoCostPerResult] = useState("");
   const [appPromoAppStore, setAppPromoAppStore] = useState("GOOGLE_PLAY");
+  const [appPromoAppNameSearch, setAppPromoAppNameSearch] = useState("");
+  const [appPromoAppCountry, setAppPromoAppCountry] = useState("IN");
+  const [appPromoAttributionModel, setAppPromoAttributionModel] = useState("STANDARD");
+  const [appPromoValueRulesEnabled, setAppPromoValueRulesEnabled] = useState(false);
+  const [appPromoSecuritiesDeclaration, setAppPromoSecuritiesDeclaration] = useState(false);
+  const [appPromoPlacementsAdvantage, setAppPromoPlacementsAdvantage] = useState(true);
+  const [appPromoShowEstimatedAudienceSize, setAppPromoShowEstimatedAudienceSize] = useState(true);
+  const [appPromoStep3ShowMoreSettings, setAppPromoStep3ShowMoreSettings] = useState(false);
+  const [appPromoStep3ShowBrandSuitability, setAppPromoStep3ShowBrandSuitability] = useState(false);
 
   // App Promotion A/B Test State
   const [appPromoAbTest, setAppPromoAbTest] = useState(true);
@@ -1219,10 +1351,151 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [appPromoTestDuration, setAppPromoTestDuration] = useState("7_DAYS");
   const [appPromoMetricComparison, setAppPromoMetricComparison] = useState("COST_PER_ADD_PAYMENT_INFO");
 
+  // App Promotion Ad (Step 4) State
+  const [appPromoMainDestination, setAppPromoMainDestination] = useState("APP");
+  const [appPromoDeferredDeepLink, setAppPromoDeferredDeepLink] = useState("");
+  const [appPromoMediaAiCreated, setAppPromoMediaAiCreated] = useState(false);
+  const [appPromoTestimonialText, setAppPromoTestimonialText] = useState("");
+  const [appPromoTrackWebsiteEvents, setAppPromoTrackWebsiteEvents] = useState(true);
+  const [appPromoTrackAppEvents, setAppPromoTrackAppEvents] = useState(true);
+  const [appPromoTrackOfflineEvents, setAppPromoTrackOfflineEvents] = useState(false);
 
-  // Ad Level Specific State for Awareness (Step 4)
+
+  // Ad Level Specific State for Awareness (Step 4) & Partnership Ads
   const [adName, setAdName] = useState("New Awareness ad");
-  const [partnershipAd, setPartnershipAd] = useState(false);
+  const [partnershipAd, setPartnershipAd] = useState(true);
+  const [partnershipAdCode, setPartnershipAdCode] = useState("");
+  const [partnershipCodeApplied, setPartnershipCodeApplied] = useState(false);
+
+  // Select Partner Content Post Modal State
+  const [showSelectPartnerContentModal, setShowSelectPartnerContentModal] = useState(false);
+  const [partnerContentTab, setPartnerContentTab] = useState<"ALL" | "SUGGESTED">("ALL");
+  const [selectedPartnerPostId, setSelectedPartnerPostId] = useState<string>("post_1");
+  const [partnerPostSearch, setPartnerPostSearch] = useState("");
+  const [partnerPostTypeFilter, setPartnerPostTypeFilter] = useState("ALL");
+  const [partnerPostIdentityFilter, setPartnerPostIdentityFilter] = useState("ALL");
+  // Offline Events & Events Manager Modal State
+  const [showEditOfflineSetsModal, setShowEditOfflineSetsModal] = useState(false);
+  const [showEventsManagerModal, setShowEventsManagerModal] = useState(false);
+  const [offlineEventSetName, setOfflineEventSetName] = useState("JISNU Digital Website Pixel");
+  const [offlineDatasetId, setOfflineDatasetId] = useState("1380912777544016");
+  // Sales Campaign (Step 2) State
+  const [salesLiveVideo, setSalesLiveVideo] = useState(true);
+  const [salesLiveVideoLocation, setSalesLiveVideoLocation] = useState("FACEBOOK");
+  const [salesAdvantageCatalogue, setSalesAdvantageCatalogue] = useState(false);
+  const [salesAbTest, setSalesAbTest] = useState(true);
+  const [salesTestVariable, setSalesTestVariable] = useState("CREATIVE");
+  const [salesTestDuration, setSalesTestDuration] = useState("7_DAYS");
+  const [salesMetricComparison, setSalesMetricComparison] = useState("COST_PER_ADD_PAYMENT_INFO");
+  const [salesEngagedAudienceDefined, setSalesEngagedAudienceDefined] = useState(false);
+  const [salesExistingCustomersDefined, setSalesExistingCustomersDefined] = useState(false);
+  const [salesSpecialCategory, setSalesSpecialCategory] = useState("NONE");
+  const [salesCampaignScore] = useState(100);
+
+  // Sales Ad Set (Step 3) State
+  const [salesAdSetName, setSalesAdSetName] = useState("New Sales ad set");
+  const [salesLifecycleStrategy, setSalesLifecycleStrategy] = useState("ALL_AUDIENCES");
+  const [salesConversionLocation, setSalesConversionLocation] = useState("WEBSITE");
+  const [salesPerformanceGoal, setSalesPerformanceGoal] = useState("MAXIMIZE_CONVERSIONS");
+  const [salesPixelName] = useState("JISNU Digital Website Pixel");
+  const [salesConversionEvent, setSalesConversionEvent] = useState("");
+  const [salesCostPerResult, setSalesCostPerResult] = useState("");
+  const [salesAttributionModel, setSalesAttributionModel] = useState("STANDARD");
+  const [salesDeliveryType, setSalesDeliveryType] = useState("STANDARD");
+  const [salesSecuritiesDeclaration, setSalesSecuritiesDeclaration] = useState(false);
+  const [salesPlacementsAdvantage, setSalesPlacementsAdvantage] = useState(true);
+  const [salesShowEstimatedAudienceSize, setSalesShowEstimatedAudienceSize] = useState(true);
+  const [salesStep3ShowMoreSettings, setSalesStep3ShowMoreSettings] = useState(false);
+  const [salesStep3ShowBrandSuitability, setSalesStep3ShowBrandSuitability] = useState(false);
+  const [salesShowSetupConversionEventModal, setSalesShowSetupConversionEventModal] = useState(false);
+
+  // Sales Ad Level (Step 4) State
+  const [salesAdName, setSalesAdName] = useState("New Sales ad");
+  const [salesAdSetupMode, setSalesAdSetupMode] = useState("USE_EXISTING");
+  const [salesAdSource, setSalesAdSource] = useState("META_CATALOG");
+  const [salesHighlightPromotions, setSalesHighlightPromotions] = useState(true);
+  const [salesPromoCodesOption, setSalesPromoCodesOption] = useState("AUTO");
+  const [salesUrlParameters, setSalesUrlParameters] = useState("key1=value1&key2=value2");
+  const [salesAdDescription, setSalesAdDescription] = useState("");
+  const [multiAdvertiserAds, setMultiAdvertiserAds] = useState(true);
+  const [salesShowPromoCodesModal, setSalesShowPromoCodesModal] = useState(false);
+  const [salesShowUrlParametersModal, setSalesShowUrlParametersModal] = useState(false);
+
+  // Awareness Campaign (Step 2) State
+  const [awarenessLiveVideo, setAwarenessLiveVideo] = useState(true);
+  const [awarenessLiveVideoLocation, setAwarenessLiveVideoLocation] = useState("FACEBOOK");
+  const [awarenessAdvantageBudget, setAwarenessAdvantageBudget] = useState(true);
+  const [awarenessBudgetMode, setAwarenessBudgetMode] = useState("LIFETIME");
+  const [awarenessBudgetAmount, setAwarenessBudgetAmount] = useState("33473.90");
+  const [awarenessBidStrategy, setAwarenessBidStrategy] = useState("HIGHEST_VOLUME");
+  const [awarenessScheduleBudgetIncreases, setAwarenessScheduleBudgetIncreases] = useState(false);
+  const [awarenessAdScheduling] = useState("RUN_ALL_TIME");
+  const [awarenessFrequencyControl, setAwarenessFrequencyControl] = useState(true);
+  const [awarenessFrequencyMode, setAwarenessFrequencyMode] = useState("CAP");
+  const [awarenessFrequencyCapCount, setAwarenessFrequencyCapCount] = useState(2);
+  const [awarenessFrequencyCapDays, setAwarenessFrequencyCapDays] = useState(7);
+  const [awarenessAbTest, setAwarenessAbTest] = useState(true);
+  const [awarenessTestVariable, setAwarenessTestVariable] = useState("CREATIVE");
+  const [awarenessTestDuration, setAwarenessTestDuration] = useState("7_DAYS");
+  const [awarenessMetricComparison, setAwarenessMetricComparison] = useState("COST_PER_ADD_PAYMENT_INFO");
+
+  // Awareness Ad Set (Step 3) State
+  const [awarenessAdSetName, setAwarenessAdSetName] = useState("New Awareness ad set");
+  const [awarenessPerformanceGoal, setAwarenessPerformanceGoal] = useState("IMPRESSIONS");
+  const [awarenessBidCap, setAwarenessBidCap] = useState("");
+  const [awarenessDeliveryType, setAwarenessDeliveryType] = useState("STANDARD");
+  const [awarenessAdSetBudgetMode, setAwarenessAdSetBudgetMode] = useState("DAILY");
+  const [awarenessAdSetBudgetAmount, setAwarenessAdSetBudgetAmount] = useState("200.00");
+  const [awarenessStartDate, setAwarenessStartDate] = useState("2026-08-08");
+  const [awarenessStartTime, setAwarenessStartTime] = useState("15:38");
+  const [awarenessSetEndDate, setAwarenessSetEndDate] = useState(false);
+  const [awarenessEndDate, setAwarenessEndDate] = useState("");
+  const [awarenessBudgetScheduling, setAwarenessBudgetScheduling] = useState(false);
+  const [awarenessLocations, setAwarenessLocations] = useState([
+    { type: "pin", name: "411057" },
+    { type: "pin", name: "Wakad Chowk + 10 km" },
+    { type: "city", name: "Nashik, Maharashtra" }
+  ]);
+  const [awarenessMinAge, setAwarenessMinAge] = useState(25);
+  const [awarenessExcludeAudience, setAwarenessExcludeAudience] = useState("");
+  const [awarenessLanguages, setAwarenessLanguages] = useState("");
+  const [awarenessIncludeCustomAudience, setAwarenessIncludeCustomAudience] = useState("");
+  const [awarenessAgeMin, setAwarenessAgeMin] = useState(50);
+  const [awarenessAgeMax, setAwarenessAgeMax] = useState("65+");
+  const [awarenessGender, setAwarenessGender] = useState("ALL");
+  const [awarenessDetailedTargeting, setAwarenessDetailedTargeting] = useState("");
+  const [awarenessSecuritiesDeclaration, setAwarenessSecuritiesDeclaration] = useState(false);
+  const [awarenessPlacementType, setAwarenessPlacementType] = useState("MANUAL");
+  const [awarenessPlacementsFb, setAwarenessPlacementsFb] = useState(true);
+  const [awarenessPlacementsIg, setAwarenessPlacementsIg] = useState(true);
+  const [awarenessPlacementsAn, setAwarenessPlacementsAn] = useState(true);
+  const [awarenessPlacementsMsg, setAwarenessPlacementsMsg] = useState(false);
+  const [awarenessPlacementsWa, setAwarenessPlacementsWa] = useState(false);
+  const [awarenessPlacementsThreads, setAwarenessPlacementsThreads] = useState(false);
+  const [awarenessPlacementsFeeds, setAwarenessPlacementsFeeds] = useState(true);
+  const [awarenessPlacementsStories, setAwarenessPlacementsStories] = useState(false);
+  const [awarenessPlacementsInstream, setAwarenessPlacementsInstream] = useState(true);
+  const [awarenessPlacementsSearch, setAwarenessPlacementsSearch] = useState(true);
+  const [awarenessPlacementsApps, setAwarenessPlacementsApps] = useState(false);
+  const [awarenessStep3ShowMoreSettings, setAwarenessStep3ShowMoreSettings] = useState(false);
+  const [awarenessStep3ShowMoreOptions1, setAwarenessStep3ShowMoreOptions1] = useState(false);
+  const [awarenessShowMoreOptions, setAwarenessShowMoreOptions] = useState(false);
+  const [awarenessAudienceNoticeDismissed, setAwarenessAudienceNoticeDismissed] = useState(false);
+  const [awarenessPlacementsAdvantage, setAwarenessPlacementsAdvantage] = useState(true);
+  const [awarenessShowEstimatedAudienceSize, setAwarenessShowEstimatedAudienceSize] = useState(true);
+
+  // Conversations / Chat Template State (Step 4)
+  const [chatTemplateGreeting, setChatTemplateGreeting] = useState("Hi! Please let us know how we can help you.");
+  const [chatTemplateQuestion1, setChatTemplateQuestion1] = useState("Can I learn more about your business?");
+  const [chatTemplateQuestion2, setChatTemplateQuestion2] = useState("Can you tell me more about your ad?");
+  const [chatTemplateQuestion3, setChatTemplateQuestion3] = useState("Is anyone available to chat?");
+  const [showChatTemplateModal, setShowChatTemplateModal] = useState(false);
+
+  // Step 4 Destination State
+  const [step4DestinationType, setStep4DestinationType] = useState<"MESSAGING" | "INSTANT_EXPERIENCE" | "WEBSITE" | "CALL">("MESSAGING");
+  const [step4WhatsappNumber, setStep4WhatsappNumber] = useState("+91 77099 36965");
+  const [step4AdsDataSharing, setStep4AdsDataSharing] = useState(false);
+
   const [instagramProfile, setInstagramProfile] = useState("jisnu_digitalsolution_pvt_ltd");
   const [threadsProfile, setThreadsProfile] = useState("USE_INSTAGRAM");
   const [adSetCampId, setAdSetCampId] = useState("");
@@ -2779,111 +3052,467 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   {/* TRAFFIC OBJECTIVE SPECIFIC SETUP FLOW */}
                   {campObjective === "OUTCOME_TRAFFIC" && (
                     <div className="space-y-4">
-                      <div>
-                        <h4 className="font-bold text-slate-100 text-sm">Choose a campaign setup</h4>
-                        <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                          Create your traffic campaign using a tailored and streamlined setup, or manually build your campaign. Suggestions may vary based on your recent ad account activity.
-                        </p>
-                      </div>
-
-                      {/* Setup Option 1: Tailored web traffic campaign */}
-                      <div
-                        onClick={() => setTrafficPresetMode("tailored")}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${trafficPresetMode === "tailored"
-                          ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
-                          : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
-                          }`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="pt-1">
-                            <input
-                              type="radio"
-                              name="trafficPresetMode"
-                              checked={trafficPresetMode === "tailored"}
-                              onChange={() => setTrafficPresetMode("tailored")}
-                              className="h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 focus:ring-sky-500"
-                            />
+                      {/* SUB-STEP 1: Campaign Setup Choice Screen */}
+                      {trafficSubStep === "CHOICE" && (
+                        <div className="space-y-4 animate-fadeIn">
+                          {/* Top Navigation Header */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => setCampaignStep(1)}
+                                  className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                                >
+                                  ← Change Objective
+                                </button>
+                                <h3 className="font-bold text-slate-100 text-sm">Step 2: Configure TRAFFIC Campaign Parameters</h3>
+                                <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your TRAFFIC campaign setup.</p>
+                              </div>
+                              <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 2 of 4</span>
+                            </div>
                           </div>
 
-                          <div className="w-12 h-12 rounded-2xl bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/20">
-                            <MousePointerClick className="h-6 w-6" />
-                          </div>
-
-                          <div className="space-y-2 flex-1">
+                          {/* Choose a campaign setup */}
+                          <div className="space-y-3">
                             <div>
-                              <h5 className="font-bold text-slate-100 text-sm">Tailored web traffic campaign</h5>
+                              <h4 className="font-bold text-slate-100 text-sm">Choose a campaign setup</h4>
                               <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                                Quickly create a campaign optimised to help get more web traffic at the best value. Preset settings include Advantage+ placements, highest volume bid strategy and more.
+                                Create your traffic campaign using a tailored and streamlined setup, or manually build your campaign. Suggestions may vary based on your recent ad account activity.
                               </p>
                             </div>
 
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              <span className="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-300">
-                                Streamlined
-                              </span>
-                              <span className="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-300">
-                                Tailored
-                              </span>
-                              <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[11px] font-semibold text-sky-400">
-                                Best practices
-                              </span>
+                            {/* Option 1: Tailored web traffic campaign */}
+                            <div
+                              onClick={() => {
+                                setTrafficPresetMode("tailored");
+                              }}
+                              className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                                trafficPresetMode === "tailored"
+                                  ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
+                                  : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-start gap-4">
+                                <div className="pt-1">
+                                  <input
+                                    type="radio"
+                                    name="trafficPresetModeChoice"
+                                    checked={trafficPresetMode === "tailored"}
+                                    onChange={() => setTrafficPresetMode("tailored")}
+                                    className="h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 focus:ring-sky-500"
+                                  />
+                                </div>
+
+                                <div className="w-12 h-12 rounded-2xl bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/20">
+                                  <MousePointerClick className="h-6 w-6" />
+                                </div>
+
+                                <div className="space-y-2 flex-1">
+                                  <div>
+                                    <h5 className="font-bold text-slate-100 text-sm">Tailored web traffic campaign</h5>
+                                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                                      Quickly create a campaign optimised to help get more web traffic at the best value. Preset settings include Advantage+ placements, highest volume bid strategy and more.
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-1.5 pt-1">
+                                    <span className="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-300">
+                                      Streamlined
+                                    </span>
+                                    <span className="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-300">
+                                      Tailored
+                                    </span>
+                                    <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[11px] font-semibold text-sky-400">
+                                      Best practices
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Option 2: Manual traffic campaign */}
+                            <div
+                              onClick={() => {
+                                setTrafficPresetMode("manual");
+                                setTrafficSubStep("CONFIG");
+                              }}
+                              className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                                trafficPresetMode === "manual"
+                                  ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
+                                  : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div>
+                                    <input
+                                      type="radio"
+                                      name="trafficPresetModeChoice"
+                                      checked={trafficPresetMode === "manual"}
+                                      onChange={() => {
+                                        setTrafficPresetMode("manual");
+                                        setTrafficSubStep("CONFIG");
+                                      }}
+                                      className="h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 focus:ring-sky-500"
+                                    />
+                                  </div>
+
+                                  <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 border border-slate-700">
+                                    <Settings className="h-6 w-6" />
+                                  </div>
+
+                                  <div>
+                                    <h5 className="font-bold text-slate-100 text-sm">Manual traffic campaign</h5>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                      Create a traffic campaign from scratch for finer control over all settings.
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="text-xs font-bold text-sky-400 bg-sky-500/10 px-3 py-1.5 rounded-lg border border-sky-500/20 hover:bg-sky-500/20">
+                                  Configure →
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end pt-3">
+                              <button
+                                type="button"
+                                onClick={() => setTrafficSubStep("CONFIG")}
+                                className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all flex items-center gap-1.5"
+                              >
+                                Continue to Campaign Parameters →
+                              </button>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
-                      {/* Setup Option 2: Manual traffic campaign */}
-                      <div
-                        onClick={() => setTrafficPresetMode("manual")}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${trafficPresetMode === "manual"
-                          ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
-                          : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
-                          }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div>
+                      {/* SUB-STEP 2: Dedicated Manual Traffic Campaign Configuration Screen */}
+                      {trafficSubStep === "CONFIG" && (
+                        <div className="space-y-4 animate-fadeIn">
+                          {/* Back Button & Header */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setTrafficSubStep("CHOICE")}
+                                className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                              >
+                                ← Change campaign setup
+                              </button>
+                              <h3 className="font-bold text-slate-100 text-sm">New Traffic campaign</h3>
+                              <p className="text-xs text-slate-400 mt-0.5">1 Ad set • 1 Ad • Manual setup mode</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                                In draft
+                              </span>
+                              <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 2 of 4</span>
+                            </div>
+                          </div>
+
+                          {/* Card 1: Campaign name */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                              <h4 className="font-bold text-slate-100 text-xs">Campaign name</h4>
+                            </div>
                             <input
-                              type="radio"
-                              name="trafficPresetMode"
-                              checked={trafficPresetMode === "manual"}
-                              onChange={() => setTrafficPresetMode("manual")}
-                              className="h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 focus:ring-sky-500"
-                            />
-                          </div>
-
-                          <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 border border-slate-700">
-                            <Settings className="h-6 w-6" />
-                          </div>
-
-                          <div>
-                            <h5 className="font-bold text-slate-100 text-sm">Manual traffic campaign</h5>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              Create a traffic campaign from scratch for finer control over all settings.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Live Settings Preview for Selected Traffic Mode */}
-                      {trafficPresetMode === "manual" && (
-                        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 pt-4">
-                          <h4 className="font-bold text-slate-200 text-xs">Manual Traffic Configuration</h4>
-                          <div className="grid grid-cols-2 gap-3">
-                            <Input
-                              label="Campaign Name"
+                              type="text"
                               value={campName || "New Traffic campaign"}
-                              onChange={(e: any) => setCampName(e.target.value)}
+                              onChange={(e) => setCampName(e.target.value)}
                               placeholder="New Traffic campaign"
-                              required
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
                             />
-                            <Input
-                              label={`Daily Budget (${currencySymbol})`}
-                              type="number"
-                              value={campBudget}
-                              onChange={(e: any) => setCampBudget(e.target.value)}
-                              min={1}
-                              required
-                            />
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setTrafficShowMoreNameOptions(!trafficShowMoreNameOptions)}
+                                className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                              >
+                                {trafficShowMoreNameOptions ? "Hide details" : "Show more options ▾"}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Card 2: Live video ad */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-slate-200 text-xs">Live video ad</h4>
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${trafficLiveVideo ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400"}`}>
+                                    {trafficLiveVideo ? "On" : "Off"}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                  Use settings that are suggested for a live video ad. This will adjust your budget and schedule to more efficiently deliver your ads and drive engagement.
+                                </p>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                                <input
+                                  type="checkbox"
+                                  checked={trafficLiveVideo}
+                                  onChange={(e) => setTrafficLiveVideo(e.target.checked)}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                              </label>
+                            </div>
+
+                            {trafficLiveVideo && (
+                              <div className="pt-3 border-t border-slate-800 space-y-2 animate-fadeIn">
+                                <div>
+                                  <h5 className="font-bold text-slate-200 text-xs">Live video location</h5>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">Choose where you'll be running your live video.</p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center gap-2.5">
+                                  <input
+                                    type="radio"
+                                    checked={trafficLiveVideoLocation === "FACEBOOK"}
+                                    onChange={() => setTrafficLiveVideoLocation("FACEBOOK")}
+                                    className="accent-sky-500"
+                                  />
+                                  <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                                    f
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-100">Facebook</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card 3: Campaign details */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                              <h4 className="font-bold text-slate-100 text-xs">Campaign details</h4>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-400">Buying type</label>
+                                <p className="text-xs font-bold text-slate-200 mt-0.5">Auction</p>
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <label className="block text-[11px] font-semibold text-slate-400">Campaign objective</label>
+                                  <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                                </div>
+                                <p className="text-xs font-bold text-slate-200 mt-0.5">Traffic</p>
+                              </div>
+
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => setTrafficShowMoreDetailsOptions(!trafficShowMoreDetailsOptions)}
+                                  className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                                >
+                                  {trafficShowMoreDetailsOptions ? "Hide details" : "Show more options ▾"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card 4: Budget */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                              <h4 className="font-bold text-slate-100 text-xs">Budget</h4>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                                <h5 className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+                                  Budget strategy
+                                  <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                                </h5>
+                                <span className="text-slate-400 text-xs">^</span>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div
+                                  onClick={() => setTrafficBudgetStrategy("CAMPAIGN")}
+                                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                                    trafficBudgetStrategy === "CAMPAIGN"
+                                      ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="trafficBudgetStrategy"
+                                    checked={trafficBudgetStrategy === "CAMPAIGN"}
+                                    onChange={() => setTrafficBudgetStrategy("CAMPAIGN")}
+                                    className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
+                                  />
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-100">Campaign budget</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                                      Automatically distribute your budget to the best opportunities across your campaign. Also known as Advantage+ campaign budget. <button type="button" className="text-sky-400 hover:underline font-semibold">About campaign budget</button>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div
+                                  onClick={() => setTrafficBudgetStrategy("ADSET")}
+                                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                                    trafficBudgetStrategy === "ADSET"
+                                      ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="trafficBudgetStrategy"
+                                    checked={trafficBudgetStrategy === "ADSET"}
+                                    onChange={() => setTrafficBudgetStrategy("ADSET")}
+                                    className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
+                                  />
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-100">Ad set budget</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                                      Set different bid strategies or budget schedules for each ad set.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-2">
+                                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={trafficShareBudget}
+                                    onChange={(e) => setTrafficShareBudget(e.target.checked)}
+                                    className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
+                                  />
+                                  <span>Share up to 20% of your budget with other ad sets</span>
+                                  <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0">ℹ</span>
+                                </label>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-800">
+                                <div className="flex items-center gap-1.5">
+                                  <h5 className="font-bold text-slate-200 text-xs">Campaign bid strategy</h5>
+                                  <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                                </div>
+                                <p className="text-xs font-bold text-slate-300 mt-0.5">Highest volume</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card 5: A/B test */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                                <h4 className="font-bold text-slate-100 text-xs">A/B test</h4>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${trafficAbTest ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400"}`}>
+                                  {trafficAbTest ? "On" : "Off"}
+                                </span>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                                <input
+                                  type="checkbox"
+                                  checked={trafficAbTest}
+                                  onChange={(e) => setTrafficAbTest(e.target.checked)}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                              </label>
+                            </div>
+
+                            <p className="text-[11px] text-slate-400 leading-relaxed">
+                              Help improve ad performance by comparing versions to see what works best. For accuracy, each one will be shown to separate groups of your audience. <button type="button" className="text-sky-400 hover:underline font-semibold">About A/B tests</button>
+                            </p>
+
+                            {trafficAbTest && (
+                              <div className="pt-3 border-t border-slate-800 space-y-3.5 animate-fadeIn">
+                                <div className="space-y-1">
+                                  <label className="block text-xs font-bold text-slate-200">What would you like to test?</label>
+                                  <select
+                                    value={trafficTestVariable}
+                                    onChange={(e) => setTrafficTestVariable(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                  >
+                                    <option value="CREATIVE">Creative</option>
+                                    <option value="AUDIENCE">Audience</option>
+                                    <option value="PLACEMENT">Placement</option>
+                                    <option value="CUSTOM">Custom</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-xs font-bold text-slate-200">How long should the test run?</label>
+                                  <p className="text-[10px] text-slate-400">Your test will run for this many days or until your ad set has ended.</p>
+                                  <select
+                                    value={trafficTestDuration}
+                                    onChange={(e) => setTrafficTestDuration(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                  >
+                                    <option value="7_DAYS">7 days</option>
+                                    <option value="3_DAYS">3 days</option>
+                                    <option value="5_DAYS">5 days</option>
+                                    <option value="14_DAYS">14 days</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <label className="block text-xs font-bold text-slate-200">How do you want to compare performance?</label>
+                                    <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                                  </div>
+                                  <ScrollableSelect
+                                    value={trafficMetricComparison}
+                                    onChange={(val) => setTrafficMetricComparison(val)}
+                                    options={[
+                                      { value: "COST_PER_POST_ENGAGEMENT", label: "Cost per post engagement" },
+                                      { value: "COST_PER_LINK_CLICK", label: "Cost per link click" },
+                                      { value: "COST_PER_RESULT", label: "Cost per result" },
+                                      { value: "COST_PER_LANDING_PAGE_VIEW", label: "Cost per landing page view" },
+                                      { value: "COST_PER_REACH", label: "Cost per 1,000 people reached" },
+                                      { value: "COST_PER_THRUPLAY", label: "Cost per ThruPlay" },
+                                      { value: "COST_PER_CONVERSATION_STARTED", label: "Cost per messaging conversation started" },
+                                      { value: "COST_PER_LEAD", label: "Cost per lead" },
+                                      { value: "COST_PER_PURCHASE", label: "Cost per purchase" },
+                                      { value: "CPM", label: "Cost per 1,000 impressions (CPM)" },
+                                    ]}
+                                    className="text-sky-400 font-bold"
+                                    maxHeight="max-h-52"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card 6: Special Ad Categories */}
+                          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                              <h4 className="font-bold text-slate-100 text-xs">Special Ad Categories</h4>
+                            </div>
+
+                            <p className="text-[11px] text-slate-400 leading-relaxed">
+                              Declare if your ads are related to financial products and services, employment, housing, social issues, elections or politics to help prevent ad rejections. Requirements differ by country. <button type="button" className="text-sky-400 hover:underline font-semibold">About Special Ad Categories</button>
+                            </p>
+
+                            <div className="space-y-1">
+                              <label className="block text-[11px] font-semibold text-slate-400">Categories</label>
+                              <p className="text-[10px] text-slate-500">Select the categories that best describe what this campaign will advertise.</p>
+                              <select
+                                value={trafficSpecialCategory}
+                                onChange={(e) => setTrafficSpecialCategory(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
+                              >
+                                <option value="NONE">Declare category if applicable</option>
+                                <option value="CREDIT">Financial products and services</option>
+                                <option value="EMPLOYMENT">Employment</option>
+                                <option value="HOUSING">Housing</option>
+                                <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
+                              </select>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -3258,6 +3887,326 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     </div>
                   )}
 
+                  {/* AWARENESS OBJECTIVE — STEP 2 CAMPAIGN PARAMETERS VIEW */}
+                  {campObjective === "OUTCOME_AWARENESS" && (
+                    <div className="space-y-4">
+                      {/* Top Header Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-bold text-slate-100 text-sm">New Awareness campaign</h3>
+                            <p className="text-xs text-slate-400 mt-0.5">1 Ad set • 1 Ad</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Live Video Ad Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Live video ad</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${awarenessLiveVideo ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400"}`}>
+                                {awarenessLiveVideo ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Use settings that are suggested for a live video ad. This will adjust your budget and schedule to more efficiently deliver your ads and drive engagement.
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={awarenessLiveVideo}
+                              onChange={(e) => setAwarenessLiveVideo(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {awarenessLiveVideo && (
+                          <div className="pt-3 border-t border-slate-800 space-y-2 animate-fadeIn">
+                            <div>
+                              <h5 className="font-bold text-slate-200 text-xs">Live video location</h5>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Choose where you'll be running your live video.</p>
+                            </div>
+                            <select
+                              value={awarenessLiveVideoLocation}
+                              onChange={(e) => setAwarenessLiveVideoLocation(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-sky-400 focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="FACEBOOK">Facebook</option>
+                              <option value="INSTAGRAM">Instagram</option>
+                              <option value="AUDIENCE_NETWORK">Audience Network</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Advantage+ Campaign Budget Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Advantage+ campaign budget</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${awarenessAdvantageBudget ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {awarenessAdvantageBudget ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Distribute your budget across ad sets to get more results. You can control spending for each ad set.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">About Advantage+ campaign budget</button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={awarenessAdvantageBudget}
+                              onChange={(e) => setAwarenessAdvantageBudget(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {awarenessAdvantageBudget && (
+                          <div className="pt-3 border-t border-slate-800 space-y-3.5 animate-fadeIn">
+                            {/* Budget Mode + Amount */}
+                            <div className="space-y-2">
+                              <h5 className="font-bold text-slate-200 text-xs">Budget</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Budget mode</label>
+                                  <select
+                                    value={awarenessBudgetMode}
+                                    onChange={(e) => setAwarenessBudgetMode(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                  >
+                                    <option value="LIFETIME">Lifetime budget</option>
+                                    <option value="DAILY">Daily budget</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Amount</label>
+                                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-1.5 focus-within:border-sky-500">
+                                    <span className="text-xs font-bold text-slate-400">₹</span>
+                                    <input
+                                      type="text"
+                                      value={awarenessBudgetAmount}
+                                      onChange={(e) => setAwarenessBudgetAmount(e.target.value)}
+                                      className="w-full bg-transparent text-xs font-mono font-bold text-slate-100 focus:outline-none"
+                                    />
+                                    <span className="text-[11px] font-bold text-slate-400">INR</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <p className="text-[11px] text-slate-400 leading-relaxed">
+                                You'll spend no more than <span className="font-bold text-slate-200">₹{Number(awarenessBudgetAmount || 33473.90).toLocaleString("en-IN")}</span> during the lifetime of your campaign.{" "}
+                                <button type="button" className="text-sky-400 hover:underline font-semibold">About lifetime budget</button>
+                              </p>
+                            </div>
+
+                            {/* Campaign Bid Strategy */}
+                            <div className="pt-2 border-t border-slate-800 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h5 className="font-bold text-slate-200 text-xs">Campaign bid strategy</h5>
+                                  <p className="text-xs font-bold text-sky-400 mt-0.5">Highest volume</p>
+                                </div>
+                                <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold">Edit</button>
+                              </div>
+                            </div>
+
+                            {/* Budget scheduling */}
+                            <div className="pt-2 border-t border-slate-800 space-y-2">
+                              <h5 className="font-bold text-slate-200 text-xs">Budget scheduling</h5>
+                              <p className="text-[11px] text-slate-400">Increase your budget during specific days or times.</p>
+                              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-0.5">
+                                <input
+                                  type="checkbox"
+                                  checked={awarenessScheduleBudgetIncreases}
+                                  onChange={(e) => setAwarenessScheduleBudgetIncreases(e.target.checked)}
+                                  className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
+                                />
+                                Schedule budget increases
+                              </label>
+                            </div>
+
+                            {/* Ad scheduling */}
+                            <div className="pt-2 border-t border-slate-800 space-y-1">
+                              <h5 className="font-bold text-slate-200 text-xs">Ad scheduling</h5>
+                              <p className="text-xs font-semibold text-slate-300">Run ads all the time</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Campaign Frequency Control Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Campaign frequency control</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${awarenessFrequencyControl ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {awarenessFrequencyControl ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Set a target frequency for lifetime budget. Set a frequency if you have a specific number of times that you want people to see your ads throughout your campaign.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={awarenessFrequencyControl}
+                              onChange={(e) => setAwarenessFrequencyControl(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {awarenessFrequencyControl && (
+                          <div className="pt-3 border-t border-slate-800 space-y-3 animate-fadeIn">
+                            <h5 className="font-bold text-slate-200 text-xs">Frequency control</h5>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div
+                                onClick={() => setAwarenessFrequencyMode("TARGET")}
+                                className={`p-3 rounded-xl border cursor-pointer ${awarenessFrequencyMode === "TARGET" ? "bg-sky-500/10 border-sky-500/50" : "bg-slate-900 border-slate-800"}`}
+                              >
+                                <p className="text-xs font-bold text-slate-200">Target</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">The average number of times that you want people to see your ads</p>
+                              </div>
+
+                              <div
+                                onClick={() => setAwarenessFrequencyMode("CAP")}
+                                className={`p-3 rounded-xl border cursor-pointer ${awarenessFrequencyMode === "CAP" ? "bg-sky-500/10 border-sky-500/50" : "bg-slate-900 border-slate-800"}`}
+                              >
+                                <p className="text-xs font-bold text-slate-200">Cap</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">The maximum number of times that you want people to see your ads</p>
+                              </div>
+                            </div>
+
+                            {/* Cap inputs */}
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                              <div className="flex items-center gap-2 text-xs font-medium text-slate-200">
+                                <input
+                                  type="number"
+                                  value={awarenessFrequencyCapCount}
+                                  onChange={(e) => setAwarenessFrequencyCapCount(Number(e.target.value))}
+                                  min={1}
+                                  className="w-16 bg-slate-950 border border-slate-700/60 rounded-lg px-2 py-1 text-xs font-bold text-sky-400 text-center focus:outline-none"
+                                />
+                                <span>times every</span>
+                                <input
+                                  type="number"
+                                  value={awarenessFrequencyCapDays}
+                                  onChange={(e) => setAwarenessFrequencyCapDays(Number(e.target.value))}
+                                  min={1}
+                                  className="w-16 bg-slate-950 border border-slate-700/60 rounded-lg px-2 py-1 text-xs font-bold text-sky-400 text-center focus:outline-none"
+                                />
+                                <span>days</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 leading-relaxed italic">
+                                As a maximum, we'll aim to stay under {awarenessFrequencyCapCount} impressions every {awarenessFrequencyCapDays} days.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* A/B Test Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${awarenessAbTest ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {awarenessAbTest ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Help improve ad performance by comparing versions to see what works best. For accuracy, each one will be shown to separate groups of your audience.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">About A/B tests</button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={awarenessAbTest}
+                              onChange={(e) => setAwarenessAbTest(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {awarenessAbTest && (
+                          <div className="pt-3 border-t border-slate-800 space-y-3.5 animate-fadeIn">
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">What would you like to test?</label>
+                              <select
+                                value={awarenessTestVariable}
+                                onChange={(e) => setAwarenessTestVariable(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                              >
+                                <option value="CREATIVE">Creative</option>
+                                <option value="AUDIENCE">Audience</option>
+                                <option value="PLACEMENT">Placement</option>
+                                <option value="CUSTOM">Custom</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">How long should the test run?</label>
+                              <p className="text-[10px] text-slate-400">Your test will run for this many days or until your ad set has ended.</p>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] font-semibold text-slate-400">Test duration</label>
+                                <select
+                                  value={awarenessTestDuration}
+                                  onChange={(e) => setAwarenessTestDuration(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                >
+                                  <option value="7_DAYS">7 days</option>
+                                  <option value="3_DAYS">3 days</option>
+                                  <option value="5_DAYS">5 days</option>
+                                  <option value="14_DAYS">14 days</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">How do you want to compare performance?</label>
+                              <select
+                                value={awarenessMetricComparison}
+                                onChange={(e) => setAwarenessMetricComparison(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500 max-h-48"
+                              >
+                                {abTestPerformanceComparisonOptions.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* APP PROMOTION OBJECTIVE SETUP FLOW */}
                   {campObjective === "OUTCOME_APP_PROMOTION" && (
                     <div className="space-y-4">
@@ -3288,6 +4237,96 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           required
                         />
                         <button type="button" className="mt-1 text-[11px] text-sky-400 hover:underline font-semibold">Show more options</button>
+                      </div>
+
+                      {/* Live Video Ad Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Live video ad</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${appPromoLiveVideo ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400"}`}>
+                                {appPromoLiveVideo ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Use settings that are suggested for a live video ad. This will adjust your budget and schedule to more efficiently deliver your ads and drive engagement.
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={appPromoLiveVideo}
+                              onChange={(e) => setAppPromoLiveVideo(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {appPromoLiveVideo && (
+                          <div className="pt-3 border-t border-slate-800 space-y-2 animate-fadeIn">
+                            <div>
+                              <h5 className="font-bold text-slate-200 text-xs">Live video location</h5>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Choose where you'll be running your live video.</p>
+                            </div>
+                            <select
+                              value={appPromoLiveVideoLocation}
+                              onChange={(e) => setAppPromoLiveVideoLocation(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-sky-400 focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="FACEBOOK">Facebook</option>
+                              <option value="INSTAGRAM">Instagram</option>
+                              <option value="AUDIENCE_NETWORK">Audience Network</option>
+                              <option value="FACEBOOK_INSTAGRAM">Facebook & Instagram</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Campaign details Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <h4 className="font-bold text-slate-200 text-xs">Campaign details</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Buying type</label>
+                            <select
+                              value={buyingType}
+                              onChange={(e: any) => setBuyingType(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="AUCTION">Auction</option>
+                              <option value="RESERVATION">Reservation</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Campaign objective</label>
+                            <div className="p-2 border border-slate-700/60 rounded-xl bg-slate-900 text-xs font-bold text-sky-400 flex items-center gap-1.5 h-[34px]">
+                              <Users className="w-3.5 h-3.5" />
+                              App promotion
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAppPromoShowMoreSettings(!appPromoShowMoreSettings)}
+                          className="text-[11px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                        >
+                          {appPromoShowMoreSettings ? "Hide details" : "Show more settings"}
+                        </button>
+
+                        {appPromoShowMoreSettings && (
+                          <div className="pt-3 border-t border-slate-800 space-y-3 text-xs text-slate-300 animate-fadeIn">
+                            <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+                              <p className="font-semibold text-slate-200">Campaign spend limit</p>
+                              <p className="text-[11px] text-slate-400">None set. Set a maximum spend limit for this campaign.</p>
+                            </div>
+                            <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+                              <p className="font-semibold text-slate-200">Ad volume limit</p>
+                              <p className="text-[11px] text-slate-400">Standard Meta Page limits apply (max 250 ads).</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* iOS 14+ Campaign Toggle */}
@@ -3331,6 +4370,142 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           <option value="jisnu_crm_app">💼 JISNU CRM Mobile (org.jisnu.crm)</option>
                           <option value="custom_app">+ Add new mobile app ID</option>
                         </select>
+                      </div>
+
+                      {/* Budget & Advantage+ Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-bold text-slate-200 text-xs">Budget</h4>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Advantage+ on • Automatically distribute your budget to the best opportunities across your campaign. Also known as Advantage+ campaign budget. <button type="button" className="text-sky-400 hover:underline font-semibold">About campaign budget</button>
+                            </p>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-bold shrink-0">
+                            Advantage+ on
+                          </span>
+                        </div>
+
+                        {/* Budget Strategy Radio Options */}
+                        <div className="space-y-2 pt-1 border-t border-slate-800">
+                          <label className="block text-xs font-bold text-slate-300">Budget strategy</label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div
+                              onClick={() => setAppPromoBudgetStrategy("CAMPAIGN")}
+                              className={`p-3 rounded-xl border cursor-pointer transition-all ${appPromoBudgetStrategy === "CAMPAIGN"
+                                ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                                }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  name="appPromoBudgetStrategy"
+                                  checked={appPromoBudgetStrategy === "CAMPAIGN"}
+                                  onChange={() => setAppPromoBudgetStrategy("CAMPAIGN")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <p className="text-xs font-bold text-slate-200">Campaign budget</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">Distribute budget automatically across all ad sets.</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              onClick={() => setAppPromoBudgetStrategy("ADSET")}
+                              className={`p-3 rounded-xl border cursor-pointer transition-all ${appPromoBudgetStrategy === "ADSET"
+                                ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                                }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  name="appPromoBudgetStrategy"
+                                  checked={appPromoBudgetStrategy === "ADSET"}
+                                  onChange={() => setAppPromoBudgetStrategy("ADSET")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <p className="text-xs font-bold text-slate-200">Ad set budget</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">Set different bid strategies or budget schedules for each ad set.</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Budget Mode & Amount */}
+                        <div className="space-y-2 pt-2 border-t border-slate-800">
+                          <label className="block text-xs font-bold text-slate-300">Budget</label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-400 mb-1">Budget mode</label>
+                              <select
+                                value={appPromoBudgetMode}
+                                onChange={(e: any) => setAppPromoBudgetMode(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
+                              >
+                                <option value="DAILY">Daily budget</option>
+                                <option value="LIFETIME">Lifetime budget</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-400 mb-1">Daily Budget Amount</label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
+                                <input
+                                  type="number"
+                                  value={appPromoBudget}
+                                  onChange={(e) => setAppPromoBudget(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-sky-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">INR</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1 text-[11px] text-slate-400">
+                            <p>You'll spend an average of <span className="font-bold text-slate-200">₹{Number(appPromoBudget).toLocaleString("en-IN")}.00 per day</span>. Your maximum daily spend is <span className="font-bold text-slate-200">₹{(Number(appPromoBudget) * 1.75).toLocaleString("en-IN")}.00</span> and your maximum weekly spend is <span className="font-bold text-slate-200">₹{(Number(appPromoBudget) * 7).toLocaleString("en-IN")}.00</span>.</p>
+                            <p className="text-[10px] text-amber-400/90 font-medium">Your spending may exceed ₹{Number(appPromoBudget).toLocaleString("en-IN")}.00 the first few days.</p>
+                          </div>
+                        </div>
+
+                        {/* Campaign Bid Strategy */}
+                        <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                          <label className="block text-xs font-bold text-slate-300">Campaign bid strategy</label>
+                          <select
+                            value={appPromoBidStrategy}
+                            onChange={(e) => setAppPromoBidStrategy(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="HIGHEST_VOLUME">Highest volume</option>
+                            <option value="COST_PER_RESULT">Cost per result goal</option>
+                            <option value="ROAS">ROAS goal</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Budget Scheduling & Ad Scheduling */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                          <h4 className="font-bold text-slate-200 text-xs">Budget scheduling</h4>
+                          <p className="text-[11px] text-slate-400">Increase your budget during specific days or times.</p>
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[11px] text-slate-500">None selected</span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input type="checkbox" checked={appPromoBudgetScheduling} onChange={(e) => setAppPromoBudgetScheduling(e.target.checked)} className="sr-only peer" />
+                              <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                          <h4 className="font-bold text-slate-200 text-xs">Ad scheduling</h4>
+                          <p className="text-[11px] text-slate-400">Run ads all the time</p>
+                          <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Edit</button>
+                        </div>
                       </div>
 
                       {/* A/B Test Card */}
@@ -3399,12 +4574,13 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               <select
                                 value={appPromoMetricComparison}
                                 onChange={(e) => setAppPromoMetricComparison(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500 max-h-48"
                               >
-                                <option value="COST_PER_ADD_PAYMENT_INFO">Cost per add of payment info</option>
-                                <option value="COST_PER_INSTALL">Cost per app install</option>
-                                <option value="COST_PER_PURCHASE">Cost per purchase</option>
-                                <option value="COST_PER_RESULT">Cost per result</option>
+                                {abTestPerformanceComparisonOptions.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
                               </select>
                             </div>
                           </div>
@@ -3436,7 +4612,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
-                      {/* Campaign Score Card (100/100) */}
+                      {/* Campaign Score Card */}
                       <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                         <div className="flex items-center gap-4">
                           <div className="relative w-16 h-16 shrink-0">
@@ -3468,196 +4644,286 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     </div>
                   )}
 
-                  {/* Campaign Details */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                    <h4 className="font-bold text-slate-200 text-xs">Campaign details</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Buying type</label>
-                        <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/60 text-xs font-bold text-slate-200">
-                          Auction
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Campaign objective</label>
-                        <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/60 text-xs font-bold text-sky-400 flex items-center gap-1.5">
-                          <Users className="w-3.5 h-3.5" />
-                          App promotion
-                        </div>
-                      </div>
-                    </div>
-                    <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold">Show more settings</button>
-                  </div>
-
-                  {/* Budget & Advantage+ Section */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-bold text-slate-200 text-xs">Budget</h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Advantage+ on • Automatically distribute your budget to the best opportunities across your campaign. Also known as Advantage+ campaign budget. <button type="button" className="text-sky-400 hover:underline">About campaign budget</button>
-                        </p>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-bold shrink-0">
-                        Advantage+ on
-                      </span>
-                    </div>
-
-                    {/* Budget Strategy Radio Options */}
-                    <div className="space-y-2 pt-1 border-t border-slate-800">
-                      <label className="block text-xs font-bold text-slate-300">Budget strategy</label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div
-                          onClick={() => setAppPromoBudgetStrategy("CAMPAIGN")}
-                          className={`p-3 rounded-xl border cursor-pointer transition-all ${appPromoBudgetStrategy === "CAMPAIGN"
-                            ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                            }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <input
-                              type="radio"
-                              name="appPromoBudgetStrategy"
-                              checked={appPromoBudgetStrategy === "CAMPAIGN"}
-                              onChange={() => setAppPromoBudgetStrategy("CAMPAIGN")}
-                              className="accent-sky-500 mt-0.5"
-                            />
-                            <div>
-                              <p className="text-xs font-bold text-slate-200">Campaign budget</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">Distribute budget automatically across all ad sets.</p>
-                            </div>
+                  {/* SALES OBJECTIVE STEP 2 SETUP FLOW */}
+                  {campObjective === "OUTCOME_SALES" && (
+                    <div className="space-y-4">
+                      {/* Top Header Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-bold text-slate-100 text-sm">New Sales campaign</h3>
+                            <p className="text-xs text-slate-400 mt-0.5">1 Ad set • 1 Ad</p>
                           </div>
-                        </div>
-
-                        <div
-                          onClick={() => setAppPromoBudgetStrategy("ADSET")}
-                          className={`p-3 rounded-xl border cursor-pointer transition-all ${appPromoBudgetStrategy === "ADSET"
-                            ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                            }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <input
-                              type="radio"
-                              name="appPromoBudgetStrategy"
-                              checked={appPromoBudgetStrategy === "ADSET"}
-                              onChange={() => setAppPromoBudgetStrategy("ADSET")}
-                              className="accent-sky-500 mt-0.5"
-                            />
-                            <div>
-                              <p className="text-xs font-bold text-slate-200">Ad set budget</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">Set different bid strategies or budget schedules for each ad set.</p>
-                            </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button
+                              type="button"
+                              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="px-3 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition-all shadow-sm"
+                            >
+                              Review
+                            </button>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Budget Mode & Amount */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800">
-                      <label className="block text-xs font-bold text-slate-300">Budget</label>
-                      <div className="grid grid-cols-2 gap-3">
+                      {/* Live Video Ad Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Live video ad</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${salesLiveVideo ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {salesLiveVideo ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Use settings that are suggested for a live video ad. This will adjust your budget and schedule to more efficiently deliver your ads and drive engagement.
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={salesLiveVideo}
+                              onChange={(e) => setSalesLiveVideo(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {salesLiveVideo && (
+                          <div className="pt-2 space-y-1 animate-fadeIn">
+                            <label className="block text-[11px] font-semibold text-slate-400">Live video location</label>
+                            <p className="text-[10px] text-slate-500">Choose where you'll be running your live video.</p>
+                            <select
+                              value={salesLiveVideoLocation}
+                              onChange={(e) => setSalesLiveVideoLocation(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-sky-400 focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="FACEBOOK">Facebook</option>
+                              <option value="INSTAGRAM">Instagram</option>
+                              <option value="AUDIENCE_NETWORK">Audience Network</option>
+                              <option value="FACEBOOK_INSTAGRAM">Facebook & Instagram</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Advantage+ Catalogue Ads Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Advantage+ catalogue ads</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${salesAdvantageCatalogue ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {salesAdvantageCatalogue ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Use your product catalogue to dynamically personalize ads for shoppers based on interest and browsing history.
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={salesAdvantageCatalogue}
+                              onChange={(e) => setSalesAdvantageCatalogue(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* A/B Test Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${salesAbTest ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {salesAbTest ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Help improve ad performance by comparing versions to see what works best. For accuracy, each one will be shown to separate groups of your audience.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">About A/B tests</button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={salesAbTest}
+                              onChange={(e) => setSalesAbTest(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {/* Expanded A/B Test Options */}
+                        {salesAbTest && (
+                          <div className="pt-3 border-t border-slate-800 space-y-3.5 animate-fadeIn">
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">What would you like to test?</label>
+                              <select
+                                value={salesTestVariable}
+                                onChange={(e) => setSalesTestVariable(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                              >
+                                <option value="CREATIVE">Creative</option>
+                                <option value="AUDIENCE">Audience</option>
+                                <option value="PLACEMENT">Placement</option>
+                                <option value="CUSTOM">Custom</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">How long should the test run?</label>
+                              <p className="text-[11px] text-slate-400">Your test will run for this many days or until your ad set has ended.</p>
+                              <select
+                                value={salesTestDuration}
+                                onChange={(e) => setSalesTestDuration(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                              >
+                                <option value="7_DAYS">7 days</option>
+                                <option value="3_DAYS">3 days</option>
+                                <option value="14_DAYS">14 days</option>
+                                <option value="30_DAYS">30 days</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">How do you want to compare performance?</label>
+                              <select
+                                value={salesMetricComparison}
+                                onChange={(e) => setSalesMetricComparison(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500 max-h-48"
+                              >
+                                {abTestPerformanceComparisonOptions.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Audience Segment Reporting Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Budget mode</label>
+                          <h4 className="font-bold text-slate-200 text-xs">Audience segment reporting</h4>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                            Define your ad account's audience segments in Advertiser settings to receive reporting breakdowns between your new audience, engaged audience and existing customers.{" "}
+                            <button type="button" className="text-sky-400 hover:underline font-semibold">About audience segment reporting</button>
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">Engaged audience</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                {salesEngagedAudienceDefined ? "Defined" : "Not defined"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSalesEngagedAudienceDefined(!salesEngagedAudienceDefined)}
+                              className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-sky-400 transition-colors"
+                            >
+                              {salesEngagedAudienceDefined ? "Edit segment" : "Define segment"}
+                            </button>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">Existing customers</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                {salesExistingCustomersDefined ? "Defined" : "Not defined"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSalesExistingCustomersDefined(!salesExistingCustomersDefined)}
+                              className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-sky-400 transition-colors"
+                            >
+                              {salesExistingCustomersDefined ? "Edit segment" : "Define segment"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Special Ad Categories */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Special Ad Categories</h4>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                            Declare if your ads are related to financial products and services, employment, housing, social issues, elections or politics to help prevent ad rejections. Requirements differ by country.{" "}
+                            <button type="button" className="text-sky-400 hover:underline font-semibold">About Special Ad Categories</button>
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-semibold text-slate-400">Categories</label>
+                          <p className="text-[10px] text-slate-500">Select the categories that best describe what this campaign will advertise.</p>
                           <select
-                            value={appPromoBudgetMode}
-                            onChange={(e: any) => setAppPromoBudgetMode(e.target.value)}
+                            value={salesSpecialCategory}
+                            onChange={(e) => setSalesSpecialCategory(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
                           >
-                            <option value="DAILY">Daily budget</option>
-                            <option value="LIFETIME">Lifetime budget</option>
+                            <option value="NONE">Declare category if applicable</option>
+                            <option value="FINANCIAL">Financial products and services</option>
+                            <option value="EMPLOYMENT">Employment</option>
+                            <option value="HOUSING">Housing</option>
+                            <option value="SOCIAL_ISSUES">Social issues, elections or politics</option>
                           </select>
                         </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Daily Budget Amount</label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
-                            <input
-                              type="number"
-                              value={appPromoBudget}
-                              onChange={(e) => setAppPromoBudget(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-sky-500"
-                            />
-                            <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">INR</span>
+                      </div>
+
+                      {/* Campaign Score Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-16 h-16 shrink-0">
+                            <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="3"
+                                strokeDasharray={`100 0`}
+                                strokeLinecap="round" />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-black text-emerald-400">100</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-slate-200">Campaign score</p>
+                            <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">You're using our recommended setup.</p>
+                            <div className="flex items-center justify-between mt-1.5 gap-2">
+                              <span className="text-[11px] text-slate-300 font-medium">⚡ Advantage+ sales campaign</span>
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">On</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">No additional recommendations available.</p>
                           </div>
                         </div>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1 text-[11px] text-slate-400">
-                        <p>You'll spend an average of <span className="font-bold text-slate-200">₹{Number(appPromoBudget).toLocaleString("en-IN")}.00 per day</span>. Your maximum daily spend is <span className="font-bold text-slate-200">₹{(Number(appPromoBudget) * 1.75).toLocaleString("en-IN")}.00</span> and your maximum weekly spend is <span className="font-bold text-slate-200">₹{(Number(appPromoBudget) * 7).toLocaleString("en-IN")}.00</span>. <button type="button" className="text-sky-400 hover:underline">About daily budget</button></p>
-                        <p className="text-[10px] text-amber-400/90 font-medium">Your spending may exceed ₹{Number(appPromoBudget).toLocaleString("en-IN")}.00 the first few days.</p>
-                      </div>
-                    </div>
-
-                    {/* Campaign Bid Strategy */}
-                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                      <label className="block text-xs font-bold text-slate-300">Campaign bid strategy</label>
-                      <select
-                        value={appPromoBidStrategy}
-                        onChange={(e) => setAppPromoBidStrategy(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
-                      >
-                        <option value="HIGHEST_VOLUME">Highest volume</option>
-                        <option value="COST_PER_RESULT">Cost per result goal</option>
-                        <option value="ROAS">ROAS goal</option>
-                      </select>
-                      <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Show more settings</button>
-                    </div>
-                  </div>
-
-                  {/* Budget Scheduling & Ad Scheduling */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                      <h4 className="font-bold text-slate-200 text-xs">Budget scheduling</h4>
-                      <p className="text-[11px] text-slate-400">Increase your budget during specific days or times.</p>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[11px] text-slate-500">None selected</span>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" checked={appPromoBudgetScheduling} onChange={(e) => setAppPromoBudgetScheduling(e.target.checked)} className="sr-only peer" />
-                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                      <h4 className="font-bold text-slate-200 text-xs">Ad scheduling</h4>
-                      <p className="text-[11px] text-slate-400">Run ads all the time</p>
-                      <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Edit</button>
-                    </div>
-                  </div>
-
-                  {/* Campaign Score Card (77/100) */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                    <div className="flex items-center gap-4">
-                      <div className="relative w-16 h-16 shrink-0">
-                        <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
-                          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
-                          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f59e0b" strokeWidth="3"
-                            strokeDasharray={`${appPromoScore} ${100 - appPromoScore}`}
-                            strokeLinecap="round" />
-                        </svg>
-                        <span className="absolute inset-0 flex items-center justify-center text-sm font-black text-amber-400">{appPromoScore}</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-slate-200">Campaign score</p>
-                        <p className="text-[11px] text-amber-400 font-semibold mt-0.5">Your campaign has room to improve.</p>
-                        <div className="flex items-center justify-between mt-1.5 gap-2">
-                          <span className="text-[11px] text-slate-300 font-medium">⚡ Advantage+ app campaign</span>
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">On</span>
+                        <div className="flex items-center justify-end pt-2 border-t border-slate-800">
+                          <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            All edits saved
+                          </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">No additional recommendations available.</p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-end pt-2 border-t border-slate-800">
-                      <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                        All edits saved
-                      </span>
-                    </div>
-                  </div>
+                  )}
 
                   {/* GENERIC / OTHER OBJECTIVES SETUP FLOW */}
-                  {campObjective !== "OUTCOME_AWARENESS" && campObjective !== "OUTCOME_TRAFFIC" && campObjective !== "OUTCOME_ENGAGEMENT" && campObjective !== "OUTCOME_LEADS" && campObjective !== "OUTCOME_APP_PROMOTION" && (
+                  {campObjective !== "OUTCOME_AWARENESS" && campObjective !== "OUTCOME_TRAFFIC" && campObjective !== "OUTCOME_ENGAGEMENT" && campObjective !== "OUTCOME_LEADS" && campObjective !== "OUTCOME_APP_PROMOTION" && campObjective !== "OUTCOME_SALES" && (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-3">
                         <Input
@@ -3736,76 +5002,1100 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               {campaignStep === 3 && (
                 <div className="space-y-4">
 
-                  {/* APP PROMOTION — AD SET SETUP VIEW */}
-                  {campObjective === "OUTCOME_APP_PROMOTION" && (
+                  {/* AWARENESS OBJECTIVE — AD SET SETUP VIEW (STEP 3) */}
+                  {campObjective === "OUTCOME_AWARENESS" && (
                     <div className="space-y-4">
-                      {/* Header */}
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <div>
-                          <h3 className="font-bold text-slate-100 text-sm">New App promotion ad set</h3>
-                          <p className="text-xs text-slate-400 mt-0.5">Configure target app, device targeting, iOS 14+ optimization, and audience definition.</p>
-                        </div>
-                        <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 3 of 4</span>
-                      </div>
-
-                      {/* iOS 14+ Campaign Toggle */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                      {/* Top Header Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-bold text-slate-200 text-xs">iOS 14+ campaign</h4>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${appPromoIos14 ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
-                                {appPromoIos14 ? "On" : "Off"}
-                              </span>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                              <span>New Awareness campaign</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-slate-200 font-bold">New Awareness ad set</span>
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                              Create a campaign to help you reach people using iOS 14.5 and later devices. An iOS 14+ campaign will not deliver to devices using iOS 13.7 or earlier. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
-                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">1 Ad • Configure performance goal, placements & audience definition.</p>
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                            <input
-                              type="checkbox"
-                              checked={appPromoIos14}
-                              onChange={(e) => setAppPromoIos14(e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                          </label>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
+                          </div>
                         </div>
                       </div>
 
-                      {/* App Selection Card */}
+                      {/* Ad Set Name */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-[10px] font-bold">✓</div>
+                          <label className="block text-xs font-bold text-slate-200">Ad set name</label>
+                        </div>
+                        <Input
+                          label=""
+                          value={awarenessAdSetName}
+                          onChange={(e: any) => setAwarenessAdSetName(e.target.value)}
+                          placeholder="New Awareness ad set"
+                          required
+                        />
+                        <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Show more options ▾</button>
+                      </div>
+
+                      {/* Card 1: Awareness Main Setup */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4 shadow-sm">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Awareness</h4>
+                        </div>
+
+                        {/* Performance Goal */}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-bold text-slate-200">Performance goal</label>
+                          <p className="text-[11px] text-slate-400">
+                            How you measure success for your ads. <button type="button" className="text-sky-400 hover:underline font-semibold">About performance goals</button>
+                          </p>
+                          <select
+                            value={awarenessPerformanceGoal}
+                            onChange={(e) => setAwarenessPerformanceGoal(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500 shadow-inner"
+                          >
+                            <option value="IMPRESSIONS">Maximise number of impressions</option>
+                            <option value="REACH">Maximise reach of ads</option>
+                            <option value="AD_RECALL_LIFT">Maximise ad recall lift</option>
+                            <option value="THRUPLAY">Maximise ThruPlay views</option>
+                            <option value="CONTINUOUS_2SEC_VIDEO_PLAY">Maximise 2-second continuous video plays</option>
+                          </select>
+                          <p className="text-[11px] text-slate-400 pt-0.5">To help us improve delivery, we may survey a small section of your audience.</p>
+                        </div>
+
+                        {/* Facebook Page */}
+                        <div className="space-y-1.5 pt-3 border-t border-slate-800/60">
+                          <div className="flex items-center gap-1.5">
+                            <h5 className="font-bold text-slate-200 text-xs">Facebook Page</h5>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold cursor-help">ℹ</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Choose the Page that you want to promote.</p>
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <select
+                                value={formPageId}
+                                onChange={(e) => setFormPageId(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                              >
+                                {fetchedPages.length > 0 ? (
+                                  fetchedPages.map((p: any) => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))
+                                ) : (
+                                  <option value="jisnu_page">JISNU Digital Solutions Pvt.Ltd</option>
+                                )}
+                              </select>
+                              <div className="absolute left-3 top-2.5 w-4 h-4 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center text-[9px] font-black pointer-events-none">⚛</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setFormPageId("new_page")}
+                              className="w-10 h-[38px] rounded-xl bg-slate-900 border border-slate-700/60 hover:bg-slate-800 text-slate-200 flex items-center justify-center font-bold text-lg shrink-0"
+                              title="Add Page"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Bid Cap - Optional */}
+                        <div className="space-y-1.5 pt-3 border-t border-slate-800/60">
+                          <label className="block text-xs font-bold text-slate-200">Bid cap · Optional</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={awarenessBidCap}
+                              onChange={(e) => setAwarenessBidCap(e.target.value)}
+                              placeholder="₹ X.XX"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-3 pr-12 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                            />
+                            <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400">INR</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Meta will aim to spend your entire budget and get the most 1,000 impressions using the highest-volume bid strategy.</p>
+                        </div>
+
+                        {/* Value Rules */}
+                        <div className="space-y-2 pt-3 border-t border-slate-800/60">
+                          <div className="flex items-center gap-1.5">
+                            <h5 className="font-bold text-slate-200 text-xs">Value rules</h5>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Tell us how much more certain audiences, conversion locations and placements are worth to your business. Our system will optimise for outcomes based on these rules. <button type="button" className="text-sky-400 hover:underline font-semibold">About value rules</button>
+                          </p>
+                          <button type="button" className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold text-sky-400 flex items-center gap-1.5">
+                            <span>⚙</span> Create a rule set
+                          </button>
+                        </div>
+
+                        {/* Hide options toggle & Delivery type */}
+                        <div className="pt-3 border-t border-slate-800/60 space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => setAwarenessStep3ShowMoreOptions1(!awarenessStep3ShowMoreOptions1)}
+                            className="text-[11px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            {awarenessStep3ShowMoreOptions1 ? "Hide options ▴" : "Show options ▾"}
+                          </button>
+                          {awarenessStep3ShowMoreOptions1 && (
+                            <div className="pt-2 space-y-1 animate-fadeIn">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-200">Delivery type</span>
+                                <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                              </div>
+                              <p className="text-xs text-slate-300 font-semibold">Standard</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card 2: Dynamic Creative Banner */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <h4 className="font-bold text-slate-200 text-xs">Dynamic creative</h4>
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                          <div className="flex items-start gap-2">
+                            <span className="text-amber-400 text-sm">💡</span>
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">Dynamic creative is no longer available</p>
+                              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                You can now select up to 10 media in a single image or video ad to create a variety of media and test combinations, which gives your ad the flexibility to show the best creative to people who see it.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="pt-2 border-t border-slate-800">
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Go to ad creative setup</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Explore budget opportunities banner */}
+                      <div className="flex justify-center">
+                        <div className="px-4 py-1.5 rounded-full bg-purple-900/40 border border-purple-500/30 text-purple-300 text-xs font-semibold flex items-center gap-2 shadow-lg">
+                          <span>⚙ Explore budget opportunities</span>
+                          <span className="text-[10px]">▾</span>
+                        </div>
+                      </div>
+
+                      {/* Card 3: Budget & Schedule */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Budget & schedule</h4>
+                        </div>
+
+                        {/* Budget */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">Budget</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <select
+                              value={awarenessAdSetBudgetMode}
+                              onChange={(e) => setAwarenessAdSetBudgetMode(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="DAILY">Daily budget</option>
+                              <option value="LIFETIME">Lifetime budget</option>
+                            </select>
+                            <div className="relative">
+                              <span className="absolute left-3 top-2.5 text-xs text-slate-400">₹</span>
+                              <input
+                                type="text"
+                                value={awarenessAdSetBudgetAmount}
+                                onChange={(e) => setAwarenessAdSetBudgetAmount(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                              />
+                              <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400">INR</span>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            You'll spend an average of ₹200.00 per day. Your maximum daily spend is ₹250.00 and your maximum weekly spend is ₹1,400.00. <button type="button" className="text-sky-400 hover:underline font-semibold">About daily budget</button>
+                          </p>
+                          <p className="text-[11px] text-slate-400">Your spending may exceed ₹200.00 the first few days.</p>
+                        </div>
+
+                        {/* Schedule */}
+                        <div className="space-y-2 pt-3 border-t border-slate-800/60">
+                          <h5 className="font-bold text-slate-200 text-xs">Schedule</h5>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold text-slate-400">Start date</label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <input
+                                type="date"
+                                value={awarenessStartDate}
+                                onChange={(e) => setAwarenessStartDate(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                              />
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={awarenessStartTime}
+                                  onChange={(e) => setAwarenessStartTime(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-[10px] font-semibold text-slate-500">GMT+5:30</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="pt-1">
+                            <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={awarenessSetEndDate}
+                                onChange={(e) => setAwarenessSetEndDate(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-sky-500"
+                              />
+                              Set an end date
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Budget Scheduling */}
+                        <div className="pt-3 border-t border-slate-800/60 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-200">Budget scheduling</span>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Increase your budget during specific days or times.</p>
+                          <div className="flex items-center justify-between pt-1">
+                            <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={awarenessBudgetScheduling}
+                                onChange={(e) => setAwarenessBudgetScheduling(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-sky-500"
+                              />
+                              Schedule budget increases
+                            </label>
+                            <button type="button" className="px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                              View ▾
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 4: Audience controls */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                            <h4 className="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+                              Audience controls
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </h4>
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Set criteria for where ads for this campaign can be delivered. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
+                        </p>
+
+                        <div className="space-y-1">
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-400">
+                            No advertising settings set
+                          </span>
+                          <div>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mt-1">
+                              Use a saved audience ▾
+                            </button>
+                          </div>
+                        </div>
+
+                        <hr className="border-slate-800/80 my-2" />
+
+                        {/* * Locations */}
+                        <div className="space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">* Locations</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+
+                          <div className="space-y-1 text-xs text-slate-300">
+                            <p className="text-[11px] text-slate-400 font-medium">Included location:</p>
+                            <ul className="list-disc pl-5 text-xs text-slate-200 font-semibold space-y-0.5">
+                              <li>India</li>
+                            </ul>
+                          </div>
+
+                          {/* Warning Alert Banner (Securities & Investments in India) */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border-l-4 border-l-amber-500 border-slate-800 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <span className="text-amber-400 text-xs shrink-0 mt-0.5">⚠️</span>
+                              <p className="text-[11px] text-slate-300 leading-relaxed">
+                                To run ads in India, you need to declare if your ads are related to securities and investments.
+                              </p>
+                            </div>
+                            <div className="pl-6">
+                              <button
+                                type="button"
+                                className="px-3 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition-all shadow-sm"
+                              >
+                                Review requirements
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <hr className="border-slate-800/80 my-2" />
+
+                        {/* Show more options ▾ */}
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setAwarenessShowMoreOptions(!awarenessShowMoreOptions)}
+                            className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            {awarenessShowMoreOptions ? "Show fewer options ▴" : "Show more options ▾"}
+                          </button>
+                        </div>
+
+                        {/* Minimum age */}
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">Minimum age</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+
+                          <ul className="list-disc pl-5 text-xs text-slate-300 font-medium space-y-0.5">
+                            <li>18</li>
+                            <li>Unknown age on WhatsApp: Included</li>
+                          </ul>
+
+                          {/* Audience has been updated Alert Box */}
+                          {!awarenessAudienceNoticeDismissed && (
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 relative animate-fadeIn">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-4 h-4 rounded-full bg-slate-800 text-sky-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                                  <h5 className="font-bold text-slate-100 text-xs">Audience has been updated</h5>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setAwarenessAudienceNoticeDismissed(true)}
+                                  className="text-slate-400 hover:text-slate-200 text-xs font-bold p-0.5"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <p className="text-[11px] text-slate-400 leading-relaxed pl-6">
+                                To reach more people on the WhatsApp status placement, the audience for this ad set includes people on WhatsApp whose age is unknown.{" "}
+                                <button type="button" className="text-sky-400 hover:underline font-semibold">About reaching new audiences</button>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Exclude these custom audiences */}
+                        <div className="space-y-1.5 pt-2">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">Exclude these custom audiences</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                            <input
+                              type="text"
+                              value={awarenessExcludeAudience}
+                              onChange={(e) => setAwarenessExcludeAudience(e.target.value)}
+                              placeholder="Search existing audiences"
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Languages */}
+                        <div className="space-y-1.5 pt-2">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">Languages</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Only enter a language if you need to limit your audience to people who use a language that isn't common to your selected locations.
+                          </p>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                            <input
+                              type="text"
+                              value={awarenessLanguages}
+                              onChange={(e) => setAwarenessLanguages(e.target.value)}
+                              placeholder="Search languages"
+                              className="w-full bg-slate-950 border-2 border-sky-500 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-400 focus:outline-none shadow-lg shadow-sky-500/10"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 5: Advantage+ audience */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Advantage+ audience +</h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          We'll automatically show ads to people most likely to respond. We'll show ads to people matching your suggestion, and other audiences when it's likely to improve performance. <button type="button" className="text-sky-400 hover:underline font-semibold">About audiences</button>
+                        </p>
+
+                        {/* Include custom audiences */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Include these custom audiences</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <button type="button" className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-700 text-xs font-semibold text-sky-400">
+                              Create new ▾
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={awarenessIncludeCustomAudience}
+                            onChange={(e) => setAwarenessIncludeCustomAudience(e.target.value)}
+                            placeholder="Search existing audiences"
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+
+                        {/* Age & Gender */}
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Age</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={awarenessAgeMin}
+                                onChange={(e) => setAwarenessAgeMin(Number(e.target.value))}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
+                              >
+                                <option value={18}>18</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                              </select>
+                              <span className="text-slate-500 text-xs font-bold">-</span>
+                              <select
+                                value={awarenessAgeMax}
+                                onChange={(e) => setAwarenessAgeMax(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
+                              >
+                                <option value="65+">65+</option>
+                                <option value="60">60</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Gender</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <div className="flex items-center gap-3 pt-1">
+                              {["ALL", "MEN", "WOMEN"].map((g) => (
+                                <label key={g} className="flex items-center gap-1.5 text-xs text-slate-300 font-semibold cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name="awarenessGender"
+                                    checked={awarenessGender === g}
+                                    onChange={() => setAwarenessGender(g)}
+                                    className="accent-sky-500"
+                                  />
+                                  {g === "ALL" ? "All" : g === "MEN" ? "Men" : "Women"}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Detailed targeting */}
+                        <div className="space-y-1.5 pt-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Detailed targeting</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Browse</button>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Include people who match</p>
+                          <input
+                            type="text"
+                            value={awarenessDetailedTargeting}
+                            onChange={(e) => setAwarenessDetailedTargeting(e.target.value)}
+                            placeholder="Add demographics, interests or behaviours"
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+
+                        {/* Household income info banner */}
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1 relative">
+                          <button type="button" className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 text-xs font-bold">✕</button>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sky-400 text-xs font-bold">💡 Reach people by household income in India</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Add these new detailed targeting options to reach more specific audiences in India. Search for household income or browse <span className="font-semibold text-slate-300">Demographics &gt; Household income &gt; India</span>. They use high-quality data sources to show your ads to people based on their income.
+                          </p>
+                          <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-0.5 block">About reaching audiences by household income</button>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
+                          <button type="button" className="px-4 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-semibold text-slate-200">
+                            Save audience
+                          </button>
+                          <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">
+                            Switch to original audience options
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Card 6: Policy and regulatory requirements (India) */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Policy and regulatory requirements (India)</h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400">Provide required information about your ads, yourself or your organisation.</p>
+                        <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={awarenessSecuritiesDeclaration}
+                            onChange={(e) => setAwarenessSecuritiesDeclaration(e.target.checked)}
+                            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500 mt-0.5"
+                          />
+                          <span className="leading-relaxed">
+                            This ad set includes ads related to securities and investments. <button type="button" className="text-sky-400 hover:underline font-semibold">About verification requirements</button>
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Card 7: Placements */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Placements</h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Choose where your ad appears across Meta technologies. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
+                        </p>
+
+                        {/* Value rule creation info */}
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                          <p className="text-[11px] text-slate-300 font-medium">💡 Value rule creation is changing. You can now add rules closer to where you select your ad set's placements.</p>
+                          <button type="button" className="text-slate-500 hover:text-slate-300 text-xs font-bold ml-2">✕</button>
+                        </div>
+
+                        {/* Placement value rules */}
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-200">Placement value rules</span>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Prioritise the placements that matter most to your business by adjusting bids for them. <button type="button" className="text-sky-400 hover:underline font-semibold">About value rules</button></p>
+                          <button type="button" className="px-3.5 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-semibold text-sky-400">
+                            Create a rule set
+                          </button>
+                        </div>
+
+                        {/* Account controls */}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-200">Account controls</span>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Excluded placements: None</p>
+                        </div>
+
+                        {/* Placement radio options */}
+                        <div className="space-y-3 pt-2">
+                          <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${awarenessPlacementType === "ADVANTAGE" ? "bg-sky-500/10 border-sky-500/50" : "bg-slate-900 border-slate-800 hover:border-slate-700"}`}>
+                            <input
+                              type="radio"
+                              name="awarenessPlacementType"
+                              checked={awarenessPlacementType === "ADVANTAGE"}
+                              onChange={() => setAwarenessPlacementType("ADVANTAGE")}
+                              className="mt-0.5 accent-sky-500 shrink-0"
+                            />
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">Advantage+ placements (recommended) +</p>
+                              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                Use Advantage+ placements to maximise your budget and help show your ads to more people. Facebook's delivery system will allocate your ad set's budget across multiple placements based on where they're likely to perform best.
+                              </p>
+                            </div>
+                          </label>
+
+                          <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${awarenessPlacementType === "MANUAL" ? "bg-sky-500/10 border-sky-500/50" : "bg-slate-900 border-slate-800 hover:border-slate-700"}`}>
+                            <input
+                              type="radio"
+                              name="awarenessPlacementType"
+                              checked={awarenessPlacementType === "MANUAL"}
+                              onChange={() => setAwarenessPlacementType("MANUAL")}
+                              className="mt-0.5 accent-sky-500 shrink-0"
+                            />
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">Manual placements</p>
+                              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                Manually choose the places to show your ad. The more placements you select, the more opportunities you'll have to reach your target audience and achieve your business goals.
+                              </p>
+                            </div>
+                          </label>
+
+                          {/* Better results opportunity card */}
+                          <div className="p-4 rounded-xl bg-slate-900 border-l-4 border-l-emerald-500 border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-emerald-400">⚡ You could get better results with Advantage+ placements</span>
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-mono font-bold">+27 points</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 leading-relaxed">
+                              Including more placements often helps you find a wider audience. The more places your ad is displayed, the more chances your target audience has to see it. <button type="button" className="text-sky-400 hover:underline font-semibold">About Advantage+ placements</button>
+                            </p>
+                            <div className="flex items-center gap-2 pt-1">
+                              <button type="button" className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold hover:bg-emerald-500/30">
+                                Apply now
+                              </button>
+                              <button type="button" className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-semibold hover:bg-slate-700">
+                                Show analysis
+                              </button>
+                            </div>
+                          </div>
+
+                          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                            <input type="checkbox" className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-sky-500" />
+                            Run an A/B test to see the results of using Advantage+ placements
+                          </label>
+
+                          {/* Devices & Platforms */}
+                          <div className="pt-3 space-y-3">
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">Devices</label>
+                              <p className="text-[11px] text-slate-400">All devices</p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Platforms</label>
+                              <div className="grid grid-cols-3 gap-2">
+                                {[
+                                  { label: "Facebook", state: awarenessPlacementsFb, set: setAwarenessPlacementsFb },
+                                  { label: "Instagram", state: awarenessPlacementsIg, set: setAwarenessPlacementsIg },
+                                  { label: "Audience Network", state: awarenessPlacementsAn, set: setAwarenessPlacementsAn },
+                                  { label: "Messenger", state: awarenessPlacementsMsg, set: setAwarenessPlacementsMsg },
+                                  { label: "WhatsApp", state: awarenessPlacementsWa, set: setAwarenessPlacementsWa },
+                                  { label: "Threads", state: awarenessPlacementsThreads, set: setAwarenessPlacementsThreads },
+                                ].map((plat) => (
+                                  <label key={plat.label} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={plat.state}
+                                      onChange={(e) => plat.set(e.target.checked)}
+                                      className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-sky-500"
+                                    />
+                                    {plat.label}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1 pt-1">
+                              <div className="flex items-center gap-1.5">
+                                <label className="block text-xs font-bold text-slate-200">Asset customisation</label>
+                                <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <p className="text-[11px] text-slate-400">10/16 placements that support asset customisation</p>
+                                <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Select all</button>
+                              </div>
+                            </div>
+
+                            {/* Placements Tree & Visual Mobile Preview */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                              {/* Left Tree */}
+                              <div className="space-y-2 text-xs text-slate-300">
+                                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                                  <label className="flex items-center gap-2 cursor-pointer font-bold">
+                                    <input type="checkbox" checked={awarenessPlacementsFeeds} onChange={(e) => setAwarenessPlacementsFeeds(e.target.checked)} className="accent-sky-500" />
+                                    Feeds ℹ
+                                  </label>
+                                  <span>▾</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                                  <label className="flex items-center gap-2 cursor-pointer font-bold">
+                                    <input type="checkbox" checked={awarenessPlacementsStories} onChange={(e) => setAwarenessPlacementsStories(e.target.checked)} className="accent-sky-500" />
+                                    Stories, Status, Reels ℹ
+                                  </label>
+                                  <span>▾</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                                  <label className="flex items-center gap-2 cursor-pointer font-bold">
+                                    <input type="checkbox" checked={awarenessPlacementsInstream} onChange={(e) => setAwarenessPlacementsInstream(e.target.checked)} className="accent-sky-500" />
+                                    In-stream ads for reels ℹ
+                                  </label>
+                                  <span>▾</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                                  <label className="flex items-center gap-2 cursor-pointer font-bold">
+                                    <input type="checkbox" checked={awarenessPlacementsSearch} onChange={(e) => setAwarenessPlacementsSearch(e.target.checked)} className="accent-sky-500" />
+                                    Search results ℹ
+                                  </label>
+                                  <span>▾</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                                  <label className="flex items-center gap-2 cursor-pointer font-bold">
+                                    <input type="checkbox" checked={awarenessPlacementsApps} onChange={(e) => setAwarenessPlacementsApps(e.target.checked)} className="accent-sky-500" />
+                                    Apps and sites ℹ
+                                  </label>
+                                  <span>▾</span>
+                                </div>
+                              </div>
+
+                              {/* Right Placement Mobile Mockup Preview */}
+                              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center text-center space-y-3">
+                                <div className="w-36 h-44 rounded-xl bg-slate-950 border border-slate-800 p-2 flex flex-col items-center shadow-md">
+                                  <div className="w-full flex items-center gap-1.5 pb-1 border-b border-slate-800">
+                                    <div className="w-3 h-3 rounded-full bg-emerald-500/30"></div>
+                                    <div className="w-16 h-1 bg-slate-700 rounded"></div>
+                                  </div>
+                                  <div className="w-full h-24 bg-slate-900 rounded-lg mt-1.5 flex items-center justify-center text-xl">
+                                    🍔
+                                  </div>
+                                  <div className="w-full space-y-1 mt-1.5">
+                                    <div className="w-full h-1 bg-slate-700 rounded"></div>
+                                    <div className="w-3/4 h-1 bg-slate-800 rounded"></div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-200">Feeds</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">We recommend <span className="font-semibold text-slate-300">square (1:1)</span> images and <span className="font-semibold text-slate-300">vertical (4:5)</span> videos.</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Show more options ▾</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 8: Brand safety and suitability */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Brand safety and suitability</h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <span className="font-semibold text-slate-300">Brand safety:</span> Meta applies brand safety to all ads through our <button type="button" className="text-sky-400 hover:underline">Community Standards</button> and <button type="button" className="text-sky-400 hover:underline">Monetisation Policies</button>, keeping your ads away from objectionable content.
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <span className="font-semibold text-slate-300">Brand suitability:</span> In some cases, brands want more control over where ads can appear. Brand suitability filters or excludes specific topics or publishers. Bear in mind that using these controls can lower your reach and increase costs.
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => setAwarenessStep3ShowMoreSettings(!awarenessStep3ShowMoreSettings)}
+                          className="text-[11px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                        >
+                          {awarenessStep3ShowMoreSettings ? "Hide options ▴" : "Show options ▾"}
+                        </button>
+
+                        {awarenessStep3ShowMoreSettings && (
+                          <div className="pt-2 border-t border-slate-800/60 space-y-3 text-xs text-slate-300 animate-fadeIn">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-200">Inventory filters</span>
+                                <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">We apply the default inventory filter unless you change it. Content that's excessively controversial or offensive is always excluded, regardless of what filter you choose.</p>
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-200">In-content ads</span>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Expanded (ad set)</p>
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-200">Audience Network ads</span>
+                              <p className="text-[11px] text-slate-400 mt-0.5">None selected</p>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-200">Publisher block lists</span>
+                                <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">None selected</p>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-200">Content type exclusions</span>
+                                <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">None selected</p>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-200">Topic exclusions</span>
+                                <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">None selected</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Campaign Score Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-16 h-16 shrink-0">
+                            <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="3"
+                                strokeDasharray={`100 0`}
+                                strokeLinecap="round" />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-black text-emerald-400">100</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-slate-200">Campaign score</p>
+                            <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">You're using our recommended setup.</p>
+                            <div className="flex items-center justify-between mt-1.5 gap-2">
+                              <span className="text-[11px] text-slate-300 font-medium">⚡ Advantage+ awareness campaign</span>
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">On</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">No additional recommendations available.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end pt-2 border-t border-slate-800">
+                          <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            All edits saved
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TRAFFIC OBJECTIVE — AD SET SETUP VIEW (STEP 3) */}
+                  {campObjective === "OUTCOME_TRAFFIC" && (
+                    <div className="space-y-4 animate-fadeIn">
+                      {/* Top Banner Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignStep(2)}
+                              className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                            >
+                              ← Change Objective
+                            </button>
+                            <h3 className="font-bold text-slate-100 text-sm">Step 3: Configure TRAFFIC Campaign Parameters</h3>
+                            <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your TRAFFIC campaign setup.</p>
+                          </div>
+                          <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 3 of 4</span>
+                        </div>
+                      </div>
+
+                      {/* Setup Selection Info Header */}
                       <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                         <div>
-                          <h4 className="font-bold text-slate-200 text-xs">App</h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Select the app that you want people to install and use</p>
+                          <h4 className="font-bold text-slate-100 text-sm">Choose a campaign setup</h4>
+                          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                            Create your traffic campaign using a tailored and streamlined setup, or manually build your campaign. Suggestions may vary based on your recent ad account activity.
+                          </p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">App Store</label>
-                            <select
-                              value={appPromoAppStore}
-                              onChange={(e) => setAppPromoAppStore(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
-                            >
-                              <option value="GOOGLE_PLAY">🤖 Google Play Store</option>
-                              <option value="APPLE_APP_STORE">🍎 Apple App Store</option>
-                              <option value="AMAZON_APPSTORE">📦 Amazon Appstore</option>
-                            </select>
+                          {/* Option 1: Tailored web traffic campaign */}
+                          <div
+                            onClick={() => setTrafficPresetMode("tailored")}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                              trafficPresetMode === "tailored"
+                                ? "bg-sky-500/10 border-sky-500/50"
+                                : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <input
+                                type="radio"
+                                checked={trafficPresetMode === "tailored"}
+                                onChange={() => setTrafficPresetMode("tailored")}
+                                className="accent-sky-500 mt-0.5"
+                              />
+                              <div>
+                                <h5 className="font-bold text-slate-100 text-xs">Tailored web traffic campaign</h5>
+                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                  Quickly create a campaign optimised to help get more web traffic at the best value. Preset settings include Advantage+ placements, highest volume bid strategy and more.
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">Streamlined</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">Tailored</span>
+                                  <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-[10px] font-semibold text-sky-400 border border-sky-500/20">Best practices</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Select App</label>
-                            <select
-                              value={appPromoSelectedApp}
-                              onChange={(e) => setAppPromoSelectedApp(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                          {/* Option 2: Manual traffic campaign */}
+                          <div
+                            onClick={() => setTrafficPresetMode("manual")}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                              trafficPresetMode === "manual"
+                                ? "bg-sky-500/10 border-sky-500/50"
+                                : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <input
+                                type="radio"
+                                checked={trafficPresetMode === "manual"}
+                                onChange={() => setTrafficPresetMode("manual")}
+                                className="accent-sky-500 mt-0.5"
+                              />
+                              <div>
+                                <h5 className="font-bold text-slate-100 text-xs">Manual traffic campaign</h5>
+                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                  Create a traffic campaign from scratch for finer control over all settings.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ad Set Name */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <label className="block text-xs font-bold text-slate-200">Ad set name</label>
+                        <input
+                          type="text"
+                          value={trafficAdSetName}
+                          onChange={(e) => setTrafficAdSetName(e.target.value)}
+                          placeholder="New Traffic ad set"
+                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+
+                      {/* Conversion Location Card */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Conversion location</h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Choose where you want to drive traffic. You'll enter more details about the destination later.
+                        </p>
+
+                        <div className="space-y-2.5">
+                          {[
+                            { id: "WEBSITE", icon: "🌐", title: "Website", desc: "Send traffic to your website." },
+                            { id: "APP", icon: "📱", title: "App", desc: "Send traffic to your app." },
+                            { id: "MESSAGING", icon: "💬", title: "Messaging apps", desc: "Send traffic to Messenger, WhatsApp or Instagram." },
+                            { id: "INSTAGRAM_FB", icon: "📸", title: "Instagram profile", desc: "Send traffic to your Instagram profile." },
+                            { id: "CALLS", icon: "📞", title: "Calls", desc: "Drive phone calls to your business." },
+                          ].map((loc) => (
+                            <div
+                              key={loc.id}
+                              onClick={() => setTrafficAdSetConversionLocation(loc.id)}
+                              className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                                trafficAdSetConversionLocation === loc.id
+                                  ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                  : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                              }`}
                             >
-                              <option value="whatsapp_automation_app">📱 WhatsApp Automation Pro (org.jisnu.wa)</option>
-                              <option value="jisnu_crm_app">💼 JISNU CRM Mobile (org.jisnu.crm)</option>
-                              <option value="custom_app">+ Add new mobile app ID</option>
-                            </select>
+                              <input
+                                type="radio"
+                                name="trafficAdSetConversionLocation"
+                                checked={trafficAdSetConversionLocation === loc.id}
+                                onChange={() => setTrafficAdSetConversionLocation(loc.id)}
+                                className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
+                              />
+                              <div>
+                                <p className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                                  <span>{loc.icon}</span>
+                                  <span>{loc.title}</span>
+                                </p>
+                                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{loc.desc}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Performance Goal Card */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Performance goal</h4>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Performance goal</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <ScrollableSelect
+                              value={trafficPerformanceGoal}
+                              onChange={(val) => setTrafficPerformanceGoal(val)}
+                              options={[
+                                { value: "MAXIMIZE_LINK_CLICKS", label: "Maximize number of link clicks" },
+                                { value: "MAXIMIZE_LANDING_PAGE_VIEWS", label: "Maximize number of landing page views" },
+                                { value: "MAXIMIZE_REACH", label: "Maximize reach of ads" },
+                                { value: "MAXIMIZE_IMPRESSIONS", label: "Maximize number of impressions" },
+                                { value: "MAXIMIZE_AD_RECALL_LIFT", label: "Maximize ad recall lift" },
+                                { value: "MAXIMIZE_DAILY_UNIQUE_REACH", label: "Maximize daily unique reach" },
+                                { value: "MAXIMIZE_CONVERSATIONS", label: "Maximize number of conversations" },
+                              ]}
+                              className="text-slate-100 font-semibold"
+                              maxHeight="max-h-52"
+                            />
+                          </div>
+
+                          <div className="space-y-1 pt-1">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Cost per result goal</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <div className="relative">
+                              <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                              <input
+                                type="text"
+                                value={trafficCostPerResult}
+                                onChange={(e) => setTrafficCostPerResult(e.target.value)}
+                                placeholder="Optional"
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                              />
+                              <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400">INR</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500">Meta will aim for this cost per result while spending your budget.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* APP PROMOTION — AD SET SETUP VIEW */}
+                  {campObjective === "OUTCOME_APP_PROMOTION" && (
+                    <div className="space-y-4">
+                      {/* Top Header Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                              <span>New App promotion Campaign</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-slate-200 font-bold">New App promotion Ad set</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">1 Ad • Configure app store, performance goals, placements & audience definition.</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
                           </div>
                         </div>
                       </div>
@@ -3821,114 +6111,239 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         />
                       </div>
 
-                      {/* Performance Goal & Cost per result */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                          <h4 className="font-bold text-slate-200 text-xs">Performance goal</h4>
-                          <p className="text-[11px] text-slate-400">How you measure success for your ads.</p>
-                          <select
-                            value={appPromoPerformanceGoal}
-                            onChange={(e) => setAppPromoPerformanceGoal(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
-                          >
-                            <option value="MAXIMIZE_INSTALLS">Maximise number of app installs</option>
-                            <option value="MAXIMIZE_APP_EVENTS">Maximise number of in-app events</option>
-                            <option value="MAXIMIZE_VALUE">Maximise value of in-app purchases</option>
-                          </select>
+                      {/* App Store & Mobile App Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-bold text-slate-200 text-xs">App store / Mobile app store</h4>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Select the app store and app you want people to install and use</p>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-bold">
+                            App promotion
+                          </span>
                         </div>
 
-                        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                          <h4 className="font-bold text-slate-200 text-xs">Cost per result goal</h4>
-                          <p className="text-[11px] text-slate-400">Target cost per install</p>
-                          <input
-                            type="text"
-                            value={appPromoCostPerResult}
-                            onChange={(e) => setAppPromoCostPerResult(e.target.value)}
-                            placeholder="Optional (e.g. ₹15.00)"
-                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-mono"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">App store</label>
+                            <select
+                              value={appPromoAppStore}
+                              onChange={(e) => setAppPromoAppStore(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="GOOGLE_PLAY">🤖 Google Play Store</option>
+                              <option value="APPLE_APP_STORE">🍎 Apple App Store</option>
+                              <option value="AMAZON_APPSTORE">📦 Amazon Appstore</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">App Store country (Optional)</label>
+                            <select
+                              value={appPromoAppCountry}
+                              onChange={(e) => setAppPromoAppCountry(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="IN">🇮🇳 India (IN)</option>
+                              <option value="US">🇺🇸 United States (US)</option>
+                              <option value="GB">🇬🇧 United Kingdom (GB)</option>
+                              <option value="CA">🇨🇦 Canada (CA)</option>
+                              <option value="AU">🇦🇺 Australia (AU)</option>
+                            </select>
+                            <p className="text-[10px] text-slate-500 mt-1">Find your app by selecting a country where it's available.</p>
+                          </div>
+                        </div>
+
+                        {/* Search for an app */}
+                        <div className="space-y-1 pt-1 border-t border-slate-800">
+                          <label className="block text-[11px] font-semibold text-slate-300">App / Search for an app</label>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <input
+                              type="text"
+                              value={appPromoAppNameSearch}
+                              onChange={(e) => setAppPromoAppNameSearch(e.target.value)}
+                              placeholder="Enter app name, app ID or exact app store URL"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
                         </div>
                       </div>
 
-                      {/* A/B Test Card */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                      {/* Performance Goal & Attribution */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Performance goal</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Choose how Meta optimizes delivery for your app promotion ad set.</p>
+                        </div>
+
+                        <select
+                          value={appPromoPerformanceGoal}
+                          onChange={(e) => setAppPromoPerformanceGoal(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                        >
+                          <option value="MAXIMIZE_INSTALLS">Maximise number of app installs</option>
+                          <option value="MAXIMIZE_APP_EVENTS">Maximise number of in-app events</option>
+                          <option value="MAXIMIZE_VALUE">Maximise value of conversions</option>
+                        </select>
+
+                        {/* Banner Tip */}
+                        <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            In-app ad impression and in-app purchase now available
+                          </div>
+                          <p className="text-[11px] text-slate-300">
+                            To reach people who may drive higher in-app ad value, choose <span className="font-semibold text-sky-300">Maximise value of conversions</span>.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Cost per result goal</label>
+                            <input
+                              type="text"
+                              value={appPromoCostPerResult}
+                              onChange={(e) => setAppPromoCostPerResult(e.target.value)}
+                              placeholder="None"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Attribution model</label>
+                            <select
+                              value={appPromoAttributionModel}
+                              onChange={(e) => setAppPromoAttributionModel(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="STANDARD">Standard (7-day click or 1-day view)</option>
+                              <option value="1_DAY_CLICK">1-day click</option>
+                              <option value="7_DAY_CLICK">7-day click</option>
+                              <option value="1_DAY_VIEW">1-day view</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-slate-300">Value rules:</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${appPromoValueRulesEnabled ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                              Enabled: {appPromoValueRulesEnabled ? "Yes" : "No"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAppPromoStep3ShowMoreSettings(!appPromoStep3ShowMoreSettings)}
+                            className="text-[11px] text-sky-400 hover:underline font-semibold"
+                          >
+                            {appPromoStep3ShowMoreSettings ? "Hide details" : "Show more settings"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Policy and Regulatory Requirements (India) */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-200 text-xs">Policy and regulatory requirements (India)</h4>
+                          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-semibold">
+                            Mandatory Declaration
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Provide required information about your ads, yourself or your organisation.
+                        </p>
+                        <label className="flex items-start gap-2.5 pt-1 text-xs text-slate-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={appPromoSecuritiesDeclaration}
+                            onChange={(e) => setAppPromoSecuritiesDeclaration(e.target.checked)}
+                            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500 mt-0.5"
+                          />
+                          <div>
+                            <p className="font-medium text-slate-200">This ad set includes ads related to securities and investments</p>
+                            <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold mt-0.5">About verification requirements ↗</button>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Placements Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="flex items-center gap-2">
-                              <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${appPromoAbTest ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
-                                {appPromoAbTest ? "On" : "Off"}
+                              <h4 className="font-bold text-slate-200 text-xs">Placements</h4>
+                              <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-bold">
+                                Advantage+ on
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                              Help improve ad performance by comparing versions to see what works best. For accuracy, each one will be shown to separate groups of your audience. <button type="button" className="text-sky-400 hover:underline font-semibold">About A/B tests</button>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              We'll automatically show ads in the places where people are likely to respond. <button type="button" className="text-sky-400 hover:underline">About placements</button>
                             </p>
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                            <input
-                              type="checkbox"
-                              checked={appPromoAbTest}
-                              onChange={(e) => setAppPromoAbTest(e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                          </label>
                         </div>
 
-                        {/* Expanded A/B Test Options */}
-                        {appPromoAbTest && (
-                          <div className="pt-3 border-t border-slate-800 space-y-3.5 animate-fadeIn">
-                            {/* What would you like to test */}
-                            <div className="space-y-1">
-                              <label className="block text-xs font-bold text-slate-200">What would you like to test?</label>
-                              <select
-                                value={appPromoTestVariable}
-                                onChange={(e) => setAppPromoTestVariable(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
-                              >
-                                <option value="CREATIVE">Creative</option>
-                                <option value="AUDIENCE">Audience</option>
-                                <option value="PLACEMENT">Placement</option>
-                                <option value="CUSTOM">Custom</option>
-                              </select>
-                            </div>
+                        {/* Value Rule Banner */}
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                          <p className="text-xs font-bold text-slate-200">💡 Value rule creation is changing</p>
+                          <p className="text-[11px] text-slate-400">
+                            You can now add rules closer to where you select your ad set's placements.
+                          </p>
+                        </div>
 
-                            {/* Test duration */}
-                            <div className="space-y-1">
-                              <label className="block text-xs font-bold text-slate-200">How long should the test run?</label>
-                              <p className="text-[10px] text-slate-400">Your test will run for this many days or until your ad set has ended.</p>
-                              <select
-                                value={appPromoTestDuration}
-                                onChange={(e) => setAppPromoTestDuration(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
-                              >
-                                <option value="3_DAYS">3 days</option>
-                                <option value="5_DAYS">5 days</option>
-                                <option value="7_DAYS">7 days</option>
-                                <option value="14_DAYS">14 days</option>
-                                <option value="30_DAYS">30 days</option>
-                              </select>
-                            </div>
-
-                            {/* Performance comparison metric */}
-                            <div className="space-y-1">
-                              <label className="block text-xs font-bold text-slate-200">How do you want to compare performance?</label>
-                              <select
-                                value={appPromoMetricComparison}
-                                onChange={(e) => setAppPromoMetricComparison(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
-                              >
-                                <option value="COST_PER_ADD_PAYMENT_INFO">Cost per add of payment info</option>
-                                <option value="COST_PER_INSTALL">Cost per app install</option>
-                                <option value="COST_PER_PURCHASE">Cost per purchase</option>
-                                <option value="COST_PER_RESULT">Cost per result</option>
-                              </select>
-                            </div>
+                        {/* Placement Value Rules & Explanations */}
+                        <div className="space-y-2 pt-1 border-t border-slate-800 text-[11px]">
+                          <div>
+                            <p className="font-bold text-slate-200">Placement value rules</p>
+                            <p className="text-slate-400 mt-0.5">
+                              Prioritise the placements that matter most to your business by adjusting bids for them. <button type="button" className="text-sky-400 hover:underline">About value rules</button>
+                            </p>
                           </div>
-                        )}
+                          <div>
+                            <p className="font-bold text-slate-200">Value rules</p>
+                            <p className="text-slate-400 mt-0.5">
+                              Tell us how much more certain audiences, conversion locations and placements are worth to your business. Our system will optimise for outcomes based on these rules. <button type="button" className="text-sky-400 hover:underline">About value rules</button>
+                            </p>
+                          </div>
+                          <div className="pt-1 flex items-center justify-between text-slate-400">
+                            <span>Account controls: <strong className="text-slate-200">Excluded placements: None</strong></span>
+                            <button type="button" className="text-sky-400 hover:underline font-semibold">Show more settings</button>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Audience Definition */}
+                      {/* Brand Safety and Suitability */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <h4 className="font-bold text-slate-200 text-xs">Brand safety and suitability</h4>
+                        <div className="space-y-2 text-[11px] text-slate-400">
+                          <p>
+                            <strong className="text-slate-200">Brand safety:</strong> Meta applies brand safety to all ads through our Community Standards and Monetisation Policies, keeping your ads away from objectionable content.
+                          </p>
+                          <p>
+                            <strong className="text-slate-200">Brand suitability:</strong> In some cases, brands want more control over where ads can appear. Brand suitability filters or excludes specific topics or publishers. Bear in mind that using these controls can lower your reach and increase costs.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAppPromoStep3ShowBrandSuitability(!appPromoStep3ShowBrandSuitability)}
+                          className="text-[11px] text-sky-400 hover:underline font-semibold"
+                        >
+                          {appPromoStep3ShowBrandSuitability ? "Hide options" : "Show more options"}
+                        </button>
+                      </div>
+
+                      {/* Verifying Your Changes Alert */}
+                      <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                        <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                        <div className="text-xs">
+                          <h5 className="font-bold text-amber-300">Verifying your changes</h5>
+                          <p className="text-amber-200/80 text-[11px] mt-0.5 leading-relaxed">
+                            Ad sets using lifetime as the budget type must have an end date. Enter an end date that's more than 24 hours after the start time. (#1487094)
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Audience Definition Card */}
                       <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-slate-200 text-xs">Audience definition</h4>
@@ -3936,12 +6351,444 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             Broad
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400">Your audience is broad. Broad audiences can improve performance for app install campaigns.</p>
+                        <p className="text-[11px] text-slate-300 font-semibold">Your audience is broad.</p>
+                        <p className="text-[11px] text-slate-400">Broad audiences can improve performance and reach more people likely to respond.</p>
+
+                        {/* Narrow -> Broad Visual Slider */}
+                        <div className="relative pt-2">
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
+                            <span>Narrow</span>
+                            <span className="text-emerald-400 font-bold">Broad</span>
+                          </div>
+                          <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                            <div className="bg-gradient-to-r from-amber-500 via-sky-500 to-emerald-400 h-2 rounded-full" style={{ width: "90%" }}></div>
+                          </div>
+                        </div>
+
+                        {/* Estimated Audience Size Toggle & Value */}
                         <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] font-bold text-slate-300">Estimated audience size:</p>
+                          <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={appPromoShowEstimatedAudienceSize}
+                              onChange={(e) => setAppPromoShowEstimatedAudienceSize(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-sky-500"
+                            />
+                            Show estimated audience size
+                          </label>
+                        </div>
+
+                        {appPromoShowEstimatedAudienceSize && (
+                          <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] space-y-0.5 animate-fadeIn">
+                            <p className="text-slate-400">Estimated audience size:</p>
                             <p className="text-xs font-bold text-sky-400 font-mono">510,000,000 - 640,000,000</p>
                           </div>
+                        )}
+                      </div>
+
+                      {/* Campaign Score Card (100 / 100) */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-16 h-16 shrink-0">
+                            <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="3"
+                                strokeDasharray={`100 0`}
+                                strokeLinecap="round" />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-black text-emerald-400">100</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-slate-200">Campaign score</p>
+                            <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">You're using our recommended setup.</p>
+                            <div className="flex items-center justify-between mt-1.5 gap-2">
+                              <span className="text-[11px] text-slate-300 font-medium">⚡ Advantage+ app campaign</span>
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">On</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">No additional recommendations available.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end pt-2 border-t border-slate-800">
+                          <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            All edits saved
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SALES OBJECTIVE — AD SET SETUP VIEW (STEP 3) */}
+                  {campObjective === "OUTCOME_SALES" && (
+                    <div className="space-y-4">
+                      {/* Top Header Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                              <span>New Sales campaign</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-slate-200 font-bold">New Sales ad set</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">1 Ad • Configure conversion location, pixel datasets, performance goals & audience definition.</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ad Set Name Input */}
+                      <div>
+                        <Input
+                          label="Ad set name"
+                          value={salesAdSetName}
+                          onChange={(e: any) => setSalesAdSetName(e.target.value)}
+                          placeholder="New Sales ad set"
+                          required
+                        />
+                      </div>
+
+                      {/* Customer Life Cycle Strategy Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Customer life cycle strategy</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Prioritise conversions from people that create most value for your business.
+                          </p>
+                        </div>
+                        <select
+                          value={salesLifecycleStrategy}
+                          onChange={(e) => setSalesLifecycleStrategy(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                        >
+                          <option value="ALL_AUDIENCES">Get conversions from all audiences</option>
+                          <option value="HIGH_VALUE">Target high-value customers (Prioritise repeat purchases)</option>
+                        </select>
+                      </div>
+
+                      {/* Conversion Location & Dataset Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Conversion</h4>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-semibold text-slate-400">Conversion location</label>
+                          <select
+                            value={salesConversionLocation}
+                            onChange={(e) => setSalesConversionLocation(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="WEBSITE">Website</option>
+                            <option value="APP">App</option>
+                            <option value="WEBSITE_AND_APP">Website and App</option>
+                            <option value="MESSAGING_APPS">Messaging apps (WhatsApp, Messenger)</option>
+                            <option value="CALLS">Calls</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[11px] font-semibold text-slate-400">Performance goal</label>
+                            <button type="button" className="text-[10px] text-sky-400 hover:underline font-semibold">About performance goals</button>
+                          </div>
+                          <p className="text-[10px] text-slate-500">How you measure success for your ads.</p>
+                          <select
+                            value={salesPerformanceGoal}
+                            onChange={(e) => setSalesPerformanceGoal(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="MAXIMIZE_CONVERSIONS">Maximise number of conversions</option>
+                            <option value="MAXIMIZE_VALUE">Maximise value of conversions</option>
+                            <option value="MAXIMIZE_LANDING_PAGE_VIEWS">Maximise number of landing page views</option>
+                            <option value="MAXIMIZE_LINK_CLICKS">Maximise number of link clicks</option>
+                          </select>
+                        </div>
+
+                        {/* Dataset & Pixel */}
+                        <div className="space-y-1 pt-1">
+                          <label className="block text-[11px] font-semibold text-slate-300">
+                            * Dataset
+                          </label>
+                          <p className="text-[10px] text-slate-500">Track actions that people take on your website.</p>
+                          <div className="space-y-1">
+                            <label className="block text-[10px] text-slate-400">Pixel</label>
+                            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-100">{salesPixelName}</span>
+                              <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">ID: {pixelId || "1380912777544016"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Conversion Event Field */}
+                        <div className="space-y-1 pt-1">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[11px] font-semibold text-slate-300">
+                              * Conversion event
+                            </label>
+                            <button type="button" className="text-[10px] text-sky-400 hover:underline font-semibold">About conversion events</button>
+                          </div>
+                          <p className="text-[10px] text-slate-500">The action that you want people to take when they see your ads.</p>
+                          <select
+                            value={salesConversionEvent}
+                            onChange={(e) => setSalesConversionEvent(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="">Select an event or search by name</option>
+                            <option value="PURCHASE">Purchase</option>
+                            <option value="INITIATE_CHECKOUT">Initiate Checkout</option>
+                            <option value="ADD_TO_CART">Add To Cart</option>
+                            <option value="LEAD">Lead</option>
+                            <option value="SUBSCRIBE">Subscribe</option>
+                          </select>
+
+                          {/* Set up conversion event alert box */}
+                          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1 mt-2">
+                            <div className="flex items-center justify-between">
+                              <h5 className="font-bold text-amber-300">Set up conversion event</h5>
+                              <button
+                                type="button"
+                                onClick={() => setSalesShowSetupConversionEventModal(true)}
+                                className="text-[10px] text-amber-400 hover:underline font-bold"
+                              >
+                                Set up now
+                              </button>
+                            </div>
+                            <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                              The dataset that you've selected doesn't have any conversion events set up. Set up a conversion event to help you get better results.{" "}
+                              <button type="button" className="text-amber-400 hover:underline font-semibold">
+                                Learn how to set up a conversion event
+                              </button>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Cost per result goal */}
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-semibold text-slate-400">Cost per result goal</label>
+                          <input
+                            type="text"
+                            value={salesCostPerResult}
+                            onChange={(e) => setSalesCostPerResult(e.target.value)}
+                            placeholder="None"
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+
+                        {/* Value rules & Attribution model */}
+                        <div className="pt-2 border-t border-slate-800 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-400">Value rules</span>
+                            <span className="text-[11px] text-slate-400 font-medium">Enabled: No</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold text-slate-400">Attribution model</label>
+                            <select
+                              value={salesAttributionModel}
+                              onChange={(e) => setSalesAttributionModel(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="STANDARD">Standard (7-day click or 1-day view)</option>
+                              <option value="1_DAY_CLICK">1-day click</option>
+                              <option value="7_DAY_CLICK">7-day click</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Show more settings */}
+                        <button
+                          type="button"
+                          onClick={() => setSalesStep3ShowMoreSettings(!salesStep3ShowMoreSettings)}
+                          className="text-[11px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                        >
+                          {salesStep3ShowMoreSettings ? "Hide settings" : "Show more settings"}
+                        </button>
+
+                        {salesStep3ShowMoreSettings && (
+                          <div className="pt-2 border-t border-slate-800 space-y-2 animate-fadeIn">
+                            <label className="block text-[11px] font-semibold text-slate-400">Delivery type</label>
+                            <select
+                              value={salesDeliveryType}
+                              onChange={(e) => setSalesDeliveryType(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="STANDARD">Standard</option>
+                              <option value="ACCELERATED">Accelerated</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Policy and Regulatory Requirements (India) */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-200 text-xs">Policy and regulatory requirements (India)</h4>
+                          <button type="button" className="text-[10px] text-sky-400 hover:underline font-semibold">About verification requirements</button>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Provide required information about your ads, yourself or your organisation.
+                        </p>
+                        <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={salesSecuritiesDeclaration}
+                            onChange={(e) => setSalesSecuritiesDeclaration(e.target.checked)}
+                            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
+                          />
+                          This ad set includes ads related to securities and investments
+                        </label>
+                      </div>
+
+                      {/* Placements Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Placements</h4>
+                              <span className="text-[10px] font-bold bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full border border-sky-500/20">
+                                Advantage+ on
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              We'll automatically show ads in the places where people are likely to respond. <button type="button" className="text-sky-400 hover:underline font-semibold">About placements</button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={salesPlacementsAdvantage}
+                              onChange={(e) => setSalesPlacementsAdvantage(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {/* Banners & Value Rules Info */}
+                        <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 space-y-1 text-xs text-sky-300">
+                          <p className="font-bold">Value rule creation is changing</p>
+                          <p className="text-[11px] leading-relaxed">You can now add rules closer to where you select your ad set's placements.</p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1 text-xs">
+                          <p className="font-bold text-slate-200">Placement value rules</p>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Prioritise the placements that matter most to your business by adjusting bids for them. <button type="button" className="text-sky-400 hover:underline font-semibold">About value rules</button>
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1 text-xs">
+                          <p className="font-bold text-slate-200">Value rules</p>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Tell us how much more certain audiences, conversion locations and placements are worth to your business. Our system will optimise for outcomes based on these rules. <button type="button" className="text-sky-400 hover:underline font-semibold">About value rules</button>
+                          </p>
+                        </div>
+
+                        {/* Account Controls */}
+                        <div className="pt-2 border-t border-slate-800 space-y-1 text-xs">
+                          <h5 className="font-bold text-slate-200">Account controls</h5>
+                          <p className="text-[11px] text-slate-400">Excluded placements: None</p>
+                          <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Show more settings</button>
+                        </div>
+                      </div>
+
+                      {/* Brand Safety and Suitability Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-200 text-xs">Brand safety and suitability</h4>
+                          <button
+                            type="button"
+                            onClick={() => setSalesStep3ShowBrandSuitability(!salesStep3ShowBrandSuitability)}
+                            className="text-[11px] text-sky-400 hover:underline font-semibold"
+                          >
+                            {salesStep3ShowBrandSuitability ? "Hide options" : "Show more options"}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <span className="font-semibold text-slate-300">Brand safety:</span> Meta applies brand safety to all ads through our Community Standards and Monetisation Policies, keeping your ads away from objectionable content.
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <span className="font-semibold text-slate-300">Brand suitability:</span> In some cases, brands want more control over where ads can appear. Brand suitability filters or excludes specific topics or publishers. Bear in mind that using these controls can lower your reach and increase costs.
+                        </p>
+                      </div>
+
+                      {/* Audience Definition Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-200 text-xs">Audience definition</h4>
+                            <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-bold">
+                              Your audience is broad.
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                            Broad audiences can improve performance and reach more people likely to respond.
+                          </p>
+                        </div>
+
+                        {/* Audience Gauge Bar */}
+                        <div className="py-2 space-y-1">
+                          <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                            <span>Specific</span>
+                            <span className="text-sky-400">Broad</span>
+                          </div>
+                          <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden flex">
+                            <div className="w-1/3 bg-amber-500/40"></div>
+                            <div className="w-1/3 bg-emerald-500/40"></div>
+                            <div className="w-1/3 bg-sky-500"></div>
+                          </div>
+                        </div>
+
+                        {/* Estimated Audience Size Toggle & Value */}
+                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                          <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={salesShowEstimatedAudienceSize}
+                              onChange={(e) => setSalesShowEstimatedAudienceSize(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-sky-500"
+                            />
+                            Show estimated audience size
+                          </label>
+                        </div>
+
+                        {salesShowEstimatedAudienceSize && (
+                          <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] space-y-0.5 animate-fadeIn">
+                            <p className="text-slate-400">Estimated audience size:</p>
+                            <p className="text-xs font-bold text-sky-400 font-mono">510,000,000 - 640,000,000</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Campaign Score Card (100 / 100) */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-16 h-16 shrink-0">
+                            <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3" />
+                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="3"
+                                strokeDasharray={`100 0`}
+                                strokeLinecap="round" />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-sm font-black text-emerald-400">100</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-slate-200">Campaign score</p>
+                            <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">You're using our recommended setup.</p>
+                            <div className="flex items-center justify-between mt-1.5 gap-2">
+                              <span className="text-[11px] text-slate-300 font-medium">⚡ Advantage+ sales campaign</span>
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">On</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">No additional recommendations available.</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end pt-2 border-t border-slate-800">
                           <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                             <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                             All edits saved
@@ -4547,6 +7394,428 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         <p className="text-[10px] text-slate-500 italic">
                           Reveal details over time • Ad rendering and interaction may vary based on device, format and other factors.
                         </p>
+                      </div>
+
+                      {/* Legal Terms & Campaign Score */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                        <p className="text-[11px] text-slate-400">
+                          By clicking <span className="font-bold text-slate-200">Publish</span>, you acknowledge that your use of Meta's ad tools is subject to our Terms and Conditions.
+                        </p>
+                        <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 shrink-0">
+                          <Check className="h-3 w-3" /> All edits saved
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SALES OBJECTIVE — AD CREATIVE & PUBLISHING VIEW (STEP 4) */}
+                  {campObjective === "OUTCOME_SALES" && (
+                    <div className="space-y-4">
+                      {/* Top Header Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                              <span>New Sales campaign</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span>New Sales ad set</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-slate-200 font-bold">New Sales ad</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">Configure partnership identity, ad setup, creative media, promotions & tracking.</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ad Name Input */}
+                      <div>
+                        <Input
+                          label="Ad name"
+                          value={salesAdName}
+                          onChange={(e: any) => setSalesAdName(e.target.value)}
+                          placeholder="New Sales ad"
+                          required
+                        />
+                      </div>
+
+                      {/* Partnership Ad Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-100 text-xs">Partnership ad</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${partnershipAd ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {partnershipAd ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Run ads with creators, brands and other businesses to improve campaign performance.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">
+                                Go to Partnership Ads Hub to view creator content
+                              </button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={partnershipAd}
+                              onChange={(e) => setPartnershipAd(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {/* Options rendered when Partnership ad is On */}
+                        {partnershipAd && (
+                          <div className="pt-3 border-t border-slate-800 space-y-2.5 animate-fadeIn">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                              <span>Choose how to create your ad</span>
+                              <span
+                                className="w-4 h-4 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold cursor-help"
+                                title="Select whether to use a partner ad code or choose an existing creator partnership"
+                              >
+                                ℹ
+                              </span>
+                            </div>
+
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowPartnershipCodeModal(true)}
+                                className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-100 transition-all flex items-center justify-center gap-2 shadow-sm"
+                              >
+                                Enter ad code or post info
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowSelectPartnershipModal(true)}
+                                className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-100 transition-all flex items-center justify-center gap-2 shadow-sm"
+                              >
+                                Select partnership
+                              </button>
+                            </div>
+
+                            {/* Active selections indicator */}
+                            {(partnershipCodeApplied || selectedPartnerIdentity) && (
+                              <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 flex items-center justify-between mt-2">
+                                <div>
+                                  {partnershipCodeApplied && (
+                                    <p className="font-semibold">✓ Ad code applied: <span className="font-mono text-slate-200">{partnershipAdCode || "PARTNER-CODE-994"}</span></p>
+                                  )}
+                                  {selectedPartnerIdentity && (
+                                    <p className="font-semibold">✓ Selected partner identity: <span className="font-bold text-slate-200">@{selectedPartnerIdentity}</span></p>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30">Verified</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Ad Setup Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Ad setup</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Select an existing post or create a new one</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Ad setup mode</label>
+                            <select
+                              value={salesAdSetupMode}
+                              onChange={(e) => setSalesAdSetupMode(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="USE_EXISTING">Use existing post</option>
+                              <option value="CREATE_NEW">Create new ad</option>
+                              <option value="USE_MOCK_CATALOG">Use mock catalog</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Ad sources</label>
+                            <select
+                              value={salesAdSource}
+                              onChange={(e) => setSalesAdSource(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="META_CATALOG">Meta Product Catalog</option>
+                              <option value="INSTAGRAM_POSTS">Instagram Creator Posts</option>
+                              <option value="MANUAL_UPLOAD">Manual Creative Upload</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ad Creative Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-slate-200 text-xs">Ad creative</h4>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                              Select and optimise your ad text, media and enhancements. Select a post to publish a partnership ad. To see more available posts, select the other identity.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowSelectPartnerContentModal(true)}
+                            className="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20 shrink-0 flex items-center gap-1.5 transition-all mt-0.5"
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            Select post
+                          </button>
+                        </div>
+
+                        <Input
+                          label="Headline"
+                          value={campHeadline}
+                          onChange={(e: any) => setCampHeadline(e.target.value)}
+                          placeholder="Exclusive Sales — Up to 50% OFF!"
+                        />
+                        <Textarea
+                          label="Primary Body Text"
+                          value={campBody}
+                          onChange={(e: any) => setCampBody(e.target.value)}
+                          placeholder="Shop our best-selling products today. Fast shipping and instant WhatsApp customer support."
+                          rows={2}
+                        />
+
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-semibold text-slate-400">Ad Media Banner URL</label>
+                          <button
+                            type="button"
+                            onClick={fetchMediaAssets}
+                            className="text-[10px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            {fetchingMedia ? <Loader2 className="h-3 w-3 animate-spin" /> : <Layers className="h-3 w-3" />}
+                            Fetch Meta Library
+                          </button>
+                        </div>
+                        <Input
+                          value={campMediaUrl}
+                          onChange={(e: any) => setCampMediaUrl(e.target.value)}
+                          placeholder="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600"
+                        />
+
+                        {/* AI Media Transparency Checkbox */}
+                        <div className="pt-2 border-t border-slate-800 space-y-1">
+                          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={appPromoMediaAiCreated}
+                              onChange={(e) => setAppPromoMediaAiCreated(e.target.checked)}
+                              className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
+                            />
+                            <span className="font-bold text-slate-200">Ad includes media created or edited with AI</span>
+                          </label>
+                          <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
+                            Ticking this box may add an AI info label to your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">About AI transparency</button>
+                          </p>
+                        </div>
+
+                        {/* Testimonial Section */}
+                        <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                          <h5 className="font-bold text-slate-200 text-xs">Testimonial</h5>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Add text from your partner. Provide information about your brand or product to complement the content. <button type="button" className="text-sky-400 hover:underline font-semibold">About testimonials</button>
+                          </p>
+                          <Textarea
+                            label=""
+                            value={appPromoTestimonialText}
+                            onChange={(e: any) => setAppPromoTestimonialText(e.target.value)}
+                            placeholder="Add text from your partner..."
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Highlight Your Promotions Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Highlight your promotions</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Highlight your promotions before and after people tap on your ad to increase conversions and capture email leads.
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-200">Promo codes</span>
+                            <button
+                              type="button"
+                              onClick={() => setSalesShowPromoCodesModal(true)}
+                              className="text-[11px] text-sky-400 font-semibold hover:underline"
+                            >
+                              Manage promo codes
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Choose between automatically sourcing or manually adding promo codes.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Tracking Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div>
+                          <h4 className="font-bold text-slate-100 text-xs">Tracking</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Choose conversion events to track. This ad account's selected conversion dataset will be tracked by default.
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          {/* Website events block */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id="salesTrackWebsiteEvents"
+                                checked={appPromoTrackWebsiteEvents}
+                                onChange={(e) => setAppPromoTrackWebsiteEvents(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 bg-slate-950 cursor-pointer"
+                              />
+                              <label htmlFor="salesTrackWebsiteEvents" className="text-xs font-bold text-slate-100 cursor-pointer">
+                                Website events
+                              </label>
+                            </div>
+                            {appPromoTrackWebsiteEvents && (
+                              <div className="pl-6 space-y-0.5 animate-fadeIn">
+                                <p className="text-xs font-semibold text-slate-200">JISNU Digital Website Pixel</p>
+                                <p className="text-[11px] font-mono text-slate-400">Pixel ID: {pixelId || "1380912777544016"}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* App events block */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id="salesTrackAppEvents"
+                                checked={appPromoTrackAppEvents}
+                                onChange={(e) => setAppPromoTrackAppEvents(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 bg-slate-950 cursor-pointer"
+                              />
+                              <label htmlFor="salesTrackAppEvents" className="text-xs font-bold text-slate-100 cursor-pointer">
+                                App events
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* Offline events block */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id="salesTrackOfflineEvents"
+                                checked={appPromoTrackOfflineEvents}
+                                onChange={(e) => setAppPromoTrackOfflineEvents(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 bg-slate-950 cursor-pointer"
+                              />
+                              <label htmlFor="salesTrackOfflineEvents" className="text-xs font-bold text-slate-100 cursor-pointer">
+                                Offline events
+                              </label>
+                            </div>
+
+                            <div className="pl-6 space-y-2 text-xs text-slate-300">
+                              <button
+                                type="button"
+                                onClick={() => setShowEditOfflineSetsModal(true)}
+                                className="text-sky-400 hover:underline font-semibold text-[11px]"
+                              >
+                                Edit tracked offline event sets
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* URL Parameters Field */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-slate-100">URL parameters</label>
+                              <button
+                                type="button"
+                                onClick={() => setSalesShowUrlParametersModal(true)}
+                                className="text-[11px] text-sky-400 font-semibold hover:underline"
+                              >
+                                Build a URL parameter
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={salesUrlParameters}
+                              onChange={(e) => setSalesUrlParameters(e.target.value)}
+                              placeholder="key1=value1&key2=value2"
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Third-party reporting */}
+                        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1 text-xs">
+                          <h5 className="font-bold text-slate-200">Third-party reporting</h5>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Meta purchases may not be included in your Google reporting. Connect your account to measure actions on ads that send people to your website or shop.{" "}
+                            <button type="button" className="text-sky-400 hover:underline font-semibold">
+                              Learn more
+                            </button>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Live Mobile Sales Ad Preview Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-200 text-xs">Ad preview</h4>
+                          <span className="text-[10px] text-sky-400 font-semibold bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
+                            Sales Creative Preview
+                          </span>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 max-w-sm mx-auto shadow-xl">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-slate-950 font-bold flex items-center justify-center text-xs">S</div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">{fetchedPages[0]?.name || "JISNU Digital Solutions"}</p>
+                              <p className="text-[10px] text-slate-400">Sponsored • Sales</p>
+                            </div>
+                          </div>
+
+                          {campMediaUrl ? (
+                            <div className="w-full h-36 rounded-xl overflow-hidden bg-black">
+                              <img src={campMediaUrl} alt="Sales banner" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-full h-36 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-slate-600">
+                              <svg className="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-[10px] font-semibold mt-1">No media attached</span>
+                            </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-slate-100">{campHeadline || "Exclusive Sales — Up to 50% OFF!"}</p>
+                            <p className="text-[11px] text-slate-300 line-clamp-2">{campBody || "Shop our best-selling products today. Fast shipping and instant WhatsApp support."}</p>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                            <span className="text-[10px] text-slate-400 font-mono font-semibold">jisnudigital.com</span>
+                            <button type="button" className="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20">
+                              Shop Now
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Legal Terms & Campaign Score */}
@@ -5237,27 +8506,423 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               {/* STEP 4: Ad Setup & Creative Preview */}
               {campaignStep === 4 && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <div>
-                      <h3 className="font-bold text-slate-100 text-sm">
-                        {campObjective === "OUTCOME_TRAFFIC"
-                          ? "New Traffic ad"
-                          : campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "manual"
-                            ? "New Engagement ad"
-                            : campObjective === "OUTCOME_ENGAGEMENT"
-                              ? "Tailored messages campaign — Ad"
-                              : campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW"
-                                ? "New Leads ad"
-                                : "Step 4: Ad Creative, Identity & Live Preview"}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Select your business profiles, upload media, setup CTA, and preview live ad rendering.</p>
-                    </div>
-                    <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">
-                      Step 4 of 4
-                    </span>
-                  </div>
+                  {/* APP PROMOTION — AD LEVEL SETUP VIEW (STEP 4) */}
+                  {campObjective === "OUTCOME_APP_PROMOTION" && (
+                    <div className="space-y-4 animate-fadeIn">
+                      {/* Top Header Breadcrumb Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                              <span>New App promotion Campaign</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span>New App promotion Ad set</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-slate-200 font-bold">New App promotion Ad</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">Configure partnership ad settings, destination deep links, AI creative labels, and tracking.</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Ad Name Input */}
+                      {/* Ad Name Input */}
+                      <div>
+                        <Input
+                          label="Ad Name"
+                          value={adName}
+                          onChange={(e: any) => setAdName(e.target.value)}
+                          placeholder="New App promotion ad"
+                          required
+                        />
+                      </div>
+
+                      {/* Partnership Ad Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-100 text-xs">Partnership ad</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${partnershipAd ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {partnershipAd ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Run ads with creators, brands and other businesses to improve campaign performance.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">
+                                Go to Partnership Ads Hub to view creator content
+                              </button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={partnershipAd}
+                              onChange={(e) => setPartnershipAd(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {/* Options rendered when Partnership ad is On */}
+                        {partnershipAd && (
+                          <div className="pt-3 border-t border-slate-800 space-y-2.5 animate-fadeIn">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                              <span>Choose how to create your ad</span>
+                              <span
+                                className="w-4 h-4 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold cursor-help"
+                                title="Select whether to use a partner ad code or choose an existing creator partnership"
+                              >
+                                ℹ
+                              </span>
+                            </div>
+
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowPartnershipCodeModal(true)}
+                                className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-100 transition-all flex items-center justify-center gap-2 shadow-sm"
+                              >
+                                Enter ad code or post info
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowSelectPartnershipModal(true)}
+                                className="w-full py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-100 transition-all flex items-center justify-center gap-2 shadow-sm"
+                              >
+                                Select partnership
+                              </button>
+                            </div>
+
+                            {/* Active selections indicator */}
+                            {(partnershipCodeApplied || selectedPartnerIdentity) && (
+                              <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 flex items-center justify-between mt-2">
+                                <div>
+                                  {partnershipCodeApplied && (
+                                    <p className="font-semibold">✓ Ad code applied: <span className="font-mono text-slate-200">{partnershipAdCode || "PARTNER-CODE-994"}</span></p>
+                                  )}
+                                  {selectedPartnerIdentity && (
+                                    <p className="font-semibold">✓ Selected partner identity: <span className="font-bold text-slate-200">@{selectedPartnerIdentity}</span></p>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30">Verified</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Ad Setup & Destination Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Ad setup</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Destination</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            Tell us where to send people immediately after they tap or click your ad. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Main destination</label>
+                            <select
+                              value={appPromoMainDestination}
+                              onChange={(e) => setAppPromoMainDestination(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="APP">Default destination (App)</option>
+                              <option value="WEBSITE">Website</option>
+                              <option value="INSTANT_FORM">Instant form</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Deferred deep link (Optional)</label>
+                            <input
+                              type="text"
+                              value={appPromoDeferredDeepLink}
+                              onChange={(e) => setAppPromoDeferredDeepLink(e.target.value)}
+                              placeholder="Enter the deferred deep link URL"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ad Creative Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-slate-200 text-xs">Ad creative</h4>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                              Select and optimise your ad text, media and enhancements. Select a post to publish a partnership ad. To see more available posts, select the other identity.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowSelectPartnerContentModal(true)}
+                            className="px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20 shrink-0 flex items-center gap-1.5 transition-all mt-0.5"
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            Select post
+                          </button>
+                        </div>
+
+                        <Input
+                          label="Headline"
+                          value={campHeadline}
+                          onChange={(e: any) => setCampHeadline(e.target.value)}
+                          placeholder="Download WhatsApp Automation App Today!"
+                        />
+                        <Textarea
+                          label="Primary Body Text"
+                          value={campBody}
+                          onChange={(e: any) => setCampBody(e.target.value)}
+                          placeholder="Boost your business messaging efficiency by 10x with automated replies and bulk broadcasts."
+                          rows={2}
+                        />
+
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-semibold text-slate-400">Ad Media Banner URL</label>
+                          <button
+                            type="button"
+                            onClick={fetchMediaAssets}
+                            className="text-[10px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            {fetchingMedia ? <Loader2 className="h-3 w-3 animate-spin" /> : <Layers className="h-3 w-3" />}
+                            Fetch Meta Library
+                          </button>
+                        </div>
+                        <Input
+                          value={campMediaUrl}
+                          onChange={(e: any) => setCampMediaUrl(e.target.value)}
+                          placeholder="https://example.com/app-banner.jpg"
+                        />
+
+                        {/* AI Media Checkbox */}
+                        <div className="pt-2 border-t border-slate-800 space-y-1">
+                          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={appPromoMediaAiCreated}
+                              onChange={(e) => setAppPromoMediaAiCreated(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-sky-500"
+                            />
+                            <span className="font-semibold text-slate-200">Ad includes media created or edited with AI</span>
+                          </label>
+                          <p className="text-[10px] text-slate-500 pl-5 leading-relaxed">
+                            Ticking this box may add an AI info label to your ad. <button type="button" className="text-sky-400 hover:underline">About AI transparency</button>
+                          </p>
+                        </div>
+
+                        {/* Testimonial Section */}
+                        <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                          <h5 className="font-bold text-slate-200 text-xs">Testimonial</h5>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Add text from your partner. Provide information about your brand or product to complement the content. <button type="button" className="text-sky-400 hover:underline">About testimonials</button>
+                          </p>
+                          <Textarea
+                            label=""
+                            value={appPromoTestimonialText}
+                            onChange={(e: any) => setAppPromoTestimonialText(e.target.value)}
+                            placeholder="Add text from your partner..."
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Tracking Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div>
+                          <h4 className="font-bold text-slate-100 text-xs">Tracking</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Choose conversion events to track. This ad account's selected conversion dataset will be tracked by default.
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          {/* Website events block */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id="trackWebsiteEvents"
+                                checked={appPromoTrackWebsiteEvents}
+                                onChange={(e) => setAppPromoTrackWebsiteEvents(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 bg-slate-950 cursor-pointer"
+                              />
+                              <label htmlFor="trackWebsiteEvents" className="text-xs font-bold text-slate-100 cursor-pointer">
+                                Website events
+                              </label>
+                            </div>
+                            {appPromoTrackWebsiteEvents && (
+                              <div className="pl-6 space-y-0.5 animate-fadeIn">
+                                <p className="text-xs font-semibold text-slate-200">JISNU Digital Website Pixel</p>
+                                <p className="text-[11px] font-mono text-slate-400">Pixel ID: {pixelId || "1380912777544016"}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* App events block */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id="trackAppEvents"
+                                checked={appPromoTrackAppEvents}
+                                onChange={(e) => setAppPromoTrackAppEvents(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 bg-slate-950 cursor-pointer"
+                              />
+                              <label htmlFor="trackAppEvents" className="text-xs font-bold text-slate-100 cursor-pointer">
+                                App events
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* Offline events block */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id="trackOfflineEvents"
+                                checked={appPromoTrackOfflineEvents}
+                                onChange={(e) => setAppPromoTrackOfflineEvents(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 bg-slate-950 cursor-pointer"
+                              />
+                              <label htmlFor="trackOfflineEvents" className="text-xs font-bold text-slate-100 cursor-pointer">
+                                Offline events
+                              </label>
+                            </div>
+
+                            <div className="pl-6 space-y-2 text-xs text-slate-300">
+                              <p className="text-[11px] text-slate-400 leading-relaxed">
+                                We'll use the following offline event set for tracking and data upload:
+                              </p>
+                              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 space-y-0.5">
+                                <p className="font-semibold text-slate-100">{offlineEventSetName}</p>
+                                <p className="text-[11px] font-mono text-slate-400">Dataset ID: {offlineDatasetId}</p>
+                              </div>
+
+                              <div className="flex items-center gap-4 pt-1 text-[11px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowEditOfflineSetsModal(true)}
+                                  className="text-sky-400 hover:underline font-semibold"
+                                >
+                                  Edit tracked offline event sets
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowEventsManagerModal(true)}
+                                  className="text-sky-400 hover:underline font-semibold"
+                                >
+                                  Manage Events Manager data sets
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Third-party reporting */}
+                        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1 text-xs">
+                          <h5 className="font-bold text-slate-200">Third-party reporting</h5>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Meta purchases may not be included in your Google reporting. Connect your account to measure actions on ads that send people to your website or shop.{" "}
+                            <button type="button" className="text-sky-400 hover:underline font-semibold">
+                              Learn more
+                            </button>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Ad Preview Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-200 text-xs">Ad preview</h4>
+                          <span className="text-[10px] text-sky-400 font-semibold bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
+                            Mobile App Preview
+                          </span>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 max-w-sm mx-auto shadow-xl">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-sky-500/20 text-sky-400 font-bold flex items-center justify-center text-xs">A</div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">{fetchedPages[0]?.name || "WhatsApp Automation App"}</p>
+                              <p className="text-[10px] text-slate-400">Sponsored • Mobile App Store</p>
+                            </div>
+                          </div>
+
+                          {campMediaUrl ? (
+                            <div className="w-full h-36 rounded-xl overflow-hidden bg-black">
+                              <img src={campMediaUrl} alt="Ad banner" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-full h-28 rounded-xl bg-slate-950 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 text-xs">
+                              App Promotion Image/Banner Preview
+                            </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                              {campBody || "Boost your business messaging efficiency by 10x with automated replies."}
+                            </p>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                            <div>
+                              <p className="text-[10px] uppercase font-bold text-slate-500">Google Play Store</p>
+                              <p className="text-xs font-bold text-slate-100">{campHeadline || "Install WhatsApp Automation App"}</p>
+                            </div>
+                            <span className="px-3 py-1.5 rounded-lg bg-sky-500 text-slate-950 font-bold text-[11px] shadow-sm">
+                              Install Now
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Legal Terms & Status Bar */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                        <p className="text-[11px] text-slate-400">
+                          By clicking <span className="font-bold text-slate-200">Publish</span>, you acknowledge that your use of Meta's ad tools is subject to our Terms and Conditions.
+                        </p>
+                        <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 shrink-0">
+                          <Check className="h-3 w-3" /> All edits saved
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {campObjective !== "OUTCOME_APP_PROMOTION" && (
+                    <>
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <div>
+                          <h3 className="font-bold text-slate-100 text-sm">
+                            {campObjective === "OUTCOME_TRAFFIC"
+                              ? "New Traffic ad"
+                              : campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "manual"
+                                ? "New Engagement ad"
+                                : campObjective === "OUTCOME_ENGAGEMENT"
+                                  ? "Tailored messages campaign — Ad"
+                                  : campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW"
+                                    ? "New Leads ad"
+                                    : "Step 4: Ad Creative, Identity & Live Preview"}
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-0.5">Select your business profiles, upload media, setup CTA, and preview live ad rendering.</p>
+                        </div>
+                        <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">
+                          Step 4 of 4
+                        </span>
+                      </div>
+
+                      {/* Ad Name Input */}
                   <div>
                     <Input
                       label="Ad Name"
@@ -5379,93 +9044,247 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     )}
                   </div>
 
-                  {/* Ad Creative Section */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  {/* Ad Setup Section (Step 4) */}
+                  <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                     <div>
-                      <h4 className="font-bold text-slate-200 text-xs">Ad setup</h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Select and optimise your ad text, media and enhancements.</p>
+                      <h4 className="font-bold text-slate-100 text-xs">Ad setup</h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        Select an existing post or create a new one
+                      </p>
                     </div>
 
-                    {/* Manual Engagement / New Leads: Select existing post OR Create ad toggle */}
-                    {((campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "manual") || (campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW")) && (
+                    {/* Mode Toggle */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: "CREATE", label: "Create ad" },
+                        { id: "EXISTING", label: "Use existing post" }
+                      ].map((mode) => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => {
+                            if (campObjective === "OUTCOME_LEADS") setLeadsAdSetupMode(mode.id as any);
+                            else setEngManualAdSetupMode(mode.id as any);
+                          }}
+                          className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                            (campObjective === "OUTCOME_LEADS" ? leadsAdSetupMode : engManualAdSetupMode) === mode.id || mode.id === "CREATE"
+                              ? "bg-sky-500/10 border-sky-500/50 text-sky-400"
+                              : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
+                          }`}
+                        >
+                          {mode.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Format Section */}
+                    <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                      <div>
+                        <h5 className="font-bold text-slate-200 text-xs">Format</h5>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Choose an ad creative layout.</p>
+                      </div>
+
                       <div className="space-y-2">
-                        <p className="text-[11px] text-slate-400">Select an existing post or create a new one</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(["EXISTING", "CREATE"] as const).map((mode) => (
-                            <button
-                              key={mode}
-                              type="button"
-                              onClick={() => campObjective === "OUTCOME_LEADS" ? setLeadsAdSetupMode(mode) : setEngManualAdSetupMode(mode)}
-                              className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${(campObjective === "OUTCOME_LEADS" ? leadsAdSetupMode : engManualAdSetupMode) === mode
-                                ? "bg-sky-500/10 border-sky-500/50 text-sky-400"
-                                : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
-                                }`}
-                            >
-                              {mode === "EXISTING" ? "Use existing post" : "Create ad"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <h4 className="font-bold text-slate-200 text-xs">Ad creative</h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Select and optimise your ad text, media and enhancements.</p>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-400 font-semibold">
-                      ⚠ Please specify the media to run with this ad.
-                    </div>
-
-                    <Input
-                      label="Headline"
-                      value={campHeadline}
-                      onChange={(e: any) => setCampHeadline(e.target.value)}
-                      placeholder="Chat with us on WhatsApp for 20% OFF!"
-                    />
-                    <Textarea
-                      label="Primary Body Text"
-                      value={campBody}
-                      onChange={(e: any) => setCampBody(e.target.value)}
-                      placeholder="Hi! Please let us know how we can help you."
-                      rows={2}
-                    />
-
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-semibold text-slate-400">Ad Image/Media URL</label>
-                      <button
-                        type="button"
-                        onClick={fetchMediaAssets}
-                        className="text-[10px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
-                      >
-                        {fetchingMedia ? <Loader2 className="h-3 w-3 animate-spin" /> : <Layers className="h-3 w-3" />}
-                        Fetch Meta Media Library
-                      </button>
-                    </div>
-                    <Input
-                      value={campMediaUrl}
-                      onChange={(e: any) => setCampMediaUrl(e.target.value)}
-                      placeholder="https://example.com/banner.jpg"
-                    />
-
-                    {/* Live Media Picker */}
-                    {(mediaAssets.images.length > 0 || mediaAssets.videos.length > 0) && (
-                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
-                        <p className="text-[11px] font-bold text-slate-200">Select from Live Meta Library:</p>
-                        <div className="flex gap-2 overflow-x-auto pb-1 max-h-24">
-                          {mediaAssets.images.map((img: any) => (
-                            <img
-                              key={img.id}
-                              src={img.url}
-                              alt="media"
-                              onClick={() => setCampMediaUrl(img.url)}
-                              className={`h-20 w-28 object-cover rounded-lg cursor-pointer border-2 shrink-0 ${campMediaUrl === img.url ? "border-sky-500" : "border-transparent"}`}
+                        {[
+                          { id: "SINGLE_IMAGE", title: "Single image or video", desc: "One image or video, or a slide show with multiple images" },
+                          { id: "CAROUSEL", title: "Carousel", desc: "2 or more scrollable images or videos" }
+                        ].map((fmt) => (
+                          <div
+                            key={fmt.id}
+                            onClick={() => setAdFormat(fmt.id)}
+                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                              adFormat === fmt.id
+                                ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="adFormat"
+                              checked={adFormat === fmt.id}
+                              onChange={() => setAdFormat(fmt.id)}
+                              className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
                             />
-                          ))}
+                            <div>
+                              <p className="text-xs font-bold text-slate-100">{fmt.title}</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{fmt.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Multi-advertiser ads Section */}
+                    <div className="pt-3 border-t border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h5 className="font-bold text-xs text-slate-100">Multi-advertiser ads</h5>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                          <input
+                            type="checkbox"
+                            checked={multiAdvertiserAds}
+                            onChange={(e) => setMultiAdvertiserAds(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Your ad can appear with others in the same ad unit to help promote discoverability. Your ad creative may be resized or cropped. <button type="button" className="text-sky-400 hover:underline font-semibold">About multi-advertiser ads</button>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Ad Creative Card (Step 4) */}
+                    <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                      <div>
+                        <h4 className="font-bold text-slate-100 text-xs">Ad creative</h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                          Select and optimise your ad text, media and enhancements.
+                        </p>
+                      </div>
+
+                      {/* Media */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-slate-200">
+                            * Media
+                          </label>
+                          <button
+                            type="button"
+                            onClick={fetchMediaAssets}
+                            className="text-[10px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            {fetchingMedia ? <Loader2 className="h-3 w-3 animate-spin" /> : <Layers className="h-3 w-3" />}
+                            Fetch Meta Media Library
+                          </button>
+                        </div>
+
+                        <Input
+                          value={campMediaUrl}
+                          onChange={(e: any) => setCampMediaUrl(e.target.value)}
+                          placeholder="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600"
+                        />
+
+                        {/* Live Media Picker */}
+                        {(mediaAssets.images.length > 0 || mediaAssets.videos.length > 0) && (
+                          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+                            <p className="text-[11px] font-bold text-slate-200">Select from Live Meta Library:</p>
+                            <div className="flex gap-2 overflow-x-auto pb-1 max-h-24">
+                              {mediaAssets.images.map((img: any) => (
+                                <img
+                                  key={img.id}
+                                  src={img.url}
+                                  alt="media"
+                                  onClick={() => setCampMediaUrl(img.url)}
+                                  className={`h-20 w-28 object-cover rounded-lg cursor-pointer border-2 shrink-0 ${campMediaUrl === img.url ? "border-sky-500" : "border-transparent"}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* AI Media Transparency Checkbox */}
+                      <div className="pt-2 border-t border-slate-800 space-y-1">
+                        <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={appPromoMediaAiCreated}
+                            onChange={(e) => setAppPromoMediaAiCreated(e.target.checked)}
+                            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
+                          />
+                          <span className="font-bold text-slate-200">Ad includes media created or edited with AI</span>
+                        </label>
+                        <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
+                          Ticking this box may add an AI info label to your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">About AI transparency</button>
+                        </p>
+                      </div>
+
+                      {/* Primary text */}
+                      <div className="space-y-1 pt-1 border-t border-slate-800">
+                        <label className="block text-xs font-bold text-slate-200">Primary text</label>
+                        <Textarea
+                          label=""
+                          value={campBody}
+                          onChange={(e: any) => setCampBody(e.target.value)}
+                          placeholder="Helping businesses grow digitally with smart strategies and powerful branding. 📈 Meta Ads Google Ads Social Media Management Creative Design, Let’s turn your vision into digital success!"
+                          rows={3}
+                        />
+                      </div>
+
+                      {/* Add a destination Card */}
+                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                        <div>
+                          <h5 className="font-bold text-xs text-slate-100">Add a destination</h5>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            If you add a destination, you can send people immediately after they've tapped or clicked your ad to a website, a full-screen experience or a call. If you don't, they'll be sent to your Facebook Page or Instagram profile.
+                          </p>
+                        </div>
+
+                        {/* Headline */}
+                        <div className="space-y-1">
+                          <label className="block text-xs font-bold text-slate-200">Headline</label>
+                          <Input
+                            label=""
+                            value={campHeadline}
+                            onChange={(e: any) => setCampHeadline(e.target.value)}
+                            placeholder="Chat with us"
+                          />
+                        </div>
+
+                        {/* Description */}
+                        <div className="space-y-1">
+                          <label className="block text-xs font-bold text-slate-200">Description</label>
+                          <Input
+                            label=""
+                            value={salesAdDescription}
+                            onChange={(e: any) => setSalesAdDescription(e.target.value)}
+                            placeholder="Optional description text..."
+                          />
+                        </div>
+
+                        {/* Call to action */}
+                        <div className="space-y-2 pt-2 border-t border-slate-800">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-200">Call to action</label>
+                            <p className="text-[11px] text-slate-400">Select an item</p>
+                          </div>
+                          <select
+                            value={callToAction}
+                            onChange={(e) => setCallToAction(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="WHATSAPP_MESSAGE">Send WhatsApp message</option>
+                            <option value="LEARN_MORE">Learn More</option>
+                            <option value="CONTACT_US">Contact Us</option>
+                            <option value="SHOP_NOW">Shop Now</option>
+                            <option value="BOOK_NOW">Book Now</option>
+                            <option value="GET_OFFER">Get Offer</option>
+                            <option value="SIGN_UP">Sign Up</option>
+                          </select>
+
+                          {/* Connected WhatsApp Notice Box */}
+                          {callToAction === "WHATSAPP_MESSAGE" && (
+                            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-[11px] text-slate-300 leading-relaxed animate-fadeIn">
+                              <p>
+                                When people click the button on an ad, they'll be able to send a message to the WhatsApp number connected to your Page.
+                              </p>
+                              <p className="font-semibold text-emerald-400">
+                                Connected WhatsApp number: <span className="font-mono text-slate-100">+91 7709936965</span>. <button type="button" className="text-sky-400 hover:underline font-bold">Edit in Page settings.</button>
+                              </p>
+                              <p className="text-slate-400">
+                                WhatsApp information, including names and phone numbers, is subject to the data use restrictions in the Meta Advertising Policies. Your business and ads must also comply with the WhatsApp Commerce Policy. Links to WhatsApp on your website may be modified when people view your site in Facebook or Instagram.
+                              </p>
+                              <p className="text-slate-400">
+                                Your ads that click to WhatsApp show "Active on WhatsApp" when you're using the WhatsApp Business app. This lets people viewing your ads know they can expect a quick reply. You can turn this off in your WhatsApp privacy settings.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
 
                   {/* Destination & Instant Form Section (Leads Objective Only) */}
                   {campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW" && (
@@ -5562,57 +9381,221 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     </div>
                   )}
 
-                  {/* Conversations / Chat Template (Traffic & Tailored Engagement only) */}
-                  {(campObjective === "OUTCOME_TRAFFIC" || (campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "tailored")) && (
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                      <div>
-                        <h4 className="font-bold text-slate-200 text-xs">Conversations</h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {campObjective === "OUTCOME_ENGAGEMENT"
-                            ? "Create the messaging experience people see after they've tapped on your ad."
-                            : "Choose a template for beginning the chat after people tap on your ad."}
-                          {" "}<button type="button" className="text-sky-400 hover:underline">Learn more</button>
-                        </p>
-                      </div>
+                  {/* Destination Card (Step 4) */}
+                  <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                    <div>
+                      <h4 className="font-bold text-slate-100 text-xs">Destination</h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        Tell us where to send people immediately after they tap or click your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
+                      </p>
+                    </div>
 
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                        <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">Suggested chat template</span>
-
-                        {/* Greeting */}
-                        <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700/60 space-y-1.5">
-                          <p className="text-[11px] font-bold text-slate-300">Greeting</p>
-                          <Textarea
-                            label=""
-                            value={campBody || "Hi, Amol! Please let us know how we can help you."}
-                            onChange={(e: any) => setCampBody(e.target.value)}
-                            rows={2}
-                            placeholder="Hi! Please let us know how we can help you."
+                    {/* Destination Type Radio Group */}
+                    <div className="space-y-2">
+                      {[
+                        {
+                          id: "INSTANT_EXPERIENCE",
+                          title: "Instant Experience",
+                          desc: "Send people to a fast-loading, mobile-optimised experience."
+                        },
+                        {
+                          id: "WEBSITE",
+                          title: "Website",
+                          desc: "Send people to your website."
+                        },
+                        {
+                          id: "CALL",
+                          title: "Call",
+                          desc: "Let people call you directly."
+                        },
+                        {
+                          id: "MESSAGING",
+                          title: "Messaging apps",
+                          desc: "Send people to Messenger, Instagram and WhatsApp."
+                        }
+                      ].map((dest) => (
+                        <div
+                          key={dest.id}
+                          onClick={() => setStep4DestinationType(dest.id as any)}
+                          className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${step4DestinationType === dest.id
+                            ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                            : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                            }`}
+                        >
+                          <input
+                            type="radio"
+                            name="step4DestinationType"
+                            checked={step4DestinationType === dest.id}
+                            onChange={() => setStep4DestinationType(dest.id as any)}
+                            className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
                           />
+                          <div>
+                            <p className="text-xs font-bold text-slate-100">{dest.title}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{dest.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* When Messaging Apps is selected */}
+                    {step4DestinationType === "MESSAGING" && (
+                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-4 animate-fadeIn">
+                        {/* Messenger */}
+                        <div className="space-y-1">
+                          <label className="block text-xs font-bold text-slate-200">Messenger</label>
+                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-700/60 text-xs font-bold text-sky-400 flex items-center gap-2">
+                            <span>💬</span> {fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}
+                          </div>
                         </div>
 
-                        {/* Questions & Responses */}
-                        <div className="space-y-1.5">
-                          <p className="text-[11px] font-bold text-slate-300">Questions and responses</p>
-                          {[
-                            "Can I learn more about your business?",
-                            "Can you tell me more about your ad?",
-                            "Is anyone available to chat?",
-                          ].map((q, i) => (
-                            <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-[11px] text-slate-300">
-                              <span>{q}</span>
-                              <Check className="h-3 w-3 text-sky-400 shrink-0" />
+                        {/* Instagram */}
+                        <div className="space-y-1">
+                          <label className="block text-xs font-bold text-slate-200">Instagram</label>
+                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-700/60 text-xs font-bold text-sky-400 flex items-center gap-2">
+                            <span>📸</span> @{instagramProfile || "jisnu_digitalsolution_pvt_ltd"}
+                          </div>
+                        </div>
+
+                        {/* WhatsApp */}
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-200">WhatsApp</label>
+                          <div className="space-y-1">
+                            <select
+                              value={step4WhatsappNumber}
+                              onChange={(e) => setStep4WhatsappNumber(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="+91 77099 36965">+91 77099 36965</option>
+                              <option value="CONNECT_NEW">+ Connect new WhatsApp number</option>
+                            </select>
+                            <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                              You can connect a maximum of 50 WhatsApp numbers per Facebook Page.
+                              Edit WhatsApp numbers in Business Manager and number connections in Page settings.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Ads data sharing */}
+                        <div className="pt-3 border-t border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h5 className="font-bold text-xs text-slate-200">Ads data sharing</h5>
+                              <p className="text-[11px] text-slate-400">{step4AdsDataSharing ? "On" : "Off"}</p>
                             </div>
-                          ))}
-                          <button
-                            type="button"
-                            className="text-[11px] text-sky-400 hover:underline font-semibold pt-1"
-                          >
-                            + Add responses
-                          </button>
+                            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                              <input
+                                type="checkbox"
+                                checked={step4AdsDataSharing}
+                                onChange={(e) => setStep4AdsDataSharing(e.target.checked)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                            </label>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
+                            <p>
+                              WhatsApp information, including names and phone numbers, is subject to the data use restrictions in the Meta Advertising Policies. Your business and ads must also comply with the WhatsApp Commerce Policy. Links to WhatsApp on your website may be modified when people view your site in Facebook or Instagram.
+                            </p>
+                            <p>
+                              Your ads that click to WhatsApp show "Active on WhatsApp" when you're using the WhatsApp Business app. This lets people viewing your ads know they can expect a quick reply. You can turn this off in your WhatsApp privacy settings.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Conversations / Chat Template Card (Step 4) */}
+                  <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-100 text-xs">Conversations</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        Choose a template for beginning the chat after people tap on your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
+                      </p>
+                    </div>
+
+                    {/* Recommendation Opportunity Banner */}
+                    <div className="p-4 rounded-xl bg-slate-900 border-l-4 border-l-purple-500 border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                          ⚡ You could get 7% more messages by adding recommended settings
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                          +7%
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Make it easier for people to start chats with AI-generated questions and more. You can edit as needed.
+                      </p>
+                    </div>
+
+                    {/* Recommended Chat Template Box */}
+                    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-200">Recommended chat template</span>
+                          <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold flex items-center gap-1">
+                            🤖 AI
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowChatTemplateModal(true)}
+                          className="text-xs text-sky-400 hover:underline font-semibold"
+                        >
+                          Edit template
+                        </button>
+                      </div>
+
+                      {/* Greeting */}
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-semibold text-slate-400">Greeting</label>
+                        <input
+                          type="text"
+                          value={chatTemplateGreeting}
+                          onChange={(e) => setChatTemplateGreeting(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+
+                      {/* Questions and responses */}
+                      <div className="space-y-2 pt-1 border-t border-slate-800">
+                        <label className="block text-[11px] font-semibold text-slate-400">Questions and responses</label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-bold shrink-0">1.</span>
+                            <input
+                              type="text"
+                              value={chatTemplateQuestion1}
+                              onChange={(e) => setChatTemplateQuestion1(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-bold shrink-0">2.</span>
+                            <input
+                              type="text"
+                              value={chatTemplateQuestion2}
+                              onChange={(e) => setChatTemplateQuestion2(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-bold shrink-0">3.</span>
+                            <input
+                              type="text"
+                              value={chatTemplateQuestion3}
+                              onChange={(e) => setChatTemplateQuestion3(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {/* Tracking Section */}
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
@@ -5746,8 +9729,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       <Check className="h-3 w-3" /> All edits saved
                     </span>
                   </div>
-                </div>
+                </>
               )}
+            </div>
+          )}
 
             </div>
 
@@ -5795,7 +9780,11 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 flex items-center gap-2 transition-all disabled:opacity-50"
                   >
                     {creatingCamp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                    Publish Campaign Live
+                    {creatingCamp
+                      ? "PUBLISHING 1 OF 1..."
+                      : campObjective === "OUTCOME_APP_PROMOTION"
+                        ? "Publish (PUBLISHING 1 OF 1)"
+                        : "Publish Campaign Live"}
                   </button>
                 )}
               </div>
@@ -6098,6 +10087,378 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
         </div>
       )}
 
+      {/* SETUP CONVERSION EVENT MODAL */}
+      {salesShowSetupConversionEventModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm">Set up conversion event</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Configure web purchase, checkout, or lead events for your pixel dataset.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSalesShowSetupConversionEventModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Select Standard Event</label>
+                <select
+                  value={salesConversionEvent}
+                  onChange={(e) => setSalesConversionEvent(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
+                >
+                  <option value="PURCHASE">Purchase (Completed payment on website)</option>
+                  <option value="INITIATE_CHECKOUT">Initiate Checkout (Click checkout button)</option>
+                  <option value="ADD_TO_CART">Add to Cart (Added product to cart)</option>
+                  <option value="LEAD">Lead (Form submission or query)</option>
+                </select>
+              </div>
+
+              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 leading-relaxed">
+                ℹ Adding standard event code to your website allows Meta's AI to optimize ad delivery directly to users with high purchase intent.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSalesShowSetupConversionEventModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!salesConversionEvent) setSalesConversionEvent("PURCHASE");
+                  setSalesShowSetupConversionEventModal(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+              >
+                Save Conversion Event
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANAGE PROMO CODES MODAL */}
+      {salesShowPromoCodesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="font-bold text-slate-100 text-sm">Manage promo codes</h3>
+              <button
+                type="button"
+                onClick={() => setSalesShowPromoCodesModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div
+                onClick={() => setSalesPromoCodesOption("AUTO")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all ${salesPromoCodesOption === "AUTO" ? "bg-sky-500/10 border-sky-500/40" : "bg-slate-950 border-slate-800"}`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="radio"
+                    name="promoOption"
+                    checked={salesPromoCodesOption === "AUTO"}
+                    onChange={() => setSalesPromoCodesOption("AUTO")}
+                    className="mt-0.5 accent-sky-500 shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">Automatically source promo codes</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Meta will detect active website promotion codes automatically.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setSalesPromoCodesOption("MANUAL")}
+                className={`p-3 rounded-xl border cursor-pointer transition-all ${salesPromoCodesOption === "MANUAL" ? "bg-sky-500/10 border-sky-500/40" : "bg-slate-950 border-slate-800"}`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="radio"
+                    name="promoOption"
+                    checked={salesPromoCodesOption === "MANUAL"}
+                    onChange={() => setSalesPromoCodesOption("MANUAL")}
+                    className="mt-0.5 accent-sky-500 shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">Manually add promo codes</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Enter custom coupon code (e.g. SAVE20, WELCOME10).</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSalesShowPromoCodesModal(false)}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BUILD URL PARAMETERS MODAL */}
+      {salesShowUrlParametersModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm">Build a URL parameter</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Add tracking parameters to measure traffic source and campaign effectiveness.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSalesShowUrlParametersModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Campaign Source (utm_source)</label>
+                <input
+                  type="text"
+                  defaultValue="facebook_ad"
+                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Campaign Medium (utm_medium)</label>
+                <input
+                  type="text"
+                  defaultValue="cpc_sales"
+                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Campaign Name (utm_campaign)</label>
+                <input
+                  type="text"
+                  defaultValue="summer_sales_2026"
+                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSalesShowUrlParametersModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSalesUrlParameters("utm_source=facebook_ad&utm_medium=cpc_sales&utm_campaign=summer_sales_2026");
+                  setSalesShowUrlParametersModal(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+              >
+                Apply Parameters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ENTER AD CODE OR POST INFO MODAL */}
+      {showPartnershipCodeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-5xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900">
+              <h3 className="font-bold text-slate-100 text-sm">Enter partnership ad code, post ID or post URL</h3>
+              <button
+                type="button"
+                onClick={() => setShowPartnershipCodeModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-lg font-bold p-1 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Split Content Area */}
+            <div className="grid grid-cols-1 md:grid-cols-12 flex-1 overflow-y-auto">
+              {/* Left Column: Form & Help Text */}
+              <div className="md:col-span-5 p-6 space-y-4 border-r border-slate-800 bg-slate-950/40">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  This will set the first identity of the partnership ad and will use the media associated with the code or post info. For partnership ad code, contact the post's creator and request that they share it with you. For post ID or post URL, make sure that you have account-level permissions from the creator to run your ad with the associated media.{" "}
+                  <button type="button" className="text-sky-400 hover:underline font-semibold">
+                    Learn how to use ad codes, post ID or post URL
+                  </button>
+                </p>
+
+                <div className="space-y-1.5 pt-2">
+                  <input
+                    type="text"
+                    value={partnershipAdCode}
+                    onChange={(e) => setPartnershipAdCode(e.target.value)}
+                    placeholder="Enter ad code provided by the creator, or post ID or post URL"
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono shadow-inner"
+                  />
+                </div>
+
+                {partnershipAdCode && (
+                  <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 animate-fadeIn">
+                    ✓ Validating code format: <span className="font-mono font-bold text-slate-200">{partnershipAdCode}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Partnership Ad Live Preview */}
+              <div className="md:col-span-7 p-6 bg-slate-900/60 space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-slate-200 text-xs">Partnership ad preview</h4>
+                  </div>
+
+                  {/* Placement Selector */}
+                  <select
+                    value={partnershipPreviewPlacement}
+                    onChange={(e) => setPartnershipPreviewPlacement(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-200 font-semibold focus:outline-none focus:border-sky-500"
+                  >
+                    <option value="INSTAGRAM_FEED">📷 Instagram feed</option>
+                    <option value="INSTAGRAM_REELS">📱 Instagram stories / Reels</option>
+                    <option value="FACEBOOK_FEED">📄 Facebook feed</option>
+                  </select>
+
+                  {/* Previews Grid */}
+                  <div className="pt-2">
+                    <div className="flex items-center justify-end mb-1">
+                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-bold">
+                        Dynamic identity
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Card 1: Co-branded Partnership Mockup */}
+                      <div className="p-3 rounded-xl bg-slate-950 border border-sky-500/60 space-y-2.5 shadow-lg">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            <div className="flex -space-x-1.5 shrink-0">
+                              <div className="w-5 h-5 rounded-full bg-sky-500/30 border border-slate-900 flex items-center justify-center text-[8px] font-bold text-sky-300">C</div>
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/30 border border-slate-900 flex items-center justify-center text-[8px] font-bold text-emerald-300">B</div>
+                            </div>
+                            <span className="font-bold text-slate-200 truncate text-[10px]">
+                              creator and brand
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-slate-500 font-semibold shrink-0">Ad</span>
+                        </div>
+
+                        {/* Image Placeholder */}
+                        <div className="w-full h-32 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600">
+                          {campMediaUrl ? (
+                            <img src={campMediaUrl} alt="Ad media" className="w-full h-full object-cover rounded-lg" />
+                          ) : (
+                            <div className="flex flex-col items-center gap-1 text-slate-600">
+                              <svg className="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions Row */}
+                        <div className="flex items-center justify-between text-slate-400 text-xs pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span>♡</span>
+                            <span>💬</span>
+                            <span>✈</span>
+                          </div>
+                          <span>🔖</span>
+                        </div>
+                      </div>
+
+                      {/* Card 2: Single / Dynamic Identity Mockup */}
+                      <div className="p-3 rounded-xl bg-slate-950 border border-sky-500/60 space-y-2.5 shadow-lg">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            <div className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center text-[8px] font-bold text-slate-300">C</div>
+                            <span className="font-bold text-slate-200 truncate text-[10px]">
+                              {selectedPartnerIdentity || "creator_name"}
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-slate-500 font-semibold shrink-0">Ad</span>
+                        </div>
+
+                        {/* Image Placeholder */}
+                        <div className="w-full h-32 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600">
+                          {campMediaUrl ? (
+                            <img src={campMediaUrl} alt="Ad media" className="w-full h-full object-cover rounded-lg" />
+                          ) : (
+                            <div className="flex flex-col items-center gap-1 text-slate-600">
+                              <svg className="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions Row */}
+                        <div className="flex items-center justify-between text-slate-400 text-xs pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span>♡</span>
+                            <span>💬</span>
+                            <span>✈</span>
+                          </div>
+                          <span>🔖</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-800 bg-slate-900 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowPartnershipCodeModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPartnershipCodeApplied(true);
+                  setShowPartnershipCodeModal(false);
+                }}
+                className="px-6 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SELECT PARTNERSHIP MODAL */}
       {showSelectPartnershipModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
@@ -6265,6 +10626,441 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               >
                 Select identity
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SELECT PARTNER CONTENT POST MODAL */}
+      {showSelectPartnerContentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-5xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900">
+              <h3 className="font-bold text-slate-100 text-sm">Select partner content post</h3>
+              <button
+                type="button"
+                onClick={() => setShowSelectPartnerContentModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-lg font-bold p-1 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Sub-header Tabs */}
+            <div className="px-6 pt-3 pb-0 border-b border-slate-800 bg-slate-950/40 flex gap-4">
+              {(["ALL", "SUGGESTED"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setPartnerContentTab(tab)}
+                  className={`pb-2.5 text-xs font-bold border-b-2 transition-all ${partnerContentTab === tab
+                    ? "border-sky-400 text-sky-400"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
+                    }`}
+                >
+                  {tab === "ALL" ? "All" : "Suggested"}
+                </button>
+              ))}
+            </div>
+
+            {/* Filter Controls Bar */}
+            <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center gap-2 flex-wrap">
+              <select
+                value={partnerPostTypeFilter}
+                onChange={(e) => setPartnerPostTypeFilter(e.target.value)}
+                className="bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-medium"
+              >
+                <option value="ALL">Select item</option>
+                <option value="REELS">Reels • Video</option>
+                <option value="FEED">Feed • Photo</option>
+              </select>
+
+              <select
+                value={partnerPostIdentityFilter}
+                onChange={(e) => setPartnerPostIdentityFilter(e.target.value)}
+                className="bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-medium"
+              >
+                <option value="ALL">Select identity</option>
+                <option value="jisnu_digitalsolution_pvt_ltd">jisnu_digitalsolution_pvt_ltd</option>
+                <option value="jvm_institute.pvt.ltd">jvm_institute.pvt.ltd</option>
+              </select>
+
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={partnerPostSearch}
+                  onChange={(e) => setPartnerPostSearch(e.target.value)}
+                  placeholder="Post, image or video IDs, or other keywords"
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <button
+                type="button"
+                className="px-3 py-2 rounded-xl border border-slate-700/80 bg-slate-900 text-xs font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800 flex items-center gap-1.5 shrink-0"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-sky-400" />
+                All filters
+              </button>
+            </div>
+
+            {/* Partner Posts Table */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-2 text-[11px] font-bold text-slate-400 px-3 py-2 border-b border-slate-800">
+                <span className="col-span-5">Partner content post</span>
+                <span className="col-span-2">Permissions ℹ</span>
+                <span className="col-span-1">Issues ℹ</span>
+                <span className="col-span-2">Type</span>
+                <span className="col-span-2 text-right">Published</span>
+              </div>
+
+              {/* Posts Rows */}
+              {[
+                {
+                  id: "post_1",
+                  profile: "jisnu_digitalsolution_pvt_ltd",
+                  caption: "🚀 Is Your Business Not Growing Online? Best Digital Marketing ...",
+                  likes: 51,
+                  comments: 0,
+                  shares: 0,
+                  permission: "AUTHORIZED",
+                  issues: "—",
+                  type: "Reels • Video",
+                  published: "4 Aug 2026",
+                  imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=150&auto=format&fit=crop&q=80",
+                },
+                {
+                  id: "post_2",
+                  profile: "jisnu_digitalsolution_pvt_ltd",
+                  caption: "JISNU Digital Solutions Pvt. Ltd. द्वारे राबविण्यात आलेल्या Kakde & K...",
+                  likes: 5,
+                  comments: 0,
+                  shares: 0,
+                  permission: "UNAUTHORIZED",
+                  issues: "—",
+                  type: "Feed • Photo",
+                  published: "23 Jul 2026",
+                  imageUrl: "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=150&auto=format&fit=crop&q=80",
+                },
+                {
+                  id: "post_3",
+                  profile: "jvm_institute.pvt.ltd",
+                  caption: "Best Data Engineering Classes In Pune. Build Your Future in Dat...",
+                  likes: 33,
+                  comments: 1,
+                  shares: 0,
+                  permission: "UNAUTHORIZED",
+                  issues: "—",
+                  type: "Reels • Video",
+                  published: "22 Jul 2026",
+                  imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80",
+                },
+                {
+                  id: "post_4",
+                  profile: "jisnu_digitalsolution_pvt_ltd",
+                  caption: "Best Digital Marketing Agency In Pune. Real Campaigns. Real Re...",
+                  likes: 42,
+                  comments: 3,
+                  shares: 1,
+                  permission: "UNAUTHORIZED",
+                  issues: "—",
+                  type: "Feed • Photo",
+                  published: "17 Jul 2026",
+                  imageUrl: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=150&auto=format&fit=crop&q=80",
+                },
+              ]
+                .filter((p) => partnerPostIdentityFilter === "ALL" || p.profile === partnerPostIdentityFilter)
+                .filter((p) => partnerPostSearch === "" || p.caption.toLowerCase().includes(partnerPostSearch.toLowerCase()) || p.profile.toLowerCase().includes(partnerPostSearch.toLowerCase()))
+                .map((post) => (
+                  <div
+                    key={post.id}
+                    onClick={() => setSelectedPartnerPostId(post.id)}
+                    className={`grid grid-cols-12 gap-2 items-center p-3 rounded-xl border cursor-pointer transition-all ${selectedPartnerPostId === post.id
+                      ? "border-sky-500 bg-sky-500/10 text-slate-100 shadow-md"
+                      : "border-slate-800 bg-slate-950/60 hover:bg-slate-900 text-slate-300 hover:border-slate-700"
+                      }`}
+                  >
+                    {/* Column 1: Post thumbnail + Profile & Caption */}
+                    <div className="col-span-5 flex items-center gap-3">
+                      <div className="w-12 h-14 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 shrink-0">
+                        <img src={post.imageUrl} alt="post thumbnail" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">📷</span>
+                          <span className="font-bold text-xs text-slate-100 truncate">{post.profile}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 line-clamp-1 leading-snug">{post.caption}</p>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-semibold pt-0.5">
+                          <span>♡ {post.likes}</span>
+                          <span>💬 {post.comments}</span>
+                          <span>➔ {post.shares}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 2: Permissions */}
+                    <div className="col-span-2 text-xs font-semibold">
+                      {post.permission === "AUTHORIZED" ? (
+                        <span className="text-emerald-400 font-bold">—</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-amber-400 text-[11px]">
+                          <span className="w-2 h-2 rounded-full bg-amber-400"></span> Unauthorised
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Column 3: Issues */}
+                    <div className="col-span-1 text-xs text-slate-400">{post.issues}</div>
+
+                    {/* Column 4: Type */}
+                    <div className="col-span-2 text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                      <span>📷</span> {post.type}
+                    </div>
+
+                    {/* Column 5: Published */}
+                    <div className="col-span-2 text-right text-xs font-mono text-slate-400">{post.published}</div>
+                  </div>
+                ))}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-900 flex items-center justify-between gap-4">
+              <p className="text-[11px] text-slate-400 max-w-xl leading-relaxed">
+                If any of the above content is branded content, our{" "}
+                <button type="button" className="text-sky-400 hover:underline font-semibold">Branded Content Policies</button>{" "}
+                require that it be disclosed using the paid partnership tool.{" "}
+                <button type="button" className="text-sky-400 hover:underline font-semibold">Go to Partnership Ads Hub to view creator content</button>
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSelectPartnerContentModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCampHeadline("🚀 Is Your Business Not Growing Online?");
+                    setCampBody("Best Digital Marketing Agency In Pune. Real Campaigns. Real Results.");
+                    setCampMediaUrl("https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80");
+                    setShowSelectPartnerContentModal(false);
+                  }}
+                  className="px-6 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TRACKED OFFLINE EVENT SETS MODAL */}
+      {showEditOfflineSetsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm">Edit tracked offline event sets</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Select which offline event sets to use for tracking sales and conversions.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditOfflineSetsModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold text-slate-300">Offline Event Set</label>
+              <select
+                value={offlineEventSetName}
+                onChange={(e) => setOfflineEventSetName(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
+              >
+                <option value="JISNU Digital Website Pixel">JISNU Digital Website Pixel (Dataset ID: 1380912777544016)</option>
+                <option value="Offline Store Conversions Set">Offline Store Conversions Set (Dataset ID: 8892011475)</option>
+                <option value="CRM Leads Event Set">CRM Leads Event Set (Dataset ID: 9940127501)</option>
+              </select>
+
+              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 leading-relaxed">
+                ℹ Meta will automatically match offline conversions (in-store purchases, CRM leads) with users who viewed or clicked your ad.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowEditOfflineSetsModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEditOfflineSetsModal(false)}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+              >
+                Save Event Set
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANAGE EVENTS MANAGER DATA SETS MODAL */}
+      {showEventsManagerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm">Manage Events Manager data sets</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Meta Events Manager Dataset Configuration.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEventsManagerModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300">
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-100">Dataset Name</span>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">Active</span>
+                </div>
+                <p className="font-mono text-slate-400 text-[11px]">JISNU Digital Website Pixel (ID: 1380912777544016)</p>
+                <div className="text-[11px] text-slate-400 pt-1 space-y-1">
+                  <p>• Web Events: PageView, Lead, AddToCart, Purchase</p>
+                  <p>• Offline Events: InStorePurchase, PhoneOrder</p>
+                  <p>• App Events: AppInstall, AppLaunch, InAppPurchase</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowEventsManagerModal(false)}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT CHAT TEMPLATE MODAL */}
+      {showChatTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                  Edit chat template
+                  <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold">🤖 AI Recommended</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Customize the greeting and automated questions people see after tapping your ad.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChatTemplateModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-200">Greeting</label>
+                <input
+                  type="text"
+                  value={chatTemplateGreeting}
+                  onChange={(e) => setChatTemplateGreeting(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <label className="block text-xs font-bold text-slate-200">Questions and responses</label>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400">Question 1</span>
+                    <input
+                      type="text"
+                      value={chatTemplateQuestion1}
+                      onChange={(e) => setChatTemplateQuestion1(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400">Question 2</span>
+                    <input
+                      type="text"
+                      value={chatTemplateQuestion2}
+                      onChange={(e) => setChatTemplateQuestion2(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400">Question 3</span>
+                    <input
+                      type="text"
+                      value={chatTemplateQuestion3}
+                      onChange={(e) => setChatTemplateQuestion3(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] text-purple-300 leading-relaxed">
+                ⚡ Recommended template settings can increase message response rates by up to 7%.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setChatTemplateGreeting("Hi! Please let us know how we can help you.");
+                  setChatTemplateQuestion1("Can I learn more about your business?");
+                  setChatTemplateQuestion2("Can you tell me more about your ad?");
+                  setChatTemplateQuestion3("Is anyone available to chat?");
+                }}
+                className="text-xs text-sky-400 hover:underline font-semibold"
+              >
+                Reset AI defaults
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChatTemplateModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowChatTemplateModal(false)}
+                  className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all"
+                >
+                  Save Template
+                </button>
+              </div>
             </div>
           </div>
         </div>
