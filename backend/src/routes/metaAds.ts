@@ -165,6 +165,36 @@ router.get("/pixels", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/instagram-accounts
+ * Fetch Instagram Business Accounts connected to Pages
+ */
+router.get("/instagram-accounts", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const instagramAccounts = await MetaAdsService.getInstagramAccounts(orgId);
+    res.json({ success: true, instagramAccounts });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching Instagram accounts:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/whatsapp-numbers
+ * Fetch WhatsApp phone numbers connected to Facebook Pages
+ */
+router.get("/whatsapp-numbers", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const whatsappNumbers = await MetaAdsService.getWhatsAppNumbers(orgId);
+    res.json({ success: true, whatsappNumbers });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching WhatsApp numbers:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/meta-ads/campaigns
  * Get Meta campaigns
  */
