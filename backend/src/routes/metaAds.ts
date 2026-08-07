@@ -376,4 +376,20 @@ router.get("/media", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/meta-ads/sync
+ * Sync Live Campaigns & Ads from Meta Graph API
+ */
+router.post("/sync", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const adAccountId = req.body.adAccountId;
+    const result = await MetaAdsService.syncCampaigns(orgId, adAccountId);
+    res.json({ success: true, result });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error syncing campaigns:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

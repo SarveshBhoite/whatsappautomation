@@ -1249,6 +1249,19 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [trafficAdSetConversionLocation, setTrafficAdSetConversionLocation] = useState("WEBSITE");
   const [trafficPerformanceGoal, setTrafficPerformanceGoal] = useState("MAXIMIZE_LINK_CLICKS");
   const [trafficCostPerResult, setTrafficCostPerResult] = useState("");
+  const [awarenessCostPerResult, setAwarenessCostPerResult] = useState("");
+
+  // Step 3 Budget & Schedule State
+  const [step3BudgetMode, setStep3BudgetMode] = useState<"LIFETIME" | "DAILY">("LIFETIME");
+  const [step3BudgetAmount, setStep3BudgetAmount] = useState("14000.00");
+  const [step3LiveVideoOption, setStep3LiveVideoOption] = useState<"UPCOMING" | "CURRENT">("UPCOMING");
+  const [step3StartDate, setStep3StartDate] = useState("2026-08-07");
+  const [step3StartTime, setStep3StartTime] = useState("11:37");
+  const [step3EndDate, setStep3EndDate] = useState("2026-08-07");
+  const [step3EndTime, setStep3EndTime] = useState("15:37");
+  const [step3ShowMoreOptions, setStep3ShowMoreOptions] = useState(false);
+  const [step3BudgetScheduling, setStep3BudgetScheduling] = useState(false);
+  const [step3AdScheduling, setStep3AdScheduling] = useState(false);
 
   // Engagement Specific State (Tailored Messages Setup)
   const [engAdvantagesPlus, setEngAdvantagesPlus] = useState(true);
@@ -1526,6 +1539,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
         setFormAppSecret(data.config.appSecret || "");
         setFormToken(data.config.accessToken || "");
         setFormAdAccountId(data.config.adAccountId || "");
+        if (data.config.adAccountId) {
+          setSelectedAccountId(data.config.adAccountId);
+        }
         setFormPageId(data.config.pageId || "");
 
         // Fetch connected Pages directly from Meta Graph API
@@ -1555,7 +1571,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
     } catch (e: any) {
       console.warn("Failed to fetch Meta config:", e);
     }
-  }, [orgId]);
+  }, [orgId, formPixelId]);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -1614,17 +1630,17 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
     }
   }, [orgId]);
 
-  const handleSyncLive = async () => {
+  const handleSyncLive = async (targetAdAccountId?: string) => {
     setSyncing(true);
     try {
       const res = await fetch(`${BACKEND}/api/meta-ads/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId: orgId }),
+        body: JSON.stringify({ organizationId: orgId, adAccountId: targetAdAccountId || selectedAccountId }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast(data.result.message);
+        showToast(data.result?.message || "Live Meta campaigns synced cleanly! ✓");
         fetchCampaigns();
       } else {
         throw new Error(data.error);
@@ -1633,6 +1649,24 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
       showToast(`Sync failed: ${e.message}`);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleSelectAccount = async (newAccountId: string) => {
+    setSelectedAccountId(newAccountId);
+    setFormAdAccountId(newAccountId);
+    try {
+      await fetch(`${BACKEND}/api/meta-ads/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: orgId, adAccountId: newAccountId }),
+      });
+      const selectedAcc = accounts.find(a => a.adAccountId === newAccountId);
+      const accName = selectedAcc?.name || selectedAcc?.businessName || newAccountId;
+      showToast(`Connected Ad Account set to: ${accName} ✓`);
+      handleSyncLive(newAccountId);
+    } catch (e: any) {
+      console.warn("Failed to persist selected ad account:", e);
     }
   };
 
@@ -1668,9 +1702,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
           bidStrategy: bidStrategy,
           cboEnabled: cboEnabled,
           advantagePlus: advantagePlus,
-          dailyBudget: Number(campBudget) || 500,
+          dailyBudget: Number(campBudget) || Number(step3BudgetAmount) || 500,
           destinationType: campDestination,
-          optimizationGoal: campDestination === "WHATSAPP" ? "MESSAGES" : "LINK_CLICKS",
+          optimizationGoal: campObjective === "OUTCOME_AWARENESS" ? (awarenessPerformanceGoal || "REACH") : campObjective === "OUTCOME_TRAFFIC" ? (trafficPerformanceGoal || "LINK_CLICKS") : campDestination === "WHATSAPP" ? "MESSAGES" : "LINK_CLICKS",
+          costPerResult: campObjective === "OUTCOME_AWARENESS" ? awarenessCostPerResult : campObjective === "OUTCOME_TRAFFIC" ? trafficCostPerResult : "",
           advantagePlusAudience: advantagePlusAudience,
           advantagePlusPlacement: advantagePlusPlacement,
           adFormat: adFormat,
@@ -1989,22 +2024,30 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Account Selector */}
+          {/* Connected Single Ad Account Selector */}
           <div className="relative">
-            <select
-              value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700/50 text-xs text-slate-100 focus:outline-none focus:border-slate-600 transition-all min-w-[210px]"
-            >
-              {accounts.length === 0 && (
-                <option value="act_1454270479625110">JISNU Digital Solution's Marketing Agency (act_1454270479625110)</option>
-              )}
-              {accounts.map(acc => (
-                <option key={acc.adAccountId} value={acc.adAccountId}>
-                  {acc.name || acc.businessName || "Meta Ad Account"} ({acc.adAccountId})
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-emerald-500/40 text-xs shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-[11px] text-slate-400 font-medium shrink-0">Select Account:</span>
+              <select
+                value={selectedAccountId || ""}
+                onChange={(e) => handleSelectAccount(e.target.value)}
+                className="bg-transparent font-bold text-slate-100 text-xs focus:outline-none cursor-pointer border-none py-0.5 pr-1 max-w-[320px] truncate"
+                title="Select Active Connected Meta Ad Account"
+              >
+                {accounts.length === 0 ? (
+                  <option value="" disabled className="bg-slate-900 text-slate-400">
+                    No Ad Accounts Found (Click Meta Credentials)
+                  </option>
+                ) : (
+                  accounts.map(acc => (
+                    <option key={acc.adAccountId} value={acc.adAccountId} className="bg-slate-900 text-slate-100">
+                      {acc.name || acc.businessName || "Meta Ad Account"} ({acc.adAccountId})
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
           </div>
 
           {/* Facebook Page Selector (Auto-Detected) */}
@@ -2048,9 +2091,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
           {/* Refresh Button */}
           <button
-            onClick={() => { fetchCampaigns(); }}
+            onClick={() => { handleSyncLive(); }}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 border border-slate-700/50 transition-all"
-            title="Refresh Meta Data"
+            title="Refresh & Sync Live Meta Data"
           >
             <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-blue-400" : ""}`} />
           </button>
@@ -2881,7 +2924,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
                             >
                               <option value="AUCTION">Auction</option>
-                              <option value="RESERVATION">Reservation</option>
+                              <option value="RESERVED">Reservation</option>
                             </select>
                           </div>
                           <div>
@@ -4296,7 +4339,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-sky-500"
                             >
                               <option value="AUCTION">Auction</option>
-                              <option value="RESERVATION">Reservation</option>
+                              <option value="RESERVED">Reservation</option>
                             </select>
                           </div>
                           <div>
@@ -5877,6 +5920,329 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     </div>
                   )}
 
+                  {/* AWARENESS OBJECTIVE — AD SET SETUP VIEW (STEP 3) */}
+                  {campObjective === "OUTCOME_AWARENESS" && (
+                    <div className="space-y-4 animate-fadeIn">
+                      {/* Top Banner Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setCampaignStep(2)}
+                              className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                            >
+                              ← Change Objective
+                            </button>
+                            <h3 className="font-bold text-slate-100 text-sm">Step 3: Configure AWARENESS Campaign Parameters</h3>
+                            <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your AWARENESS campaign setup.</p>
+                          </div>
+                          <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 3 of 4</span>
+                        </div>
+                      </div>
+
+                      {/* Ad Set Name */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <label className="block text-xs font-bold text-slate-200">Ad set name</label>
+                        <input
+                          type="text"
+                          value={awarenessAdSetName}
+                          onChange={(e) => setAwarenessAdSetName(e.target.value)}
+                          placeholder="New Awareness ad set"
+                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+
+                      {/* Performance Goal Card */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Performance goal</h4>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Performance goal</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <ScrollableSelect
+                              value={awarenessPerformanceGoal}
+                              onChange={(val) => setAwarenessPerformanceGoal(val)}
+                              options={[
+                                { value: "MAXIMIZE_REACH", label: "Maximize reach of ads" },
+                                { value: "MAXIMIZE_IMPRESSIONS", label: "Maximize number of impressions" },
+                                { value: "MAXIMIZE_AD_RECALL_LIFT", label: "Maximize ad recall lift" },
+                                { value: "MAXIMIZE_LINK_CLICKS", label: "Maximize number of link clicks" },
+                                { value: "MAXIMIZE_DAILY_UNIQUE_REACH", label: "Maximize daily unique reach" },
+                              ]}
+                              className="text-slate-100 font-semibold"
+                              maxHeight="max-h-52"
+                            />
+                          </div>
+
+                          <div className="space-y-1 pt-1">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Cost per result goal</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <div className="relative">
+                              <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                              <input
+                                type="text"
+                                value={awarenessCostPerResult}
+                                onChange={(e) => setAwarenessCostPerResult(e.target.value)}
+                                placeholder="Optional"
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                              />
+                              <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400">INR</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500">Meta will aim for this cost per result while spending your budget.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Budget & Schedule Card */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-5">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                            <div>
+                              <h4 className="font-bold text-slate-100 text-sm">Budget & schedule</h4>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Suggested budget and schedule have been applied to optimise your ad for live videos.</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Budget Subsection */}
+                        <div className="space-y-3">
+                          <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider text-slate-400">Budget</h5>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-300 mb-1">Budget mode</label>
+                              <select
+                                value={step3BudgetMode}
+                                onChange={(e: any) => setStep3BudgetMode(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                              >
+                                <option value="LIFETIME">Lifetime budget</option>
+                                <option value="DAILY">Daily budget</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-300 mb-1">Budget Amount</label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                                <input
+                                  type="text"
+                                  value={step3BudgetAmount}
+                                  onChange={(e) => setStep3BudgetAmount(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400">INR</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 space-y-1">
+                            <p>
+                              Ad set budget sharing is on, but you have only one ad set. You'll spend no more than{" "}
+                              <span className="font-bold text-sky-400">₹{Number(step3BudgetAmount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> during the {step3BudgetMode === "LIFETIME" ? "lifetime" : "day"} of your ad set.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">About {step3BudgetMode === "LIFETIME" ? "lifetime" : "daily"} budget</button>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Schedule Subsection */}
+                        <div className="space-y-4 pt-2 border-t border-slate-800">
+                          <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider text-slate-400">Schedule</h5>
+
+                          {/* Info Banner for Live Video Ad Delivery */}
+                          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                            <div className="flex items-start gap-2.5">
+                              <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                              <div>
+                                <h6 className="font-bold text-slate-100 text-xs">For better ad delivery, create your ad before going live</h6>
+                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                  Select upcoming live video to create your ad in advance. Creating an ad at least 3 hours before going live allows time for review and reduces delivery delays.{" "}
+                                  <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Live Video Mode Selection */}
+                          <div className="space-y-2.5">
+                            {/* Option 1: Current live video */}
+                            <label
+                              onClick={() => setStep3LiveVideoOption("CURRENT")}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
+                                step3LiveVideoOption === "CURRENT"
+                                  ? "bg-sky-500/10 border-sky-500/50"
+                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  name="awarenessStep3LiveVideoOption"
+                                  checked={step3LiveVideoOption === "CURRENT"}
+                                  onChange={() => setStep3LiveVideoOption("CURRENT")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <h6 className="font-bold text-slate-100 text-xs">Current live video</h6>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">Send people to a live video happening now</p>
+                                  <p className="text-[10px] text-slate-500 mt-1">Choose an existing post that features your live video for your ad under Ad setup.</p>
+                                </div>
+                              </div>
+                            </label>
+
+                            {/* Option 2: Upcoming live video */}
+                            <label
+                              onClick={() => setStep3LiveVideoOption("UPCOMING")}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
+                                step3LiveVideoOption === "UPCOMING"
+                                  ? "bg-sky-500/10 border-sky-500/50"
+                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  name="awarenessStep3LiveVideoOption"
+                                  checked={step3LiveVideoOption === "UPCOMING"}
+                                  onChange={() => setStep3LiveVideoOption("UPCOMING")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <h6 className="font-bold text-slate-100 text-xs">Upcoming live video</h6>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">Schedule an ad before going live</p>
+                                </div>
+                              </div>
+                            </label>
+                          </div>
+
+                          {/* Date and Time Inputs */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            {/* Start Date & Time */}
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                              <label className="block text-xs font-bold text-slate-200">Start date</label>
+                              <p className="text-[10px] text-slate-400">Select a date and a time</p>
+
+                              <div className="space-y-2 pt-1">
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">Date picker</label>
+                                  <input
+                                    type="date"
+                                    value={step3StartDate}
+                                    onChange={(e) => setStep3StartDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1">
+                                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Time input</label>
+                                    <input
+                                      type="time"
+                                      value={step3StartTime}
+                                      onChange={(e) => setStep3StartTime(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 self-end pb-2">GMT+5:30</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* End Date & Time */}
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                              <label className="block text-xs font-bold text-slate-200">End date</label>
+                              <p className="text-[10px] text-slate-400">Select a date and a time</p>
+
+                              <div className="space-y-2 pt-1">
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">Date picker</label>
+                                  <input
+                                    type="date"
+                                    value={step3EndDate}
+                                    onChange={(e) => setStep3EndDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1">
+                                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Time input</label>
+                                    <input
+                                      type="time"
+                                      value={step3EndTime}
+                                      onChange={(e) => setStep3EndTime(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 self-end pb-2">GMT+5:30</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Show Options / Hide Options */}
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setStep3ShowMoreOptions(!step3ShowMoreOptions)}
+                              className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                            >
+                              {step3ShowMoreOptions ? "Hide options" : "Show options"}
+                            </button>
+
+                            {step3ShowMoreOptions && (
+                              <div className="mt-3 space-y-3 p-4 rounded-xl bg-slate-900 border border-slate-800 animate-fadeIn">
+                                {/* Budget scheduling */}
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <h6 className="font-bold text-slate-200 text-xs">Budget scheduling</h6>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Increase your budget during specific days or times.</p>
+                                  </div>
+                                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={step3BudgetScheduling}
+                                      onChange={(e) => setStep3BudgetScheduling(e.target.checked)}
+                                      className="h-4 w-4 rounded bg-slate-950 border-slate-700 text-sky-500"
+                                    />
+                                    <span className="text-xs font-semibold text-slate-200">Schedule budget increases</span>
+                                  </label>
+                                </div>
+
+                                {/* Ad scheduling */}
+                                <div className="flex items-start justify-between pt-3 border-t border-slate-800">
+                                  <div>
+                                    <h6 className="font-bold text-slate-200 text-xs">Ad scheduling</h6>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Run ads on a specific schedule throughout the week.</p>
+                                  </div>
+                                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={step3AdScheduling}
+                                      onChange={(e) => setStep3AdScheduling(e.target.checked)}
+                                      className="h-4 w-4 rounded bg-slate-950 border-slate-700 text-sky-500"
+                                    />
+                                    <span className="text-xs font-semibold text-slate-200">Run ads on a schedule</span>
+                                  </label>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* TRAFFIC OBJECTIVE — AD SET SETUP VIEW (STEP 3) */}
                   {campObjective === "OUTCOME_TRAFFIC" && (
                     <div className="space-y-4 animate-fadeIn">
@@ -5898,178 +6264,244 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
-                      {/* Setup Selection Info Header */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                        <div>
-                          <h4 className="font-bold text-slate-100 text-sm">Choose a campaign setup</h4>
-                          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                            Create your traffic campaign using a tailored and streamlined setup, or manually build your campaign. Suggestions may vary based on your recent ad account activity.
-                          </p>
+
+
+
+                      {/* Budget & Schedule Card */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-5">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                            <div>
+                              <h4 className="font-bold text-slate-100 text-sm">Budget & schedule</h4>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Suggested budget and schedule have been applied to optimise your ad for live videos.</p>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {/* Option 1: Tailored web traffic campaign */}
-                          <div
-                            onClick={() => setTrafficPresetMode("tailored")}
-                            className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                              trafficPresetMode === "tailored"
-                                ? "bg-sky-500/10 border-sky-500/50"
-                                : "bg-slate-900 border-slate-800 hover:border-slate-700"
-                            }`}
-                          >
+                        {/* Budget Subsection */}
+                        <div className="space-y-3">
+                          <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider text-slate-400">Budget</h5>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-300 mb-1">Budget mode</label>
+                              <select
+                                value={step3BudgetMode}
+                                onChange={(e: any) => setStep3BudgetMode(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                              >
+                                <option value="LIFETIME">Lifetime budget</option>
+                                <option value="DAILY">Daily budget</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-300 mb-1">Budget Amount</label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                                <input
+                                  type="text"
+                                  value={step3BudgetAmount}
+                                  onChange={(e) => setStep3BudgetAmount(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                                />
+                                <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400">INR</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] text-slate-300 space-y-1">
+                            <p>
+                              Ad set budget sharing is on, but you have only one ad set. You'll spend no more than{" "}
+                              <span className="font-bold text-sky-400">₹{Number(step3BudgetAmount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> during the {step3BudgetMode === "LIFETIME" ? "lifetime" : "day"} of your ad set.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">About {step3BudgetMode === "LIFETIME" ? "lifetime" : "daily"} budget</button>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Schedule Subsection */}
+                        <div className="space-y-4 pt-2 border-t border-slate-800">
+                          <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider text-slate-400">Schedule</h5>
+
+                          {/* Info Banner for Live Video Ad Delivery */}
+                          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                             <div className="flex items-start gap-2.5">
-                              <input
-                                type="radio"
-                                checked={trafficPresetMode === "tailored"}
-                                onChange={() => setTrafficPresetMode("tailored")}
-                                className="accent-sky-500 mt-0.5"
-                              />
+                              <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                               <div>
-                                <h5 className="font-bold text-slate-100 text-xs">Tailored web traffic campaign</h5>
+                                <h6 className="font-bold text-slate-100 text-xs">For better ad delivery, create your ad before going live</h6>
                                 <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                                  Quickly create a campaign optimised to help get more web traffic at the best value. Preset settings include Advantage+ placements, highest volume bid strategy and more.
+                                  Select upcoming live video to create your ad in advance. Creating an ad at least 3 hours before going live allows time for review and reduces delivery delays.{" "}
+                                  <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
                                 </p>
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">Streamlined</span>
-                                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">Tailored</span>
-                                  <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-[10px] font-semibold text-sky-400 border border-sky-500/20">Best practices</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Live Video Mode Selection */}
+                          <div className="space-y-2.5">
+                            {/* Option 1: Current live video */}
+                            <label
+                              onClick={() => setStep3LiveVideoOption("CURRENT")}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
+                                step3LiveVideoOption === "CURRENT"
+                                  ? "bg-sky-500/10 border-sky-500/50"
+                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  name="step3LiveVideoOption"
+                                  checked={step3LiveVideoOption === "CURRENT"}
+                                  onChange={() => setStep3LiveVideoOption("CURRENT")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <h6 className="font-bold text-slate-100 text-xs">Current live video</h6>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">Send people to a live video happening now</p>
+                                  <p className="text-[10px] text-slate-500 mt-1">Choose an existing post that features your live video for your ad under Ad setup.</p>
+                                </div>
+                              </div>
+                            </label>
+
+                            {/* Option 2: Upcoming live video */}
+                            <label
+                              onClick={() => setStep3LiveVideoOption("UPCOMING")}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
+                                step3LiveVideoOption === "UPCOMING"
+                                  ? "bg-sky-500/10 border-sky-500/50"
+                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  name="step3LiveVideoOption"
+                                  checked={step3LiveVideoOption === "UPCOMING"}
+                                  onChange={() => setStep3LiveVideoOption("UPCOMING")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <h6 className="font-bold text-slate-100 text-xs">Upcoming live video</h6>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">Schedule an ad before going live</p>
+                                </div>
+                              </div>
+                            </label>
+                          </div>
+
+                          {/* Date and Time Inputs */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            {/* Start Date & Time */}
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                              <label className="block text-xs font-bold text-slate-200">Start date</label>
+                              <p className="text-[10px] text-slate-400">Select a date and a time</p>
+
+                              <div className="space-y-2 pt-1">
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">Date picker</label>
+                                  <input
+                                    type="date"
+                                    value={step3StartDate}
+                                    onChange={(e) => setStep3StartDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1">
+                                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Time input</label>
+                                    <input
+                                      type="time"
+                                      value={step3StartTime}
+                                      onChange={(e) => setStep3StartTime(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 self-end pb-2">GMT+5:30</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* End Date & Time */}
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                              <label className="block text-xs font-bold text-slate-200">End date</label>
+                              <p className="text-[10px] text-slate-400">Select a date and a time</p>
+
+                              <div className="space-y-2 pt-1">
+                                <div>
+                                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">Date picker</label>
+                                  <input
+                                    type="date"
+                                    value={step3EndDate}
+                                    onChange={(e) => setStep3EndDate(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1">
+                                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Time input</label>
+                                    <input
+                                      type="time"
+                                      value={step3EndTime}
+                                      onChange={(e) => setStep3EndTime(e.target.value)}
+                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 self-end pb-2">GMT+5:30</span>
                                 </div>
                               </div>
                             </div>
                           </div>
 
-                          {/* Option 2: Manual traffic campaign */}
-                          <div
-                            onClick={() => setTrafficPresetMode("manual")}
-                            className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                              trafficPresetMode === "manual"
-                                ? "bg-sky-500/10 border-sky-500/50"
-                                : "bg-slate-900 border-slate-800 hover:border-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-start gap-2.5">
-                              <input
-                                type="radio"
-                                checked={trafficPresetMode === "manual"}
-                                onChange={() => setTrafficPresetMode("manual")}
-                                className="accent-sky-500 mt-0.5"
-                              />
-                              <div>
-                                <h5 className="font-bold text-slate-100 text-xs">Manual traffic campaign</h5>
-                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                                  Create a traffic campaign from scratch for finer control over all settings.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Ad Set Name */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                        <label className="block text-xs font-bold text-slate-200">Ad set name</label>
-                        <input
-                          type="text"
-                          value={trafficAdSetName}
-                          onChange={(e) => setTrafficAdSetName(e.target.value)}
-                          placeholder="New Traffic ad set"
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
-                        />
-                      </div>
-
-                      {/* Conversion Location Card */}
-                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
-                          <h4 className="font-bold text-slate-100 text-sm">Conversion location</h4>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
-                          Choose where you want to drive traffic. You'll enter more details about the destination later.
-                        </p>
-
-                        <div className="space-y-2.5">
-                          {[
-                            { id: "WEBSITE", icon: "🌐", title: "Website", desc: "Send traffic to your website." },
-                            { id: "APP", icon: "📱", title: "App", desc: "Send traffic to your app." },
-                            { id: "MESSAGING", icon: "💬", title: "Messaging apps", desc: "Send traffic to Messenger, WhatsApp or Instagram." },
-                            { id: "INSTAGRAM_FB", icon: "📸", title: "Instagram profile", desc: "Send traffic to your Instagram profile." },
-                            { id: "CALLS", icon: "📞", title: "Calls", desc: "Drive phone calls to your business." },
-                          ].map((loc) => (
-                            <div
-                              key={loc.id}
-                              onClick={() => setTrafficAdSetConversionLocation(loc.id)}
-                              className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                                trafficAdSetConversionLocation === loc.id
-                                  ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
-                                  : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                              }`}
+                          {/* Show Options / Hide Options */}
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setStep3ShowMoreOptions(!step3ShowMoreOptions)}
+                              className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
                             >
-                              <input
-                                type="radio"
-                                name="trafficAdSetConversionLocation"
-                                checked={trafficAdSetConversionLocation === loc.id}
-                                onChange={() => setTrafficAdSetConversionLocation(loc.id)}
-                                className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
-                              />
-                              <div>
-                                <p className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                                  <span>{loc.icon}</span>
-                                  <span>{loc.title}</span>
-                                </p>
-                                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{loc.desc}</p>
+                              {step3ShowMoreOptions ? "Hide options" : "Show options"}
+                            </button>
+
+                            {step3ShowMoreOptions && (
+                              <div className="mt-3 space-y-3 p-4 rounded-xl bg-slate-900 border border-slate-800 animate-fadeIn">
+                                {/* Budget scheduling */}
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <h6 className="font-bold text-slate-200 text-xs">Budget scheduling</h6>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Increase your budget during specific days or times.</p>
+                                  </div>
+                                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={step3BudgetScheduling}
+                                      onChange={(e) => setStep3BudgetScheduling(e.target.checked)}
+                                      className="h-4 w-4 rounded bg-slate-950 border-slate-700 text-sky-500"
+                                    />
+                                    <span className="text-xs font-semibold text-slate-200">Schedule budget increases</span>
+                                  </label>
+                                </div>
+
+                                {/* Ad scheduling */}
+                                <div className="flex items-start justify-between pt-3 border-t border-slate-800">
+                                  <div>
+                                    <h6 className="font-bold text-slate-200 text-xs">Ad scheduling</h6>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Run ads on a specific schedule throughout the week.</p>
+                                  </div>
+                                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={step3AdScheduling}
+                                      onChange={(e) => setStep3AdScheduling(e.target.checked)}
+                                      className="h-4 w-4 rounded bg-slate-950 border-slate-700 text-sky-500"
+                                    />
+                                    <span className="text-xs font-semibold text-slate-200">Run ads on a schedule</span>
+                                  </label>
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Performance Goal Card */}
-                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
-                          <h4 className="font-bold text-slate-100 text-sm">Performance goal</h4>
-                        </div>
-
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <label className="block text-xs font-bold text-slate-200">Performance goal</label>
-                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
-                            </div>
-                            <ScrollableSelect
-                              value={trafficPerformanceGoal}
-                              onChange={(val) => setTrafficPerformanceGoal(val)}
-                              options={[
-                                { value: "MAXIMIZE_LINK_CLICKS", label: "Maximize number of link clicks" },
-                                { value: "MAXIMIZE_LANDING_PAGE_VIEWS", label: "Maximize number of landing page views" },
-                                { value: "MAXIMIZE_REACH", label: "Maximize reach of ads" },
-                                { value: "MAXIMIZE_IMPRESSIONS", label: "Maximize number of impressions" },
-                                { value: "MAXIMIZE_AD_RECALL_LIFT", label: "Maximize ad recall lift" },
-                                { value: "MAXIMIZE_DAILY_UNIQUE_REACH", label: "Maximize daily unique reach" },
-                                { value: "MAXIMIZE_CONVERSATIONS", label: "Maximize number of conversations" },
-                              ]}
-                              className="text-slate-100 font-semibold"
-                              maxHeight="max-h-52"
-                            />
-                          </div>
-
-                          <div className="space-y-1 pt-1">
-                            <div className="flex items-center gap-1.5">
-                              <label className="block text-xs font-bold text-slate-200">Cost per result goal</label>
-                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
-                            </div>
-                            <div className="relative">
-                              <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
-                              <input
-                                type="text"
-                                value={trafficCostPerResult}
-                                onChange={(e) => setTrafficCostPerResult(e.target.value)}
-                                placeholder="Optional"
-                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-7 pr-12 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
-                              />
-                              <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400">INR</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500">Meta will aim for this cost per result while spending your budget.</p>
+                            )}
                           </div>
                         </div>
                       </div>
