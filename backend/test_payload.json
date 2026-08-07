@@ -1,0 +1,20 @@
+{
+  "name": "Live TRAFFIC Campaign - Website Visitors",
+  "objective": "OUTCOME_TRAFFIC",
+  "buyingType": "AUCTION",
+  "dailyBudget": 500,
+  "adSetName": "Website Traffic Ad Set",
+  "destinationType": "WEBSITE",
+  "optimizationGoal": "LINK_CLICKS",
+  "creativeHeadline": "Special Website Offer 2026",
+  "creativeBody": "Visit our website for exclusive packages and deals.",
+  "creativeMediaUrl": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800",
+  "targeting": {
+    "countries": ["IN"],
+    "cities": ["Mumbai", "Pune"],
+    "ageMin": 18,
+    "ageMax": 65,
+    "genders": [],
+    "languages": ["English", "Hindi"]
+  }
+}
