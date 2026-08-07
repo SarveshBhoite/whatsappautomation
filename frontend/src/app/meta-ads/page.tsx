@@ -125,11 +125,10 @@ function ScrollableSelect({
                 onChange(opt.value);
                 setIsOpen(false);
               }}
-              className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
-                opt.value === value
-                  ? "bg-sky-500/15 text-sky-400 font-bold"
-                  : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-100"
-              }`}
+              className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${opt.value === value
+                ? "bg-sky-500/15 text-sky-400 font-bold"
+                : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-100"
+                }`}
             >
               <span className="truncate">{opt.label}</span>
               {opt.value === value && <Check className="w-3.5 h-3.5 text-sky-400 shrink-0 ml-1" />}
@@ -137,6 +136,46 @@ function ScrollableSelect({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── MetaDatePicker Component ──────────────────────────────────────────────────
+function MetaDatePicker({
+  value,
+  onChange,
+  placeholder = "Select date"
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleContainerClick = () => {
+    if (inputRef.current) {
+      if (typeof (inputRef.current as any).showPicker === "function") {
+        (inputRef.current as any).showPicker();
+      } else {
+        inputRef.current.focus();
+        inputRef.current.click();
+      }
+    }
+  };
+
+  return (
+    <div
+      onClick={handleContainerClick}
+      className="relative flex items-center bg-slate-950 border border-slate-700/60 hover:border-sky-500/80 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold cursor-pointer transition-all shadow-sm group"
+    >
+      <Calendar className="w-3.5 h-3.5 text-sky-400 mr-2 shrink-0 group-hover:scale-110 transition-transform" />
+      <input
+        ref={inputRef}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-transparent text-slate-100 font-bold focus:outline-none cursor-pointer [color-scheme:dark]"
+      />
     </div>
   );
 }
@@ -1182,6 +1221,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
   // Detail Inspector & Media Library state
   const [selectedCampDetail, setSelectedCampDetail] = useState<any>(null);
+  const [liveMetaDetail, setLiveMetaDetail] = useState<any>(null);
+  const [fetchingDetail, setFetchingDetail] = useState(false);
+  const [detailModalTab, setDetailModalTab] = useState<"metrics" | "config" | "adsets" | "creatives" | "raw">("metrics");
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [mediaAssets, setMediaAssets] = useState<{ images: any[]; videos: any[] }>({ images: [], videos: [] });
   const [fetchingMedia, setFetchingMedia] = useState(false);
@@ -1496,6 +1538,14 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [awarenessAudienceNoticeDismissed, setAwarenessAudienceNoticeDismissed] = useState(false);
   const [awarenessPlacementsAdvantage, setAwarenessPlacementsAdvantage] = useState(true);
   const [awarenessShowEstimatedAudienceSize, setAwarenessShowEstimatedAudienceSize] = useState(true);
+  const [isEditingAudienceControls, setIsEditingAudienceControls] = useState(false);
+  const [audienceLocations, setAudienceLocations] = useState<string[]>(["India"]);
+  const [audienceMinAge, setAudienceMinAge] = useState(18);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [locationSearchInput, setLocationSearchInput] = useState("");
+  const [languageSearchInput, setLanguageSearchInput] = useState("");
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
 
   // Conversations / Chat Template State (Step 4)
   const [chatTemplateGreeting, setChatTemplateGreeting] = useState("Hi! Please let us know how we can help you.");
@@ -2295,23 +2345,25 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       <td className="p-4 text-right space-x-2">
                         <button
                           onClick={async () => {
+                            setFetchingDetail(true);
+                            setDetailModalTab("metrics");
                             try {
                               const res = await fetch(`${BACKEND}/api/meta-ads/campaigns/${c.id}?organizationId=${orgId}`);
                               const data = await res.json();
-                              if (data.campaign) {
-                                setSelectedCampDetail(data.campaign);
-                                setShowDetailModal(true);
-                              } else {
-                                setSelectedCampDetail(c);
-                                setShowDetailModal(true);
-                              }
+                              setSelectedCampDetail(data.campaign || c);
+                              setLiveMetaDetail(data.liveMeta || null);
+                              setShowDetailModal(true);
                             } catch (e) {
                               setSelectedCampDetail(c);
+                              setLiveMetaDetail(null);
                               setShowDetailModal(true);
+                            } finally {
+                              setFetchingDetail(false);
                             }
                           }}
-                          className="px-3 py-1 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 transition-all"
+                          className="px-3 py-1 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/30 transition-all flex items-center gap-1 inline-flex"
                         >
+                          {fetchingDetail ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
                           View Live Parameters & Ads
                         </button>
                         <button
@@ -2860,19 +2912,22 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               {/* STEP 2: Objective-Specific Campaign Setup */}
               {campaignStep === 2 && (
                 <div className="space-y-5">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-sky-950/40 border border-slate-800/80 shadow-md">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-slate-100 text-sm">
-                          Step 2: Configure {campObjective === "OUTCOME_AWARENESS" ? "Awareness" : campObjective.replace("OUTCOME_", "")} Campaign Parameters
+                        <span className="px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                          Step 2 of 4
+                        </span>
+                        <h3 className="font-bold text-slate-100 text-sm tracking-tight">
+                          Configure {campObjective === "OUTCOME_AWARENESS" ? "Awareness" : campObjective.replace("OUTCOME_", "")} Campaign Parameters
                         </h3>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your {campObjective.replace("OUTCOME_", "")} campaign setup.</p>
+                      <p className="text-xs text-slate-400 mt-1">Parameters tailored specifically for your {campObjective.replace("OUTCOME_", "")} campaign setup.</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setCampaignStep(1)}
-                      className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition-all"
+                      className="px-3.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-xs font-semibold text-slate-300 border border-slate-700/60 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
                     >
                       ← Change Objective
                     </button>
@@ -3130,11 +3185,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               onClick={() => {
                                 setTrafficPresetMode("tailored");
                               }}
-                              className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                                trafficPresetMode === "tailored"
-                                  ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
-                                  : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
-                              }`}
+                              className={`p-4 rounded-2xl border transition-all cursor-pointer ${trafficPresetMode === "tailored"
+                                ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
+                                : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
+                                }`}
                             >
                               <div className="flex items-start gap-4">
                                 <div className="pt-1">
@@ -3180,11 +3234,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                                 setTrafficPresetMode("manual");
                                 setTrafficSubStep("CONFIG");
                               }}
-                              className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                                trafficPresetMode === "manual"
-                                  ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
-                                  : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
-                              }`}
+                              className={`p-4 rounded-2xl border transition-all cursor-pointer ${trafficPresetMode === "manual"
+                                ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
+                                : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
+                                }`}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
@@ -3216,16 +3269,6 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                                   Configure →
                                 </span>
                               </div>
-                            </div>
-
-                            <div className="flex justify-end pt-3">
-                              <button
-                                type="button"
-                                onClick={() => setTrafficSubStep("CONFIG")}
-                                className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition-all flex items-center gap-1.5"
-                              >
-                                Continue to Campaign Parameters →
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -3378,11 +3421,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               <div className="space-y-2">
                                 <div
                                   onClick={() => setTrafficBudgetStrategy("CAMPAIGN")}
-                                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                                    trafficBudgetStrategy === "CAMPAIGN"
-                                      ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
-                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                                  }`}
+                                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${trafficBudgetStrategy === "CAMPAIGN"
+                                    ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                    : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                                    }`}
                                 >
                                   <input
                                     type="radio"
@@ -3401,11 +3443,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
                                 <div
                                   onClick={() => setTrafficBudgetStrategy("ADSET")}
-                                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                                    trafficBudgetStrategy === "ADSET"
-                                      ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
-                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                                  }`}
+                                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${trafficBudgetStrategy === "ADSET"
+                                    ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                    : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                                    }`}
                                 >
                                   <input
                                     type="radio"
@@ -5049,27 +5090,31 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   {campObjective === "OUTCOME_AWARENESS" && (
                     <div className="space-y-4">
                       {/* Top Header Card */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-sky-950/40 border border-slate-800/80 shadow-md">
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-                              <span>New Awareness campaign</span>
-                              <ChevronRight className="h-3 w-3 text-slate-600" />
-                              <span className="text-slate-200 font-bold">New Awareness ad set</span>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                                Step 3 of 4
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                                <span className="text-slate-400">{campName || "New Campaign"}</span>
+                                <ChevronRight className="h-3.5 w-3.5 text-slate-600" />
+                                <span className="text-slate-100 font-bold">Ad Set & Target Audience Setup</span>
+                              </div>
                             </div>
-                            <p className="text-xs text-slate-400 mt-0.5">1 Ad • Configure performance goal, placements & audience definition.</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Configure performance goal, placements, budget & audience targeting.</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
-                              In draft
+                            <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-bold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                              In Draft
                             </span>
-                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
-                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
                           </div>
                         </div>
                       </div>
 
-                      {/* Ad Set Name */}
+                      {/* 1. Ad set name */}
                       <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-[10px] font-bold">✓</div>
@@ -5085,11 +5130,11 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Show more options ▾</button>
                       </div>
 
-                      {/* Card 1: Awareness Main Setup */}
+                      {/* 2. Conversion (Performance Goal, Page & Bidding) */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4 shadow-sm">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
                           <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
-                          <h4 className="font-bold text-slate-100 text-sm">Awareness</h4>
+                          <h4 className="font-bold text-slate-100 text-sm">Conversion</h4>
                         </div>
 
                         {/* Performance Goal */}
@@ -5198,34 +5243,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
-                      {/* Card 2: Dynamic Creative Banner */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                        <h4 className="font-bold text-slate-200 text-xs">Dynamic creative</h4>
-                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                          <div className="flex items-start gap-2">
-                            <span className="text-amber-400 text-sm">💡</span>
-                            <div>
-                              <p className="text-xs font-bold text-slate-200">Dynamic creative is no longer available</p>
-                              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                                You can now select up to 10 media in a single image or video ad to create a variety of media and test combinations, which gives your ad the flexibility to show the best creative to people who see it.
-                              </p>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t border-slate-800">
-                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Go to ad creative setup</button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Explore budget opportunities banner */}
-                      <div className="flex justify-center">
-                        <div className="px-4 py-1.5 rounded-full bg-purple-900/40 border border-purple-500/30 text-purple-300 text-xs font-semibold flex items-center gap-2 shadow-lg">
-                          <span>⚙ Explore budget opportunities</span>
-                          <span className="text-[10px]">▾</span>
-                        </div>
-                      </div>
-
-                      {/* Card 3: Budget & Schedule */}
+                      {/* 3. Budget & schedule */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
                           <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
@@ -5327,7 +5345,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
-                      {/* Card 4: Audience controls */}
+                      {/* 4. Audience controls */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                         <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
                           <div className="flex items-center gap-2">
@@ -5478,7 +5496,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
-                      {/* Card 5: Advantage+ audience */}
+                      {/* 5. Advantage+ audience */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
                           <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
@@ -5600,7 +5618,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
-                      {/* Card 6: Policy and regulatory requirements (India) */}
+                      {/* 6. Policy and regulatory requirements (India) */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
                           <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
@@ -5620,7 +5638,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </label>
                       </div>
 
-                      {/* Card 7: Placements */}
+                      {/* 7. Placements */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
                           <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
@@ -5825,7 +5843,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
-                      {/* Card 8: Brand safety and suitability */}
+                      {/* 8. Brand safety and suitability */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
                           <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
@@ -6078,11 +6096,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             {/* Option 1: Current live video */}
                             <label
                               onClick={() => setStep3LiveVideoOption("CURRENT")}
-                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
-                                step3LiveVideoOption === "CURRENT"
-                                  ? "bg-sky-500/10 border-sky-500/50"
-                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
-                              }`}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${step3LiveVideoOption === "CURRENT"
+                                ? "bg-sky-500/10 border-sky-500/50"
+                                : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                                }`}
                             >
                               <div className="flex items-start gap-2.5">
                                 <input
@@ -6103,11 +6120,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             {/* Option 2: Upcoming live video */}
                             <label
                               onClick={() => setStep3LiveVideoOption("UPCOMING")}
-                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
-                                step3LiveVideoOption === "UPCOMING"
-                                  ? "bg-sky-500/10 border-sky-500/50"
-                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
-                              }`}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${step3LiveVideoOption === "UPCOMING"
+                                ? "bg-sky-500/10 border-sky-500/50"
+                                : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                                }`}
                             >
                               <div className="flex items-start gap-2.5">
                                 <input
@@ -6247,16 +6263,18 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   {campObjective === "OUTCOME_TRAFFIC" && (
                     <div className="space-y-4 animate-fadeIn">
                       {/* Top Banner Card */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-sky-950/40 border border-slate-800/80 shadow-md">
                         <div className="flex items-center justify-between">
                           <div>
-                            <button
-                              type="button"
-                              onClick={() => setCampaignStep(2)}
-                              className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mb-1"
-                            >
-                              ← Change Objective
-                            </button>
+                            <div className="flex items-center gap-2 mb-1">
+                              <button
+                                type="button"
+                                onClick={() => setCampaignStep(2)}
+                                className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                              >
+                                ← Change Objective
+                              </button>
+                            </div>
                             <h3 className="font-bold text-slate-100 text-sm">Step 3: Configure TRAFFIC Campaign Parameters</h3>
                             <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your TRAFFIC campaign setup.</p>
                           </div>
@@ -6264,10 +6282,104 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                       </div>
 
+                      {/* 1. Ad set name */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-[10px] font-bold">✓</div>
+                          <label className="block text-xs font-bold text-slate-200">Ad set name</label>
+                        </div>
+                        <Input
+                          label=""
+                          value={adSetName || "New Traffic ad set"}
+                          onChange={(e: any) => setAdSetName(e.target.value)}
+                          placeholder="New Traffic ad set"
+                          required
+                        />
+                        <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-1">Show more options ▾</button>
+                      </div>
 
+                      {/* 2. Conversion (Conversion Location, Performance Goal, Facebook Page) */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4 shadow-sm">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Conversion</h4>
+                        </div>
 
+                        {/* Conversion Location */}
+                        <div className="space-y-2">
+                          <h5 className="font-bold text-slate-200 text-xs">Conversion location</h5>
+                          <p className="text-[11px] text-slate-400">Choose where you want to drive traffic.</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                            {[
+                              { id: "WEBSITE", title: "Website", desc: "Send traffic to your website." },
+                              { id: "APP", title: "App", desc: "Send traffic to your app." },
+                              { id: "MESSAGING", title: "Message destinations", desc: "Send traffic to Messenger, Instagram and WhatsApp." },
+                              { id: "INSTAGRAM_FB", title: "Instagram or Facebook", desc: "Send traffic to profile or page." },
+                              { id: "CALLS", title: "Calls", desc: "Get people to call your business." },
+                            ].map((loc) => (
+                              <div
+                                key={loc.id}
+                                onClick={() => setConversionLocation(loc.id as any)}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${conversionLocation === loc.id
+                                  ? "border-sky-500 bg-sky-500/10 text-slate-100"
+                                  : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                                  }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="conversionLocationTraffic"
+                                  checked={conversionLocation === loc.id}
+                                  onChange={() => setConversionLocation(loc.id as any)}
+                                  className="h-3.5 w-3.5 text-sky-500 bg-slate-900 border-slate-700 mt-0.5"
+                                />
+                                <div>
+                                  <h6 className="font-bold text-xs text-slate-200">{loc.title}</h6>
+                                  <p className="text-[10px] text-slate-400">{loc.desc}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
 
-                      {/* Budget & Schedule Card */}
+                        {/* Performance Goal */}
+                        <div className="space-y-1.5 pt-3 border-t border-slate-800/60">
+                          <label className="block text-xs font-bold text-slate-200">Performance goal</label>
+                          <p className="text-[11px] text-slate-400">How you measure success for your ads.</p>
+                          <select
+                            value={performanceGoal}
+                            onChange={(e) => setPerformanceGoal(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-semibold"
+                          >
+                            <option value="MAXIMIZE_LINK_CLICKS">Maximise number of link clicks</option>
+                            <option value="MAXIMIZE_LANDING_PAGE_VIEWS">Maximise number of landing page views</option>
+                            <option value="MAXIMIZE_CONVERSATIONS">Maximise number of conversations</option>
+                            <option value="MAXIMIZE_DAILY_UNIQUE_REACH">Maximise daily unique reach</option>
+                            <option value="MAXIMIZE_IMPRESSIONS">Maximise number of impressions</option>
+                          </select>
+                        </div>
+
+                        {/* Facebook Page Selection */}
+                        <div className="space-y-1.5 pt-3 border-t border-slate-800/60">
+                          <div className="flex items-center gap-1.5">
+                            <h5 className="font-bold text-slate-200 text-xs">Facebook Page</h5>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Choose the Page that will represent your business.</p>
+                          <select
+                            value={formPageId}
+                            onChange={(e) => setFormPageId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                          >
+                            {fetchedPages.map((p: any) => (
+                              <option key={p.id} value={p.id}>
+                                📄 {p.name} ({p.id})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* 3. Budget & schedule */}
                       <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-5">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-800/60">
                           <div className="flex items-center gap-2">
@@ -6343,11 +6455,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             {/* Option 1: Current live video */}
                             <label
                               onClick={() => setStep3LiveVideoOption("CURRENT")}
-                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
-                                step3LiveVideoOption === "CURRENT"
-                                  ? "bg-sky-500/10 border-sky-500/50"
-                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
-                              }`}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${step3LiveVideoOption === "CURRENT"
+                                ? "bg-sky-500/10 border-sky-500/50"
+                                : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                                }`}
                             >
                               <div className="flex items-start gap-2.5">
                                 <input
@@ -6368,11 +6479,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             {/* Option 2: Upcoming live video */}
                             <label
                               onClick={() => setStep3LiveVideoOption("UPCOMING")}
-                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${
-                                step3LiveVideoOption === "UPCOMING"
-                                  ? "bg-sky-500/10 border-sky-500/50"
-                                  : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
-                              }`}
+                              className={`p-3.5 rounded-xl border cursor-pointer block transition-all ${step3LiveVideoOption === "UPCOMING"
+                                ? "bg-sky-500/10 border-sky-500/50"
+                                : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                                }`}
                             >
                               <div className="flex items-start gap-2.5">
                                 <input
@@ -6393,63 +6503,73 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           {/* Date and Time Inputs */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                             {/* Start Date & Time */}
-                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                              <label className="block text-xs font-bold text-slate-200">Start date</label>
-                              <p className="text-[10px] text-slate-400">Select a date and a time</p>
+                            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800/90 space-y-3 shadow-inner">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                                  Start date
+                                </label>
+                                <span className="text-[10px] font-mono font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
+                                  GMT+5:30
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">Select start date & launch time</p>
 
-                              <div className="space-y-2 pt-1">
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">Date picker</label>
-                                  <input
-                                    type="date"
+                              <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-semibold text-slate-400">Date</label>
+                                  <MetaDatePicker
                                     value={step3StartDate}
-                                    onChange={(e) => setStep3StartDate(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                    onChange={(val) => setStep3StartDate(val)}
                                   />
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1">
-                                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Time input</label>
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-semibold text-slate-400">Time</label>
+                                  <div className="relative">
                                     <input
                                       type="time"
                                       value={step3StartTime}
                                       onChange={(e) => setStep3StartTime(e.target.value)}
-                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-2.5 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500 transition-all cursor-pointer [color-scheme:dark]"
                                     />
                                   </div>
-                                  <span className="text-[10px] font-bold text-slate-400 self-end pb-2">GMT+5:30</span>
                                 </div>
                               </div>
                             </div>
 
                             {/* End Date & Time */}
-                            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                              <label className="block text-xs font-bold text-slate-200">End date</label>
-                              <p className="text-[10px] text-slate-400">Select a date and a time</p>
+                            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800/90 space-y-3 shadow-inner">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                                  End date
+                                </label>
+                                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                                  Optional
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">Select ending date & campaign pause time</p>
 
-                              <div className="space-y-2 pt-1">
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">Date picker</label>
-                                  <input
-                                    type="date"
+                              <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-semibold text-slate-400">Date</label>
+                                  <MetaDatePicker
                                     value={step3EndDate}
-                                    onChange={(e) => setStep3EndDate(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                    onChange={(val) => setStep3EndDate(val)}
                                   />
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1">
-                                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Time input</label>
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-semibold text-slate-400">Time</label>
+                                  <div className="relative">
                                     <input
                                       type="time"
                                       value={step3EndTime}
                                       onChange={(e) => setStep3EndTime(e.target.value)}
-                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-sky-500"
+                                      className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-2.5 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500 transition-all cursor-pointer [color-scheme:dark]"
                                     />
                                   </div>
-                                  <span className="text-[10px] font-bold text-slate-400 self-end pb-2">GMT+5:30</span>
                                 </div>
                               </div>
                             </div>
@@ -6503,6 +6623,542 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               </div>
                             )}
                           </div>
+                        </div>
+                      </div>
+
+                      {/* 4. Audience controls */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                            <h4 className="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+                              Audience controls
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </h4>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingAudienceControls(!isEditingAudienceControls)}
+                            className="px-3 py-1 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-sky-400 transition-all"
+                          >
+                            {isEditingAudienceControls ? "Done" : "Edit"}
+                          </button>
+                        </div>
+
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Set criteria for where ads for this campaign can be delivered. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
+                        </p>
+
+                        <div className="space-y-1">
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-400">
+                            No advertising settings set
+                          </span>
+                          <div>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mt-1">
+                              Use a saved audience ▾
+                            </button>
+                          </div>
+                        </div>
+
+                        <hr className="border-slate-800/80 my-2" />
+
+                        {/* * Locations */}
+                        <div className="space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">* Locations</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+
+                          {isEditingAudienceControls ? (
+                            <div className="space-y-2">
+                              <p className="text-[11px] text-slate-400 font-medium">Included locations:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {(audienceLocations || ["India"]).map((loc: string, idx: number) => (
+                                  <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold animate-fadeIn">
+                                    📍 {loc}
+                                    <button
+                                      type="button"
+                                      onClick={() => setAudienceLocations(audienceLocations.filter((_: any, i: number) => i !== idx))}
+                                      className="hover:text-red-400 font-bold ml-1"
+                                    >
+                                      ✕
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+
+                              <div className="relative">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                                <input
+                                  type="text"
+                                  value={locationSearchInput}
+                                  onChange={(e) => {
+                                    setLocationSearchInput(e.target.value);
+                                    setShowLocationDropdown(true);
+                                  }}
+                                  onFocus={() => setShowLocationDropdown(true)}
+                                  placeholder="Search city or country (e.g. Mumbai, Delhi, United States)"
+                                  onKeyDown={(e: any) => {
+                                    if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                                      e.preventDefault();
+                                      const val = e.currentTarget.value.trim();
+                                      if (!audienceLocations.includes(val)) {
+                                        setAudienceLocations([...audienceLocations, val]);
+                                      }
+                                      setLocationSearchInput("");
+                                      setShowLocationDropdown(false);
+                                    }
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                                />
+
+                                {/* Search Locations Dropdown */}
+                                {showLocationDropdown && (
+                                  <div className="absolute z-50 mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto py-1 divide-y divide-slate-800/60">
+                                    {[
+                                      "Mumbai, Maharashtra, India",
+                                      "Delhi, India",
+                                      "Bengaluru, Karnataka, India",
+                                      "Pune, Maharashtra, India",
+                                      "Hyderabad, Telangana, India",
+                                      "Chennai, Tamil Nadu, India",
+                                      "Kolkata, West Bengal, India",
+                                      "Ahmedabad, Gujarat, India",
+                                      "London, United Kingdom",
+                                      "New York, United States",
+                                      "Dubai, United Arab Emirates",
+                                      "Singapore"
+                                    ]
+                                      .filter((item) => item.toLowerCase().includes((locationSearchInput || "").toLowerCase()))
+                                      .map((locName) => (
+                                        <button
+                                          key={locName}
+                                          type="button"
+                                          onClick={() => {
+                                            if (!audienceLocations.includes(locName)) {
+                                              setAudienceLocations([...audienceLocations, locName]);
+                                            }
+                                            setLocationSearchInput("");
+                                            setShowLocationDropdown(false);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 flex items-center justify-between"
+                                        >
+                                          <span>📍 {locName}</span>
+                                          <Plus className="w-3.5 h-3.5 text-sky-400" />
+                                        </button>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500">Type a city or select from recommendations</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-1 text-xs text-slate-300">
+                              <p className="text-[11px] text-slate-400 font-medium">Included locations:</p>
+                              <ul className="list-disc pl-5 text-xs text-slate-200 font-semibold space-y-0.5">
+                                {(audienceLocations || ["India"]).map((loc: string, idx: number) => (
+                                  <li key={idx}>{loc}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Warning Alert Banner */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border-l-4 border-l-amber-500 border-slate-800 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <span className="text-amber-400 text-xs shrink-0 mt-0.5">⚠️</span>
+                              <p className="text-[11px] text-slate-300 leading-relaxed">
+                                To run ads in India, you need to declare if your ads are related to securities and investments.
+                              </p>
+                            </div>
+                            <div className="pl-6">
+                              <button
+                                type="button"
+                                className="px-3 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition-all shadow-sm"
+                              >
+                                Review requirements
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <hr className="border-slate-800/80 my-2" />
+
+                        {/* Show more options ▾ */}
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setAwarenessShowMoreOptions(!awarenessShowMoreOptions)}
+                            className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            {awarenessShowMoreOptions ? "Show fewer options ▴" : "Show more options ▾"}
+                          </button>
+                        </div>
+
+                        {/* Minimum age */}
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">Minimum age</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+
+                          {isEditingAudienceControls ? (
+                            <div className="flex items-center gap-3">
+                              <select
+                                value={audienceMinAge || 18}
+                                onChange={(e) => setAudienceMinAge(Number(e.target.value))}
+                                className="bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                              >
+                                {[18, 19, 20, 21, 22, 23, 24, 25].map((age) => (
+                                  <option key={age} value={age}>{age}</option>
+                                ))}
+                              </select>
+                              <span className="text-xs text-slate-400">Years old minimum</span>
+                            </div>
+                          ) : (
+                            <ul className="list-disc pl-5 text-xs text-slate-300 font-medium space-y-0.5">
+                              <li>{audienceMinAge || 18}</li>
+                              <li>Unknown age on WhatsApp: Included</li>
+                            </ul>
+                          )}
+                        </div>
+
+                        {/* Exclude these custom audiences */}
+                        <div className="space-y-1.5 pt-3 border-t border-slate-800/60">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">Exclude these custom audiences</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          {isEditingAudienceControls ? (
+                            <div className="relative">
+                              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                              <input
+                                type="text"
+                                value={awarenessExcludeAudience}
+                                onChange={(e) => setAwarenessExcludeAudience(e.target.value)}
+                                placeholder="Search existing audiences to exclude"
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-medium"
+                              />
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-400 font-medium">
+                              {awarenessExcludeAudience || "No custom audiences excluded"}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Languages */}
+                        <div className="space-y-1.5 pt-3 border-t border-slate-800/60">
+                          <div className="flex items-center gap-1.5">
+                            <label className="block text-xs font-bold text-slate-200">Languages</label>
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Only enter a language if you need to limit your audience to people who use a specific language.
+                          </p>
+
+                          {isEditingAudienceControls ? (
+                            <div className="space-y-2">
+                              {selectedLanguages.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {selectedLanguages.map((lang, idx) => (
+                                    <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold">
+                                      🌐 {lang}
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedLanguages(selectedLanguages.filter((_, i) => i !== idx))}
+                                        className="hover:text-red-400 font-bold ml-1"
+                                      >
+                                        ✕
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="relative">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                                <input
+                                  type="text"
+                                  value={languageSearchInput}
+                                  onChange={(e) => {
+                                    setLanguageSearchInput(e.target.value);
+                                    setShowLanguageDropdown(true);
+                                  }}
+                                  onFocus={() => setShowLanguageDropdown(true)}
+                                  placeholder="Search languages (e.g. English, Hindi, Marathi, Gujarati)"
+                                  onKeyDown={(e: any) => {
+                                    if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                                      e.preventDefault();
+                                      const val = e.currentTarget.value.trim();
+                                      if (!selectedLanguages.includes(val)) {
+                                        setSelectedLanguages([...selectedLanguages, val]);
+                                      }
+                                      setLanguageSearchInput("");
+                                      setShowLanguageDropdown(false);
+                                    }
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-sky-500 font-medium"
+                                />
+
+                                {/* Search Languages Dropdown */}
+                                {showLanguageDropdown && (
+                                  <div className="absolute z-50 mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto py-1 divide-y divide-slate-800/60">
+                                    {[
+                                      "English (UK)",
+                                      "English (US)",
+                                      "Hindi",
+                                      "Marathi",
+                                      "Gujarati",
+                                      "Bengali",
+                                      "Tamil",
+                                      "Telugu",
+                                      "Kannada",
+                                      "Malayalam",
+                                      "Spanish",
+                                      "French",
+                                      "German"
+                                    ]
+                                      .filter((item) => item.toLowerCase().includes((languageSearchInput || "").toLowerCase()))
+                                      .map((langName) => (
+                                        <button
+                                          key={langName}
+                                          type="button"
+                                          onClick={() => {
+                                            if (!selectedLanguages.includes(langName)) {
+                                              setSelectedLanguages([...selectedLanguages, langName]);
+                                            }
+                                            setLanguageSearchInput("");
+                                            setShowLanguageDropdown(false);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-slate-100 flex items-center justify-between"
+                                        >
+                                          <span>🌐 {langName}</span>
+                                          <Plus className="w-3.5 h-3.5 text-sky-400" />
+                                        </button>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs font-semibold text-slate-200">
+                              {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 5. Advantage+ audience */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                            <h4 className="font-bold text-slate-100 text-sm">Advantage+ audience +</h4>
+                          </div>
+                          <button type="button" className="px-3 py-1 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-sky-400 transition-all">
+                            Audience suggestions
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          We'll automatically show ads to people most likely to respond. We'll show ads to people matching your suggestion, and other audiences when it's likely to improve performance. <button type="button" className="text-sky-400 hover:underline font-semibold">About audiences</button>
+                        </p>
+
+                        {/* Custom Audiences Search */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Custom audiences suggestion</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <button type="button" className="px-2.5 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-semibold text-sky-400">
+                              Create new ▾
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                            <input
+                              type="text"
+                              value={awarenessIncludeCustomAudience}
+                              onChange={(e) => setAwarenessIncludeCustomAudience(e.target.value)}
+                              placeholder="Search existing custom audiences"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Editable Age Range & Gender controls */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                          {/* Age Controls */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Age Range</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <ScrollableSelect
+                                value={String(awarenessAgeMin)}
+                                onChange={(val) => setAwarenessAgeMin(Number(val))}
+                                options={Array.from({ length: 48 }, (_, i) => 18 + i).map((age) => ({
+                                  value: String(age),
+                                  label: String(age),
+                                }))}
+                                maxHeight="max-h-40"
+                                className="text-slate-100 font-bold"
+                              />
+                              <span className="text-slate-500 text-xs font-bold">-</span>
+                              <ScrollableSelect
+                                value={String(awarenessAgeMax)}
+                                onChange={(val) => setAwarenessAgeMax(val)}
+                                options={[
+                                  ...Array.from({ length: 48 }, (_, i) => 18 + i).map((age) => ({
+                                    value: String(age),
+                                    label: String(age),
+                                  })),
+                                  { value: "65+", label: "65+" },
+                                ]}
+                                maxHeight="max-h-40"
+                                className="text-slate-100 font-bold"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Gender Controls */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Gender</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <div className="flex items-center gap-3 pt-1.5">
+                              {[
+                                { id: "ALL", label: "All genders" },
+                                { id: "MEN", label: "Men" },
+                                { id: "WOMEN", label: "Women" },
+                              ].map((g) => (
+                                <label key={g.id} className="flex items-center gap-1.5 text-xs text-slate-300 font-semibold cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name="trafficGenderSetting"
+                                    checked={awarenessGender === g.id}
+                                    onChange={() => setAwarenessGender(g.id)}
+                                    className="accent-sky-500"
+                                  />
+                                  {g.label}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Detailed Targeting Search Input */}
+                        <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <label className="block text-xs font-bold text-slate-200">Detailed targeting</label>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] font-bold">ℹ</span>
+                            </div>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Browse</button>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Include people who match demographics, interests or behaviours</p>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                            <input
+                              type="text"
+                              value={awarenessDetailedTargeting}
+                              onChange={(e) => setAwarenessDetailedTargeting(e.target.value)}
+                              placeholder="Add demographics, interests or behaviours (e.g. Technology, Online Shopping)"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Household income info banner */}
+                        <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1 relative">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sky-400 text-xs font-bold">💡 Reach people by household income in India</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Add detailed targeting options to reach specific audiences in India by income range.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 6. Policy and regulatory requirements (India) */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Policy and regulatory requirements (India)</h4>
+                        </div>
+                        <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={indiaSecuritiesDeclaration}
+                            onChange={(e) => setIndiaSecuritiesDeclaration(e.target.checked)}
+                            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
+                          />
+                          This ad set includes ads related to securities and investments
+                        </label>
+                      </div>
+
+                      {/* 7. Placements */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Placements</h4>
+                        </div>
+                        <div className="flex items-center justify-between pt-1">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-200">Advantage+ placements (recommended)</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">WhatsApp status included (vertical photos/videos on Updates tab).</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={includeWhatsappStatus}
+                              onChange={(e) => setIncludeWhatsappStatus(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* 8. Brand safety and suitability */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                          <h4 className="font-bold text-slate-100 text-sm">Brand safety and suitability</h4>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Meta applies standard brand safety filters across Facebook and Instagram placements.
+                        </p>
+                      </div>
+
+                      {/* Campaign Score & Audience Definition Card */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                              100
+                            </span>
+                            <div>
+                              <h4 className="font-bold text-slate-200 text-xs">Campaign score: 100/100</h4>
+                              <p className="text-[10px] text-emerald-400 font-semibold">You're using our recommended setup.</p>
+                            </div>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold text-[11px]">
+                            Broad Audience
+                          </span>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                          <div>
+                            <p className="text-[11px] font-bold text-slate-300">Estimated audience size:</p>
+                            <p className="text-xs font-bold text-sky-400 font-mono mt-0.5">622,100,000 - 731,900,000</p>
+                          </div>
+                          <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                            <Check className="h-3 w-3" /> All edits saved
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -7410,211 +8066,11 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         </div>
                         <div className="flex items-center justify-end pt-1">
                           <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            <Check className="h-3 w-3" />
                             All edits saved
                           </span>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* MANUAL TRAFFIC CAMPAIGN SETUP VIEW */}
-                  {campObjective === "OUTCOME_TRAFFIC" && trafficPresetMode === "manual" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <div>
-                          <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-                            Manual traffic campaign (Ad Set Setup)
-                          </h3>
-                          <p className="text-xs text-slate-400 mt-0.5">Configure ad set conversion location, audience controls, and placements.</p>
-                        </div>
-                        <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-xs font-semibold">
-                          Manual Ad Set
-                        </span>
-                      </div>
-
-                      {/* Ad Set Name Field */}
-                      <div>
-                        <Input
-                          label="Ad set name"
-                          value={adSetName || "New Traffic ad set"}
-                          onChange={(e: any) => setAdSetName(e.target.value)}
-                          placeholder="New Traffic ad set"
-                          required
-                        />
-                      </div>
-
-                      {/* Conversion Location Selector Card */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                        <div>
-                          <h4 className="font-bold text-slate-200 text-xs">Conversion location</h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Choose where you want to drive traffic.</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-2">
-                          {[
-                            { id: "WEBSITE", title: "Website", desc: "Send traffic to your website." },
-                            { id: "APP", title: "App", desc: "Send traffic to your app." },
-                            { id: "MESSAGING", title: "Message destinations", desc: "Send traffic to Messenger, Instagram and WhatsApp." },
-                            { id: "INSTAGRAM_FB", title: "Instagram or Facebook", desc: "Send traffic to an Instagram profile, Facebook Page or both." },
-                            { id: "CALLS", title: "Calls", desc: "Get people to call your business." },
-                          ].map((loc) => (
-                            <div
-                              key={loc.id}
-                              onClick={() => setConversionLocation(loc.id as any)}
-                              className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${conversionLocation === loc.id
-                                ? "border-sky-500 bg-sky-500/10 text-slate-100"
-                                : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                                }`}
-                            >
-                              <input
-                                type="radio"
-                                name="conversionLocation"
-                                checked={conversionLocation === loc.id}
-                                onChange={() => setConversionLocation(loc.id as any)}
-                                className="h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 mt-0.5"
-                              />
-                              <div>
-                                <h5 className="font-bold text-xs text-slate-200">{loc.title}</h5>
-                                <p className="text-[11px] text-slate-400">{loc.desc}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Performance Goal Card */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                        <h4 className="font-bold text-slate-200 text-xs">Performance goal</h4>
-                        <p className="text-[11px] text-slate-400">How you measure success for your ads.</p>
-                        <select
-                          value={performanceGoal}
-                          onChange={(e) => setPerformanceGoal(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-semibold"
-                        >
-                          <option value="MAXIMIZE_CONVERSATIONS">Maximise number of conversations</option>
-                          <option value="MAXIMIZE_LINK_CLICKS">Maximise number of link clicks</option>
-                          <option value="MAXIMIZE_LANDING_PAGE_VIEWS">Maximise number of landing page views</option>
-                        </select>
-                      </div>
-
-                      {/* Facebook Page Selection */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                        <h4 className="font-bold text-slate-200 text-xs">Facebook Page</h4>
-                        <p className="text-[11px] text-slate-400">This Page will represent your business in your ad and conversation.</p>
-                        <select
-                          value={formPageId}
-                          onChange={(e) => setFormPageId(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
-                        >
-                          {fetchedPages.map((p: any) => (
-                            <option key={p.id} value={p.id}>
-                              📄 {p.name} ({p.id})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Message Destinations Mode */}
-                      {conversionLocation === "MESSAGING" && (
-                        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                          <h4 className="font-bold text-slate-200 text-xs">Message destinations</h4>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div
-                              onClick={() => setMessageDestinationMode("AUTOMATIC")}
-                              className={`p-3 rounded-xl border cursor-pointer ${messageDestinationMode === "AUTOMATIC" ? "border-sky-500 bg-sky-500/10" : "border-slate-800 bg-slate-900"}`}
-                            >
-                              <p className="text-xs font-bold text-slate-200">Automatic destination (recommended)</p>
-                              <p className="text-[10px] text-slate-400 mt-1">Send people to app where they engage most & lower costs.</p>
-                            </div>
-                            <div
-                              onClick={() => setMessageDestinationMode("MANUAL")}
-                              className={`p-3 rounded-xl border cursor-pointer ${messageDestinationMode === "MANUAL" ? "border-sky-500 bg-sky-500/10" : "border-slate-800 bg-slate-900"}`}
-                            >
-                              <p className="text-xs font-bold text-slate-200">Manual destination</p>
-                              <p className="text-[10px] text-slate-400 mt-1">Only send people to chosen messaging apps.</p>
-                            </div>
-                          </div>
-
-                          {/* Connected Messaging Apps Preview */}
-                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
-                            <div className="flex items-center justify-between text-slate-300">
-                              <span>Messenger: {fetchedPages[0]?.name || "JISNU Digital"}</span>
-                              <Check className="h-3.5 w-3.5 text-emerald-400" />
-                            </div>
-                            <div className="flex items-center justify-between text-slate-300">
-                              <span>Instagram: @{instagramProfile}</span>
-                              <Check className="h-3.5 w-3.5 text-emerald-400" />
-                            </div>
-                            <div className="flex items-center justify-between text-emerald-400 font-bold">
-                              <span>WhatsApp: +1 555-174-6047</span>
-                              <Check className="h-3.5 w-3.5 text-emerald-400" />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Policy & Regulatory Requirements (India) */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                        <h4 className="font-bold text-slate-200 text-xs">Policy and regulatory requirements (India)</h4>
-                        <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer pt-1">
-                          <input
-                            type="checkbox"
-                            checked={indiaSecuritiesDeclaration}
-                            onChange={(e) => setIndiaSecuritiesDeclaration(e.target.checked)}
-                            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
-                          />
-                          This ad set includes ads related to securities and investments
-                        </label>
-                      </div>
-
-                      {/* Placements & WhatsApp Status Placement */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-bold text-slate-200 text-xs">Advantage+ placements</h4>
-                            <p className="text-[11px] text-slate-400 mt-0.5">WhatsApp status included (vertical photos/videos on Updates tab).</p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                            <input
-                              type="checkbox"
-                              checked={includeWhatsappStatus}
-                              onChange={(e) => setIncludeWhatsappStatus(e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Audience Definition Card (Score 100) */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs">
-                              100
-                            </span>
-                            <div>
-                              <h4 className="font-bold text-slate-200 text-xs">Campaign score: 100/100</h4>
-                              <p className="text-[10px] text-emerald-400 font-semibold">You're using our recommended setup.</p>
-                            </div>
-                          </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold text-[11px]">
-                            Broad Audience
-                          </span>
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] font-bold text-slate-300">Estimated audience size:</p>
-                            <p className="text-xs font-bold text-sky-400 font-mono mt-0.5">622,100,000 - 731,900,000</p>
-                          </div>
-                          <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-                            <Check className="h-3 w-3" /> All edits saved
-                          </span>
-                        </div>
-                      </div>
-
                     </div>
                   )}
 
@@ -9355,816 +9811,814 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       </div>
 
                       {/* Ad Name Input */}
-                  <div>
-                    <Input
-                      label="Ad Name"
-                      value={adName}
-                      onChange={(e: any) => setAdName(e.target.value)}
-                      placeholder={campObjective === "OUTCOME_TRAFFIC" ? "New Traffic ad" : campObjective === "OUTCOME_ENGAGEMENT" ? "New Engagement ad" : campObjective === "OUTCOME_LEADS" ? "New Leads ad" : "New Awareness ad"}
-                      required
-                    />
-                  </div>
-
-                  {/* Partnership Ad Toggle & Setup Options */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                    <div className="flex items-center justify-between">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-200 text-xs">Partnership ad</h4>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${partnershipAd ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
-                            {partnershipAd ? "On" : "Off"}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                          Run ads with creators, brands and other businesses to improve campaign performance.{" "}
-                          <button type="button" className="text-sky-400 hover:underline font-semibold">
-                            Go to Partnership Ads Hub to view creator content
-                          </button>
-                        </p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                        <input
-                          type="checkbox"
-                          checked={partnershipAd}
-                          onChange={(e) => setPartnershipAd(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                      </label>
-                    </div>
-
-                    {/* Partnership Options (When Turned On) */}
-                    {partnershipAd && (
-                      <div className="pt-3 border-t border-slate-800/80 space-y-2.5 animate-fadeIn">
-                        <div className="flex items-center gap-1 text-xs font-bold text-slate-200">
-                          <span>Choose how to create your ad</span>
-                          <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[9px] font-bold cursor-help" title="Select partnership creation method">i</span>
-                        </div>
-
-                        <div className="space-y-2">
-                          <button
-                            type="button"
-                            onClick={() => setShowPartnershipCodeModal(true)}
-                            className="w-full py-2.5 px-4 rounded-xl border border-slate-700/80 bg-slate-900/80 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-200 transition-all flex items-center justify-center gap-2"
-                          >
-                            Enter ad code or post info
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowSelectPartnershipModal(true)}
-                            className="w-full py-2.5 px-4 rounded-xl border border-slate-700/80 bg-slate-900/80 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-200 transition-all flex items-center justify-center gap-2"
-                          >
-                            Select partnership
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Identity Section */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                    <h4 className="font-bold text-slate-200 text-xs">Identity</h4>
-                    <p className="text-[11px] text-slate-400">The profiles that will be used in your ad.</p>
-
-                    {/* Facebook Page */}
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-semibold text-slate-400">Facebook Page <span className="text-red-400">*</span></label>
-                      {fetchedPages.length > 0 ? (
-                        <select
-                          value={formPageId}
-                          onChange={(e) => setFormPageId(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
-                        >
-                          {fetchedPages.map((p: any) => (
-                            <option key={p.id} value={p.id}>📄 {p.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/60 text-xs font-bold text-sky-400">
-                          📄 JISNU Digital Solutions Pvt.Ltd
-                        </div>
-                      )}
-                      <p className="text-[10px] text-slate-500">
-                        {campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "manual"
-                          ? `Any messages started from your ad will go to ${fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}.`
-                          : campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW"
-                            ? `Any form submitted from your ad will go to ${fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}.`
-                            : "To use a different Facebook Page, edit your selection for your ad set."}
-                      </p>
-                    </div>
-
-                    {/* Instagram Profile */}
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-semibold text-slate-400">Instagram profile</label>
-                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/60 text-xs font-bold text-sky-400">
-                        @{instagramProfile}
-                      </div>
-                    </div>
-
-                    {/* WhatsApp Phone Number — hide for Manual Engagement */}
-                    {!(campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "manual") && (
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-400">WhatsApp phone number</label>
-                        <input
-                          type="text"
-                          value={campWhatsappNum || "Test Number 15551746047"}
-                          onChange={(e) => setCampWhatsappNum(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-emerald-400 font-bold focus:outline-none focus:border-sky-500"
-                          placeholder="Test Number 15551746047"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Ad Setup Section (Step 4) */}
-                  <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                    <div>
-                      <h4 className="font-bold text-slate-100 text-xs">Ad setup</h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                        Select an existing post or create a new one
-                      </p>
-                    </div>
-
-                    {/* Mode Toggle */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: "CREATE", label: "Create ad" },
-                        { id: "EXISTING", label: "Use existing post" }
-                      ].map((mode) => (
-                        <button
-                          key={mode.id}
-                          type="button"
-                          onClick={() => {
-                            if (campObjective === "OUTCOME_LEADS") setLeadsAdSetupMode(mode.id as any);
-                            else setEngManualAdSetupMode(mode.id as any);
-                          }}
-                          className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                            (campObjective === "OUTCOME_LEADS" ? leadsAdSetupMode : engManualAdSetupMode) === mode.id || mode.id === "CREATE"
-                              ? "bg-sky-500/10 border-sky-500/50 text-sky-400"
-                              : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
-                          }`}
-                        >
-                          {mode.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Format Section */}
-                    <div className="pt-3 border-t border-slate-800 space-y-2.5">
-                      <div>
-                        <h5 className="font-bold text-slate-200 text-xs">Format</h5>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Choose an ad creative layout.</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        {[
-                          { id: "SINGLE_IMAGE", title: "Single image or video", desc: "One image or video, or a slide show with multiple images" },
-                          { id: "CAROUSEL", title: "Carousel", desc: "2 or more scrollable images or videos" }
-                        ].map((fmt) => (
-                          <div
-                            key={fmt.id}
-                            onClick={() => setAdFormat(fmt.id)}
-                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                              adFormat === fmt.id
-                                ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
-                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="adFormat"
-                              checked={adFormat === fmt.id}
-                              onChange={() => setAdFormat(fmt.id)}
-                              className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
-                            />
-                            <div>
-                              <p className="text-xs font-bold text-slate-100">{fmt.title}</p>
-                              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{fmt.desc}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Multi-advertiser ads Section */}
-                    <div className="pt-3 border-t border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h5 className="font-bold text-xs text-slate-100">Multi-advertiser ads</h5>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                          <input
-                            type="checkbox"
-                            checked={multiAdvertiserAds}
-                            onChange={(e) => setMultiAdvertiserAds(e.target.checked)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                        </label>
-                      </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Your ad can appear with others in the same ad unit to help promote discoverability. Your ad creative may be resized or cropped. <button type="button" className="text-sky-400 hover:underline font-semibold">About multi-advertiser ads</button>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Ad Creative Card (Step 4) */}
-                    <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                      <div>
-                        <h4 className="font-bold text-slate-100 text-xs">Ad creative</h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                          Select and optimise your ad text, media and enhancements.
-                        </p>
-                      </div>
-
-                      {/* Media */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-xs font-bold text-slate-200">
-                            * Media
-                          </label>
-                          <button
-                            type="button"
-                            onClick={fetchMediaAssets}
-                            className="text-[10px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
-                          >
-                            {fetchingMedia ? <Loader2 className="h-3 w-3 animate-spin" /> : <Layers className="h-3 w-3" />}
-                            Fetch Meta Media Library
-                          </button>
-                        </div>
-
                         <Input
-                          value={campMediaUrl}
-                          onChange={(e: any) => setCampMediaUrl(e.target.value)}
-                          placeholder="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600"
+                          label="Ad Name"
+                          value={adName}
+                          onChange={(e: any) => setAdName(e.target.value)}
+                          placeholder={campObjective === "OUTCOME_TRAFFIC" ? "New Traffic ad" : campObjective === "OUTCOME_ENGAGEMENT" ? "New Engagement ad" : campObjective === "OUTCOME_LEADS" ? "New Leads ad" : "New Awareness ad"}
+                          required
                         />
+                      </div>
 
-                        {/* Live Media Picker */}
-                        {(mediaAssets.images.length > 0 || mediaAssets.videos.length > 0) && (
-                          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
-                            <p className="text-[11px] font-bold text-slate-200">Select from Live Meta Library:</p>
-                            <div className="flex gap-2 overflow-x-auto pb-1 max-h-24">
-                              {mediaAssets.images.map((img: any) => (
-                                <img
-                                  key={img.id}
-                                  src={img.url}
-                                  alt="media"
-                                  onClick={() => setCampMediaUrl(img.url)}
-                                  className={`h-20 w-28 object-cover rounded-lg cursor-pointer border-2 shrink-0 ${campMediaUrl === img.url ? "border-sky-500" : "border-transparent"}`}
-                                />
-                              ))}
+                      {/* Partnership Ad Toggle & Setup Options */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-200 text-xs">Partnership ad</h4>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${partnershipAd ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}>
+                                {partnershipAd ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                              Run ads with creators, brands and other businesses to improve campaign performance.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">
+                                Go to Partnership Ads Hub to view creator content
+                              </button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={partnershipAd}
+                              onChange={(e) => setPartnershipAd(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {/* Partnership Options (When Turned On) */}
+                        {partnershipAd && (
+                          <div className="pt-3 border-t border-slate-800/80 space-y-2.5 animate-fadeIn">
+                            <div className="flex items-center gap-1 text-xs font-bold text-slate-200">
+                              <span>Choose how to create your ad</span>
+                              <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[9px] font-bold cursor-help" title="Select partnership creation method">i</span>
+                            </div>
+
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowPartnershipCodeModal(true)}
+                                className="w-full py-2.5 px-4 rounded-xl border border-slate-700/80 bg-slate-900/80 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-200 transition-all flex items-center justify-center gap-2"
+                              >
+                                Enter ad code or post info
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowSelectPartnershipModal(true)}
+                                className="w-full py-2.5 px-4 rounded-xl border border-slate-700/80 bg-slate-900/80 hover:bg-slate-800 hover:border-slate-600 text-xs font-semibold text-slate-200 transition-all flex items-center justify-center gap-2"
+                              >
+                                Select partnership
+                              </button>
                             </div>
                           </div>
                         )}
                       </div>
 
-                      {/* AI Media Transparency Checkbox */}
-                      <div className="pt-2 border-t border-slate-800 space-y-1">
-                        <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={appPromoMediaAiCreated}
-                            onChange={(e) => setAppPromoMediaAiCreated(e.target.checked)}
-                            className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
-                          />
-                          <span className="font-bold text-slate-200">Ad includes media created or edited with AI</span>
-                        </label>
-                        <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
-                          Ticking this box may add an AI info label to your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">About AI transparency</button>
-                        </p>
-                      </div>
+                      {/* Identity Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <h4 className="font-bold text-slate-200 text-xs">Identity</h4>
+                        <p className="text-[11px] text-slate-400">The profiles that will be used in your ad.</p>
 
-                      {/* Primary text */}
-                      <div className="space-y-1 pt-1 border-t border-slate-800">
-                        <label className="block text-xs font-bold text-slate-200">Primary text</label>
-                        <Textarea
-                          label=""
-                          value={campBody}
-                          onChange={(e: any) => setCampBody(e.target.value)}
-                          placeholder="Helping businesses grow digitally with smart strategies and powerful branding. 📈 Meta Ads Google Ads Social Media Management Creative Design, Let’s turn your vision into digital success!"
-                          rows={3}
-                        />
-                      </div>
-
-                      {/* Add a destination Card */}
-                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                        <div>
-                          <h5 className="font-bold text-xs text-slate-100">Add a destination</h5>
-                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                            If you add a destination, you can send people immediately after they've tapped or clicked your ad to a website, a full-screen experience or a call. If you don't, they'll be sent to your Facebook Page or Instagram profile.
+                        {/* Facebook Page */}
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-semibold text-slate-400">Facebook Page <span className="text-red-400">*</span></label>
+                          {fetchedPages.length > 0 ? (
+                            <select
+                              value={formPageId}
+                              onChange={(e) => setFormPageId(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                            >
+                              {fetchedPages.map((p: any) => (
+                                <option key={p.id} value={p.id}>📄 {p.name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/60 text-xs font-bold text-sky-400">
+                              📄 JISNU Digital Solutions Pvt.Ltd
+                            </div>
+                          )}
+                          <p className="text-[10px] text-slate-500">
+                            {campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "manual"
+                              ? `Any messages started from your ad will go to ${fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}.`
+                              : campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW"
+                                ? `Any form submitted from your ad will go to ${fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}.`
+                                : "To use a different Facebook Page, edit your selection for your ad set."}
                           </p>
                         </div>
 
-                        {/* Headline */}
+                        {/* Instagram Profile */}
                         <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-200">Headline</label>
-                          <Input
-                            label=""
-                            value={campHeadline}
-                            onChange={(e: any) => setCampHeadline(e.target.value)}
-                            placeholder="Chat with us"
-                          />
-                        </div>
-
-                        {/* Description */}
-                        <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-200">Description</label>
-                          <Input
-                            label=""
-                            value={salesAdDescription}
-                            onChange={(e: any) => setSalesAdDescription(e.target.value)}
-                            placeholder="Optional description text..."
-                          />
-                        </div>
-
-                        {/* Call to action */}
-                        <div className="space-y-2 pt-2 border-t border-slate-800">
-                          <div>
-                            <label className="block text-xs font-bold text-slate-200">Call to action</label>
-                            <p className="text-[11px] text-slate-400">Select an item</p>
+                          <label className="block text-[11px] font-semibold text-slate-400">Instagram profile</label>
+                          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/60 text-xs font-bold text-sky-400">
+                            @{instagramProfile}
                           </div>
-                          <select
-                            value={callToAction}
-                            onChange={(e) => setCallToAction(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
-                          >
-                            <option value="WHATSAPP_MESSAGE">Send WhatsApp message</option>
-                            <option value="LEARN_MORE">Learn More</option>
-                            <option value="CONTACT_US">Contact Us</option>
-                            <option value="SHOP_NOW">Shop Now</option>
-                            <option value="BOOK_NOW">Book Now</option>
-                            <option value="GET_OFFER">Get Offer</option>
-                            <option value="SIGN_UP">Sign Up</option>
-                          </select>
-
-                          {/* Connected WhatsApp Notice Box */}
-                          {callToAction === "WHATSAPP_MESSAGE" && (
-                            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-[11px] text-slate-300 leading-relaxed animate-fadeIn">
-                              <p>
-                                When people click the button on an ad, they'll be able to send a message to the WhatsApp number connected to your Page.
-                              </p>
-                              <p className="font-semibold text-emerald-400">
-                                Connected WhatsApp number: <span className="font-mono text-slate-100">+91 7709936965</span>. <button type="button" className="text-sky-400 hover:underline font-bold">Edit in Page settings.</button>
-                              </p>
-                              <p className="text-slate-400">
-                                WhatsApp information, including names and phone numbers, is subject to the data use restrictions in the Meta Advertising Policies. Your business and ads must also comply with the WhatsApp Commerce Policy. Links to WhatsApp on your website may be modified when people view your site in Facebook or Instagram.
-                              </p>
-                              <p className="text-slate-400">
-                                Your ads that click to WhatsApp show "Active on WhatsApp" when you're using the WhatsApp Business app. This lets people viewing your ads know they can expect a quick reply. You can turn this off in your WhatsApp privacy settings.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                  {/* Destination & Instant Form Section (Leads Objective Only) */}
-                  {campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW" && (
-                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                      <div>
-                        <h4 className="font-bold text-slate-200 text-xs">Destination</h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Tell us where to send people immediately after they tap or click your ad. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
-                        </p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h5 className="font-bold text-xs text-slate-200">Instant form</h5>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              Make connections with people by letting them send contact information and other details to you through a form. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
-                            </p>
-                          </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold shrink-0">Selected</span>
                         </div>
 
-                        {/* Search & Tabs */}
-                        <div className="space-y-2 pt-1 border-t border-slate-800">
-                          <p className="text-[11px] font-bold text-slate-300">Choose or create an instant form for your leads campaign</p>
-                          <div className="flex items-center gap-2">
+                        {/* WhatsApp Phone Number — hide for Manual Engagement */}
+                        {!(campObjective === "OUTCOME_ENGAGEMENT" && engagementPresetMode === "manual") && (
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold text-slate-400">WhatsApp phone number</label>
                             <input
                               type="text"
-                              placeholder="Search your forms"
-                              className="flex-1 bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
+                              value={campWhatsappNum || "Test Number 15551746047"}
+                              onChange={(e) => setCampWhatsappNum(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-emerald-400 font-bold focus:outline-none focus:border-sky-500"
+                              placeholder="Test Number 15551746047"
                             />
-                            <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700">
-                              Search
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Ad Setup Section (Step 4) */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div>
+                          <h4 className="font-bold text-slate-100 text-xs">Ad setup</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Select an existing post or create a new one
+                          </p>
+                        </div>
+
+                        {/* Mode Toggle */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: "CREATE", label: "Create ad" },
+                            { id: "EXISTING", label: "Use existing post" }
+                          ].map((mode) => (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              onClick={() => {
+                                if (campObjective === "OUTCOME_LEADS") setLeadsAdSetupMode(mode.id as any);
+                                else setEngManualAdSetupMode(mode.id as any);
+                              }}
+                              className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${(campObjective === "OUTCOME_LEADS" ? leadsAdSetupMode : engManualAdSetupMode) === mode.id || mode.id === "CREATE"
+                                ? "bg-sky-500/10 border-sky-500/50 text-sky-400"
+                                : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500"
+                                }`}
+                            >
+                              {mode.label}
                             </button>
+                          ))}
+                        </div>
+
+                        {/* Format Section */}
+                        <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                          <div>
+                            <h5 className="font-bold text-slate-200 text-xs">Format</h5>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Choose an ad creative layout.</p>
                           </div>
 
-                          <div className="flex gap-2 pt-1 border-b border-slate-800">
-                            {(["ACTIVE", "ARCHIVED"] as const).map((tab) => (
-                              <button
-                                key={tab}
-                                type="button"
-                                onClick={() => setLeadsFormTab(tab)}
-                                className={`pb-2 text-xs font-bold border-b-2 transition-all ${leadsFormTab === tab
-                                  ? "border-sky-400 text-sky-400"
-                                  : "border-transparent text-slate-400 hover:text-slate-200"
+                          <div className="space-y-2">
+                            {[
+                              { id: "SINGLE_IMAGE", title: "Single image or video", desc: "One image or video, or a slide show with multiple images" },
+                              { id: "CAROUSEL", title: "Carousel", desc: "2 or more scrollable images or videos" }
+                            ].map((fmt) => (
+                              <div
+                                key={fmt.id}
+                                onClick={() => setAdFormat(fmt.id)}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${adFormat === fmt.id
+                                  ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                  : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
                                   }`}
                               >
-                                {tab === "ACTIVE" ? "Active" : "Archived"}
-                              </button>
+                                <input
+                                  type="radio"
+                                  name="adFormat"
+                                  checked={adFormat === fmt.id}
+                                  onChange={() => setAdFormat(fmt.id)}
+                                  className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
+                                />
+                                <div>
+                                  <p className="text-xs font-bold text-slate-100">{fmt.title}</p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{fmt.desc}</p>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>
-                      </div>
 
-                      {/* Form Testing */}
-                      <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                        <div>
-                          <h5 className="font-bold text-xs text-slate-200">Form testing</h5>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Compare up to five forms to see which one performs best.</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                          <input type="checkbox" checked={leadsFormTesting} onChange={(e) => setLeadsFormTesting(e.target.checked)} className="sr-only peer" />
-                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                        </label>
-                      </div>
-
-                      {/* Quality Filters */}
-                      <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                        <h5 className="font-bold text-xs text-slate-200">Quality filters</h5>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-300">Require work email address</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              Leads must verify using an active email address associated with a real organisation. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
-                            </p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                            <input type="checkbox" checked={leadsRequireWorkEmail} onChange={(e) => setLeadsRequireWorkEmail(e.target.checked)} className="sr-only peer" />
-                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Instant Form Lead Nurturing */}
-                      <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/60 to-purple-950/40 border border-sky-800/40 space-y-1">
-                        <h5 className="font-bold text-xs text-sky-300 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
-                          Instant form lead nurturing
-                        </h5>
-                        <p className="text-[11px] text-slate-300 leading-relaxed">
-                          Reach leads where they're most active with tailored post-submission follow-ups through Meta's exclusive channels.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Destination Card (Step 4) */}
-                  <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                    <div>
-                      <h4 className="font-bold text-slate-100 text-xs">Destination</h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                        Tell us where to send people immediately after they tap or click your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
-                      </p>
-                    </div>
-
-                    {/* Destination Type Radio Group */}
-                    <div className="space-y-2">
-                      {[
-                        {
-                          id: "INSTANT_EXPERIENCE",
-                          title: "Instant Experience",
-                          desc: "Send people to a fast-loading, mobile-optimised experience."
-                        },
-                        {
-                          id: "WEBSITE",
-                          title: "Website",
-                          desc: "Send people to your website."
-                        },
-                        {
-                          id: "CALL",
-                          title: "Call",
-                          desc: "Let people call you directly."
-                        },
-                        {
-                          id: "MESSAGING",
-                          title: "Messaging apps",
-                          desc: "Send people to Messenger, Instagram and WhatsApp."
-                        }
-                      ].map((dest) => (
-                        <div
-                          key={dest.id}
-                          onClick={() => setStep4DestinationType(dest.id as any)}
-                          className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${step4DestinationType === dest.id
-                            ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                            }`}
-                        >
-                          <input
-                            type="radio"
-                            name="step4DestinationType"
-                            checked={step4DestinationType === dest.id}
-                            onChange={() => setStep4DestinationType(dest.id as any)}
-                            className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
-                          />
-                          <div>
-                            <p className="text-xs font-bold text-slate-100">{dest.title}</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{dest.desc}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* When Messaging Apps is selected */}
-                    {step4DestinationType === "MESSAGING" && (
-                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-4 animate-fadeIn">
-                        {/* Messenger */}
-                        <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-200">Messenger</label>
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-700/60 text-xs font-bold text-sky-400 flex items-center gap-2">
-                            <span>💬</span> {fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}
-                          </div>
-                        </div>
-
-                        {/* Instagram */}
-                        <div className="space-y-1">
-                          <label className="block text-xs font-bold text-slate-200">Instagram</label>
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-700/60 text-xs font-bold text-sky-400 flex items-center gap-2">
-                            <span>📸</span> @{instagramProfile || "jisnu_digitalsolution_pvt_ltd"}
-                          </div>
-                        </div>
-
-                        {/* WhatsApp */}
-                        <div className="space-y-2">
-                          <label className="block text-xs font-bold text-slate-200">WhatsApp</label>
-                          <div className="space-y-1">
-                            <select
-                              value={step4WhatsappNumber}
-                              onChange={(e) => setStep4WhatsappNumber(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-sky-500"
-                            >
-                              <option value="+91 77099 36965">+91 77099 36965</option>
-                              <option value="CONNECT_NEW">+ Connect new WhatsApp number</option>
-                            </select>
-                            <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                              You can connect a maximum of 50 WhatsApp numbers per Facebook Page.
-                              Edit WhatsApp numbers in Business Manager and number connections in Page settings.
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Ads data sharing */}
+                        {/* Multi-advertiser ads Section */}
                         <div className="pt-3 border-t border-slate-800 space-y-2">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h5 className="font-bold text-xs text-slate-200">Ads data sharing</h5>
-                              <p className="text-[11px] text-slate-400">{step4AdsDataSharing ? "On" : "Off"}</p>
+                              <h5 className="font-bold text-xs text-slate-100">Multi-advertiser ads</h5>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
                               <input
                                 type="checkbox"
-                                checked={step4AdsDataSharing}
-                                onChange={(e) => setStep4AdsDataSharing(e.target.checked)}
+                                checked={multiAdvertiserAds}
+                                onChange={(e) => setMultiAdvertiserAds(e.target.checked)}
                                 className="sr-only peer"
                               />
                               <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
                             </label>
                           </div>
-
-                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
-                            <p>
-                              WhatsApp information, including names and phone numbers, is subject to the data use restrictions in the Meta Advertising Policies. Your business and ads must also comply with the WhatsApp Commerce Policy. Links to WhatsApp on your website may be modified when people view your site in Facebook or Instagram.
-                            </p>
-                            <p>
-                              Your ads that click to WhatsApp show "Active on WhatsApp" when you're using the WhatsApp Business app. This lets people viewing your ads know they can expect a quick reply. You can turn this off in your WhatsApp privacy settings.
-                            </p>
-                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Your ad can appear with others in the same ad unit to help promote discoverability. Your ad creative may be resized or cropped. <button type="button" className="text-sky-400 hover:underline font-semibold">About multi-advertiser ads</button>
+                          </p>
                         </div>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Conversations / Chat Template Card (Step 4) */}
-                  <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-100 text-xs">Conversations</h4>
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                        Choose a template for beginning the chat after people tap on your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
-                      </p>
-                    </div>
-
-                    {/* Recommendation Opportunity Banner */}
-                    <div className="p-4 rounded-xl bg-slate-900 border-l-4 border-l-purple-500 border-slate-800 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                          ⚡ You could get 7% more messages by adding recommended settings
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
-                          +7%
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Make it easier for people to start chats with AI-generated questions and more. You can edit as needed.
-                      </p>
-                    </div>
-
-                    {/* Recommended Chat Template Box */}
-                    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-200">Recommended chat template</span>
-                          <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold flex items-center gap-1">
-                            🤖 AI
-                          </span>
+                      {/* Ad Creative Card (Step 4) */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div>
+                          <h4 className="font-bold text-slate-100 text-xs">Ad creative</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Select and optimise your ad text, media and enhancements.
+                          </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowChatTemplateModal(true)}
-                          className="text-xs text-sky-400 hover:underline font-semibold"
-                        >
-                          Edit template
-                        </button>
-                      </div>
 
-                      {/* Greeting */}
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-400">Greeting</label>
-                        <input
-                          type="text"
-                          value={chatTemplateGreeting}
-                          onChange={(e) => setChatTemplateGreeting(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
-                        />
-                      </div>
-
-                      {/* Questions and responses */}
-                      <div className="space-y-2 pt-1 border-t border-slate-800">
-                        <label className="block text-[11px] font-semibold text-slate-400">Questions and responses</label>
+                        {/* Media */}
                         <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-bold shrink-0">1.</span>
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-bold text-slate-200">
+                              * Media
+                            </label>
+                            <button
+                              type="button"
+                              onClick={fetchMediaAssets}
+                              className="text-[10px] text-sky-400 hover:underline font-semibold flex items-center gap-1"
+                            >
+                              {fetchingMedia ? <Loader2 className="h-3 w-3 animate-spin" /> : <Layers className="h-3 w-3" />}
+                              Fetch Meta Media Library
+                            </button>
+                          </div>
+
+                          <Input
+                            value={campMediaUrl}
+                            onChange={(e: any) => setCampMediaUrl(e.target.value)}
+                            placeholder="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600"
+                          />
+
+                          {/* Live Media Picker */}
+                          {(mediaAssets.images.length > 0 || mediaAssets.videos.length > 0) && (
+                            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+                              <p className="text-[11px] font-bold text-slate-200">Select from Live Meta Library:</p>
+                              <div className="flex gap-2 overflow-x-auto pb-1 max-h-24">
+                                {mediaAssets.images.map((img: any) => (
+                                  <img
+                                    key={img.id}
+                                    src={img.url}
+                                    alt="media"
+                                    onClick={() => setCampMediaUrl(img.url)}
+                                    className={`h-20 w-28 object-cover rounded-lg cursor-pointer border-2 shrink-0 ${campMediaUrl === img.url ? "border-sky-500" : "border-transparent"}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* AI Media Transparency Checkbox */}
+                        <div className="pt-2 border-t border-slate-800 space-y-1">
+                          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
                             <input
-                              type="text"
-                              value={chatTemplateQuestion1}
-                              onChange={(e) => setChatTemplateQuestion1(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                              type="checkbox"
+                              checked={appPromoMediaAiCreated}
+                              onChange={(e) => setAppPromoMediaAiCreated(e.target.checked)}
+                              className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-sky-500"
+                            />
+                            <span className="font-bold text-slate-200">Ad includes media created or edited with AI</span>
+                          </label>
+                          <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
+                            Ticking this box may add an AI info label to your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">About AI transparency</button>
+                          </p>
+                        </div>
+
+                        {/* Primary text */}
+                        <div className="space-y-1 pt-1 border-t border-slate-800">
+                          <label className="block text-xs font-bold text-slate-200">Primary text</label>
+                          <Textarea
+                            label=""
+                            value={campBody}
+                            onChange={(e: any) => setCampBody(e.target.value)}
+                            placeholder="Helping businesses grow digitally with smart strategies and powerful branding. 📈 Meta Ads Google Ads Social Media Management Creative Design, Let’s turn your vision into digital success!"
+                            rows={3}
+                          />
+                        </div>
+
+                        {/* Add a destination Card */}
+                        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                          <div>
+                            <h5 className="font-bold text-xs text-slate-100">Add a destination</h5>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                              If you add a destination, you can send people immediately after they've tapped or clicked your ad to a website, a full-screen experience or a call. If you don't, they'll be sent to your Facebook Page or Instagram profile.
+                            </p>
+                          </div>
+
+                          {/* Headline */}
+                          <div className="space-y-1">
+                            <label className="block text-xs font-bold text-slate-200">Headline</label>
+                            <Input
+                              label=""
+                              value={campHeadline}
+                              onChange={(e: any) => setCampHeadline(e.target.value)}
+                              placeholder="Chat with us"
                             />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-bold shrink-0">2.</span>
-                            <input
-                              type="text"
-                              value={chatTemplateQuestion2}
-                              onChange={(e) => setChatTemplateQuestion2(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+
+                          {/* Description */}
+                          <div className="space-y-1">
+                            <label className="block text-xs font-bold text-slate-200">Description</label>
+                            <Input
+                              label=""
+                              value={salesAdDescription}
+                              onChange={(e: any) => setSalesAdDescription(e.target.value)}
+                              placeholder="Optional description text..."
                             />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-bold shrink-0">3.</span>
-                            <input
-                              type="text"
-                              value={chatTemplateQuestion3}
-                              onChange={(e) => setChatTemplateQuestion3(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
-                            />
+
+                          {/* Call to action */}
+                          <div className="space-y-2 pt-2 border-t border-slate-800">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-200">Call to action</label>
+                              <p className="text-[11px] text-slate-400">Select an item</p>
+                            </div>
+                            <select
+                              value={callToAction}
+                              onChange={(e) => setCallToAction(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="WHATSAPP_MESSAGE">Send WhatsApp message</option>
+                              <option value="LEARN_MORE">Learn More</option>
+                              <option value="CONTACT_US">Contact Us</option>
+                              <option value="SHOP_NOW">Shop Now</option>
+                              <option value="BOOK_NOW">Book Now</option>
+                              <option value="GET_OFFER">Get Offer</option>
+                              <option value="SIGN_UP">Sign Up</option>
+                            </select>
+
+                            {/* Connected WhatsApp Notice Box */}
+                            {callToAction === "WHATSAPP_MESSAGE" && (
+                              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-[11px] text-slate-300 leading-relaxed animate-fadeIn">
+                                <p>
+                                  When people click the button on an ad, they'll be able to send a message to the WhatsApp number connected to your Page.
+                                </p>
+                                <p className="font-semibold text-emerald-400">
+                                  Connected WhatsApp number: <span className="font-mono text-slate-100">+91 7709936965</span>. <button type="button" className="text-sky-400 hover:underline font-bold">Edit in Page settings.</button>
+                                </p>
+                                <p className="text-slate-400">
+                                  WhatsApp information, including names and phone numbers, is subject to the data use restrictions in the Meta Advertising Policies. Your business and ads must also comply with the WhatsApp Commerce Policy. Links to WhatsApp on your website may be modified when people view your site in Facebook or Instagram.
+                                </p>
+                                <p className="text-slate-400">
+                                  Your ads that click to WhatsApp show "Active on WhatsApp" when you're using the WhatsApp Business app. This lets people viewing your ads know they can expect a quick reply. You can turn this off in your WhatsApp privacy settings.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Tracking Section */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                    <div>
-                      <h4 className="font-bold text-slate-200 text-xs">Tracking</h4>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Choose conversion events to track. This ad account's selected conversion dataset will be tracked by default.</p>
-                    </div>
-
-                    {/* Pixel Info */}
-                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-300">Website events:</span>
-                        <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Active Dataset</span>
-                      </div>
-                      <p className="text-xs font-bold text-sky-400">{pixelWebsiteEvents}</p>
-                      <p className="text-[11px] font-mono text-slate-400">Pixel ID: {pixelId}</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 text-xs text-slate-400 flex items-center justify-between">
-                        <span>App events</span>
-                        <span className="text-[10px] text-slate-500">Not configured</span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 text-xs text-slate-400 flex items-center justify-between">
-                        <span>Offline events</span>
-                        <button type="button" className="text-[10px] text-sky-400 hover:underline font-semibold">Edit offline sets</button>
-                      </div>
-                    </div>
-
-                    {/* URL Parameters */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">URL parameters</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={urlParameters}
-                          onChange={(e) => setUrlParameters(e.target.value)}
-                          placeholder="key1=value1&key2=value2"
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500"
-                        />
-                        <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 shrink-0">
-                          Build a URL parameter
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Third-party reporting */}
-                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
-                      <span className="font-bold text-slate-300">Third-party reporting:</span> Meta purchases may not be included in your Google reporting. Connect your account to measure actions on ads that send people to your website or shop.
-                    </div>
-                  </div>
-
-                  {/* Campaign Score 100 + Ad Preview */}
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-9 h-9 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs">
-                          {campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT" ? "100" : "66"}
-                        </span>
-                        <div>
-                          <h4 className="font-bold text-slate-200 text-xs">Campaign score: {campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT" ? "100" : "66"}/100</h4>
-                          <p className="text-[10px] text-emerald-400 font-semibold">You're using our recommended setup.</p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                        Ad Preview
-                      </span>
-                    </div>
-
-                    {/* Live Ad Preview Card */}
-                    <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 max-w-sm mx-auto shadow-xl">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-sky-500/20 text-sky-400 font-bold flex items-center justify-center text-xs">J</div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-200">{fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}</p>
-                          <p className="text-[10px] text-slate-400">Sponsored • @{instagramProfile}</p>
-                        </div>
-                        {campObjective === "OUTCOME_ENGAGEMENT" && (
-                          <div className="ml-auto flex flex-col items-end text-right">
-                            <span className="text-[10px] text-slate-500">Ad</span>
-                            <span className="text-[10px] font-bold text-sky-400">Destination</span>
+                      {/* Destination & Instant Form Section (Leads Objective Only) */}
+                      {campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW" && (
+                        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                          <div>
+                            <h4 className="font-bold text-slate-200 text-xs">Destination</h4>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Tell us where to send people immediately after they tap or click your ad. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
+                            </p>
                           </div>
-                        )}
-                      </div>
 
-                      {campMediaUrl ? (
-                        <div className="w-full h-36 rounded-xl overflow-hidden bg-black">
-                          <img src={campMediaUrl} alt="Ad banner" className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-full h-28 rounded-xl bg-slate-950 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 text-xs">
-                          Ad Media Banner Preview
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h5 className="font-bold text-xs text-slate-200">Instant form</h5>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Make connections with people by letting them send contact information and other details to you through a form. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
+                                </p>
+                              </div>
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold shrink-0">Selected</span>
+                            </div>
+
+                            {/* Search & Tabs */}
+                            <div className="space-y-2 pt-1 border-t border-slate-800">
+                              <p className="text-[11px] font-bold text-slate-300">Choose or create an instant form for your leads campaign</p>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="Search your forms"
+                                  className="flex-1 bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
+                                />
+                                <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700">
+                                  Search
+                                </button>
+                              </div>
+
+                              <div className="flex gap-2 pt-1 border-b border-slate-800">
+                                {(["ACTIVE", "ARCHIVED"] as const).map((tab) => (
+                                  <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => setLeadsFormTab(tab)}
+                                    className={`pb-2 text-xs font-bold border-b-2 transition-all ${leadsFormTab === tab
+                                      ? "border-sky-400 text-sky-400"
+                                      : "border-transparent text-slate-400 hover:text-slate-200"
+                                      }`}
+                                  >
+                                    {tab === "ACTIVE" ? "Active" : "Archived"}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Form Testing */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                            <div>
+                              <h5 className="font-bold text-xs text-slate-200">Form testing</h5>
+                              <p className="text-[11px] text-slate-400 mt-0.5">Compare up to five forms to see which one performs best.</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                              <input type="checkbox" checked={leadsFormTesting} onChange={(e) => setLeadsFormTesting(e.target.checked)} className="sr-only peer" />
+                              <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                            </label>
+                          </div>
+
+                          {/* Quality Filters */}
+                          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                            <h5 className="font-bold text-xs text-slate-200">Quality filters</h5>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-semibold text-slate-300">Require work email address</p>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Leads must verify using an active email address associated with a real organisation. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
+                                </p>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                                <input type="checkbox" checked={leadsRequireWorkEmail} onChange={(e) => setLeadsRequireWorkEmail(e.target.checked)} className="sr-only peer" />
+                                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* Instant Form Lead Nurturing */}
+                          <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/60 to-purple-950/40 border border-sky-800/40 space-y-1">
+                            <h5 className="font-bold text-xs text-sky-300 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                              Instant form lead nurturing
+                            </h5>
+                            <p className="text-[11px] text-slate-300 leading-relaxed">
+                              Reach leads where they're most active with tailored post-submission follow-ups through Meta's exclusive channels.
+                            </p>
+                          </div>
                         </div>
                       )}
 
-                      <div className="space-y-1">
-                        <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                          {campBody || "Hi! Please let us know how we can help you."}
-                        </p>
-                        {(campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT") && (
-                          <p className="text-[11px] text-slate-400 italic">
-                            Can I learn more about your business? / Is anyone available to chat?
+                      {/* Destination Card (Step 4) */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div>
+                          <h4 className="font-bold text-slate-100 text-xs">Destination</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Tell us where to send people immediately after they tap or click your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
                           </p>
+                        </div>
+
+                        {/* Destination Type Radio Group */}
+                        <div className="space-y-2">
+                          {[
+                            {
+                              id: "INSTANT_EXPERIENCE",
+                              title: "Instant Experience",
+                              desc: "Send people to a fast-loading, mobile-optimised experience."
+                            },
+                            {
+                              id: "WEBSITE",
+                              title: "Website",
+                              desc: "Send people to your website."
+                            },
+                            {
+                              id: "CALL",
+                              title: "Call",
+                              desc: "Let people call you directly."
+                            },
+                            {
+                              id: "MESSAGING",
+                              title: "Messaging apps",
+                              desc: "Send people to Messenger, Instagram and WhatsApp."
+                            }
+                          ].map((dest) => (
+                            <div
+                              key={dest.id}
+                              onClick={() => setStep4DestinationType(dest.id as any)}
+                              className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${step4DestinationType === dest.id
+                                ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                                }`}
+                            >
+                              <input
+                                type="radio"
+                                name="step4DestinationType"
+                                checked={step4DestinationType === dest.id}
+                                onChange={() => setStep4DestinationType(dest.id as any)}
+                                className="mt-0.5 h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 shrink-0"
+                              />
+                              <div>
+                                <p className="text-xs font-bold text-slate-100">{dest.title}</p>
+                                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{dest.desc}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* When Messaging Apps is selected */}
+                        {step4DestinationType === "MESSAGING" && (
+                          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-4 animate-fadeIn">
+                            {/* Messenger */}
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">Messenger</label>
+                              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-700/60 text-xs font-bold text-sky-400 flex items-center gap-2">
+                                <span>💬</span> {fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}
+                              </div>
+                            </div>
+
+                            {/* Instagram */}
+                            <div className="space-y-1">
+                              <label className="block text-xs font-bold text-slate-200">Instagram</label>
+                              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-700/60 text-xs font-bold text-sky-400 flex items-center gap-2">
+                                <span>📸</span> @{instagramProfile || "jisnu_digitalsolution_pvt_ltd"}
+                              </div>
+                            </div>
+
+                            {/* WhatsApp */}
+                            <div className="space-y-2">
+                              <label className="block text-xs font-bold text-slate-200">WhatsApp</label>
+                              <div className="space-y-1">
+                                <select
+                                  value={step4WhatsappNumber}
+                                  onChange={(e) => setStep4WhatsappNumber(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-sky-500"
+                                >
+                                  <option value="+91 77099 36965">+91 77099 36965</option>
+                                  <option value="CONNECT_NEW">+ Connect new WhatsApp number</option>
+                                </select>
+                                <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                                  You can connect a maximum of 50 WhatsApp numbers per Facebook Page.
+                                  Edit WhatsApp numbers in Business Manager and number connections in Page settings.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Ads data sharing */}
+                            <div className="pt-3 border-t border-slate-800 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h5 className="font-bold text-xs text-slate-200">Ads data sharing</h5>
+                                  <p className="text-[11px] text-slate-400">{step4AdsDataSharing ? "On" : "Off"}</p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                                  <input
+                                    type="checkbox"
+                                    checked={step4AdsDataSharing}
+                                    onChange={(e) => setStep4AdsDataSharing(e.target.checked)}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                                </label>
+                              </div>
+
+                              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
+                                <p>
+                                  WhatsApp information, including names and phone numbers, is subject to the data use restrictions in the Meta Advertising Policies. Your business and ads must also comply with the WhatsApp Commerce Policy. Links to WhatsApp on your website may be modified when people view your site in Facebook or Instagram.
+                                </p>
+                                <p>
+                                  Your ads that click to WhatsApp show "Active on WhatsApp" when you're using the WhatsApp Business app. This lets people viewing your ads know they can expect a quick reply. You can turn this off in your WhatsApp privacy settings.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
 
-                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                      {/* Conversations / Chat Template Card (Step 4) */}
+                      <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                         <div>
-                          <p className="text-[10px] uppercase font-bold text-slate-500">
-                            {campObjective === "OUTCOME_TRAFFIC" ? "WHATSAPP MESSAGE" : "LEARN MORE"}
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-100 text-xs">Conversations</h4>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                            Choose a template for beginning the chat after people tap on your ad. <button type="button" className="text-sky-400 hover:underline font-semibold">Learn more</button>
                           </p>
-                          <p className="text-xs font-bold text-slate-100">{campHeadline || "Chat with us on WhatsApp"}</p>
                         </div>
-                        <span className="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-[11px] shadow-sm">
-                          {campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT" ? "Send message" : "Learn more"}
+
+                        {/* Recommendation Opportunity Banner */}
+                        <div className="p-4 rounded-xl bg-slate-900 border-l-4 border-l-purple-500 border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                              ⚡ You could get 7% more messages by adding recommended settings
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                              +7%
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Make it easier for people to start chats with AI-generated questions and more. You can edit as needed.
+                          </p>
+                        </div>
+
+                        {/* Recommended Chat Template Box */}
+                        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-200">Recommended chat template</span>
+                              <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold flex items-center gap-1">
+                                🤖 AI
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowChatTemplateModal(true)}
+                              className="text-xs text-sky-400 hover:underline font-semibold"
+                            >
+                              Edit template
+                            </button>
+                          </div>
+
+                          {/* Greeting */}
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold text-slate-400">Greeting</label>
+                            <input
+                              type="text"
+                              value={chatTemplateGreeting}
+                              onChange={(e) => setChatTemplateGreeting(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                            />
+                          </div>
+
+                          {/* Questions and responses */}
+                          <div className="space-y-2 pt-1 border-t border-slate-800">
+                            <label className="block text-[11px] font-semibold text-slate-400">Questions and responses</label>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500 font-bold shrink-0">1.</span>
+                                <input
+                                  type="text"
+                                  value={chatTemplateQuestion1}
+                                  onChange={(e) => setChatTemplateQuestion1(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500 font-bold shrink-0">2.</span>
+                                <input
+                                  type="text"
+                                  value={chatTemplateQuestion2}
+                                  onChange={(e) => setChatTemplateQuestion2(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500 font-bold shrink-0">3.</span>
+                                <input
+                                  type="text"
+                                  value={chatTemplateQuestion3}
+                                  onChange={(e) => setChatTemplateQuestion3(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-sky-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tracking Section */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div>
+                          <h4 className="font-bold text-slate-200 text-xs">Tracking</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Choose conversion events to track. This ad account's selected conversion dataset will be tracked by default.</p>
+                        </div>
+
+                        {/* Pixel Info */}
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-300">Website events:</span>
+                            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Active Dataset</span>
+                          </div>
+                          <p className="text-xs font-bold text-sky-400">{pixelWebsiteEvents}</p>
+                          <p className="text-[11px] font-mono text-slate-400">Pixel ID: {pixelId}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 text-xs text-slate-400 flex items-center justify-between">
+                            <span>App events</span>
+                            <span className="text-[10px] text-slate-500">Not configured</span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 text-xs text-slate-400 flex items-center justify-between">
+                            <span>Offline events</span>
+                            <button type="button" className="text-[10px] text-sky-400 hover:underline font-semibold">Edit offline sets</button>
+                          </div>
+                        </div>
+
+                        {/* URL Parameters */}
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 mb-1">URL parameters</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={urlParameters}
+                              onChange={(e) => setUrlParameters(e.target.value)}
+                              placeholder="key1=value1&key2=value2"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500"
+                            />
+                            <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 shrink-0">
+                              Build a URL parameter
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Third-party reporting */}
+                        <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                          <span className="font-bold text-slate-300">Third-party reporting:</span> Meta purchases may not be included in your Google reporting. Connect your account to measure actions on ads that send people to your website or shop.
+                        </div>
+                      </div>
+
+                      {/* Campaign Score 100 + Ad Preview */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="w-9 h-9 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                              {campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT" ? "100" : "66"}
+                            </span>
+                            <div>
+                              <h4 className="font-bold text-slate-200 text-xs">Campaign score: {campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT" ? "100" : "66"}/100</h4>
+                              <p className="text-[10px] text-emerald-400 font-semibold">You're using our recommended setup.</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            Ad Preview
+                          </span>
+                        </div>
+
+                        {/* Live Ad Preview Card */}
+                        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 max-w-sm mx-auto shadow-xl">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-sky-500/20 text-sky-400 font-bold flex items-center justify-center text-xs">J</div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">{fetchedPages[0]?.name || "JISNU Digital Solutions Pvt.Ltd"}</p>
+                              <p className="text-[10px] text-slate-400">Sponsored • @{instagramProfile}</p>
+                            </div>
+                            {campObjective === "OUTCOME_ENGAGEMENT" && (
+                              <div className="ml-auto flex flex-col items-end text-right">
+                                <span className="text-[10px] text-slate-500">Ad</span>
+                                <span className="text-[10px] font-bold text-sky-400">Destination</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {campMediaUrl ? (
+                            <div className="w-full h-36 rounded-xl overflow-hidden bg-black">
+                              <img src={campMediaUrl} alt="Ad banner" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-full h-28 rounded-xl bg-slate-950 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 text-xs">
+                              Ad Media Banner Preview
+                            </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                              {campBody || "Hi! Please let us know how we can help you."}
+                            </p>
+                            {(campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT") && (
+                              <p className="text-[11px] text-slate-400 italic">
+                                Can I learn more about your business? / Is anyone available to chat?
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                            <div>
+                              <p className="text-[10px] uppercase font-bold text-slate-500">
+                                {campObjective === "OUTCOME_TRAFFIC" ? "WHATSAPP MESSAGE" : "LEARN MORE"}
+                              </p>
+                              <p className="text-xs font-bold text-slate-100">{campHeadline || "Chat with us on WhatsApp"}</p>
+                            </div>
+                            <span className="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-[11px] shadow-sm">
+                              {campObjective === "OUTCOME_TRAFFIC" || campObjective === "OUTCOME_ENGAGEMENT" ? "Send message" : "Learn more"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-slate-500 italic text-center">
+                          Reveal details over time • Ad rendering and interaction may vary based on device, format and other factors.
+                        </p>
+                      </div>
+
+                      {/* Legal Terms */}
+                      <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                        <p className="text-[11px] text-slate-400">
+                          By clicking <span className="font-bold text-slate-200">Publish Campaign Live</span>, you acknowledge that your use of Meta's ad tools is subject to our Terms and Conditions.
+                        </p>
+                        <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 shrink-0">
+                          <Check className="h-3 w-3" /> All edits saved
                         </span>
                       </div>
-                    </div>
-
-                    <p className="text-[10px] text-slate-500 italic text-center">
-                      Reveal details over time • Ad rendering and interaction may vary based on device, format and other factors.
-                    </p>
-                  </div>
-
-                  {/* Legal Terms */}
-                  <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
-                    <p className="text-[11px] text-slate-400">
-                      By clicking <span className="font-bold text-slate-200">Publish Campaign Live</span>, you acknowledge that your use of Meta's ad tools is subject to our Terms and Conditions.
-                    </p>
-                    <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 shrink-0">
-                      <Check className="h-3 w-3" /> All edits saved
-                    </span>
-                  </div>
-                </>
+                    </>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
             </div>
 
@@ -10184,7 +10638,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                 <button
                   type="button"
                   onClick={() => {
-                    if (campaignStep > 1) {
+                    if (campaignStep === 2 && campObjective === "OUTCOME_TRAFFIC" && trafficSubStep === "CONFIG") {
+                      setTrafficSubStep("CHOICE");
+                    } else if (campaignStep > 1) {
                       setCampaignStep((prev) => prev - 1);
                     } else {
                       setShowCreateModal(false);
@@ -10198,7 +10654,13 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                 {campaignStep < 4 ? (
                   <button
                     type="button"
-                    onClick={() => setCampaignStep((prev) => prev + 1)}
+                    onClick={() => {
+                      if (campaignStep === 2 && campObjective === "OUTCOME_TRAFFIC" && trafficSubStep === "CHOICE") {
+                        setTrafficSubStep("CONFIG");
+                      } else {
+                        setCampaignStep((prev) => prev + 1);
+                      }
+                    }}
                     className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 flex items-center gap-2 transition-all"
                   >
                     Continue
@@ -11493,6 +11955,361 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   Save Template
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── COMPLETE META CAMPAIGN DETAILS & DEEP INSPECTOR MODAL ── */}
+      {showDetailModal && selectedCampDetail && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+          <div className="relative z-10 w-full max-w-5xl max-h-[92vh] rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-bold text-slate-100 text-base">{selectedCampDetail.name}</h2>
+                    <Pill status={selectedCampDetail.status || "ACTIVE"} />
+                    <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-mono font-bold">
+                      {selectedCampDetail.objective || "OUTCOME_LEADS"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+                    <span>Meta ID: {selectedCampDetail.metaCampaignId || selectedCampDetail.id}</span>
+                    <span>•</span>
+                    <span>Budget: ₹{selectedCampDetail.dailyBudget?.toFixed(2) || "500.00"}/day</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    setFetchingDetail(true);
+                    try {
+                      const res = await fetch(`${BACKEND}/api/meta-ads/campaigns/${selectedCampDetail.id}?organizationId=${orgId}`);
+                      const data = await res.json();
+                      if (data.campaign) setSelectedCampDetail(data.campaign);
+                      if (data.liveMeta) setLiveMetaDetail(data.liveMeta);
+                      showToast("Refreshed live Graph API details! ✓");
+                    } catch (e) { } finally { setFetchingDetail(false); }
+                  }}
+                  disabled={fetchingDetail}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/60 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-700 transition-all flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${fetchingDetail ? "animate-spin text-blue-400" : ""}`} />
+                  Refresh Live Data
+                </button>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Sub-Header Tabs */}
+            <div className="flex items-center gap-1 px-6 border-b border-slate-800 bg-slate-950/60 overflow-x-auto shrink-0">
+              {[
+                { id: "metrics", label: "Live Performance & Insights", icon: TrendingUp },
+                { id: "config", label: "Campaign & Bidding Config", icon: Settings },
+                { id: "adsets", label: `Ad Sets & Targeting (${liveMetaDetail?.adsets?.data?.length || selectedCampDetail.adSets?.length || 1})`, icon: Target },
+                { id: "creatives", label: "Ads & Media Creatives", icon: FileText },
+                { id: "raw", label: "Raw Graph API JSON", icon: Activity },
+              ].map((tab: any) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setDetailModalTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all ${detailModalTab === tab.id
+                    ? "border-sky-400 text-sky-400 bg-sky-400/10"
+                    : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                    }`}
+                >
+                  <tab.icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-6 bg-slate-950/40">
+              {/* TAB 1: Live Performance & Insights */}
+              {detailModalTab === "metrics" && (
+                <div className="space-y-6">
+                  {/* KPI Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {(() => {
+                      const ins = liveMetaDetail?.insights?.data?.[0] || {};
+                      const impr = ins.impressions ? Number(ins.impressions) : (selectedCampDetail.impressions || 0);
+                      const clk = ins.clicks ? Number(ins.clicks) : (selectedCampDetail.clicks || 0);
+                      const spd = ins.spend ? Number(ins.spend) : (selectedCampDetail.spend || 0);
+                      const rch = ins.reach ? Number(ins.reach) : (selectedCampDetail.reach || 0);
+                      const freq = ins.frequency ? Number(ins.frequency).toFixed(2) : "1.15";
+                      const ctrVal = ins.ctr ? `${Number(ins.ctr).toFixed(2)}%` : (impr > 0 ? `${((clk / impr) * 100).toFixed(2)}%` : "0.00%");
+                      const cpcVal = ins.cpc ? Number(ins.cpc).toFixed(2) : (clk > 0 ? (spd / clk).toFixed(2) : "0.00");
+                      const cpmVal = ins.cpm ? Number(ins.cpm).toFixed(2) : (impr > 0 ? ((spd / impr) * 1000).toFixed(2) : "0.00");
+                      const convs = selectedCampDetail.conversions || 0;
+
+                      return (
+                        <>
+                          <Stat label="Impressions" value={fmt(impr)} sub="Total views" color="text-teal-400" />
+                          <Stat label="Clicks" value={fmt(clk)} sub="Link clicks" color="text-sky-400" />
+                          <Stat label="Spend" value={`₹${fmt(spd)}`} sub="Amount spent" color="text-amber-400" />
+                          <Stat label="Reach" value={fmt(rch)} sub="Unique accounts" color="text-indigo-400" />
+                          <Stat label="Frequency" value={freq} sub="Views per user" color="text-purple-400" />
+                          <Stat label="CTR" value={ctrVal} sub="Click rate" color="text-emerald-400" />
+                          <Stat label="Avg CPC" value={`₹${cpcVal}`} sub="Cost per click" color="text-sky-400" />
+                          <Stat label="CPM" value={`₹${cpmVal}`} sub="Cost per 1K impr." color="text-amber-400" />
+                          <Stat label="Conversions" value={fmt(convs)} sub="Leads/Chats" color="text-purple-400" />
+                          <Stat label="Cost / Conv." value={`₹${convs > 0 ? (spd / convs).toFixed(2) : "0.00"}`} sub="Per result" color="text-teal-400" />
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Actions & Conversion Breakdown Table */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
+                    <h4 className="font-bold text-slate-200 text-xs flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-sky-400" />
+                      Live Action & Conversion Breakdown (Meta Graph API)
+                    </h4>
+                    {Array.isArray(liveMetaDetail?.insights?.data?.[0]?.actions) && liveMetaDetail.insights.data[0].actions.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                        {liveMetaDetail.insights.data[0].actions.map((act: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                            <span className="text-slate-400 font-mono text-[11px] truncate max-w-[180px]" title={act.action_type}>
+                              {act.action_type}
+                            </span>
+                            <span className="font-bold text-slate-100">{act.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 italic p-3 bg-slate-950 rounded-lg border border-slate-800/60">
+                        No custom action breakdown data returned yet for this date range.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Campaign & Bidding Config */}
+              {detailModalTab === "config" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+                    <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
+                      <Megaphone className="h-4 w-4 text-sky-400" /> Core Campaign Parameters
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Campaign Name:</span>
+                        <span className="font-semibold text-slate-100">{liveMetaDetail?.name || selectedCampDetail.name}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Objective:</span>
+                        <span className="font-mono text-sky-400">{liveMetaDetail?.objective || selectedCampDetail.objective || "OUTCOME_LEADS"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Buying Type:</span>
+                        <span className="font-semibold text-slate-200">{liveMetaDetail?.buying_type || selectedCampDetail.buyingType || "AUCTION"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Special Ad Category:</span>
+                        <span className="font-semibold text-slate-200">{liveMetaDetail?.special_ad_categories?.[0] || selectedCampDetail.specialAdCategory || "NONE"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Status:</span>
+                        <Pill status={liveMetaDetail?.status || selectedCampDetail.status || "ACTIVE"} />
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Effective Status:</span>
+                        <span className="font-mono text-emerald-400">{liveMetaDetail?.effective_status || selectedCampDetail.effectiveStatus || "ACTIVE"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+                    <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
+                      <DollarSign className="h-4 w-4 text-emerald-400" /> Budget, Bidding & Timestamps
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Daily Budget:</span>
+                        <span className="font-bold text-emerald-400">₹{liveMetaDetail?.daily_budget ? (Number(liveMetaDetail.daily_budget) / 100).toFixed(2) : (selectedCampDetail.dailyBudget?.toFixed(2) || "500.00")}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Lifetime Budget:</span>
+                        <span className="font-semibold text-slate-200">{liveMetaDetail?.lifetime_budget ? `₹${(Number(liveMetaDetail.lifetime_budget) / 100).toFixed(2)}` : "N/A"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Bid Strategy:</span>
+                        <span className="font-mono text-amber-400">{liveMetaDetail?.bid_strategy || selectedCampDetail.bidStrategy || "LOWEST_COST_WITHOUT_CAP"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Created Time:</span>
+                        <span className="font-mono text-slate-300">{liveMetaDetail?.created_time ? new Date(liveMetaDetail.created_time).toLocaleString() : "N/A"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800/40">
+                        <span className="text-slate-400">Updated Time:</span>
+                        <span className="font-mono text-slate-300">{liveMetaDetail?.updated_time ? new Date(liveMetaDetail.updated_time).toLocaleString() : "N/A"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: Ad Sets & Targeting Breakdown */}
+              {detailModalTab === "adsets" && (
+                <div className="space-y-4">
+                  {(() => {
+                    const adsetsList = liveMetaDetail?.adsets?.data || selectedCampDetail.adSets || [];
+                    if (adsetsList.length === 0) {
+                      return (
+                        <div className="p-8 text-center text-slate-500 bg-slate-900/60 rounded-xl border border-slate-800">
+                          No Ad Sets attached to this campaign.
+                        </div>
+                      );
+                    }
+                    return adsetsList.map((as: any, idx: number) => {
+                      const tgt = as.targeting || {};
+                      return (
+                        <div key={as.id || idx} className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-4 shadow-md">
+                          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <div className="flex items-center gap-3">
+                              <span className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xs">
+                                #{idx + 1}
+                              </span>
+                              <div>
+                                <h4 className="font-bold text-slate-100 text-sm">{as.name}</h4>
+                                <p className="text-[11px] text-slate-400 font-mono">AdSet ID: {as.id}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Pill status={as.status || "ACTIVE"} />
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold">
+                                ₹{as.daily_budget ? (Number(as.daily_budget) / 100).toFixed(2) : (as.dailyBudget?.toFixed(2) || "500.00")}/day
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* AdSet Configuration & Targeting Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                            <div className="space-y-2 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+                              <p className="font-bold text-sky-400 text-xs flex items-center gap-1">
+                                <Settings className="h-3.5 w-3.5" /> AdSet Delivery Settings
+                              </p>
+                              <div className="space-y-1 text-slate-300">
+                                <p><span className="text-slate-500">Destination:</span> <span className="font-semibold text-slate-200">{as.destination_type || as.destinationType || "WHATSAPP"}</span></p>
+                                <p><span className="text-slate-500">Optimization Goal:</span> <span className="font-semibold text-slate-200">{as.optimization_goal || as.optimizationGoal || "MESSAGES"}</span></p>
+                                <p><span className="text-slate-500">Billing Event:</span> <span className="font-semibold text-slate-200">{as.billing_event || "IMPRESSIONS"}</span></p>
+                                <p><span className="text-slate-500">Bid Strategy:</span> <span className="font-semibold text-amber-400">{as.bid_strategy || "LOWEST_COST_WITHOUT_CAP"}</span></p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+                              <p className="font-bold text-teal-400 text-xs flex items-center gap-1">
+                                <Target className="h-3.5 w-3.5" /> Targeting & Audience Rules
+                              </p>
+                              <div className="space-y-1 text-slate-300">
+                                <p><span className="text-slate-500">Countries:</span> <span className="font-semibold text-slate-200">{tgt.geo_locations?.countries?.join(", ") || tgt.countries?.join(", ") || "India (IN)"}</span></p>
+                                <p><span className="text-slate-500">Age Range:</span> <span className="font-semibold text-slate-200">{tgt.age_min || tgt.ageMin || 18} - {tgt.age_max || tgt.ageMax || 65}+</span></p>
+                                <p><span className="text-slate-500">Genders:</span> <span className="font-semibold text-slate-200">{tgt.genders ? JSON.stringify(tgt.genders) : "All (Male & Female)"}</span></p>
+                                <p><span className="text-slate-500">Interests / Behaviors:</span> <span className="font-semibold text-slate-200">{tgt.interests ? JSON.stringify(tgt.interests) : "Digital Marketing, Business Owners, E-Commerce"}</span></p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+
+              {/* TAB 4: Ads & Media Creatives */}
+              {detailModalTab === "creatives" && (
+                <div className="space-y-4">
+                  {(() => {
+                    const rawAdSets = liveMetaDetail?.adsets?.data || selectedCampDetail.adSets || [];
+                    const allMetaAds = rawAdSets.flatMap((as: any) => as.ads?.data || as.ads || []);
+                    if (allMetaAds.length === 0) {
+                      return (
+                        <div className="p-8 text-center text-slate-500 bg-slate-900/60 rounded-xl border border-slate-800">
+                          No Ad Creatives attached to this campaign.
+                        </div>
+                      );
+                    }
+                    return allMetaAds.map((ad: any, idx: number) => {
+                      const cr = ad.creative || {};
+                      return (
+                        <div key={ad.id || idx} className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-4 shadow-md flex flex-col md:flex-row gap-6">
+                          {/* Media Preview Box */}
+                          <div className="w-full md:w-64 h-48 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center relative">
+                            {cr.image_url || cr.mediaUrl ? (
+                              <img src={cr.image_url || cr.mediaUrl} alt={ad.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="text-center p-4">
+                                <Globe className="h-8 w-8 text-slate-600 mx-auto mb-1" />
+                                <p className="text-[11px] text-slate-500">Standard Image Creative</p>
+                              </div>
+                            )}
+                            <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-bold text-sky-400">
+                              {cr.call_to_action_type || ad.callToAction || "WHATSAPP_MESSAGE"}
+                            </span>
+                          </div>
+
+                          {/* Ad Details */}
+                          <div className="flex-1 space-y-3 text-xs">
+                            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                              <div>
+                                <h4 className="font-bold text-slate-100 text-sm">{ad.name}</h4>
+                                <p className="text-[11px] text-slate-400 font-mono">Ad ID: {ad.id}</p>
+                              </div>
+                              <Pill status={ad.effective_status || ad.status || "ACTIVE"} />
+                            </div>
+
+                            <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                              <p className="font-bold text-slate-200 text-xs">{cr.title || cr.headline || ad.name}</p>
+                              <p className="text-slate-400 leading-relaxed text-[11px]">{cr.body || "No creative body text specified."}</p>
+                            </div>
+
+                            {/* Policy & Review Feedback Diagnostic */}
+                            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold text-[11px]">
+                              <CheckCircle className="h-4 w-4 shrink-0" />
+                              <span>Meta Policy Diagnostic: {ad.ad_review_feedback ? JSON.stringify(ad.ad_review_feedback) : "Passed all automated Meta Ad policy checks cleanly."}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+
+              {/* TAB 5: Raw Graph API JSON */}
+              {detailModalTab === "raw" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-xs font-bold text-slate-300">Live Meta Graph API v26.0 Full Object Payload</span>
+                    <span className="text-[11px] text-sky-400 font-mono font-bold">100% Comprehensive</span>
+                  </div>
+                  <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 font-mono text-xs text-emerald-400 overflow-x-auto max-h-[500px]">
+                    {JSON.stringify(liveMetaDetail || selectedCampDetail, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-slate-800 bg-slate-950 flex items-center justify-end shrink-0">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-all shadow-lg shadow-sky-500/20"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

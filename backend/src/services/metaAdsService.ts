@@ -1039,17 +1039,45 @@ export class MetaAdsService {
   }
 
   /**
-   * Fetch single campaign by ID
+   * Fetch single campaign by ID with full live Meta Graph API deep-dive data
    */
   static async getCampaignById(organizationId: string, id: string) {
-    return prisma.metaAdCampaign.findFirst({
-      where: { id, organizationId },
+    const config = await this.getConfig(organizationId);
+
+    // Find DB campaign record (by internal id or metaCampaignId)
+    const dbCampaign = await prisma.metaAdCampaign.findFirst({
+      where: {
+        organizationId,
+        OR: [{ id }, { metaCampaignId: id }],
+      },
       include: {
         adSets: {
           include: { ads: true },
         },
       },
     });
+
+    const targetMetaId = dbCampaign?.metaCampaignId || id;
+    let liveMetaDetails: any = null;
+
+    if (config.accessToken && targetMetaId && !targetMetaId.startsWith("meta_camp_")) {
+      try {
+        const resp = await axios.get(`${META_GRAPH_BASE}/${targetMetaId}`, {
+          params: {
+            fields: "id,name,objective,buying_type,special_ad_categories,status,effective_status,daily_budget,lifetime_budget,budget_rebalance_flag,bid_strategy,start_time,stop_time,created_time,updated_time,spend_cap,issues_info,adlabels,adsets{id,name,status,effective_status,daily_budget,lifetime_budget,destination_type,optimization_goal,billing_event,bid_strategy,bid_amount,attribution_spec,targeting,promoted_object,start_time,end_time,created_time,updated_time,pacing_type,issues_info,recommendations,ads{id,name,status,effective_status,ad_review_feedback,bid_amount,created_time,updated_time,tracking_specs,recommendations,creative{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,link_url,object_story_spec,asset_feed_spec,status,template_url}}},insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,cpc,cpm,ctr,cpp,conversions,actions,action_values,cost_per_action_type,cost_per_conversion,cost_per_unique_click,outbound_clicks,video_play_actions,video_p30_watched_actions,date_start,date_stop}",
+            access_token: config.accessToken,
+          },
+        });
+        liveMetaDetails = resp.data;
+      } catch (err: any) {
+        console.warn(`[MetaAdsService] Live campaign fetch notice for ${targetMetaId}:`, err.response?.data?.error?.message || err.message);
+      }
+    }
+
+    return {
+      campaign: dbCampaign,
+      liveMeta: liveMetaDetails,
+    };
   }
 
   /**

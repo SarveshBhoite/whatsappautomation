@@ -290,8 +290,12 @@ router.get("/campaigns/:id", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
     const campaignId = req.params.id as string;
-    const campaign = await MetaAdsService.getCampaignById(orgId, campaignId);
-    res.json({ success: true, campaign });
+    const result = await MetaAdsService.getCampaignById(orgId, campaignId);
+    if (result && typeof result === "object" && "campaign" in result) {
+      res.json({ success: true, campaign: result.campaign, liveMeta: result.liveMeta });
+    } else {
+      res.json({ success: true, campaign: result });
+    }
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching campaign:", error.message);
     res.status(500).json({ success: false, error: error.message });
