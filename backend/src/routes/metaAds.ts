@@ -251,6 +251,8 @@ router.post("/campaigns", async (req: Request, res: Response) => {
       callToAction,
       whatsappNumber,
       utmParameters,
+      objectStoreUrl: req.body.objectStoreUrl,
+      appStore: req.body.appStore,
     });
 
     res.json({ success: true, campaign });
@@ -386,8 +388,8 @@ router.get("/media", async (req: Request, res: Response) => {
  */
 router.post("/sync", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
-    const adAccountId = req.body.adAccountId;
+    const orgId = req.body?.organizationId || DEFAULT_ORG_ID;
+    const adAccountId = req.body?.adAccountId;
     const result = await MetaAdsService.syncCampaigns(orgId, adAccountId);
     res.json({ success: true, result });
   } catch (error: any) {

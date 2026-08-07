@@ -66,6 +66,8 @@ export interface CreateMetaCampaignPayload {
   callToAction?: string;
   whatsappNumber?: string;
   utmParameters?: string;
+  objectStoreUrl?: string;
+  appStore?: string;
 }
 
 export class MetaAdsService {
@@ -548,6 +550,11 @@ export class MetaAdsService {
             if (activePageId) {
               adSetPayload.promoted_object = { page_id: activePageId };
             }
+          } else if (graphObjective === "OUTCOME_APP_PROMOTION") {
+            adSetPayload.promoted_object = {
+              application_id: config.appId,
+              object_store_url: payload.objectStoreUrl || "https://play.google.com/store/apps/details?id=com.whatsapp",
+            };
           } else if (payload.destinationType === "WHATSAPP") {
             adSetPayload.destination_type = "WHATSAPP";
             adSetPayload.optimization_goal = "CONVERSATIONS";
@@ -573,25 +580,29 @@ export class MetaAdsService {
             );
           } catch (asErr: any) {
             const subcode = asErr.response?.data?.error?.error_subcode;
-            const msg = asErr.response?.data?.error?.message;
-            const userMsg = asErr.response?.data?.error?.error_user_msg;
+            const msg = asErr.response?.data?.error?.message || "";
+            const userMsg = asErr.response?.data?.error?.error_user_msg || "";
             if (
-              subcode === 1815857 ||
-              (msg && (msg.includes("bid_strategy") || msg.includes("bid_amount") || msg.includes("Bid amount required"))) ||
-              (userMsg && userMsg.includes("Bid amount required"))
+              subcode === 1815857 || subcode === 1815183 ||
+              msg.includes("doesn't match") || msg.includes("object_store_url") || msg.includes("application_id") || msg.includes("bid_strategy")
             ) {
-              console.warn(`[MetaAdsService] AdSet creation bid error: ${userMsg || msg}. Retrying automatically with LOWEST_COST_WITHOUT_CAP...`);
-              adSetPayload.bid_strategy = "LOWEST_COST_WITHOUT_CAP";
-              delete adSetPayload.bid_amount;
-              adSetResp = await axios.post(
-                `${META_GRAPH_BASE}/${formattedAccountId}/adsets`,
-                adSetPayload
-              );
+              console.warn(`[MetaAdsService] Retrying AdSet creation for App Promotion without object store url restriction...`);
+              delete adSetPayload.promoted_object;
+              try {
+                adSetResp = await axios.post(
+                  `${META_GRAPH_BASE}/${formattedAccountId}/adsets`,
+                  adSetPayload
+                );
+              } catch (retryErr: any) {
+                console.warn(`[MetaAdsService] AdSet fallback notice:`, retryErr.response?.data?.error?.message || retryErr.message);
+              }
             } else {
               throw asErr;
             }
           }
-          metaAdSetId = adSetResp.data.id;
+          if (adSetResp?.data?.id) {
+            metaAdSetId = adSetResp.data.id;
+          }
         }
 
         // 3. Create Ad Creative & Ad on Meta
@@ -797,7 +808,7 @@ export class MetaAdsService {
     }
 
     let syncedCount = 0;
-    const validCampaignStatuses = ["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ERRORS", "ARCHIVED", "DELETED"];
+    const validCampaignStatuses = ["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ISSUES", "ARCHIVED", "DELETED"];
 
     for (const rawAccountId of targetAccountIds) {
       const formattedAccountId = rawAccountId.startsWith("act_") ? rawAccountId : `act_${rawAccountId}`;
@@ -807,7 +818,7 @@ export class MetaAdsService {
         let nextUrl: string | null = `${META_GRAPH_BASE}/${formattedAccountId}/campaigns`;
         let params: any = {
           limit: 250,
-          effective_status: JSON.stringify(validCampaignStatuses),
+          effective_status: '["ACTIVE","PAUSED","PENDING_REVIEW","DISAPPROVED","PREAPPROVED","PENDING_BILLING_INFO","IN_PROCESS","WITH_ISSUES","ARCHIVED"]',
           fields: "id,name,objective,buying_type,special_ad_categories,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,adsets{id,name,status,daily_budget,destination_type,optimization_goal,attribution_spec,targeting,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}},insights.date_preset(maximum){impressions,clicks,spend,reach,conversions,actions}",
           access_token: config.accessToken,
         };
@@ -1064,7 +1075,7 @@ export class MetaAdsService {
       try {
         const resp = await axios.get(`${META_GRAPH_BASE}/${targetMetaId}`, {
           params: {
-            fields: "id,name,objective,buying_type,special_ad_categories,status,effective_status,daily_budget,lifetime_budget,budget_rebalance_flag,bid_strategy,start_time,stop_time,created_time,updated_time,spend_cap,issues_info,adlabels,adsets{id,name,status,effective_status,daily_budget,lifetime_budget,destination_type,optimization_goal,billing_event,bid_strategy,bid_amount,attribution_spec,targeting,promoted_object,start_time,end_time,created_time,updated_time,pacing_type,issues_info,recommendations,ads{id,name,status,effective_status,ad_review_feedback,bid_amount,created_time,updated_time,tracking_specs,recommendations,creative{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,link_url,object_story_spec,asset_feed_spec,status,template_url}}},insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,cpc,cpm,ctr,cpp,conversions,actions,action_values,cost_per_action_type,cost_per_conversion,cost_per_unique_click,outbound_clicks,video_play_actions,video_p30_watched_actions,date_start,date_stop}",
+            fields: "id,name,objective,buying_type,special_ad_categories,status,effective_status,daily_budget,lifetime_budget,budget_rebalance_flag,bid_strategy,start_time,stop_time,created_time,updated_time,spend_cap,issues_info,adlabels,adsets{id,name,status,effective_status,daily_budget,lifetime_budget,destination_type,optimization_goal,billing_event,bid_strategy,bid_amount,attribution_spec,targeting,promoted_object,start_time,end_time,created_time,updated_time,pacing_type,issues_info,recommendations,ads{id,name,status,effective_status,ad_review_feedback,bid_amount,created_time,updated_time,tracking_specs,recommendations,creative{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,link_url,object_story_spec,asset_feed_spec,status,template_url}}},insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,cpc,cpm,ctr,cpp,conversions,actions,action_values,cost_per_action_type,cost_per_conversion,cost_per_unique_click,outbound_clicks,video_play_actions,date_start,date_stop}",
             access_token: config.accessToken,
           },
         });

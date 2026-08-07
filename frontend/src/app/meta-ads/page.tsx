@@ -1329,6 +1329,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
   // Leads Specific State
   const [leadsStartMode, setLeadsStartMode] = useState<"RECENT" | "NEW">("NEW");
+  const [leadsSubStep, setLeadsSubStep] = useState<"CHOICE" | "CONFIG">("CHOICE");
 
   // Leads specific UI state
   const [leadsAdvantagePlus, setLeadsAdvantagePlus] = useState(true);
@@ -1409,11 +1410,13 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   // App Promotion Ad (Step 4) State
   const [appPromoMainDestination, setAppPromoMainDestination] = useState("APP");
   const [appPromoDeferredDeepLink, setAppPromoDeferredDeepLink] = useState("");
+  const [appPromoCustomStoreListingId, setAppPromoCustomStoreListingId] = useState("");
   const [appPromoMediaAiCreated, setAppPromoMediaAiCreated] = useState(false);
   const [appPromoTestimonialText, setAppPromoTestimonialText] = useState("");
   const [appPromoTrackWebsiteEvents, setAppPromoTrackWebsiteEvents] = useState(true);
   const [appPromoTrackAppEvents, setAppPromoTrackAppEvents] = useState(true);
   const [appPromoTrackOfflineEvents, setAppPromoTrackOfflineEvents] = useState(false);
+  const [appPromoLanguagesEnabled, setAppPromoLanguagesEnabled] = useState(false);
 
 
   // Ad Level Specific State for Awareness (Step 4) & Partnership Ads
@@ -1438,6 +1441,13 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   const [salesLiveVideo, setSalesLiveVideo] = useState(true);
   const [salesLiveVideoLocation, setSalesLiveVideoLocation] = useState("FACEBOOK");
   const [salesAdvantageCatalogue, setSalesAdvantageCatalogue] = useState(false);
+  const [salesAdvantagePlus, setSalesAdvantagePlus] = useState(true);
+  const [salesBudgetStrategy, setSalesBudgetStrategy] = useState<"CAMPAIGN" | "ADSET">("CAMPAIGN");
+  const [salesBudgetMode, setSalesBudgetMode] = useState<"DAILY" | "LIFETIME">("DAILY");
+  const [salesBudget, setSalesBudget] = useState("800");
+  const [salesBidStrategy, setSalesBidStrategy] = useState("HIGHEST_VOLUME");
+  const [salesBudgetScheduling, setSalesBudgetScheduling] = useState(false);
+  const [salesAdScheduling, setSalesAdScheduling] = useState("RUN_ALL_TIME");
   const [salesAbTest, setSalesAbTest] = useState(true);
   const [salesTestVariable, setSalesTestVariable] = useState("CREATIVE");
   const [salesTestDuration, setSalesTestDuration] = useState("7_DAYS");
@@ -3184,6 +3194,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             <div
                               onClick={() => {
                                 setTrafficPresetMode("tailored");
+                                setTrafficSubStep("CONFIG");
                               }}
                               className={`p-4 rounded-2xl border transition-all cursor-pointer ${trafficPresetMode === "tailored"
                                 ? "border-sky-500 bg-sky-500/5 ring-1 ring-sky-500/30"
@@ -3196,7 +3207,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                                     type="radio"
                                     name="trafficPresetModeChoice"
                                     checked={trafficPresetMode === "tailored"}
-                                    onChange={() => setTrafficPresetMode("tailored")}
+                                    onChange={() => {
+                                      setTrafficPresetMode("tailored");
+                                      setTrafficSubStep("CONFIG");
+                                    }}
                                     className="h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 focus:ring-sky-500"
                                   />
                                 </div>
@@ -3306,7 +3320,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             </div>
                             <input
                               type="text"
-                              value={campName || "New Traffic campaign"}
+                              value={campName}
                               onChange={(e) => setCampName(e.target.value)}
                               placeholder="New Traffic campaign"
                               className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
@@ -3692,72 +3706,101 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   {/* LEADS OBJECTIVE — STEP 2: Start from recent or new campaign */}
                   {campObjective === "OUTCOME_LEADS" && (
                     <div className="space-y-4">
-                      <div>
-                        <h4 className="font-bold text-slate-100 text-sm">Save time and start from a recent leads campaign?</h4>
-                        <p className="text-xs text-slate-400 mt-1">Pick a previous campaign to pre-fill settings, or start fresh.</p>
-                      </div>
-
-                      {/* Option 1: Recent campaign (Suggested) */}
-                      <div
-                        onClick={() => setLeadsStartMode("RECENT")}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${leadsStartMode === "RECENT"
-                          ? "bg-sky-500/10 border-sky-500/50"
-                          : "bg-slate-950 border-slate-800 hover:border-slate-600"
-                          }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="radio"
-                            name="leadsStartMode"
-                            checked={leadsStartMode === "RECENT"}
-                            onChange={() => setLeadsStartMode("RECENT")}
-                            className="accent-sky-500 w-4 h-4 shrink-0"
-                          />
-                          {/* Campaign thumbnail */}
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500/30 to-sky-500/20 border border-teal-500/30 flex items-center justify-center shrink-0 text-lg">
-                            📄
+                      {/* CHOICE SCREEN */}
+                      {leadsSubStep === "CHOICE" && (
+                        <div className="space-y-4 animate-fadeIn">
+                          <div>
+                            <h4 className="font-bold text-slate-100 text-sm">Save time and start from a recent leads campaign?</h4>
+                            <p className="text-xs text-slate-400 mt-1">Pick a previous campaign to pre-fill settings, or start fresh.</p>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs font-bold text-slate-100">Watpornima-17-June 2026-Leads campaign</p>
-                              <span className="px-2 py-0.5 rounded-full bg-slate-700 border border-slate-600 text-[10px] font-bold text-slate-300">Suggested</span>
+
+                          {/* Option 1: Recent campaign (Suggested) */}
+                          <div
+                            onClick={() => {
+                              setLeadsStartMode("RECENT");
+                              setLeadsSubStep("CONFIG");
+                            }}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer ${leadsStartMode === "RECENT"
+                              ? "bg-sky-500/10 border-sky-500/50"
+                              : "bg-slate-950 border-slate-800 hover:border-slate-600"
+                              }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <input
+                                type="radio"
+                                name="leadsStartMode"
+                                checked={leadsStartMode === "RECENT"}
+                                onChange={() => {
+                                  setLeadsStartMode("RECENT");
+                                  setLeadsSubStep("CONFIG");
+                                }}
+                                className="accent-sky-500 w-4 h-4 shrink-0"
+                              />
+                              {/* Campaign thumbnail */}
+                              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500/30 to-sky-500/20 border border-teal-500/30 flex items-center justify-center shrink-0 text-lg">
+                                📄
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-xs font-bold text-slate-100">Watpornima-17-June 2026-Leads campaign</p>
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-700 border border-slate-600 text-[10px] font-bold text-slate-300">Suggested</span>
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Off • Cost per messaging conversation started was <span className="font-semibold">₹20.16</span>
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              Off • Cost per messaging conversation started was <span className="font-semibold">₹20.16</span>
-                            </p>
+                          </div>
+
+                          {/* Option 2: New campaign */}
+                          <div
+                            onClick={() => {
+                              setLeadsStartMode("NEW");
+                              setLeadsSubStep("CONFIG");
+                            }}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer ${leadsStartMode === "NEW"
+                              ? "bg-sky-500/10 border-sky-500/50"
+                              : "bg-slate-950 border-slate-800 hover:border-slate-600"
+                              }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <input
+                                  type="radio"
+                                  name="leadsStartMode"
+                                  checked={leadsStartMode === "NEW"}
+                                  onChange={() => {
+                                    setLeadsStartMode("NEW");
+                                    setLeadsSubStep("CONFIG");
+                                  }}
+                                  className="accent-sky-500 w-4 h-4 shrink-0"
+                                />
+                                <p className={`text-sm font-bold ${leadsStartMode === "NEW" ? "text-sky-400" : "text-slate-300"
+                                  }`}>
+                                  No, start from a new campaign
+                                </p>
+                              </div>
+                              <span className="text-xs font-bold text-sky-400 bg-sky-500/10 px-3 py-1.5 rounded-lg border border-sky-500/20 hover:bg-sky-500/20">
+                                Continue →
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
-                      {/* Option 2: New campaign (default selected) */}
-                      <div
-                        onClick={() => setLeadsStartMode("NEW")}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${leadsStartMode === "NEW"
-                          ? "bg-sky-500/10 border-sky-500/50"
-                          : "bg-slate-950 border-slate-800 hover:border-slate-600"
-                          }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="radio"
-                            name="leadsStartMode"
-                            checked={leadsStartMode === "NEW"}
-                            onChange={() => setLeadsStartMode("NEW")}
-                            className="accent-sky-500 w-4 h-4 shrink-0"
-                          />
-                          <p className={`text-sm font-bold ${leadsStartMode === "NEW" ? "text-sky-400" : "text-slate-300"
-                            }`}>
-                            No, start from a new campaign
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Leads – New campaign configuration (when user selects "No, start from a new campaign") */}
-                      {leadsStartMode === "NEW" && (
-                        <div className="space-y-4 pt-4 border-t border-slate-800">
-                          {/* Header */}
-                          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                      {/* CONFIGURATION SCREEN FOR NEW LEADS CAMPAIGN */}
+                      {leadsSubStep === "CONFIG" && (
+                        <div className="space-y-4 animate-fadeIn">
+                          {/* Top Navigation Header */}
+                          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950 border border-slate-800">
                             <div>
+                              <button
+                                type="button"
+                                onClick={() => setLeadsSubStep("CHOICE")}
+                                className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                              >
+                                ← Change selection
+                              </button>
                               <h3 className="font-bold text-slate-100 text-sm">New Leads campaign</h3>
                               <p className="text-xs text-slate-400 mt-0.5">1 Ad set · 1 Ad · In draft</p>
                             </div>
@@ -3769,13 +3812,15 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             <Input label="Campaign name" value={campName} onChange={(e: any) => setCampName(e.target.value)} placeholder="New Leads campaign" required />
                           </div>
 
-                          {/* Advantage+ toggle */}
+                          {/* Advantage+ toggle & Budget card */}
                           <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="flex items-center gap-2">
                                   <h4 className="font-bold text-slate-200 text-xs">Budget</h4>
-                                  <span className="text-[10px] font-bold bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full border border-sky-500/20">Advantage+ on</span>
+                                  <span className="text-[10px] font-bold bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full border border-sky-500/20">
+                                    {leadsAdvantagePlus ? "Advantage+ on" : "Advantage+ off"}
+                                  </span>
                                 </div>
                               </div>
                               <label className="relative inline-flex items-center cursor-pointer">
@@ -3789,7 +3834,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             {/* Budget Strategy Radio Cards */}
                             <div className="space-y-2 pt-1">
                               <label className="block text-[11px] font-semibold text-slate-400">Budget strategy</label>
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div onClick={() => setLeadsBudgetStrategy("CAMPAIGN")}
                                   className={`p-3 rounded-xl border transition-all cursor-pointer ${leadsBudgetStrategy === "CAMPAIGN" ? "bg-sky-500/10 border-sky-500/50" : "bg-slate-900 border-slate-800 hover:border-slate-700"
                                     }`}>
@@ -3829,17 +3874,17 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                                   <span className="text-xs font-bold text-slate-400">₹</span>
                                   <input type="number" value={leadsBudget}
                                     onChange={(e) => setLeadsBudget(e.target.value)}
-                                    className="w-full bg-transparent text-xs text-slate-100 focus:outline-none" />
+                                    className="w-full bg-transparent text-xs text-slate-100 focus:outline-none font-bold" />
                                   <span className="text-[10px] font-bold text-slate-500">INR</span>
                                 </div>
                               </div>
                               <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
-                                You'll spend an average of <span className="font-bold text-slate-200">₹{Number(leadsBudget).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> per day.
-                                Your maximum daily spend is <span className="font-bold text-slate-200">₹{(Number(leadsBudget) * 1.75).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> and
-                                your maximum weekly spend is <span className="font-bold text-slate-200">₹{(Number(leadsBudget) * 7).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>.
+                                You'll spend an average of <span className="font-bold text-slate-200">₹{Number(leadsBudget || 1000).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> per day.
+                                Your maximum daily spend is <span className="font-bold text-slate-200">₹{(Number(leadsBudget || 1000) * 1.75).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span> and
+                                your maximum weekly spend is <span className="font-bold text-slate-200">₹{(Number(leadsBudget || 1000) * 7).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>.
                                 <button type="button" className="ml-1 text-sky-400 hover:underline">About daily budget</button>
                               </div>
-                              <p className="text-[11px] text-amber-400/80">⚠ Your spending may exceed ₹{Number(leadsBudget).toLocaleString("en-IN")} the first few days.</p>
+                              <p className="text-[11px] text-amber-400/80">⚠ Your spending may exceed ₹{Number(leadsBudget || 1000).toLocaleString("en-IN")} the first few days.</p>
                             </div>
 
                             {/* Campaign bid strategy */}
@@ -3850,7 +3895,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               </div>
                               <select value={leadsBidStrategy}
                                 onChange={(e) => setLeadsBidStrategy(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500">
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-semibold">
                                 <option value="HIGHEST_VOLUME">Highest volume</option>
                                 <option value="COST_CAP">Cost per result goal</option>
                                 <option value="BID_CAP">Bid cap</option>
@@ -4801,6 +4846,33 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         )}
                       </div>
 
+                      {/* Campaign Details Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <h4 className="font-bold text-slate-200 text-xs">Campaign details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Buying type</label>
+                            <select
+                              value={buyingType}
+                              onChange={(e: any) => setBuyingType(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500 cursor-pointer"
+                            >
+                              <option value="AUCTION">Auction</option>
+                              <option value="RESERVED">Reservation</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Campaign objective</label>
+                            <input
+                              type="text"
+                              disabled
+                              value="Sales"
+                              className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Advantage+ Catalogue Ads Card */}
                       <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                         <div className="flex items-center justify-between">
@@ -4824,6 +4896,182 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             />
                             <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
                           </label>
+                        </div>
+                      </div>
+
+                      {/* Budget & Bidding Strategy Card (Below Advantage+ Catalogue Ads) */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-100 text-xs">Budget</h4>
+                              <span className="text-[10px] font-bold bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full border border-sky-500/20">
+                                {salesAdvantagePlus ? "Advantage+ on" : "Advantage+ off"}
+                              </span>
+                            </div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={salesAdvantagePlus}
+                              onChange={(e) => setSalesAdvantagePlus(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {/* Budget Strategy Radio Cards */}
+                        <div className="space-y-2">
+                          <label className="block text-[11px] font-semibold text-slate-400">Budget strategy</label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div
+                              onClick={() => setSalesBudgetStrategy("CAMPAIGN")}
+                              className={`p-3 rounded-xl border transition-all cursor-pointer ${salesBudgetStrategy === "CAMPAIGN"
+                                ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                : "bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-400"
+                                }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  checked={salesBudgetStrategy === "CAMPAIGN"}
+                                  onChange={() => setSalesBudgetStrategy("CAMPAIGN")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <p className="text-xs font-bold text-slate-200">Campaign budget</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5 leading-normal">
+                                    Automatically distribute your budget to the best opportunities across your campaign. Also known as Advantage+ campaign budget.{" "}
+                                    <button type="button" className="text-sky-400 hover:underline">
+                                      About campaign budget
+                                    </button>
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              onClick={() => setSalesBudgetStrategy("ADSET")}
+                              className={`p-3 rounded-xl border transition-all cursor-pointer ${salesBudgetStrategy === "ADSET"
+                                ? "bg-sky-500/10 border-sky-500/50 text-slate-100"
+                                : "bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-400"
+                                }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <input
+                                  type="radio"
+                                  checked={salesBudgetStrategy === "ADSET"}
+                                  onChange={() => setSalesBudgetStrategy("ADSET")}
+                                  className="accent-sky-500 mt-0.5"
+                                />
+                                <div>
+                                  <p className="text-xs font-bold text-slate-200">Ad set budget</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5 leading-normal">
+                                    Set different bid strategies or budget schedules for each ad set.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Budget Amount & Calculations */}
+                        <div className="space-y-2 pt-1 border-t border-slate-800/60">
+                          <label className="block text-[11px] font-semibold text-slate-400">Budget</label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] text-slate-500 mb-1">Budget mode</label>
+                              <select
+                                value={salesBudgetMode}
+                                onChange={(e) => setSalesBudgetMode(e.target.value as "DAILY" | "LIFETIME")}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                              >
+                                <option value="DAILY">Daily budget</option>
+                                <option value="LIFETIME">Lifetime budget</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] text-slate-500 mb-1">Amount</label>
+                              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2">
+                                <span className="text-xs font-bold text-slate-400">₹</span>
+                                <input
+                                  type="number"
+                                  value={salesBudget}
+                                  onChange={(e) => setSalesBudget(e.target.value)}
+                                  className="w-full bg-transparent text-xs text-slate-100 font-bold focus:outline-none"
+                                />
+                                <span className="text-[10px] font-bold text-slate-500">INR</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                            You'll spend an average of{" "}
+                            <span className="font-bold text-slate-200">
+                              ₹{Number(salesBudget || 800).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </span>{" "}
+                            per day. Your maximum daily spend is{" "}
+                            <span className="font-bold text-slate-200">
+                              ₹{(Number(salesBudget || 800) * 1.75).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </span>{" "}
+                            and your maximum weekly spend is{" "}
+                            <span className="font-bold text-slate-200">
+                              ₹{(Number(salesBudget || 800) * 7).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </span>
+                            .{" "}
+                            <button type="button" className="text-sky-400 hover:underline">
+                              About daily budget
+                            </button>
+                          </div>
+
+                          <p className="text-[11px] text-amber-400/80">
+                            ⚠ Your spending may exceed ₹{Number(salesBudget || 800).toLocaleString("en-IN", { minimumFractionDigits: 2 })} the first few days.
+                          </p>
+                        </div>
+
+                        {/* Campaign Bid Strategy */}
+                        <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-semibold text-slate-400">Campaign bid strategy</label>
+                            <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold">
+                              Edit
+                            </button>
+                          </div>
+                          <select
+                            value={salesBidStrategy}
+                            onChange={(e) => setSalesBidStrategy(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="HIGHEST_VOLUME">Highest volume</option>
+                            <option value="COST_CAP">Cost per result goal</option>
+                            <option value="BID_CAP">Bid cap</option>
+                          </select>
+                          <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold pt-0.5">
+                            Show more settings
+                          </button>
+                        </div>
+
+                        {/* Budget Scheduling & Ad Scheduling Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-800/60 text-xs">
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-200">Budget scheduling</span>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                {salesBudgetScheduling ? "Scheduled" : "None selected"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">Increase budget during specific days/times.</p>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-200">Ad scheduling</span>
+                              <span className="text-[10px] text-emerald-400 font-bold">Run ads all the time</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">Ads run on continuous delivery schedule.</p>
+                          </div>
                         </div>
                       </div>
 
@@ -6262,23 +6510,24 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   {/* TRAFFIC OBJECTIVE — AD SET SETUP VIEW (STEP 3) */}
                   {campObjective === "OUTCOME_TRAFFIC" && (
                     <div className="space-y-4 animate-fadeIn">
-                      {/* Top Banner Card */}
-                      <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-sky-950/40 border border-slate-800/80 shadow-md">
+                      {/* Top Header Breadcrumb Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <button
-                                type="button"
-                                onClick={() => setCampaignStep(2)}
-                                className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1"
-                              >
-                                ← Change Objective
-                              </button>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                              <span>New Traffic campaign</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-slate-200 font-bold">New Traffic ad set</span>
                             </div>
-                            <h3 className="font-bold text-slate-100 text-sm">Step 3: Configure TRAFFIC Campaign Parameters</h3>
-                            <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your TRAFFIC campaign setup.</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Configure conversion location, performance goals, placements, and target audience.</p>
                           </div>
-                          <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 3 of 4</span>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
+                          </div>
                         </div>
                       </div>
 
@@ -7889,13 +8138,25 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   {/* LEADS NEW CAMPAIGN — AD SET SETUP VIEW */}
                   {campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW" && (
                     <div className="space-y-4">
-                      {/* Header */}
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                        <div>
-                          <h3 className="font-bold text-slate-100 text-sm">New Leads ad set</h3>
-                          <p className="text-xs text-slate-400 mt-0.5">Configure conversion location, audience, and performance goals for your leads campaign.</p>
+                      {/* Top Header Card */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                              <span>New Leads campaign</span>
+                              <ChevronRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-slate-200 font-bold">New Leads ad set</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">Configure conversion location, instant form setup, Page terms, and performance goals.</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                              In draft
+                            </span>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Edit</button>
+                            <button type="button" className="text-xs text-sky-400 hover:underline font-semibold">Review</button>
+                          </div>
                         </div>
-                        <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 3 of 4</span>
                       </div>
 
                       {/* Ad Set Name */}
@@ -7915,37 +8176,48 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                         <div>
                           <h4 className="font-bold text-slate-200 text-xs">Conversion</h4>
                           <p className="text-[11px] text-slate-400 mt-0.5">Conversion location</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">Choose where you want to generate leads. <button type="button" className="text-sky-400 hover:underline">About conversion locations</button></p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            Choose where you want to generate leads.{" "}
+                            <button type="button" className="text-sky-400 hover:underline">
+                              About conversion locations
+                            </button>
+                          </p>
                         </div>
-                        <div className="grid grid-cols-1 gap-2">
-                          {[
-                            { id: "INSTANT_FORMS", title: "Instant forms", desc: "Collect leads directly in Facebook or Instagram using pre-filled forms." },
-                            { id: "WEBSITE", title: "Website", desc: "Send people to your website to fill out a lead form." },
-                            { id: "MESSAGING", title: "Messenger, Instagram, WhatsApp", desc: "Collect leads through messaging apps." },
-                            { id: "CALLS", title: "Calls", desc: "Get leads by encouraging people to call your business." },
-                            { id: "APP", title: "App", desc: "Collect leads directly in your app." },
-                          ].map((loc) => (
-                            <div
-                              key={loc.id}
-                              onClick={() => setLeadsConversionLocation(loc.id)}
-                              className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${leadsConversionLocation === loc.id
-                                ? "border-sky-500 bg-sky-500/10 text-slate-100"
-                                : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                                }`}
+
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-semibold text-slate-400">Conversion location</label>
+                          <div className="relative">
+                            <select
+                              value={leadsConversionLocation}
+                              onChange={(e) => setLeadsConversionLocation(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500 cursor-pointer appearance-none pr-8"
                             >
-                              <input
-                                type="radio"
-                                name="leadsConversionLocation"
-                                checked={leadsConversionLocation === loc.id}
-                                onChange={() => setLeadsConversionLocation(loc.id)}
-                                className="h-4 w-4 text-sky-500 bg-slate-900 border-slate-700 mt-0.5 shrink-0"
-                              />
-                              <div>
-                                <h5 className="font-bold text-xs text-slate-200">{loc.title}</h5>
-                                <p className="text-[11px] text-slate-400">{loc.desc}</p>
-                              </div>
-                            </div>
-                          ))}
+                              <optgroup label="Multiple — Send people where they're most likely to convert">
+                                <option value="WEBSITE_AND_INSTANT_FORMS">Website and instant forms</option>
+                                <option value="WEBSITE_AND_CALLS">Website and calls</option>
+                                <option value="INSTANT_FORMS_AND_MESSENGER">Instant forms and Messenger</option>
+                              </optgroup>
+                              <optgroup label="Single — Send people to one location where you want them to convert">
+                                <option value="INSTANT_FORMS">Instant forms (Recommended)</option>
+                                <option value="WEBSITE">Website</option>
+                                <option value="MESSENGER">Messenger</option>
+                                <option value="INSTAGRAM">Instagram</option>
+                                <option value="WHATSAPP">WhatsApp</option>
+                                <option value="CALLS">Calls</option>
+                                <option value="APP">App</option>
+                              </optgroup>
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                          </div>
+                          <p className="text-[10px] text-slate-500">
+                            {leadsConversionLocation.startsWith("WEBSITE_AND_INSTANT_FORMS")
+                              ? "Send people to your website or instant forms where they're most likely to convert."
+                              : leadsConversionLocation.startsWith("WEBSITE_AND_CALLS")
+                                ? "Send people to your website or encourage calls based on user intent."
+                                : leadsConversionLocation.startsWith("INSTANT_FORMS_AND_MESSENGER")
+                                  ? "Collect leads via instant forms and engage via Messenger."
+                                  : "Send people to one primary location where you want them to convert."}
+                          </p>
                         </div>
                       </div>
 
@@ -9508,36 +9780,83 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       </div>
 
                       {/* Ad Setup & Destination Section */}
-                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                         <div>
-                          <h4 className="font-bold text-slate-200 text-xs">Ad setup</h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Destination</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            Tell us where to send people immediately after they tap or click your ad. <button type="button" className="text-sky-400 hover:underline">Learn more</button>
+                          <h4 className="font-bold text-slate-200 text-xs">Destination</h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Tell us where to send people immediately after they tap or click your ad.{" "}
+                            <button type="button" className="text-sky-400 hover:underline font-semibold">
+                              Learn more
+                            </button>
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Main destination</label>
+                        {/* Main Destination Selection Card */}
+                        <div className="space-y-2">
+                          <label className="block text-[11px] font-semibold text-slate-400">Main destination</label>
+                          <div className="relative">
                             <select
                               value={appPromoMainDestination}
                               onChange={(e) => setAppPromoMainDestination(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-sky-400 font-bold focus:outline-none focus:border-sky-500"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-sky-500 cursor-pointer appearance-none pr-8"
                             >
-                              <option value="APP">Default destination (App)</option>
-                              <option value="WEBSITE">Website</option>
-                              <option value="INSTANT_FORM">Instant form</option>
+                              <option value="APP">App — Send people to your app</option>
+                              <option value="INSTANT_EXPERIENCE">Instant Experience — Send people to a fast-loading, mobile-optimised experience</option>
+                              <option value="PLAYABLE_SOURCE">Playable source — Send people to play an interactive demo of your app</option>
                             </select>
+                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                           </div>
 
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">Deferred deep link (Optional)</label>
+                          {/* Dynamic Destination Info Cards */}
+                          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 text-xs space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-200">
+                                {appPromoMainDestination === "APP"
+                                  ? "App"
+                                  : appPromoMainDestination === "INSTANT_EXPERIENCE"
+                                    ? "Instant Experience"
+                                    : "Playable source"}
+                              </span>
+                              {appPromoMainDestination === "APP" && (
+                                <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-bold">
+                                  Default destination
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              {appPromoMainDestination === "APP"
+                                ? "Send people to your app."
+                                : appPromoMainDestination === "INSTANT_EXPERIENCE"
+                                  ? "Send people to a fast-loading, mobile-optimised experience."
+                                  : "Send people to play an interactive demo of your app."}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Deferred Deep Link & Custom Store Listing Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-800/60">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold text-slate-400">
+                              Deferred deep link <span className="text-slate-500 font-normal">∙ Optional</span>
+                            </label>
                             <input
                               type="text"
                               value={appPromoDeferredDeepLink}
                               onChange={(e) => setAppPromoDeferredDeepLink(e.target.value)}
                               placeholder="Enter the deferred deep link URL"
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold text-slate-400">
+                              Custom store listing <span className="text-slate-500 font-normal">∙ Optional</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={appPromoCustomStoreListingId}
+                              onChange={(e) => setAppPromoCustomStoreListingId(e.target.value)}
+                              placeholder="Enter custom store listing ID"
                               className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
                             />
                           </div>
@@ -9624,6 +9943,50 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                             rows={2}
                           />
                         </div>
+                      </div>
+
+                      {/* Languages Card (Below Ad Creative) */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-100 text-xs">Languages</h4>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${appPromoLanguagesEnabled ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                                {appPromoLanguagesEnabled ? "On" : "Off"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                              Add your own translations or automatically translate your ad to reach people in more languages.{" "}
+                              <button type="button" className="text-sky-400 hover:underline font-semibold">
+                                Learn more
+                              </button>
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={appPromoLanguagesEnabled}
+                              onChange={(e) => setAppPromoLanguagesEnabled(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+                          </label>
+                        </div>
+
+                        {appPromoLanguagesEnabled && (
+                          <div className="pt-3 border-t border-slate-800 space-y-2 animate-fadeIn">
+                            <p className="text-xs font-semibold text-slate-200">Translation settings & language options</p>
+                            <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-2">
+                              <p className="text-[11px] text-slate-400">
+                                Automatic translations will translate your primary text and headlines into viewer preferred languages.
+                              </p>
+                              <div className="flex items-center justify-between pt-1">
+                                <span className="text-[11px] font-bold text-sky-400">Default language: English</span>
+                                <button type="button" className="text-[11px] text-sky-400 hover:underline font-semibold">+ Add language</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Tracking Card */}
@@ -9801,7 +10164,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                                   ? "Tailored messages campaign — Ad"
                                   : campObjective === "OUTCOME_LEADS" && leadsStartMode === "NEW"
                                     ? "New Leads ad"
-                                    : "Step 4: Ad Creative, Identity & Live Preview"}
+                                    : campObjective === "OUTCOME_SALES"
+                                      ? "New Sales ad"
+                                      : "Step 4: Ad Creative, Identity & Live Preview"}
                           </h3>
                           <p className="text-xs text-slate-400 mt-0.5">Select your business profiles, upload media, setup CTA, and preview live ad rendering.</p>
                         </div>
@@ -10640,6 +11005,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   onClick={() => {
                     if (campaignStep === 2 && campObjective === "OUTCOME_TRAFFIC" && trafficSubStep === "CONFIG") {
                       setTrafficSubStep("CHOICE");
+                    } else if (campaignStep === 2 && campObjective === "OUTCOME_LEADS" && leadsSubStep === "CONFIG") {
+                      setLeadsSubStep("CHOICE");
                     } else if (campaignStep > 1) {
                       setCampaignStep((prev) => prev - 1);
                     } else {
@@ -10657,6 +11024,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     onClick={() => {
                       if (campaignStep === 2 && campObjective === "OUTCOME_TRAFFIC" && trafficSubStep === "CHOICE") {
                         setTrafficSubStep("CONFIG");
+                      } else if (campaignStep === 2 && campObjective === "OUTCOME_LEADS" && leadsSubStep === "CHOICE") {
+                        setLeadsSubStep("CONFIG");
                       } else {
                         setCampaignStep((prev) => prev + 1);
                       }
@@ -12150,11 +12519,19 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-800/40">
                         <span className="text-slate-400">Created Time:</span>
-                        <span className="font-mono text-slate-300">{liveMetaDetail?.created_time ? new Date(liveMetaDetail.created_time).toLocaleString() : "N/A"}</span>
+                        <span className="font-mono text-slate-300">
+                          {liveMetaDetail?.created_time || selectedCampDetail?.createdAt
+                            ? new Date(liveMetaDetail?.created_time || selectedCampDetail.createdAt).toLocaleString()
+                            : "N/A"}
+                        </span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-800/40">
                         <span className="text-slate-400">Updated Time:</span>
-                        <span className="font-mono text-slate-300">{liveMetaDetail?.updated_time ? new Date(liveMetaDetail.updated_time).toLocaleString() : "N/A"}</span>
+                        <span className="font-mono text-slate-300">
+                          {liveMetaDetail?.updated_time || selectedCampDetail?.updatedAt
+                            ? new Date(liveMetaDetail?.updated_time || selectedCampDetail.updatedAt).toLocaleString()
+                            : "N/A"}
+                        </span>
                       </div>
                     </div>
                   </div>
