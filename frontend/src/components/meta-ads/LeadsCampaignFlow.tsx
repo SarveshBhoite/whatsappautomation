@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import {
-  X, Loader2, Target, Settings, Check, FileText, Phone, Globe, MessageSquare, Zap, Plus, Search, Eye, Filter
+  X, Loader2, Target, Settings, Check, FileText, Phone, Globe, MessageSquare, Zap, Plus, Search, Eye, Filter, ExternalLink, AlertTriangle, ShieldCheck
 } from "lucide-react";
 
 interface LeadsCampaignFlowProps {
@@ -40,11 +40,17 @@ export default function LeadsCampaignFlow({
   const [leadsBudgetScheduling, setLeadsBudgetScheduling] = useState(false);
   const [leadsFrequencyControl, setLeadsFrequencyControl] = useState(false);
   const [abTestEnabled, setAbTestEnabled] = useState(false);
+  const [specialAdCategory, setSpecialAdCategory] = useState("NONE");
+  const [showMoreBudgetSettings, setShowMoreBudgetSettings] = useState(false);
 
   // STEP 3: Ad Set Level State
   const [adSetName, setAdSetName] = useState("New Leads ad set");
-  const [conversionLocation, setConversionLocation] = useState<"INSTANT_FORMS" | "MESSAGING_APPS" | "WEBSITE" | "CALLS">("INSTANT_FORMS");
+  const [conversionLocation, setConversionLocation] = useState<string>("INSTANT_FORMS");
   const [performanceGoal, setPerformanceGoal] = useState("MAXIMIZE_LEADS");
+  const [costPerResultGoal, setCostPerResultGoal] = useState("");
+  const [showValueRulesModal, setShowValueRulesModal] = useState(false);
+
+  // Schedule & Audience
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [endDate, setEndDate] = useState("");
   const [locationInclusion, setLocationInclusion] = useState("India");
@@ -53,11 +59,15 @@ export default function LeadsCampaignFlow({
   const [gender, setGender] = useState("ALL");
   const [detailedTargeting, setDetailedTargeting] = useState("");
   const [advantagePlacements, setAdvantagePlacements] = useState(true);
+  const [brandSuitability, setBrandSuitability] = useState("STANDARD");
 
   // STEP 4: Ad Level State
   const [adName, setAdName] = useState("New Leads ad");
   const [partnershipAd, setPartnershipAd] = useState(false);
-  const [showPartnershipModal, setShowPartnershipModal] = useState(false);
+  const [showPartnershipCodeModal, setShowPartnershipCodeModal] = useState(false);
+  const [showSelectPartnershipModal, setShowSelectPartnershipModal] = useState(false);
+  const [partnershipCode, setPartnershipCode] = useState("");
+
   const [facebookPageId, setFacebookPageId] = useState(fetchedPages[0]?.id || "");
   const [instagramAccount, setInstagramAccount] = useState(fetchedIgAccounts[0]?.username || "@jisnudigital");
   const [whatsappPhone, setWhatsappPhone] = useState(fetchedWaNumbers[0]?.phoneNumber || "+91 9876543210");
@@ -78,6 +88,7 @@ export default function LeadsCampaignFlow({
   const [requireWorkEmail, setRequireWorkEmail] = useState(false);
   const [adDestinationRadio, setAdDestinationRadio] = useState<"INSTANT" | "WEBSITE" | "CALL" | "MESSAGING">("INSTANT");
   const [websiteUrl, setWebsiteUrl] = useState("https://example.com/lead-page");
+  const [adsDataSharing, setAdsDataSharing] = useState(true);
 
   // Conversations Chat Template
   const [chatGreeting, setChatGreeting] = useState("Hi! Thanks for requesting info. How can we help you get started?");
@@ -98,6 +109,8 @@ export default function LeadsCampaignFlow({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 4000);
   };
+
+  const selectedPage = fetchedPages.find((p) => p.id === facebookPageId) || fetchedPages[0];
 
   const handlePublish = async () => {
     if (!campName.trim() || !adSetName.trim() || !adName.trim()) {
@@ -123,9 +136,11 @@ export default function LeadsCampaignFlow({
           leadsBudgetScheduling,
           leadsFrequencyControl,
           abTestEnabled,
+          specialAdCategory,
           adSetName,
           conversionLocation,
           performanceGoal,
+          costPerResultGoal,
           startDate,
           endDate,
           locationInclusion,
@@ -136,6 +151,7 @@ export default function LeadsCampaignFlow({
           advantagePlacements,
           adName,
           partnershipAd,
+          partnershipCode,
           facebookPageId,
           instagramAccount,
           whatsappPhone,
@@ -146,6 +162,7 @@ export default function LeadsCampaignFlow({
           creativeBody: primaryText,
           creativeDescription: description,
           creativeMediaUrl: mediaUrl,
+          aiMedia,
           callToAction,
           formTesting,
           requireWorkEmail,
@@ -188,7 +205,7 @@ export default function LeadsCampaignFlow({
               <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold uppercase">
                 Step {activeStep} of 4
               </span>
-              <span className="text-xs text-slate-400 font-mono">In Draft</span>
+              <span className="text-xs text-slate-400 font-mono">In Draft • 1 Ad set · 1 Ad</span>
             </div>
             <h1 className="font-bold text-slate-100 text-sm">{campName}</h1>
           </div>
@@ -219,16 +236,51 @@ export default function LeadsCampaignFlow({
           {activeStep === 1 && (
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
               <Filter className="h-10 w-10 text-sky-400 mx-auto" />
-              <h3 className="text-base font-bold text-slate-100">Step 1: Leads Objective Selected</h3>
+              <h3 className="text-base font-bold text-slate-100">Step 1: Choose a Campaign Objective</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Collect leads for your business or brand through Meta Click-to-WhatsApp ads and instant lead forms.
+                Selected: <span className="text-sky-400 font-bold">Leads (OUTCOME_LEADS)</span>
               </p>
-              <button
-                onClick={() => setActiveStep(2)}
-                className="px-6 py-2.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs"
-              >
-                Proceed to Step 2: Configure Campaign Parameters →
-              </button>
+
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-left space-y-2 max-w-lg mx-auto">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-sky-400" /> Leads Preview
+                  </h4>
+                  <a
+                    href="https://www.facebook.com/business/help/1438417719786914"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-sky-400 hover:underline flex items-center gap-1"
+                  >
+                    About campaign objectives <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Collect leads for your business or brand through Meta Click-to-WhatsApp ads and instant lead forms.
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {["Website and instant forms", "Instant forms", "Messenger, Instagram and WhatsApp", "Calls"].map((tag) => (
+                    <span key={tag} className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20 text-[10px] font-semibold">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-center gap-3 pt-2">
+                <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveStep(2);
+                    setLeadsSubStep("CHOICE");
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs shadow-lg"
+                >
+                  Continue → Step 2
+                </button>
+              </div>
             </div>
           )}
 
@@ -260,6 +312,7 @@ export default function LeadsCampaignFlow({
                           <input type="radio" checked={leadsStartMode === "RECENT"} readOnly className="mt-1 h-4 w-4 text-sky-500" />
                           <div>
                             <div className="flex items-center gap-2">
+                              <span className="text-base">📄</span>
                               <h4 className="font-bold text-slate-100 text-sm">Watpornima-17-June 2026-Leads campaign</h4>
                               <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 text-[10px] font-bold">Suggested</span>
                             </div>
@@ -293,6 +346,15 @@ export default function LeadsCampaignFlow({
                       </div>
                     </div>
                   </div>
+
+                  <div className="flex justify-between pt-2">
+                    <button onClick={() => setActiveStep(1)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                      ← Back to Step 1
+                    </button>
+                    <button onClick={() => setLeadsSubStep("CONFIG")} className="px-6 py-2.5 rounded-xl bg-sky-500 text-slate-950 text-xs font-bold shadow-lg">
+                      Continue to Configuration →
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -310,11 +372,12 @@ export default function LeadsCampaignFlow({
                     <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 2 of 4</span>
                   </div>
 
-                  {/* Campaign Name */}
+                  {/* 1. Campaign Name */}
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                    <label className="block text-xs font-bold text-slate-200">Campaign name</label>
+                    <label className="block text-xs font-bold text-slate-200">Campaign name *</label>
                     <input
                       type="text"
+                      required
                       value={campName}
                       onChange={(e) => setCampName(e.target.value)}
                       placeholder="New Leads campaign"
@@ -322,12 +385,17 @@ export default function LeadsCampaignFlow({
                     />
                   </div>
 
-                  {/* Budget Card */}
+                  {/* 2. Budget Card */}
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-bold text-slate-200 text-xs">Advantage+ campaign budget</h4>
-                        <p className="text-[11px] text-slate-400">Distribute your budget across ad sets automatically.</p>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-200 text-xs">Advantage+ campaign budget</h4>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${leadsAdvantagePlus ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400"}`}>
+                            {leadsAdvantagePlus ? "Advantage+ on" : "Advantage+ off"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Distribute your budget across ad sets automatically.</p>
                       </div>
                       <input
                         type="checkbox"
@@ -347,7 +415,7 @@ export default function LeadsCampaignFlow({
                         <input type="radio" checked={leadsBudgetStrategy === "CAMPAIGN"} readOnly className="mt-1 h-4 w-4 text-sky-500" />
                         <div>
                           <p className="text-xs font-bold">Campaign budget (Advantage+ budget)</p>
-                          <p className="text-[11px] text-slate-400">Optimize spend across all active ad sets.</p>
+                          <p className="text-[11px] text-slate-400">Automatically distribute your budget to best opportunities.</p>
                         </div>
                       </div>
 
@@ -360,7 +428,7 @@ export default function LeadsCampaignFlow({
                         <input type="radio" checked={leadsBudgetStrategy === "ADSET"} readOnly className="mt-1 h-4 w-4 text-sky-500" />
                         <div>
                           <p className="text-xs font-bold">Ad set budget</p>
-                          <p className="text-[11px] text-slate-400">Set budget per ad set manually.</p>
+                          <p className="text-[11px] text-slate-400">Set different bid strategies or budget schedules for each ad set.</p>
                         </div>
                       </div>
                     </div>
@@ -373,8 +441,8 @@ export default function LeadsCampaignFlow({
                           onChange={(e: any) => setBudgetMode(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                         >
-                          <option value="DAILY">Daily Budget</option>
-                          <option value="LIFETIME">Lifetime Budget</option>
+                          <option value="DAILY">Daily budget</option>
+                          <option value="LIFETIME">Lifetime budget</option>
                         </select>
                       </div>
 
@@ -389,29 +457,53 @@ export default function LeadsCampaignFlow({
                       </div>
                     </div>
 
-                    {/* Spend explanation box */}
-                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300">
-                      💡 <strong>Spend info:</strong> Your spending may exceed ₹{(Number(dailyBudget) * 1.25).toFixed(0)} the first few days to capitalize on high-intent lead opportunities.
+                    {/* Detailed Spend Info Box & Warning */}
+                    <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs text-slate-300">
+                      <p>You'll spend an average of <span className="text-sky-400 font-bold">₹{dailyBudget}</span> per day.</p>
+                      <p className="text-[11px] text-slate-400">
+                        Your maximum daily spend is <span className="font-semibold text-slate-200">₹{(Number(dailyBudget) * 1.75).toFixed(0)}</span> and your maximum weekly spend is <span className="font-semibold text-slate-200">₹{(Number(dailyBudget) * 7).toFixed(0)}</span>.{" "}
+                        <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                          About daily budget
+                        </a>
+                      </p>
+                      <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-semibold flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                        <span>⚠ Your spending may exceed ₹{dailyBudget} the first few days.</span>
+                      </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1">Campaign bid strategy</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-400">Campaign bid strategy</label>
+                        <button type="button" onClick={() => showToast("Edit bid strategy")} className="text-xs font-bold text-sky-400 hover:underline">Edit</button>
+                      </div>
                       <select
                         value={bidStrategy}
                         onChange={(e) => setBidStrategy(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                       >
                         <option value="HIGHEST_VOLUME">Highest volume</option>
                         <option value="COST_CAP">Cost per result goal</option>
                         <option value="BID_CAP">Bid cap</option>
                       </select>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreBudgetSettings(!showMoreBudgetSettings)}
+                      className="text-xs font-bold text-sky-400 hover:underline"
+                    >
+                      {showMoreBudgetSettings ? "Hide details" : "Show more settings ▾"}
+                    </button>
                   </div>
 
-                  {/* Budget Scheduling */}
+                  {/* 3. Budget Scheduling */}
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-200 text-xs">Budget scheduling</h4>
+                      <div>
+                        <h4 className="font-bold text-slate-200 text-xs">Budget scheduling</h4>
+                        <p className="text-[11px] text-slate-400">Increase your budget during specific days or times.</p>
+                      </div>
                       <input
                         type="checkbox"
                         checked={leadsBudgetScheduling}
@@ -420,16 +512,19 @@ export default function LeadsCampaignFlow({
                       />
                     </div>
                     {leadsBudgetScheduling && (
-                      <button type="button" className="text-xs font-bold text-sky-400 hover:underline">
+                      <button type="button" className="text-xs font-bold text-sky-400 hover:underline pt-1 block">
                         + Schedule budget increases
                       </button>
                     )}
                   </div>
 
-                  {/* Frequency & A/B */}
+                  {/* 4 & 5. Frequency & A/B */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                      <h4 className="font-bold text-slate-200 text-xs">Campaign frequency control</h4>
+                      <div>
+                        <h4 className="font-bold text-slate-200 text-xs">Campaign frequency control</h4>
+                        <p className="text-[10px] text-slate-400">{leadsFrequencyControl ? "Frequency cap enabled" : "Off"}</p>
+                      </div>
                       <input
                         type="checkbox"
                         checked={leadsFrequencyControl}
@@ -439,7 +534,12 @@ export default function LeadsCampaignFlow({
                     </div>
 
                     <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                      <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
+                      <div>
+                        <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
+                        <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-[10px] text-sky-400 hover:underline">
+                          About A/B tests
+                        </a>
+                      </div>
                       <input
                         type="checkbox"
                         checked={abTestEnabled}
@@ -447,6 +547,25 @@ export default function LeadsCampaignFlow({
                         className="accent-sky-500 h-4 w-4"
                       />
                     </div>
+                  </div>
+
+                  {/* 6. Special Ad Categories */}
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                    <h4 className="font-bold text-slate-200 text-xs">Special Ad Categories</h4>
+                    <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-[10px] text-sky-400 hover:underline block">
+                      About Special Ad Categories
+                    </a>
+                    <select
+                      value={specialAdCategory}
+                      onChange={(e) => setSpecialAdCategory(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    >
+                      <option value="NONE">Declare category if applicable</option>
+                      <option value="CREDIT">Financial products and services</option>
+                      <option value="EMPLOYMENT">Employment</option>
+                      <option value="HOUSING">Housing</option>
+                      <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
+                    </select>
                   </div>
 
                   <div className="flex justify-between pt-2">
@@ -467,10 +586,13 @@ export default function LeadsCampaignFlow({
           {activeStep === 3 && (
             <div className="space-y-4 animate-fadeIn">
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                <span className="px-2.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold uppercase">
-                  Step 3 of 4
-                </span>
-                <h3 className="font-bold text-slate-100 text-sm pt-1">Step 3 — Leads Ad Set Configuration</h3>
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold uppercase">
+                    Step 3 of 4
+                  </span>
+                  <span className="text-xs text-sky-400 font-semibold">In Draft</span>
+                </div>
+                <h3 className="font-bold text-slate-100 text-sm pt-1">New Leads campaign → New Leads ad set</h3>
                 <p className="text-xs text-slate-400">Configure conversion location, form optimization, and audience parameters.</p>
               </div>
 
@@ -486,68 +608,85 @@ export default function LeadsCampaignFlow({
                 />
               </div>
 
-              {/* Conversion Location */}
+              {/* Conversion Location Dropdown & Facebook Page */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Conversion Location</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setConversionLocation("INSTANT_FORMS")}
-                    className={`p-3 rounded-xl border text-left flex items-center gap-2.5 ${
-                      conversionLocation === "INSTANT_FORMS" ? "bg-sky-500/10 border-sky-500/60 text-sky-300 font-bold" : "bg-slate-900 border-slate-800 text-slate-400"
-                    }`}
-                  >
-                    <FileText className="h-4 w-4" /> Instant Forms
-                  </button>
+                <select
+                  value={conversionLocation}
+                  onChange={(e) => setConversionLocation(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
+                >
+                  <option value="WEBSITE_AND_INSTANT_FORMS">Website and instant forms</option>
+                  <option value="WEBSITE_AND_CALLS">Website and calls</option>
+                  <option value="INSTANT_FORMS_AND_MESSENGER">Instant forms and Messenger</option>
+                  <option value="INSTANT_FORMS">Instant forms (Recommended)</option>
+                  <option value="WEBSITE">Website</option>
+                  <option value="MESSENGER">Messenger</option>
+                  <option value="INSTAGRAM">Instagram</option>
+                  <option value="WHATSAPP">WhatsApp</option>
+                  <option value="CALLS">Calls</option>
+                  <option value="APP">App</option>
+                </select>
 
-                  <button
-                    type="button"
-                    onClick={() => setConversionLocation("MESSAGING_APPS")}
-                    className={`p-3 rounded-xl border text-left flex items-center gap-2.5 ${
-                      conversionLocation === "MESSAGING_APPS" ? "bg-sky-500/10 border-sky-500/60 text-sky-300 font-bold" : "bg-slate-900 border-slate-800 text-slate-400"
-                    }`}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Facebook Page</label>
+                  <select
+                    value={facebookPageId}
+                    onChange={(e) => setFacebookPageId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                   >
-                    <MessageSquare className="h-4 w-4" /> WhatsApp / Messenger
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setConversionLocation("WEBSITE")}
-                    className={`p-3 rounded-xl border text-left flex items-center gap-2.5 ${
-                      conversionLocation === "WEBSITE" ? "bg-sky-500/10 border-sky-500/60 text-sky-300 font-bold" : "bg-slate-900 border-slate-800 text-slate-400"
-                    }`}
-                  >
-                    <Globe className="h-4 w-4" /> Website
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setConversionLocation("CALLS")}
-                    className={`p-3 rounded-xl border text-left flex items-center gap-2.5 ${
-                      conversionLocation === "CALLS" ? "bg-sky-500/10 border-sky-500/60 text-sky-300 font-bold" : "bg-slate-900 border-slate-800 text-slate-400"
-                    }`}
-                  >
-                    <Phone className="h-4 w-4" /> Calls
-                  </button>
+                    {fetchedPages.map((p) => (
+                      <option key={p.id} value={p.id}>📄 {p.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               {/* Performance Goal */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <h4 className="font-bold text-slate-200 text-xs">Performance Goal</h4>
-                <select
-                  value={performanceGoal}
-                  onChange={(e) => setPerformanceGoal(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
-                >
-                  <option value="MAXIMIZE_LEADS">Maximise number of leads</option>
-                  <option value="MAXIMIZE_CONVERSION_LEADS">Maximise number of conversion leads</option>
-                </select>
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <h4 className="font-bold text-slate-200 text-xs">Performance Goal &amp; Value Rules</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Performance Goal</label>
+                    <select
+                      value={performanceGoal}
+                      onChange={(e) => setPerformanceGoal(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
+                    >
+                      <option value="MAXIMIZE_LEADS">Maximise number of leads</option>
+                      <option value="MAXIMIZE_CONVERSION_VALUE">Maximise conversion value</option>
+                      <option value="MAXIMIZE_LINK_CLICKS">Maximise number of link clicks</option>
+                      <option value="MAXIMIZE_LANDING_PAGE_VIEWS">Maximise number of landing page views</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Cost per result goal (Optional)</label>
+                    <input
+                      type="text"
+                      value={costPerResultGoal}
+                      onChange={(e) => setCostPerResultGoal(e.target.value)}
+                      placeholder="e.g. ₹45.00"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between border-t border-slate-800">
+                  <span className="text-xs font-semibold text-slate-300">Value rules</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowValueRulesModal(true)}
+                    className="px-3 py-1 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/30 text-xs font-bold"
+                  >
+                    Configure Value Rules
+                  </button>
+                </div>
               </div>
 
-              {/* Audience Controls */}
+              {/* Audience Definition */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Audience Controls</h4>
+                <h4 className="font-bold text-slate-200 text-xs">Audience definition</h4>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-400 mb-1">Locations (Inclusion)</label>
                   <input
@@ -558,6 +697,7 @@ export default function LeadsCampaignFlow({
                     className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                   />
                 </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1">Min Age</label>
@@ -590,6 +730,8 @@ export default function LeadsCampaignFlow({
                     </select>
                   </div>
                 </div>
+
+                <p className="text-[10px] text-slate-400 italic">Estimates note: Estimates don't include Advantage+ audience expansion.</p>
               </div>
 
               {/* Placements */}
@@ -647,7 +789,12 @@ export default function LeadsCampaignFlow({
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-bold text-slate-200 text-xs">Partnership ad</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Run lead ads with partners or co-brands.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Run lead ads with partners or co-brands.{" "}
+                      <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                        Go to Partnership Ads Hub
+                      </a>
+                    </p>
                   </div>
                   <input
                     type="checkbox"
@@ -661,14 +808,14 @@ export default function LeadsCampaignFlow({
                   <div className="flex gap-2 pt-2 border-t border-slate-800">
                     <button
                       type="button"
-                      onClick={() => setShowPartnershipModal(true)}
+                      onClick={() => setShowPartnershipCodeModal(true)}
                       className="px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs font-bold"
                     >
                       Enter ad code or post info
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowPartnershipModal(true)}
+                      onClick={() => setShowSelectPartnershipModal(true)}
                       className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold"
                     >
                       Select partnership
@@ -680,6 +827,9 @@ export default function LeadsCampaignFlow({
               {/* 3. Identity */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Identity</h4>
+                <p className="text-[11px] text-sky-400 font-semibold">
+                  Any form submitted from your ad will go to <span className="font-bold">{selectedPage?.name || "JISNU Digital Solutions"}</span>.
+                </p>
                 <div className="grid grid-cols-3 gap-3 text-xs">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1">Facebook Page *</label>
@@ -756,7 +906,12 @@ export default function LeadsCampaignFlow({
                 </div>
 
                 <div className="pt-2 flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs">Multi-advertiser ads</h4>
+                  <div>
+                    <h4 className="font-bold text-slate-200 text-xs">Multi-advertiser ads</h4>
+                    <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-[10px] text-sky-400 hover:underline">
+                      About multi-advertiser ads
+                    </a>
+                  </div>
                   <input
                     type="checkbox"
                     checked={multiAdvertiser}
@@ -815,6 +970,7 @@ export default function LeadsCampaignFlow({
                       type="text"
                       value={headline}
                       onChange={(e) => setHeadline(e.target.value)}
+                      placeholder="Chat with us"
                       className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                     />
                   </div>
@@ -831,30 +987,55 @@ export default function LeadsCampaignFlow({
                       <option value="LEARN_MORE">Learn More</option>
                       <option value="CONTACT_US">Contact Us</option>
                       <option value="GET_OFFER">Get Offer</option>
+                      <option value="BOOK_NOW">Book Now</option>
                     </select>
                   </div>
                 </div>
+
+                {callToAction === "SEND_WHATSAPP_MESSAGE" && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
+                    📱 Connected WhatsApp Number: <span className="font-bold">{whatsappPhone}</span>. Edit in Page settings. Active on WhatsApp.
+                  </div>
+                )}
               </div>
 
               {/* 6. Destination — Instant Form Extras */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs flex items-center gap-2">
-                    Destination — Instant Form <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 text-[10px] font-bold">Selected</span>
-                  </h4>
+                  <div>
+                    <h4 className="font-bold text-slate-200 text-xs">Destination</h4>
+                    <p className="text-[11px] text-slate-400">Tell us where to send people immediately after they tap or click your ad.</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/40 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h5 className="font-bold text-slate-100 text-xs">Instant form</h5>
+                      <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 text-[10px] font-bold">Selected</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Make connections with people by letting them send contact information and other details to you through a form.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Form Search & Tabs */}
                 <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                    <input
-                      type="text"
-                      value={searchFormsQuery}
-                      onChange={(e) => setSearchFormsQuery(e.target.value)}
-                      placeholder="Search your forms..."
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100"
-                    />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        value={searchFormsQuery}
+                        onChange={(e) => setSearchFormsQuery(e.target.value)}
+                        placeholder="Search your forms..."
+                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100"
+                      />
+                    </div>
+                    <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-200">
+                      Search
+                    </button>
                   </div>
 
                   <div className="flex gap-2 pt-1 border-b border-slate-800 pb-2">
@@ -884,9 +1065,9 @@ export default function LeadsCampaignFlow({
                       onChange={(e) => setFormTesting(e.target.checked)}
                       className="h-4 w-4 rounded bg-slate-950 border-slate-700 text-sky-500"
                     />
-                    Form testing mode
+                    Form testing
                   </label>
-                  <p className="text-[10px] text-slate-400 pl-6">Compare up to five forms concurrently to evaluate lead conversion rate differences.</p>
+                  <p className="text-[10px] text-slate-400 pl-6">Compare up to five forms to see which one performs best.</p>
                 </div>
 
                 {/* Quality Filters Toggle */}
@@ -900,13 +1081,13 @@ export default function LeadsCampaignFlow({
                     />
                     Quality filters: Require work email address
                   </label>
-                  <p className="text-[10px] text-slate-400 pl-6">Filters out personal email addresses (Gmail, Yahoo) to improve B2B lead quality.</p>
+                  <p className="text-[10px] text-slate-400 pl-6">Leads must verify using an active email address associated with a real organisation.</p>
                 </div>
 
                 {/* Lead Nurturing Banner */}
-                <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300 flex items-center gap-2.5">
-                  <Zap className="h-4 w-4 shrink-0 text-sky-400" />
-                  <span><strong>Instant Form Lead Nurturing:</strong> Leads collected via Instant Forms are automatically synced with CRM & WhatsApp autoresponders.</span>
+                <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-300 space-y-1">
+                  <h5 className="font-bold flex items-center gap-1.5"><Zap className="h-4 w-4 text-sky-400" /> Instant form lead nurturing</h5>
+                  <p className="text-[11px] text-slate-300">Reach leads where they're most active with tailored post-submission follow-ups through Meta's exclusive channels.</p>
                 </div>
               </div>
 
@@ -924,6 +1105,7 @@ export default function LeadsCampaignFlow({
                     Edit template
                   </button>
                 </div>
+                <p className="text-[11px] text-sky-300 font-semibold">💡 You could get 7% more messages by adding recommended settings (+7%)</p>
                 <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs text-slate-300">
                   <p className="font-semibold text-slate-200">Greeting: {chatGreeting}</p>
                   <p className="text-[11px] text-slate-400">Q1: {q1}</p>
@@ -936,7 +1118,8 @@ export default function LeadsCampaignFlow({
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Tracking</h4>
                 <div className="space-y-2 text-xs">
-                  <p className="text-slate-300">Website events Pixel ID: <span className="font-mono text-sky-400 font-bold">{pixelId}</span></p>
+                  <p className="text-slate-300">Website events: Active Dataset • Pixel ID <span className="font-mono text-sky-400 font-bold">{pixelId}</span></p>
+                  <p className="text-slate-400">App events: Not configured</p>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">URL Parameters: {urlParams}</span>
                     <button
@@ -948,6 +1131,14 @@ export default function LeadsCampaignFlow({
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* 9 & 10 Legal */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs text-slate-400">
+                <p>By clicking Publish Campaign Live, you acknowledge that your use of Meta's ad tools is subject to Terms and Conditions.</p>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  <Check className="h-3 w-3" /> All edits saved
+                </span>
               </div>
 
               <div className="flex justify-between pt-2">
@@ -974,7 +1165,7 @@ export default function LeadsCampaignFlow({
               <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
                 <Eye className="h-4 w-4 text-sky-400" /> Ad Live Preview
               </h4>
-              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">100/100</span>
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">66/100</span>
             </div>
 
             {/* Mobile Ad Card Mockup */}
@@ -984,7 +1175,7 @@ export default function LeadsCampaignFlow({
                   📄
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-200">JISNU Digital Solutions</p>
+                  <p className="text-xs font-bold text-slate-200">{selectedPage?.name || "JISNU Digital Solutions"}</p>
                   <p className="text-[10px] text-slate-400">Sponsored</p>
                 </div>
               </div>
@@ -1012,15 +1203,41 @@ export default function LeadsCampaignFlow({
       </div>
 
       {/* Modals */}
-      {showPartnershipModal && (
+      {showPartnershipCodeModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Partnership Ad Setup</h3>
-            <p className="text-xs text-slate-400">Enter creator ad code or select brand partnership credentials.</p>
-            <input type="text" placeholder="Ad code e.g. LEADS-PARTNER-123" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100" />
+            <h3 className="font-bold text-slate-100 text-sm">Enter partnership ad code, post ID or post URL</h3>
+            <input
+              type="text"
+              value={partnershipCode}
+              onChange={(e) => setPartnershipCode(e.target.value)}
+              placeholder="LEADS-PARTNER-123"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowPartnershipCodeModal(false)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                Cancel
+              </button>
+              <button onClick={() => setShowPartnershipCodeModal(false)} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs">
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSelectPartnershipModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-lg w-full space-y-4">
+            <h3 className="font-bold text-slate-100 text-sm">Select partnership</h3>
+            <div className="flex border-b border-slate-800 text-xs gap-4 font-bold">
+              <span className="text-sky-400 border-b-2 border-sky-400 pb-1">Sent requests</span>
+              <span className="text-slate-400 pb-1">Received requests</span>
+            </div>
+            <p className="text-xs text-slate-400 text-center py-4">No ad partnerships currently linked.</p>
             <div className="flex justify-end">
-              <button onClick={() => setShowPartnershipModal(false)} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs">
-                Save Partnership Code
+              <button onClick={() => setShowSelectPartnershipModal(false)} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs">
+                Close
               </button>
             </div>
           </div>
