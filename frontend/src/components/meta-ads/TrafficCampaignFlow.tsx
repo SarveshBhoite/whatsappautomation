@@ -2,7 +2,7 @@
 import { useState } from "react";
 import {
   X, Loader2, MousePointerClick, Settings, ChevronRight, Check,
-  Globe, Info, Sparkles, ArrowUpRight, ArrowLeft, Phone, Zap, Eye, MessageSquare, Plus
+  Globe, Info, Sparkles, ArrowUpRight, ArrowLeft, Phone, Zap, Eye, MessageSquare, Plus, ExternalLink, HelpCircle
 } from "lucide-react";
 
 interface TrafficCampaignFlowProps {
@@ -46,6 +46,10 @@ export default function TrafficCampaignFlow({
   const [trafficShowMoreNameOptions, setTrafficShowMoreNameOptions] = useState(false);
   const [trafficShowMoreDetailsOptions, setTrafficShowMoreDetailsOptions] = useState(false);
 
+  // Tailored Mode Specific Inputs
+  const [tailoredHeadline, setTailoredHeadline] = useState("Visit Our Website for Exclusive Offers!");
+  const [tailoredUrl, setTailoredUrl] = useState("https://jisnudigital.com");
+
   // STEP 3: Ad Set Level State
   const [adSetName, setAdSetName] = useState("New Traffic ad set");
   const [destinationType, setDestinationType] = useState<"WEBSITE" | "APP" | "MESSENGER" | "WHATSAPP" | "CALLS">("WEBSITE");
@@ -54,6 +58,9 @@ export default function TrafficCampaignFlow({
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [endDate, setEndDate] = useState("");
   const [locationInclusion, setLocationInclusion] = useState("India");
+  const [excludeAudience, setExcludeAudience] = useState("");
+  const [language, setLanguage] = useState("ALL");
+  const [customAudience, setCustomAudience] = useState("");
   const [ageMin, setAgeMin] = useState(18);
   const [ageMax, setAgeMax] = useState(65);
   const [gender, setGender] = useState("ALL");
@@ -61,11 +68,15 @@ export default function TrafficCampaignFlow({
   const [advantagePlacements, setAdvantagePlacements] = useState(true);
   const [brandSuitability, setBrandSuitability] = useState("STANDARD");
   const [showAudienceSize, setShowAudienceSize] = useState(true);
+  const [showBrandSuitability, setShowBrandSuitability] = useState(false);
 
   // STEP 4: Ad Level State
   const [adName, setAdName] = useState("New Traffic ad");
   const [partnershipAd, setPartnershipAd] = useState(false);
-  const [showPartnershipModal, setShowPartnershipModal] = useState(false);
+  const [showPartnershipCodeModal, setShowPartnershipCodeModal] = useState(false);
+  const [showSelectPartnershipModal, setShowSelectPartnershipModal] = useState(false);
+  const [partnershipCode, setPartnershipCode] = useState("");
+
   const [facebookPageId, setFacebookPageId] = useState(fetchedPages[0]?.id || "");
   const [instagramAccount, setInstagramAccount] = useState(fetchedIgAccounts[0]?.username || "@jisnudigital");
   const [whatsappPhone, setWhatsappPhone] = useState(fetchedWaNumbers[0]?.phoneNumber || "+91 9876543210");
@@ -84,8 +95,8 @@ export default function TrafficCampaignFlow({
 
   // Chat Conversations Template
   const [chatGreeting, setChatGreeting] = useState("Hi! Thanks for clicking our traffic ad. How can we help you today?");
-  const [q1, setQ1] = useState("What services do you offer?");
-  const [q2, setQ2] = useState("Can I get a custom quote?");
+  const [q1, setQ1] = useState("Can I learn more about your business?");
+  const [q2, setQ2] = useState("Is anyone available to chat?");
   const [q3, setQ3] = useState("Where are you located?");
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
@@ -142,6 +153,7 @@ export default function TrafficCampaignFlow({
           brandSuitability,
           adName,
           partnershipAd,
+          partnershipCode,
           facebookPageId,
           instagramAccount,
           whatsappPhone,
@@ -152,6 +164,7 @@ export default function TrafficCampaignFlow({
           creativeBody: primaryText,
           creativeDescription: description,
           creativeMediaUrl: mediaUrl,
+          aiMedia,
           callToAction,
           adDestinationRadio,
           websiteUrl,
@@ -192,7 +205,7 @@ export default function TrafficCampaignFlow({
               <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-mono font-bold uppercase">
                 Step {activeStep} of 4
               </span>
-              <span className="text-xs text-slate-400 font-mono">In Draft</span>
+              <span className="text-xs text-slate-400 font-mono">In Draft • 1 Ad set • 1 Ad</span>
             </div>
             <h1 className="font-bold text-slate-100 text-sm">{campName}</h1>
           </div>
@@ -223,16 +236,51 @@ export default function TrafficCampaignFlow({
           {activeStep === 1 && (
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
               <MousePointerClick className="h-10 w-10 text-sky-400 mx-auto" />
-              <h3 className="text-base font-bold text-slate-100">Step 1: Traffic Objective Selected</h3>
+              <h3 className="text-base font-bold text-slate-100">Step 1: Choose a Campaign Objective</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Send people to a destination, such as your website, shop, landing page, or WhatsApp chat.
+                Selected: <span className="text-sky-400 font-bold">Traffic (OUTCOME_TRAFFIC)</span>
               </p>
-              <button
-                onClick={() => setActiveStep(2)}
-                className="px-6 py-2.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs"
-              >
-                Proceed to Step 2: Configure Campaign Parameters →
-              </button>
+
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-left space-y-2 max-w-lg mx-auto">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-sky-400" /> Traffic Preview
+                  </h4>
+                  <a
+                    href="https://www.facebook.com/business/help/1438417719786914"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-sky-400 hover:underline flex items-center gap-1"
+                  >
+                    About campaign objectives <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Send people to a destination, such as your website, shop, landing page, or WhatsApp chat.
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {["Link clicks", "Landing page views", "Messenger and WhatsApp", "Calls"].map((tag) => (
+                    <span key={tag} className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20 text-[10px] font-semibold">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-center gap-3 pt-2">
+                <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveStep(2);
+                    setTrafficSubStep("CHOICE");
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs shadow-lg"
+                >
+                  Continue → Step 2
+                </button>
+              </div>
             </div>
           )}
 
@@ -243,14 +291,19 @@ export default function TrafficCampaignFlow({
               {/* 2A. SUB-STEP CHOICE */}
               {trafficSubStep === "CHOICE" && (
                 <div className="space-y-4 animate-fadeIn">
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-bold text-slate-100 text-sm">Step 2: Configure TRAFFIC Campaign Parameters</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your TRAFFIC campaign setup.</p>
-                      </div>
-                      <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 2 of 4</span>
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveStep(1)}
+                        className="text-xs text-sky-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                      >
+                        ← Change Objective
+                      </button>
+                      <h3 className="font-bold text-slate-100 text-sm">Step 2: Configure TRAFFIC Campaign Parameters</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">Parameters tailored specifically for your TRAFFIC campaign setup.</p>
                     </div>
+                    <span className="px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">Step 2 of 4</span>
                   </div>
 
                   <div className="space-y-3">
@@ -335,6 +388,15 @@ export default function TrafficCampaignFlow({
                       </div>
                     </div>
                   </div>
+
+                  <div className="flex justify-between pt-2">
+                    <button onClick={() => setActiveStep(1)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                      ← Back to Step 1
+                    </button>
+                    <button onClick={() => setTrafficSubStep("CONFIG")} className="px-6 py-2.5 rounded-xl bg-sky-500 text-slate-950 text-xs font-bold shadow-lg">
+                      Continue to Configuration →
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -407,7 +469,9 @@ export default function TrafficCampaignFlow({
                         <h5 className="font-bold text-slate-200 text-xs">Live video location</h5>
                         <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center gap-2.5">
                           <input type="radio" checked={trafficLiveVideoLocation === "FACEBOOK"} readOnly className="accent-sky-500" />
-                          <span className="text-xs font-bold text-slate-100">Facebook</span>
+                          <span className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                            <span className="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center">f</span> Facebook
+                          </span>
                         </div>
                       </div>
                     )}
@@ -425,7 +489,9 @@ export default function TrafficCampaignFlow({
                         <p className="font-bold text-slate-200 mt-0.5">Auction</p>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-400">Campaign objective</label>
+                        <label className="block text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                          Campaign objective <Info className="h-3 w-3 text-slate-500" />
+                        </label>
                         <p className="font-bold text-slate-200 mt-0.5">Traffic</p>
                       </div>
                       <button
@@ -442,7 +508,9 @@ export default function TrafficCampaignFlow({
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                     <div className="flex items-center gap-2">
                       <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
-                      <h4 className="font-bold text-slate-100 text-xs">Budget</h4>
+                      <h4 className="font-bold text-slate-100 text-xs flex items-center gap-1.5">
+                        Budget <Info className="h-3.5 w-3.5 text-slate-500" />
+                      </h4>
                     </div>
                     <div className="space-y-2">
                       <div
@@ -454,7 +522,12 @@ export default function TrafficCampaignFlow({
                         <input type="radio" checked={trafficBudgetStrategy === "CAMPAIGN"} readOnly className="mt-1 h-4 w-4 text-sky-500" />
                         <div>
                           <p className="text-xs font-bold text-slate-100">Campaign budget (Advantage+ campaign budget)</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Automatically distribute your budget across ad sets to get more results.</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Automatically distribute your budget across ad sets to get more results.{" "}
+                            <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                              About campaign budget
+                            </a>
+                          </p>
                         </div>
                       </div>
 
@@ -505,6 +578,12 @@ export default function TrafficCampaignFlow({
                         <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
                       </label>
                     </div>
+                    <p className="text-[11px] text-slate-400">
+                      Help improve ad performance by comparing versions to see what works best.{" "}
+                      <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                        About A/B tests
+                      </a>
+                    </p>
 
                     {trafficAbTest && (
                       <div className="pt-3 border-t border-slate-800 space-y-3 animate-fadeIn">
@@ -524,6 +603,7 @@ export default function TrafficCampaignFlow({
 
                         <div>
                           <label className="block text-xs font-bold text-slate-200 mb-1">How long should the test run?</label>
+                          <p className="text-[10px] text-slate-400 mb-1">Your test will run for this many days or until your ad set has ended.</p>
                           <select
                             value={trafficTestDuration}
                             onChange={(e) => setTrafficTestDuration(e.target.value)}
@@ -537,11 +617,13 @@ export default function TrafficCampaignFlow({
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-slate-200 mb-1">How do you want to compare performance?</label>
+                          <label className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1">
+                            How do you want to compare performance? <Info className="h-3 w-3 text-slate-500" />
+                          </label>
                           <select
                             value={trafficTestMetric}
                             onChange={(e) => setTrafficTestMetric(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                            className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                           >
                             <option value="COST_PER_POST_ENGAGEMENT">Cost per post engagement</option>
                             <option value="COST_PER_LINK_CLICK">Cost per link click</option>
@@ -561,7 +643,16 @@ export default function TrafficCampaignFlow({
 
                   {/* Card 6: Special Ad Categories */}
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                    <h4 className="font-bold text-slate-200 text-xs">Special Ad Categories</h4>
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-bold">✓</div>
+                      <h4 className="font-bold text-slate-100 text-xs">Special Ad Categories</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Declare if your ads are related to financial products and services, employment, housing, social issues, elections or politics to help prevent ad rejections.{" "}
+                      <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                        About Special Ad Categories
+                      </a>
+                    </p>
                     <select
                       value={specialAdCategory}
                       onChange={(e) => setSpecialAdCategory(e.target.value)}
@@ -574,6 +665,33 @@ export default function TrafficCampaignFlow({
                       <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
                     </select>
                   </div>
+
+                  {/* Tailored Path Additional Section */}
+                  {trafficPresetMode === "tailored" && (
+                    <div className="p-4 rounded-xl bg-sky-500/5 border border-sky-500/20 space-y-3">
+                      <h4 className="font-bold text-sky-400 text-xs flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4" /> Tailored Web Traffic Quick Setup
+                      </h4>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Headline</label>
+                        <input
+                          type="text"
+                          value={tailoredHeadline}
+                          onChange={(e) => setTailoredHeadline(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Target Website URL</label>
+                        <input
+                          type="text"
+                          value={tailoredUrl}
+                          onChange={(e) => setTailoredUrl(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex justify-between pt-2">
                     <button onClick={() => setTrafficSubStep("CHOICE")} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
@@ -599,7 +717,7 @@ export default function TrafficCampaignFlow({
                   </span>
                   <span className="text-xs text-sky-400 font-semibold">In Draft</span>
                 </div>
-                <h3 className="font-bold text-slate-100 text-sm pt-1">Step 3 — Traffic Ad Set Configuration</h3>
+                <h3 className="font-bold text-slate-100 text-sm pt-1">{campName} → New Traffic ad set</h3>
                 <p className="text-xs text-slate-400">Configure destination, performance goals, placements, and audience targeting.</p>
               </div>
 
@@ -649,8 +767,23 @@ export default function TrafficCampaignFlow({
                 >
                   <option value="MAXIMIZE_LINK_CLICKS">Maximise number of link clicks</option>
                   <option value="MAXIMIZE_LANDING_PAGE_VIEWS">Maximise number of landing page views</option>
-                  <option value="MAXIMIZE_VIDEO_VIEWS">Maximise 2-second continuous video views</option>
+                  <option value="MAXIMIZE_CONVERSATIONS">Maximise number of conversations</option>
+                  <option value="MAXIMIZE_DAILY_UNIQUE_REACH">Maximise daily unique reach</option>
+                  <option value="MAXIMIZE_IMPRESSIONS">Maximise number of impressions</option>
                 </select>
+
+                <div className="pt-2">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Facebook Page</label>
+                  <select
+                    value={facebookPageId}
+                    onChange={(e) => setFacebookPageId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                  >
+                    {fetchedPages.map((p) => (
+                      <option key={p.id} value={p.id}>📄 {p.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Budget & Schedule */}
@@ -684,12 +817,12 @@ export default function TrafficCampaignFlow({
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Audience Controls</h4>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Locations (Inclusion)</label>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Locations (Search city or country e.g. Mumbai, Delhi, United States)</label>
                   <input
                     type="text"
                     value={locationInclusion}
                     onChange={(e) => setLocationInclusion(e.target.value)}
-                    placeholder="India..."
+                    placeholder="Search city or country..."
                     className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                   />
                 </div>
@@ -725,6 +858,17 @@ export default function TrafficCampaignFlow({
                     </select>
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Detailed Targeting (Demographics, Interests, Behaviours)</label>
+                  <input
+                    type="text"
+                    value={detailedTargeting}
+                    onChange={(e) => setDetailedTargeting(e.target.value)}
+                    placeholder="e.g. Technology, Online Shopping..."
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                  />
+                </div>
               </div>
 
               {/* Placements & Brand Suitability */}
@@ -751,6 +895,22 @@ export default function TrafficCampaignFlow({
                     className="accent-sky-500 h-4 w-4"
                   />
                 </div>
+              </div>
+
+              {/* Campaign Score Card */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                    100
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-200 text-xs">Campaign score: 100/100</h4>
+                    <p className="text-[11px] text-slate-400">Broad Audience configuration active.</p>
+                  </div>
+                </div>
+                <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  <Check className="h-3 w-3" /> All edits saved
+                </span>
               </div>
 
               <div className="flex justify-between pt-2">
@@ -794,7 +954,12 @@ export default function TrafficCampaignFlow({
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-bold text-slate-200 text-xs">Partnership ad</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Run ads with creators or partner brands.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Run ads with creators, brands and other businesses.{" "}
+                      <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                        Go to Partnership Ads Hub
+                      </a>
+                    </p>
                   </div>
                   <input
                     type="checkbox"
@@ -808,14 +973,14 @@ export default function TrafficCampaignFlow({
                   <div className="flex gap-2 pt-2 border-t border-slate-800">
                     <button
                       type="button"
-                      onClick={() => setShowPartnershipModal(true)}
+                      onClick={() => setShowPartnershipCodeModal(true)}
                       className="px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs font-bold"
                     >
                       Enter ad code or post info
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowPartnershipModal(true)}
+                      onClick={() => setShowSelectPartnershipModal(true)}
                       className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold"
                     >
                       Select partnership
@@ -903,7 +1068,10 @@ export default function TrafficCampaignFlow({
                 </div>
 
                 <div className="pt-2 flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs">Multi-advertiser ads</h4>
+                  <div>
+                    <h4 className="font-bold text-slate-200 text-xs">Multi-advertiser ads</h4>
+                    <p className="text-[10px] text-slate-400">Your ad can appear with others in the same ad unit.</p>
+                  </div>
                   <input
                     type="checkbox"
                     checked={multiAdvertiser}
@@ -917,7 +1085,7 @@ export default function TrafficCampaignFlow({
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Ad creative</h4>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Media URL</label>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">* Media</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -962,6 +1130,7 @@ export default function TrafficCampaignFlow({
                       type="text"
                       value={headline}
                       onChange={(e) => setHeadline(e.target.value)}
+                      placeholder="Chat with us"
                       className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                     />
                   </div>
@@ -983,6 +1152,12 @@ export default function TrafficCampaignFlow({
                     </select>
                   </div>
                 </div>
+
+                {callToAction === "SEND_WHATSAPP_MESSAGE" && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
+                    📱 Connected WhatsApp Number: <span className="font-bold">{whatsappPhone}</span>. Edit in Page settings. Active on WhatsApp.
+                  </div>
+                )}
               </div>
 
               {/* 6. Destination Radios */}
@@ -1008,7 +1183,20 @@ export default function TrafficCampaignFlow({
 
                 {adDestinationRadio === "MESSAGING" && (
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
-                    <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                    <p className="text-slate-300 font-semibold">Messenger: Connected Page</p>
+                    <p className="text-slate-300 font-semibold">Instagram: {instagramAccount}</p>
+                    <p className="text-slate-300 font-semibold">WhatsApp Number:</p>
+                    <select
+                      value={whatsappPhone}
+                      onChange={(e) => setWhatsappPhone(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100"
+                    >
+                      <option value="+91 9876543210">+91 9876543210</option>
+                      <option value="+91 77099 36965">+91 77099 36965</option>
+                      <option value="NEW">+ Connect new WhatsApp number</option>
+                    </select>
+
+                    <label className="flex items-center gap-2 text-slate-300 pt-1 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={adsDataSharing}
@@ -1025,7 +1213,7 @@ export default function TrafficCampaignFlow({
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                    Conversations Template <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 text-[10px] font-bold">AI Template</span>
+                    Conversations Template <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 text-[10px] font-bold">🤖 AI Badge</span>
                   </h4>
                   <button
                     type="button"
@@ -1035,6 +1223,7 @@ export default function TrafficCampaignFlow({
                     Edit template
                   </button>
                 </div>
+                <p className="text-[11px] text-sky-300 font-semibold">💡 You could get 7% more messages by adding recommended settings (+7%)</p>
                 <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs text-slate-300">
                   <p className="font-semibold text-slate-200">Greeting: {chatGreeting}</p>
                   <p className="text-[11px] text-slate-400">Q1: {q1}</p>
@@ -1047,7 +1236,8 @@ export default function TrafficCampaignFlow({
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Tracking</h4>
                 <div className="space-y-2 text-xs">
-                  <p className="text-slate-300">Website events Pixel ID: <span className="font-mono text-sky-400 font-bold">{pixelId}</span></p>
+                  <p className="text-slate-300">Website events: Active Dataset • Pixel ID <span className="font-mono text-sky-400 font-bold">{pixelId}</span></p>
+                  <p className="text-slate-400">App events: Not configured</p>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">URL Parameters: {urlParams}</span>
                     <button
@@ -1059,6 +1249,14 @@ export default function TrafficCampaignFlow({
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* 9 & 10 Legal & Preview Note */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs text-slate-400">
+                <p>By clicking Publish Campaign Live, you acknowledge that your use of Meta's ad tools is subject to Terms and Conditions.</p>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  <Check className="h-3 w-3" /> All edits saved
+                </span>
               </div>
 
               <div className="flex justify-between pt-2">
@@ -1096,11 +1294,12 @@ export default function TrafficCampaignFlow({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-200">JISNU Digital Solutions</p>
-                  <p className="text-[10px] text-slate-400">Sponsored</p>
+                  <p className="text-[10px] text-slate-400">Sponsored • @{instagramAccount}</p>
                 </div>
               </div>
 
               <p className="text-[11px] text-slate-300 leading-tight">{primaryText}</p>
+              <p className="text-[10px] text-sky-300 italic">{q1} / {q2}</p>
 
               {mediaUrl && (
                 <div className="rounded-lg overflow-hidden border border-slate-800 bg-slate-900 h-36">
@@ -1110,11 +1309,11 @@ export default function TrafficCampaignFlow({
 
               <div className="p-2 bg-slate-900 rounded-lg flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold text-slate-100 truncate max-w-[150px]">{headline}</p>
+                  <p className="text-[11px] font-bold text-slate-100 truncate max-w-[150px]">{headline || "Chat with us on WhatsApp"}</p>
                   <p className="text-[9px] text-slate-400 truncate max-w-[150px]">{description}</p>
                 </div>
                 <button className="px-2.5 py-1 rounded-md bg-sky-500 text-slate-950 text-[10px] font-bold">
-                  {callToAction === "SEND_WHATSAPP_MESSAGE" ? "Send message" : callToAction.replace(/_/g, " ")}
+                  Send message
                 </button>
               </div>
             </div>
@@ -1123,15 +1322,41 @@ export default function TrafficCampaignFlow({
       </div>
 
       {/* Modals */}
-      {showPartnershipModal && (
+      {showPartnershipCodeModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Partnership Ad Setup</h3>
-            <p className="text-xs text-slate-400">Enter creator ad code or select brand partnership credentials.</p>
-            <input type="text" placeholder="Ad code e.g. TRAFFIC-PARTNER-123" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100" />
+            <h3 className="font-bold text-slate-100 text-sm">Enter partnership ad code, post ID or post URL</h3>
+            <input
+              type="text"
+              value={partnershipCode}
+              onChange={(e) => setPartnershipCode(e.target.value)}
+              placeholder="PARTNER-123"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowPartnershipCodeModal(false)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                Cancel
+              </button>
+              <button onClick={() => setShowPartnershipCodeModal(false)} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs">
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSelectPartnershipModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-lg w-full space-y-4">
+            <h3 className="font-bold text-slate-100 text-sm">Select partnership</h3>
+            <div className="flex border-b border-slate-800 text-xs gap-4 font-bold">
+              <span className="text-sky-400 border-b-2 border-sky-400 pb-1">Sent requests</span>
+              <span className="text-slate-400 pb-1">Received requests</span>
+            </div>
+            <p className="text-xs text-slate-400 text-center py-4">No ad partnerships currently linked.</p>
             <div className="flex justify-end">
-              <button onClick={() => setShowPartnershipModal(false)} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs">
-                Save Partnership Code
+              <button onClick={() => setShowSelectPartnershipModal(false)} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs">
+                Close
               </button>
             </div>
           </div>
