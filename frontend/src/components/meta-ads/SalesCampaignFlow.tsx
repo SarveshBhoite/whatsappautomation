@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import {
-  X, Loader2, DollarSign, Settings, Check, Globe, Phone, Zap, Tag, Sparkles, Plus, Code, Eye, Search, ShieldCheck, MessageSquare
+  X, Loader2, DollarSign, Settings, Check, Globe, Phone, Zap, Tag, Sparkles, Plus, Code, Eye, Search, ShieldCheck, MessageSquare, ExternalLink, AlertTriangle
 } from "lucide-react";
 
 interface SalesCampaignFlowProps {
@@ -31,51 +31,77 @@ export default function SalesCampaignFlow({
   // STEP 2: Campaign Level State
   const [campName, setCampName] = useState("New Sales campaign");
   const [liveVideoAd, setLiveVideoAd] = useState(false);
+  const [liveVideoLocation, setLiveVideoLocation] = useState("FACEBOOK");
   const [buyingType, setBuyingType] = useState("AUCTION");
-  const [cboEnabled, setCboEnabled] = useState(true);
-  const [dailyBudget, setDailyBudget] = useState("1500");
-  const [bidStrategy, setBidStrategy] = useState("HIGHEST_VOLUME");
-  const [shareBudgetPercent, setShareBudgetPercent] = useState(false);
+  const [salesAdvantageCatalogue, setSalesAdvantageCatalogue] = useState(true);
+  const [salesAdvantagePlus, setSalesAdvantagePlus] = useState(true);
+  const [budgetStrategy, setBudgetStrategy] = useState<"CAMPAIGN" | "ADSET">("CAMPAIGN");
+  const [budgetMode, setBudgetMode] = useState<"DAILY" | "LIFETIME">("DAILY");
+  const [dailyBudget, setDailyBudget] = useState("800");
+  const [salesBidStrategy, setSalesBidStrategy] = useState("HIGHEST_VOLUME");
+  const [salesBudgetScheduling, setSalesBudgetScheduling] = useState(false);
   const [frequencyControl, setFrequencyControl] = useState(false);
   const [abTestEnabled, setAbTestEnabled] = useState(false);
+  const [abTestVariable, setAbTestVariable] = useState("CREATIVE");
+  const [abTestDuration, setAbTestDuration] = useState("7_DAYS");
   const [specialAdCategory, setSpecialAdCategory] = useState("NONE");
-  const [formPageId, setFormPageId] = useState(fetchedPages[0]?.id || "");
+  const [audienceTargetType, setAudienceTargetType] = useState<"ENGAGED" | "EXISTING">("ENGAGED");
+  const [salesShowMoreNameOptions, setSalesShowMoreNameOptions] = useState(false);
 
   // STEP 3: Ad Set Level State
   const [adSetName, setAdSetName] = useState("New Sales ad set");
-  const [salesLifecycleStrategy, setSalesLifecycleStrategy] = useState("ALL_CUSTOMERS");
-  const [conversionLocation, setConversionLocation] = useState<"WEBSITE" | "APP" | "WEBSITE_AND_APP" | "MESSAGING_APPS" | "CALLS">("WEBSITE");
+  const [salesLifecycleStrategy, setSalesLifecycleStrategy] = useState<"ALL_AUDIENCES" | "HIGH_VALUE">("ALL_AUDIENCES");
+  const [salesConversionLocation, setSalesConversionLocation] = useState<"WEBSITE" | "APP" | "WEBSITE_AND_APP" | "MESSAGING_APPS" | "CALLS">("WEBSITE");
   const [salesPerformanceGoal, setSalesPerformanceGoal] = useState("MAXIMIZE_CONVERSIONS");
   const [pixelId, setPixelId] = useState(fetchedPixels[0]?.id || "189283719283");
   const [conversionEvent, setConversionEvent] = useState("PURCHASE");
   const [showEventModal, setShowEventModal] = useState(false);
   const [costPerResult, setCostPerResult] = useState("");
-  const [attributionModel, setAttributionModel] = useState("7_DAY_CLICK_1_DAY_VIEW");
+  const [attributionModel, setAttributionModel] = useState("STANDARD");
   const [deliveryType, setDeliveryType] = useState("STANDARD");
+
+  // Audience & Placements
+  const [locationInclusion, setLocationInclusion] = useState("India");
+  const [ageMin, setAgeMin] = useState(18);
+  const [ageMax, setAgeMax] = useState(65);
+  const [gender, setGender] = useState("ALL");
+  const [detailedTargeting, setDetailedTargeting] = useState("");
+  const [salesShowEstimatedAudienceSize, setSalesShowEstimatedAudienceSize] = useState(true);
   const [securitiesDeclared, setSecuritiesDeclared] = useState(false);
   const [advantagePlacements, setAdvantagePlacements] = useState(true);
   const [brandSuitability, setBrandSuitability] = useState("STANDARD");
-  const [showAudienceSize, setShowAudienceSize] = useState(true);
 
   // STEP 4: Ad Level State
   const [adName, setAdName] = useState("New Sales ad");
+  const [creativeSource, setCreativeSource] = useState<"CREATE_NEW" | "USE_EXISTING" | "USE_MOCK_CATALOG" | "META_CATALOG" | "INSTAGRAM_POSTS" | "MANUAL_UPLOAD">("CREATE_NEW");
   const [partnershipAd, setPartnershipAd] = useState(false);
   const [showPartnershipModal, setShowPartnershipModal] = useState(false);
+  const [partnershipCode, setPartnershipCode] = useState("");
+
   const [facebookPageId, setFacebookPageId] = useState(fetchedPages[0]?.id || "");
   const [instagramAccount, setInstagramAccount] = useState(fetchedIgAccounts[0]?.username || "@jisnudigital");
   const [whatsappPhone, setWhatsappPhone] = useState(fetchedWaNumbers[0]?.phoneNumber || "+91 9876543210");
-  const [adSetupMode, setAdSetupMode] = useState<"CREATE" | "EXISTING">("CREATE");
   const [adFormat, setAdFormat] = useState<"SINGLE" | "CAROUSEL">("SINGLE");
   const [multiAdvertiser, setMultiAdvertiser] = useState(true);
+
+  // Creative Inputs
   const [mediaUrl, setMediaUrl] = useState("https://images.unsplash.com/photo-1523275335684-37898b6baf30");
   const [aiMedia, setAiMedia] = useState(false);
-  const [primaryText, setPrimaryText] = useState("Get 30% OFF our best-selling digital products during our limited-time seasonal sale!");
-  const [headline, setHeadline] = useState("Shop Premium Deals Today");
-  const [description, setDescription] = useState("Free shipping and instant digital delivery.");
-  const [testimonialText, setTestimonialText] = useState("Rated 4.9/5 stars by over 2,000+ satisfied buyers!");
+  const [headline, setHeadline] = useState("Exclusive Sales — Up to 50% OFF!");
+  const [primaryText, setPrimaryText] = useState("Shop our best-selling products today. Fast shipping and instant WhatsApp customer support.");
+  const [partnerText, setPartnerText] = useState("");
   const [callToAction, setCallToAction] = useState("SHOP_NOW");
-  const [adDestinationRadio, setAdDestinationRadio] = useState<"INSTANT" | "WEBSITE" | "CALL" | "MESSAGING">("WEBSITE");
   const [websiteUrl, setWebsiteUrl] = useState("https://example.com/checkout");
+
+  // Modals: Promo Codes & UTM
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const [promoMode, setPromoMode] = useState<"AUTO" | "MANUAL">("AUTO");
+  const [manualPromoCode, setManualPromoCode] = useState("SAVE20");
+
+  const [showUtmModal, setShowUtmModal] = useState(false);
+  const [utmSource, setUtmSource] = useState("facebook_ad");
+  const [utmMedium, setUtmMedium] = useState("cpc_sales");
+  const [utmCampaign, setUtmCampaign] = useState("summer_sales_2026");
 
   // Conversations Chat Template
   const [chatGreeting, setChatGreeting] = useState("Hi! Thanks for checking our store. How can we help complete your order?");
@@ -83,16 +109,6 @@ export default function SalesCampaignFlow({
   const [q2, setQ2] = useState("What are your return & refund policies?");
   const [q3, setQ3] = useState("Talk to sales representative");
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-
-  // Modals: Promo Codes & UTM
-  const [showPromoModal, setShowPromoModal] = useState(false);
-  const [promoMode, setPromoMode] = useState<"AUTO" | "MANUAL">("AUTO");
-  const [manualPromoCode, setManualPromoCode] = useState("SAVE30");
-
-  const [showUtmModal, setShowUtmModal] = useState(false);
-  const [utmSource, setUtmSource] = useState("facebook");
-  const [utmMedium, setUtmMedium] = useState("cpc");
-  const [utmCampaign, setUtmCampaign] = useState("sales_promo_2026");
 
   const [publishing, setPublishing] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -120,12 +136,22 @@ export default function SalesCampaignFlow({
           dailyBudget: Number(dailyBudget),
           buyingType,
           liveVideoAd,
-          cboEnabled,
-          bidStrategy,
+          liveVideoLocation,
+          salesAdvantageCatalogue,
+          salesAdvantagePlus,
+          budgetStrategy,
+          budgetMode,
+          bidStrategy: salesBidStrategy,
+          salesBudgetScheduling,
+          frequencyControl,
+          abTestEnabled,
+          abTestVariable,
+          abTestDuration,
           specialAdCategory,
+          audienceTargetType,
           adSetName,
           salesLifecycleStrategy,
-          conversionLocation,
+          conversionLocation: salesConversionLocation,
           performanceGoal: salesPerformanceGoal,
           pixelId,
           conversionEvent,
@@ -134,22 +160,21 @@ export default function SalesCampaignFlow({
           deliveryType,
           securitiesDeclared,
           advantagePlacements,
-          brandSuitability,
           adName,
+          creativeSource,
           partnershipAd,
-          facebookPageId: formPageId || facebookPageId,
+          partnershipCode,
+          facebookPageId,
           instagramAccount,
           whatsappPhone,
-          adSetupMode,
           adFormat,
           multiAdvertiser,
           creativeHeadline: headline,
           creativeBody: primaryText,
-          creativeDescription: description,
+          partnerText,
           creativeMediaUrl: mediaUrl,
-          testimonialText,
+          aiMedia,
           callToAction,
-          adDestinationRadio,
           websiteUrl: `${websiteUrl}?utm_source=${utmSource}&utm_medium=${utmMedium}&utm_campaign=${utmCampaign}`,
           promoMode,
           manualPromoCode,
@@ -188,7 +213,7 @@ export default function SalesCampaignFlow({
               <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
                 Step {activeStep} of 4
               </span>
-              <span className="text-xs text-slate-400 font-mono">In Draft</span>
+              <span className="text-xs text-slate-400 font-mono">In Draft • 1 Ad set • 1 Ad</span>
             </div>
             <h1 className="font-bold text-slate-100 text-sm">{campName}</h1>
           </div>
@@ -219,42 +244,72 @@ export default function SalesCampaignFlow({
           {activeStep === 1 && (
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
               <Tag className="h-10 w-10 text-purple-400 mx-auto" />
-              <h3 className="text-base font-bold text-slate-100">Step 1: Sales Objective Selected</h3>
+              <h3 className="text-base font-bold text-slate-100">Step 1: Choose a Campaign Objective</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Find people likely to purchase your products or services online or via direct messaging.
+                Selected: <span className="text-purple-400 font-bold">Sales (OUTCOME_SALES)</span>
               </p>
-              <button
-                onClick={() => setActiveStep(2)}
-                className="px-6 py-2.5 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs"
-              >
-                Proceed to Step 2: Configure Campaign Parameters →
-              </button>
+
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-left space-y-2 max-w-lg mx-auto">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-purple-400" /> Sales Preview
+                  </h4>
+                  <a
+                    href="https://www.facebook.com/business/help/1438417719786914"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-purple-400 hover:underline flex items-center gap-1"
+                  >
+                    About campaign objectives <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Find people likely to purchase your products or services online or via direct messaging.
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {["Conversions", "Catalog sales", "Messenger, Instagram and WhatsApp", "Calls"].map((tag) => (
+                    <span key={tag} className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[10px] font-semibold">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-center gap-3 pt-2">
+                <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setActiveStep(2)}
+                  className="px-6 py-2.5 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs shadow-lg"
+                >
+                  Continue → Step 2
+                </button>
+              </div>
             </div>
           )}
 
-          {/* STEP 2: CONFIGURE SALES CAMPAIGN PARAMETERS */}
+          {/* STEP 2: NEW SALES CAMPAIGN */}
           {activeStep === 2 && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-purple-950/30 border border-slate-800 shadow-md">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950 border border-slate-800">
                 <div>
-                  <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
-                    Step 2 of 4
-                  </span>
-                  <h3 className="font-bold text-slate-100 text-sm mt-1">Configure Sales Campaign Parameters</h3>
-                  <p className="text-xs text-slate-400">Set budget, bidding strategies, and Advantage+ shopping parameters for purchase conversions.</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(1)}
+                    className="text-xs text-purple-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                  >
+                    ← Change Objective
+                  </button>
+                  <h3 className="font-bold text-slate-100 text-sm">New Sales campaign</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">1 Ad set • 1 Ad</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300 border border-slate-700 hover:text-white"
-                >
-                  ← Change Objective
-                </button>
+                <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-semibold">Step 2 of 4</span>
               </div>
 
               {/* 1. Campaign Name */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">Campaign Name *</label>
+                <label className="block text-xs font-semibold text-slate-300">Campaign name *</label>
                 <input
                   type="text"
                   required
@@ -263,23 +318,45 @@ export default function SalesCampaignFlow({
                   placeholder="New Sales campaign"
                   className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-purple-500"
                 />
+                <button
+                  type="button"
+                  onClick={() => setSalesShowMoreNameOptions(!salesShowMoreNameOptions)}
+                  className="text-xs text-purple-400 hover:underline font-semibold"
+                >
+                  {salesShowMoreNameOptions ? "Hide details" : "Show more options ▾"}
+                </button>
               </div>
 
               {/* 2. Live video ad toggle */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-200 text-xs">Live video ad</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Use settings suggested for live stream product sales.</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-200 text-xs">Live video ad</h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Suggested settings for live video product sales.</p>
+                  </div>
                   <input
                     type="checkbox"
                     checked={liveVideoAd}
                     onChange={(e) => setLiveVideoAd(e.target.checked)}
-                    className="sr-only peer"
+                    className="accent-purple-500 h-4 w-4"
                   />
-                  <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
-                </label>
+                </div>
+
+                {liveVideoAd && (
+                  <div className="pt-2 border-t border-slate-800">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Live video location</label>
+                    <select
+                      value={liveVideoLocation}
+                      onChange={(e) => setLiveVideoLocation(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    >
+                      <option value="FACEBOOK">Facebook</option>
+                      <option value="INSTAGRAM">Instagram</option>
+                      <option value="AUDIENCE_NETWORK">Audience Network</option>
+                      <option value="FACEBOOK_INSTAGRAM">Facebook &amp; Instagram</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* 3. Campaign details */}
@@ -309,68 +386,144 @@ export default function SalesCampaignFlow({
                 </div>
               </div>
 
-              {/* 4. Advantage+ campaign budget toggle */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              {/* 4. Advantage+ catalogue ads toggle */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-200 text-xs">Advantage+ campaign budget</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Distribute sales budget across ad sets automatically.</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                    <input
-                      type="checkbox"
-                      checked={cboEnabled}
-                      onChange={(e) => setCboEnabled(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
-                  </label>
-                </div>
-
-                {cboEnabled && (
-                  <div className="pt-3 space-y-3 border-t border-slate-800">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1">Daily Budget (₹ INR)</label>
-                        <input
-                          type="number"
-                          value={dailyBudget}
-                          onChange={(e) => setDailyBudget(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-400 mb-1">Bid Strategy</label>
-                        <select
-                          value={bidStrategy}
-                          onChange={(e) => setBidStrategy(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                        >
-                          <option value="HIGHEST_VOLUME">Highest volume (Max conversions)</option>
-                          <option value="COST_CAP">Cost cap / Target ROAS</option>
-                        </select>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-slate-200 text-xs">Advantage+ catalogue ads</h4>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${salesAdvantageCatalogue ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400"}`}>
+                        {salesAdvantageCatalogue ? "On" : "Off"}
+                      </span>
                     </div>
-                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
-                      <input
-                        type="checkbox"
-                        checked={shareBudgetPercent}
-                        onChange={(e) => setShareBudgetPercent(e.target.checked)}
-                        className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-purple-500"
-                      />
-                      Share up to 20% of your budget with other ad sets
-                    </label>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Use dynamic product ads from your Meta product catalog.</p>
                   </div>
-                )}
+                  <input
+                    type="checkbox"
+                    checked={salesAdvantageCatalogue}
+                    onChange={(e) => setSalesAdvantageCatalogue(e.target.checked)}
+                    className="accent-purple-500 h-4 w-4"
+                  />
+                </div>
               </div>
 
-              {/* 5 & 6. Campaign Frequency Control & A/B Test */}
+              {/* 5. Budget (Advantage+ toggle & strategy) */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-slate-200 text-xs">Budget</h4>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${salesAdvantagePlus ? "bg-purple-500/20 text-purple-400" : "bg-slate-800 text-slate-400"}`}>
+                      {salesAdvantagePlus ? "Advantage+ on" : "Advantage+ off"}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={salesAdvantagePlus}
+                    onChange={(e) => setSalesAdvantagePlus(e.target.checked)}
+                    className="accent-purple-500 h-4 w-4"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div
+                    onClick={() => setBudgetStrategy("CAMPAIGN")}
+                    className={`p-3 rounded-xl border cursor-pointer flex items-start gap-3 ${
+                      budgetStrategy === "CAMPAIGN" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    }`}
+                  >
+                    <input type="radio" checked={budgetStrategy === "CAMPAIGN"} readOnly className="mt-1 h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-xs font-bold">Campaign budget (Advantage+ budget)</p>
+                      <p className="text-[11px] text-slate-400">Automatically distribute your budget to best opportunities.</p>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setBudgetStrategy("ADSET")}
+                    className={`p-3 rounded-xl border cursor-pointer flex items-start gap-3 ${
+                      budgetStrategy === "ADSET" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    }`}
+                  >
+                    <input type="radio" checked={budgetStrategy === "ADSET"} readOnly className="mt-1 h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-xs font-bold">Ad set budget</p>
+                      <p className="text-[11px] text-slate-400">Set different strategies per ad set.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">Budget mode</label>
+                    <select
+                      value={budgetMode}
+                      onChange={(e: any) => setBudgetMode(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    >
+                      <option value="DAILY">Daily budget</option>
+                      <option value="LIFETIME">Lifetime budget</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">Amount (₹ INR)</label>
+                    <input
+                      type="number"
+                      value={dailyBudget}
+                      onChange={(e) => setDailyBudget(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                {/* Spend Info Box */}
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs text-slate-300">
+                  <p>Average per day: <span className="text-purple-400 font-bold">₹{dailyBudget}</span></p>
+                  <p className="text-[11px] text-slate-400">
+                    Max daily: <span className="font-semibold text-slate-200">₹{(Number(dailyBudget) * 1.75).toFixed(0)}</span> | Max weekly: <span className="font-semibold text-slate-200">₹{(Number(dailyBudget) * 7).toFixed(0)}</span>.{" "}
+                    <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-purple-400 hover:underline">
+                      About daily budget
+                    </a>
+                  </p>
+                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    <span>⚠ spending may exceed ₹{dailyBudget} the first few days</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Campaign bid strategy</label>
+                  <select
+                    value={salesBidStrategy}
+                    onChange={(e) => setSalesBidStrategy(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                  >
+                    <option value="HIGHEST_VOLUME">Highest volume</option>
+                    <option value="COST_CAP">Cost per result goal</option>
+                    <option value="BID_CAP">Bid cap</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* 6. Budget scheduling */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-200 text-xs">Budget scheduling</h4>
+                    <p className="text-[11px] text-slate-400">Increase budget on specific days/times.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={salesBudgetScheduling}
+                    onChange={(e) => setSalesBudgetScheduling(e.target.checked)}
+                    className="accent-purple-500 h-4 w-4"
+                  />
+                </div>
+              </div>
+
+              {/* 7 & 8. Frequency & A/B test */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-slate-200 text-xs">Campaign frequency control</h4>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Set view limit.</p>
-                  </div>
+                  <h4 className="font-bold text-slate-200 text-xs">Campaign frequency control</h4>
                   <input
                     type="checkbox"
                     checked={frequencyControl}
@@ -380,10 +533,7 @@ export default function SalesCampaignFlow({
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Compare versions.</p>
-                  </div>
+                  <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
                   <input
                     type="checkbox"
                     checked={abTestEnabled}
@@ -393,7 +543,39 @@ export default function SalesCampaignFlow({
                 </div>
               </div>
 
-              {/* 7. Special Ad Categories */}
+              {abTestEnabled && (
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 animate-fadeIn">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1">What would you like to test?</label>
+                    <select
+                      value={abTestVariable}
+                      onChange={(e) => setAbTestVariable(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    >
+                      <option value="CREATIVE">Creative</option>
+                      <option value="AUDIENCE">Audience</option>
+                      <option value="PLACEMENT">Placement</option>
+                      <option value="CUSTOM">Custom</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1">How long should the test run?</label>
+                    <select
+                      value={abTestDuration}
+                      onChange={(e) => setAbTestDuration(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    >
+                      <option value="7_DAYS">7 days</option>
+                      <option value="3_DAYS">3 days</option>
+                      <option value="14_DAYS">14 days</option>
+                      <option value="30_DAYS">30 days</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 9. Special Ad Categories */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                 <h4 className="font-bold text-slate-200 text-xs">Special Ad Categories</h4>
                 <select
@@ -401,29 +583,42 @@ export default function SalesCampaignFlow({
                   onChange={(e) => setSpecialAdCategory(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                 >
-                  <option value="NONE">None — Declare category if applicable</option>
-                  <option value="CREDIT">Credit — Financial products & loans</option>
-                  <option value="EMPLOYMENT">Employment — Jobs & hiring</option>
-                  <option value="HOUSING">Housing — Real estate & property</option>
-                  <option value="ISSUES_ELECTIONS_POLITICS">Social Issues, Elections or Politics</option>
+                  <option value="NONE">Declare category if applicable</option>
+                  <option value="FINANCIAL">Financial products and services</option>
+                  <option value="EMPLOYMENT">Employment</option>
+                  <option value="HOUSING">Housing</option>
+                  <option value="SOCIAL_ISSUES">Social issues, elections or politics</option>
                 </select>
               </div>
 
-              {/* 8. Facebook Page */}
+              {/* 10. Audience Radios */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">Facebook Page</label>
-                <select
-                  value={formPageId}
-                  onChange={(e) => setFormPageId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                >
-                  {fetchedPages.map((p: any) => (
-                    <option key={p.id} value={p.id}>📄 {p.name} ({p.id})</option>
-                  ))}
-                </select>
+                <h4 className="font-bold text-slate-200 text-xs">Audience targeting strategy</h4>
+                <div className="flex gap-4 text-xs">
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="salesAud"
+                      checked={audienceTargetType === "ENGAGED"}
+                      onChange={() => setAudienceTargetType("ENGAGED")}
+                      className="accent-purple-500"
+                    />
+                    Engaged audience
+                  </label>
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="salesAud"
+                      checked={audienceTargetType === "EXISTING"}
+                      onChange={() => setAudienceTargetType("EXISTING")}
+                      className="accent-purple-500"
+                    />
+                    Existing customers
+                  </label>
+                </div>
               </div>
 
-              {/* 9. Campaign score */}
+              {/* 11. Campaign Score */}
               <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center font-bold text-xs">
@@ -431,7 +626,7 @@ export default function SalesCampaignFlow({
                   </div>
                   <div>
                     <h4 className="font-bold text-slate-200 text-xs">Campaign score</h4>
-                    <p className="text-[11px] text-slate-400">Advantage+ sales optimization active.</p>
+                    <p className="text-[11px] text-slate-400">Sales campaign configuration ready.</p>
                   </div>
                 </div>
                 <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
@@ -440,8 +635,8 @@ export default function SalesCampaignFlow({
               </div>
 
               <div className="flex justify-between pt-2">
-                <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
-                  Cancel
+                <button onClick={() => setActiveStep(1)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                  ← Back to Step 1
                 </button>
                 <button onClick={() => setActiveStep(3)} className="px-6 py-2.5 rounded-xl bg-purple-500 text-slate-950 text-xs font-bold shadow-lg">
                   Continue to Step 3: Ad Set →
@@ -450,21 +645,18 @@ export default function SalesCampaignFlow({
             </div>
           )}
 
-          {/* STEP 3: AD SET (SALES) */}
+          {/* STEP 3: NEW SALES AD SET */}
           {activeStep === 3 && (
             <div className="space-y-4 animate-fadeIn">
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
-                    Step 3 of 4
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold">Advantage+ Sales Campaign</span>
-                </div>
-                <h3 className="font-bold text-slate-100 text-sm pt-1">Step 3 — Sales Ad Set Configuration</h3>
-                <p className="text-xs text-slate-400">Configure pixel events, conversion location, and lifecycle strategies.</p>
+                <span className="px-2.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
+                  Step 3 of 4
+                </span>
+                <h3 className="font-bold text-slate-100 text-sm pt-1">New Sales campaign → New Sales ad set</h3>
+                <p className="text-xs text-slate-400">Configure customer lifecycle, pixel event tracking, and placements.</p>
               </div>
 
-              {/* Ad set name */}
+              {/* 1. Ad set name */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                 <label className="block text-xs font-semibold text-slate-300">Ad set name *</label>
                 <input
@@ -472,127 +664,142 @@ export default function SalesCampaignFlow({
                   required
                   value={adSetName}
                   onChange={(e) => setAdSetName(e.target.value)}
+                  placeholder="New Sales ad set"
                   className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                 />
               </div>
 
-              {/* Lifecycle Strategy & Conversion Location */}
+              {/* 2. Customer life cycle strategy */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Customer Lifecycle & Conversion Location</h4>
+                <h4 className="font-bold text-slate-200 text-xs">Customer life cycle strategy</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Lifecycle Strategy</label>
-                    <select
-                      value={salesLifecycleStrategy}
-                      onChange={(e) => setSalesLifecycleStrategy(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                    >
-                      <option value="ALL_CUSTOMERS">All Customers (Acquisition &amp; Retention)</option>
-                      <option value="NEW_CUSTOMERS">New Customers Only</option>
-                      <option value="RETURNING_CUSTOMERS">Returning Customers</option>
-                    </select>
+                  <div
+                    onClick={() => setSalesLifecycleStrategy("ALL_AUDIENCES")}
+                    className={`p-3 rounded-xl border cursor-pointer ${
+                      salesLifecycleStrategy === "ALL_AUDIENCES" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    }`}
+                  >
+                    <p className="text-xs font-bold">ALL_AUDIENCES</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Get conversions from all audiences</p>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Conversion Location</label>
-                    <select
-                      value={conversionLocation}
-                      onChange={(e: any) => setConversionLocation(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
-                    >
-                      <option value="WEBSITE">Website</option>
-                      <option value="APP">App</option>
-                      <option value="WEBSITE_AND_APP">Website &amp; App</option>
-                      <option value="MESSAGING_APPS">Messaging apps (WhatsApp)</option>
-                      <option value="CALLS">Calls</option>
-                    </select>
+                  <div
+                    onClick={() => setSalesLifecycleStrategy("HIGH_VALUE")}
+                    className={`p-3 rounded-xl border cursor-pointer ${
+                      salesLifecycleStrategy === "HIGH_VALUE" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    }`}
+                  >
+                    <p className="text-xs font-bold">HIGH_VALUE</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Target high-value customers (Prioritise repeat purchases)</p>
                   </div>
                 </div>
               </div>
 
-              {/* Meta Pixel & Conversion Event */}
+              {/* 3. Conversion & Event Modal Trigger */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
+                <h4 className="font-bold text-slate-200 text-xs">Conversion Location</h4>
+                <select
+                  value={salesConversionLocation}
+                  onChange={(e: any) => setSalesConversionLocation(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
+                >
+                  <option value="WEBSITE">Website</option>
+                  <option value="APP">App</option>
+                  <option value="WEBSITE_AND_APP">Website and App</option>
+                  <option value="MESSAGING_APPS">Messaging apps (WhatsApp, Messenger)</option>
+                  <option value="CALLS">Calls</option>
+                </select>
+
+                <div className="pt-2 flex items-center justify-between border-t border-slate-800">
                   <div>
-                    <h4 className="font-bold text-slate-200 text-xs">Meta Pixel &amp; Conversion Event</h4>
-                    <p className="text-[11px] text-slate-400">Pixel ID: <span className="font-mono text-purple-400 font-bold">{pixelId}</span></p>
+                    <span className="text-xs font-bold text-slate-200">Conversion Event: </span>
+                    <span className="text-xs font-mono text-purple-400 font-bold">{conversionEvent}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowEventModal(true)}
                     className="px-3 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/30 text-xs font-bold"
                   >
-                    Setup Conversion Event
+                    Set up conversion event
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 pt-2">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Performance Goal</label>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Performance goal</label>
                     <select
                       value={salesPerformanceGoal}
                       onChange={(e) => setSalesPerformanceGoal(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                     >
                       <option value="MAXIMIZE_CONVERSIONS">Maximise number of conversions</option>
-                      <option value="MAXIMIZE_VALUE">Maximise value of conversions (ROAS)</option>
+                      <option value="MAXIMIZE_VALUE">Maximise value of conversions</option>
+                      <option value="MAXIMIZE_LANDING_PAGE_VIEWS">Maximise number of landing page views</option>
+                      <option value="MAXIMIZE_LINK_CLICKS">Maximise number of link clicks</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Conversion Event</label>
-                    <select
-                      value={conversionEvent}
-                      onChange={(e) => setConversionEvent(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-purple-400"
-                    >
-                      <option value="PURCHASE">Purchase</option>
-                      <option value="INITIATE_CHECKOUT">Initiate Checkout</option>
-                      <option value="ADD_TO_CART">Add to Cart</option>
-                      <option value="LEAD">Lead</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Show More Settings */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Delivery &amp; Securities Settings</h4>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="block font-semibold text-slate-400 mb-1">Delivery Type</label>
-                    <select
-                      value={deliveryType}
-                      onChange={(e) => setDeliveryType(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-slate-100"
-                    >
-                      <option value="STANDARD">Standard Delivery</option>
-                      <option value="ACCELERATED">Accelerated Delivery</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-400 mb-1">Attribution Model</label>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Attribution / delivery</label>
                     <select
                       value={attributionModel}
                       onChange={(e) => setAttributionModel(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                     >
-                      <option value="7_DAY_CLICK_1_DAY_VIEW">7-day click or 1-day view</option>
+                      <option value="STANDARD">Standard (7-day click or 1-day view)</option>
                       <option value="1_DAY_CLICK">1-day click</option>
                       <option value="7_DAY_CLICK">7-day click</option>
                     </select>
                   </div>
                 </div>
 
-                <label className="flex items-center gap-3 text-xs text-slate-300 cursor-pointer pt-1">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Cost per result goal</label>
+                  <input
+                    type="text"
+                    value={costPerResult}
+                    onChange={(e) => setCostPerResult(e.target.value)}
+                    placeholder="None"
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                  />
+                </div>
+              </div>
+
+              {/* 4. Audience definition */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <h4 className="font-bold text-slate-200 text-xs">Audience definition</h4>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Locations (Inclusion)</label>
+                  <input
+                    type="text"
+                    value={locationInclusion}
+                    onChange={(e) => setLocationInclusion(e.target.value)}
+                    placeholder="India..."
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between border-t border-slate-800">
+                  <h4 className="font-bold text-slate-200 text-xs">Estimated audience size toggle</h4>
+                  <input
+                    type="checkbox"
+                    checked={salesShowEstimatedAudienceSize}
+                    onChange={(e) => setSalesShowEstimatedAudienceSize(e.target.checked)}
+                    className="accent-purple-500 h-4 w-4"
+                  />
+                </div>
+              </div>
+
+              {/* 5-8. Regulatory, Placements & Brand Safety */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <label className="flex items-center gap-3 text-xs text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={securitiesDeclared}
                     onChange={(e) => setSecuritiesDeclared(e.target.checked)}
                     className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-purple-500 shrink-0"
                   />
-                  <span>Securities declaration: E-Commerce payment gateway data processing compliance confirmed.</span>
+                  <span>Policy and regulatory requirements (India) compliance verified.</span>
                 </label>
 
                 <div className="pt-2 flex items-center justify-between border-t border-slate-800">
@@ -601,16 +808,6 @@ export default function SalesCampaignFlow({
                     type="checkbox"
                     checked={advantagePlacements}
                     onChange={(e) => setAdvantagePlacements(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
-                </div>
-
-                <div className="pt-2 flex items-center justify-between border-t border-slate-800">
-                  <h4 className="font-bold text-slate-200 text-xs">Show estimated audience size</h4>
-                  <input
-                    type="checkbox"
-                    checked={showAudienceSize}
-                    onChange={(e) => setShowAudienceSize(e.target.checked)}
                     className="accent-purple-500 h-4 w-4"
                   />
                 </div>
@@ -635,7 +832,7 @@ export default function SalesCampaignFlow({
                   <span className="px-2.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
                     Step 4 of 4
                   </span>
-                  <h3 className="font-bold text-slate-100 text-sm mt-1">New Sales ad</h3>
+                  <h3 className="font-bold text-slate-100 text-sm mt-1">New Sales campaign → New Sales ad set → New Sales ad</h3>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -643,21 +840,14 @@ export default function SalesCampaignFlow({
                     onClick={() => setShowPromoModal(true)}
                     className="px-3 py-1 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-bold"
                   >
-                    🏷️ Promo Codes ({promoMode})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowUtmModal(true)}
-                    className="px-3 py-1 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-bold"
-                  >
-                    🔗 URL Parameters
+                    🏷️ Manage Promo Codes
                   </button>
                 </div>
               </div>
 
               {/* 1. Ad Name */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">Ad Name *</label>
+                <label className="block text-xs font-semibold text-slate-300">Ad name *</label>
                 <input
                   type="text"
                   required
@@ -668,7 +858,31 @@ export default function SalesCampaignFlow({
                 />
               </div>
 
-              {/* 2. Partnership Ad Toggle */}
+              {/* 2. Ad Setup / Creative Source */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <h4 className="font-bold text-slate-200 text-xs">Ad setup / Creative source</h4>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  {[
+                    { id: "CREATE_NEW", label: "Create new ad" },
+                    { id: "USE_EXISTING", label: "Use existing post" },
+                    { id: "USE_MOCK_CATALOG", label: "Use mock catalog" },
+                    { id: "META_CATALOG", label: "Meta Product Catalog" },
+                    { id: "INSTAGRAM_POSTS", label: "Instagram Creator Posts" },
+                    { id: "MANUAL_UPLOAD", label: "Manual Creative Upload" },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setCreativeSource(s.id as any)}
+                      className={`p-2.5 rounded-xl border text-left font-bold ${creativeSource === s.id ? "bg-purple-500/10 border-purple-500/60 text-purple-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Partnership Ad Toggle */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -703,7 +917,7 @@ export default function SalesCampaignFlow({
                 )}
               </div>
 
-              {/* 3. Identity */}
+              {/* 4. Identity */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Identity</h4>
                 <div className="grid grid-cols-3 gap-3 text-xs">
@@ -740,63 +954,33 @@ export default function SalesCampaignFlow({
                 </div>
               </div>
 
-              {/* 4. Ad Setup */}
+              {/* 5. Creative */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Ad setup</h4>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAdSetupMode("CREATE")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold ${adSetupMode === "CREATE" ? "bg-purple-500 text-slate-950" : "bg-slate-900 text-slate-400 border border-slate-800"}`}
-                  >
-                    Create ad
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdSetupMode("EXISTING")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold ${adSetupMode === "EXISTING" ? "bg-purple-500 text-slate-950" : "bg-slate-900 text-slate-400 border border-slate-800"}`}
-                  >
-                    Use existing post
-                  </button>
-                </div>
-
-                <div className="pt-2">
-                  <label className="block text-xs font-semibold text-slate-400 mb-2">Format</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div
-                      onClick={() => setAdFormat("SINGLE")}
-                      className={`p-3 rounded-xl border cursor-pointer ${adFormat === "SINGLE" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"}`}
-                    >
-                      <p className="text-xs font-bold">Single image or video</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">One image or video product banner.</p>
-                    </div>
-
-                    <div
-                      onClick={() => setAdFormat("CAROUSEL")}
-                      className={`p-3 rounded-xl border cursor-pointer ${adFormat === "CAROUSEL" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"}`}
-                    >
-                      <p className="text-xs font-bold">Carousel</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Multiple product cards with individual links.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs">Multi-advertiser ads</h4>
+                <h4 className="font-bold text-slate-200 text-xs">Creative</h4>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Headline</label>
                   <input
-                    type="checkbox"
-                    checked={multiAdvertiser}
-                    onChange={(e) => setMultiAdvertiser(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
+                    type="text"
+                    value={headline}
+                    onChange={(e) => setHeadline(e.target.value)}
+                    placeholder="Exclusive Sales — Up to 50% OFF!"
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                   />
                 </div>
-              </div>
 
-              {/* 5. Ad Creative */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Ad creative &amp; Product Copy</h4>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Product Media URL</label>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Body Text</label>
+                  <textarea
+                    value={primaryText}
+                    onChange={(e) => setPrimaryText(e.target.value)}
+                    placeholder="Shop our best-selling products today. Fast shipping and instant WhatsApp customer support."
+                    rows={2}
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Media URL</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -814,129 +998,25 @@ export default function SalesCampaignFlow({
                   </div>
                 </div>
 
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={aiMedia}
-                    onChange={(e) => setAiMedia(e.target.checked)}
-                    className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-purple-500"
-                  />
-                  Ad includes media created or edited with AI
-                </label>
-
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Primary Text</label>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Partner Text</label>
                   <textarea
-                    value={primaryText}
-                    onChange={(e) => setPrimaryText(e.target.value)}
-                    rows={2}
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Headline</label>
-                    <input
-                      type="text"
-                      value={headline}
-                      onChange={(e) => setHeadline(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Call to Action</label>
-                    <select
-                      value={callToAction}
-                      onChange={(e) => setCallToAction(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
-                    >
-                      <option value="SHOP_NOW">Shop Now</option>
-                      <option value="BUY_NOW">Buy Now</option>
-                      <option value="GET_OFFER">Get Offer</option>
-                      <option value="ORDER_NOW">Order Now</option>
-                      <option value="LEARN_MORE">Learn More</option>
-                      <option value="SEND_WHATSAPP_MESSAGE">Send WhatsApp message</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Testimonial Text (Customer Social Proof)</label>
-                  <textarea
-                    value={testimonialText}
-                    onChange={(e) => setTestimonialText(e.target.value)}
+                    value={partnerText}
+                    onChange={(e) => setPartnerText(e.target.value)}
+                    placeholder="Add text from your partner..."
                     rows={2}
                     className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
                   />
                 </div>
               </div>
 
-              {/* 6. Destination Radios */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Destination</h4>
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                  {[
-                    { id: "INSTANT", label: "Instant Experience" },
-                    { id: "WEBSITE", label: "Website" },
-                    { id: "CALL", label: "Call" },
-                    { id: "MESSAGING", label: "Messaging apps" },
-                  ].map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => setAdDestinationRadio(d.id as any)}
-                      className={`p-2.5 rounded-xl border font-bold text-center ${adDestinationRadio === d.id ? "bg-purple-500/10 border-purple-500/60 text-purple-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}
-                    >
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-
-                {adDestinationRadio === "WEBSITE" && (
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Website Checkout URL</label>
-                    <input
-                      type="text"
-                      value={websiteUrl}
-                      onChange={(e) => setWebsiteUrl(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                    />
-                    <p className="text-[10px] text-purple-400 mt-1">Target URL with UTM: {websiteUrl}?utm_source={utmSource}&amp;utm_medium={utmMedium}&amp;utm_campaign={utmCampaign}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* 7. Conversations Chat Template */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                    Conversations Template <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 text-[10px] font-bold">AI Template</span>
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => setShowTemplateModal(true)}
-                    className="text-xs font-bold text-purple-400 hover:underline"
-                  >
-                    Edit template
-                  </button>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs text-slate-300">
-                  <p className="font-semibold text-slate-200">Greeting: {chatGreeting}</p>
-                  <p className="text-[11px] text-slate-400">Q1: {q1}</p>
-                  <p className="text-[11px] text-slate-400">Q2: {q2}</p>
-                  <p className="text-[11px] text-slate-400">Q3: {q3}</p>
-                </div>
-              </div>
-
-              {/* 8. Tracking */}
+              {/* 7. Tracking */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs">Tracking</h4>
                 <div className="space-y-2 text-xs">
                   <p className="text-slate-300">Website Pixel ID: <span className="font-mono text-purple-400 font-bold">{pixelId}</span></p>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">URL Parameters: utm_source={utmSource}&amp;utm_medium={utmMedium}&amp;utm_campaign={utmCampaign}</span>
+                    <span className="text-slate-400 font-mono text-[11px]">key1=value1&amp;key2=value2 → utm_source={utmSource}&amp;utm_medium={utmMedium}&amp;utm_campaign={utmCampaign}</span>
                     <button
                       type="button"
                       onClick={() => setShowUtmModal(true)}
@@ -945,7 +1025,18 @@ export default function SalesCampaignFlow({
                       Build a URL parameter
                     </button>
                   </div>
+                  <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-[10px] text-purple-400 hover:underline block pt-1">
+                    About third-party reporting
+                  </a>
                 </div>
+              </div>
+
+              {/* 10. Legal */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs text-slate-400">
+                <p>By clicking Publish Campaign Live, you agree to Meta's Sales &amp; E-Commerce Terms.</p>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  <Check className="h-3 w-3" /> All edits saved
+                </span>
               </div>
 
               <div className="flex justify-between pt-2">
@@ -970,7 +1061,7 @@ export default function SalesCampaignFlow({
           <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                <Eye className="h-4 w-4 text-purple-400" /> Sales Live Preview
+                <Eye className="h-4 w-4 text-purple-400" /> Ad preview
               </h4>
               <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">Event: {conversionEvent}</span>
             </div>
@@ -998,10 +1089,10 @@ export default function SalesCampaignFlow({
               <div className="p-2 bg-slate-900 rounded-lg flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-bold text-slate-100 truncate max-w-[150px]">{headline}</p>
-                  <p className="text-[9px] text-slate-400 truncate max-w-[150px]">{description}</p>
+                  <p className="text-[9px] text-slate-400 truncate max-w-[150px]">Special Discount Applied</p>
                 </div>
-                <button className="px-2.5 py-1 rounded-md bg-purple-500 text-slate-950 text-[10px] font-bold">
-                  {callToAction.replace(/_/g, " ")}
+                <button className="px-3 py-1 rounded-md bg-purple-500 text-slate-950 text-[10px] font-bold">
+                  Shop Now
                 </button>
               </div>
             </div>
@@ -1013,21 +1104,33 @@ export default function SalesCampaignFlow({
       {showEventModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Setup Conversion Event</h3>
-            <p className="text-xs text-slate-400">Choose the primary conversion event tracked by Meta Pixel.</p>
-            <select
-              value={conversionEvent}
-              onChange={(e) => setConversionEvent(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-purple-400"
-            >
-              <option value="PURCHASE">Purchase</option>
-              <option value="INITIATE_CHECKOUT">Initiate Checkout</option>
-              <option value="ADD_TO_CART">Add to Cart</option>
-              <option value="LEAD">Lead</option>
-            </select>
-            <div className="flex justify-end">
+            <h3 className="font-bold text-slate-100 text-sm">Set up conversion event</h3>
+            <p className="text-xs text-slate-400">Configure web purchase, checkout, or lead events for your pixel dataset.</p>
+            <div className="space-y-2">
+              {[
+                { id: "PURCHASE", label: "Purchase", desc: "Completed payment on website" },
+                { id: "INITIATE_CHECKOUT", label: "Initiate Checkout", desc: "Click checkout button" },
+                { id: "ADD_TO_CART", label: "Add to Cart", desc: "Added product to cart" },
+                { id: "LEAD", label: "Lead", desc: "Form submission or query" },
+                { id: "SUBSCRIBE", label: "Subscribe", desc: "Recurring payment plan" },
+              ].map((ev) => (
+                <div
+                  key={ev.id}
+                  onClick={() => setConversionEvent(ev.id)}
+                  className={`p-3 rounded-xl border cursor-pointer ${conversionEvent === ev.id ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                >
+                  <p className="text-xs font-bold text-purple-400">{ev.label}</p>
+                  <p className="text-[10px] text-slate-400">{ev.desc}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-sky-400 italic">💡 Meta AI automatically optimizes delivery for users with high purchase intent.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowEventModal(false)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                Cancel
+              </button>
               <button onClick={() => setShowEventModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
-                Save Event Configuration
+                Save Conversion Event
               </button>
             </div>
           </div>
@@ -1037,27 +1140,37 @@ export default function SalesCampaignFlow({
       {showPromoModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Manage Sales Promo Codes</h3>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <input type="radio" name="promo" checked={promoMode === "AUTO"} onChange={() => setPromoMode("AUTO")} className="accent-purple-500" /> Automatically source from catalogue
-              </label>
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <input type="radio" name="promo" checked={promoMode === "MANUAL"} onChange={() => setPromoMode("MANUAL")} className="accent-purple-500" /> Manually add single promo code
-              </label>
+            <h3 className="font-bold text-slate-100 text-sm">Manage promo codes</h3>
+            <div className="space-y-3">
+              <div
+                onClick={() => setPromoMode("AUTO")}
+                className={`p-3 rounded-xl border cursor-pointer ${promoMode === "AUTO" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+              >
+                <p className="text-xs font-bold text-slate-100">Automatically source promo codes (AUTO)</p>
+                <p className="text-[10px] text-slate-400">Meta will detect active website promotion codes automatically.</p>
+              </div>
+
+              <div
+                onClick={() => setPromoMode("MANUAL")}
+                className={`p-3 rounded-xl border cursor-pointer ${promoMode === "MANUAL" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+              >
+                <p className="text-xs font-bold text-slate-100">Manually add promo codes (MANUAL)</p>
+                <p className="text-[10px] text-slate-400">Enter custom coupon code e.g. SAVE20, WELCOME10.</p>
+              </div>
             </div>
+
             {promoMode === "MANUAL" && (
               <input
                 type="text"
                 value={manualPromoCode}
                 onChange={(e) => setManualPromoCode(e.target.value)}
-                placeholder="e.g. SAVE30"
+                placeholder="e.g. SAVE20, WELCOME10"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-purple-400 font-bold"
               />
             )}
             <div className="flex justify-end">
               <button onClick={() => setShowPromoModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
-                Save Promo Settings
+                Save
               </button>
             </div>
           </div>
@@ -1067,24 +1180,28 @@ export default function SalesCampaignFlow({
       {showUtmModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Build URL Parameters (UTM Tracking)</h3>
+            <h3 className="font-bold text-slate-100 text-sm">Build a URL parameter</h3>
+            <p className="text-xs text-slate-400">Add tracking parameters to measure traffic source and campaign effectiveness.</p>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-400 mb-1">Campaign Source (utm_source)</label>
-                <input type="text" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
+                <input type="text" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} placeholder="facebook_ad" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
               </div>
               <div>
                 <label className="block font-semibold text-slate-400 mb-1">Campaign Medium (utm_medium)</label>
-                <input type="text" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
+                <input type="text" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} placeholder="cpc_sales" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
               </div>
               <div>
                 <label className="block font-semibold text-slate-400 mb-1">Campaign Name (utm_campaign)</label>
-                <input type="text" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
+                <input type="text" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} placeholder="summer_sales_2026" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowUtmModal(false)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                Cancel
+              </button>
               <button onClick={() => setShowUtmModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
-                Apply URL Parameters
+                Apply Parameters
               </button>
             </div>
           </div>
@@ -1094,9 +1211,14 @@ export default function SalesCampaignFlow({
       {showPartnershipModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Partnership Ad Setup</h3>
-            <p className="text-xs text-slate-400">Enter creator ad code or select brand partnership credentials.</p>
-            <input type="text" placeholder="Ad code e.g. SALES-PARTNER-123" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100" />
+            <h3 className="font-bold text-slate-100 text-sm">Enter partnership ad code, post ID or post URL</h3>
+            <input
+              type="text"
+              value={partnershipCode}
+              onChange={(e) => setPartnershipCode(e.target.value)}
+              placeholder="SALES-PARTNER-123"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+            />
             <div className="flex justify-end">
               <button onClick={() => setShowPartnershipModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
                 Save Partnership Code
