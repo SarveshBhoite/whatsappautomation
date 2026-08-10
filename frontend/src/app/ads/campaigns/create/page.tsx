@@ -6364,16 +6364,30 @@ export default function CampaignCreatePage() {
         <button
           disabled={(wizardStep === "OBJECTIVE" && (!selectedObjective || !selectedType)) || isPublishing}
           onClick={async () => {
-            if (selectedType === "DISPLAY") {
-              router.push(`/ads/campaigns/create/display${customerId ? `?customerId=${customerId}` : ""}`);
-              return;
-            }
-            if (selectedType === "VIDEO") {
-              router.push(`/ads/campaigns/create/video${customerId ? `?customerId=${customerId}` : ""}`);
-              return;
-            }
-            if (selectedType === "DEMAND_GEN") {
-              router.push(`/ads/campaigns/create/demand-gen${customerId ? `?customerId=${customerId}` : ""}`);
+            if (wizardStep === "OBJECTIVE" && selectedObjective && selectedType) {
+              const objSlugMap: Record<string, string> = {
+                SALES: "sales",
+                LEADS: "leads",
+                WEBSITE_TRAFFIC: "website-traffic",
+                APP_PROMOTION: "app-promotion",
+                AWARENESS: "awareness",
+                LOCAL: "local",
+                NO_GUIDANCE: "no-guidance"
+              };
+              const typeSlugMap: Record<string, string> = {
+                PERFORMANCE_MAX: "performance-max",
+                SEARCH: "search",
+                DEMAND_GEN: "demand-gen",
+                VIDEO: "video",
+                DISPLAY: "display",
+                SHOPPING: "shopping",
+                APP: "app"
+              };
+
+              const objSlug = objSlugMap[selectedObjective] || "sales";
+              const typeSlug = typeSlugMap[selectedType] || "performance-max";
+
+              router.push(`/ads/campaigns/create/${objSlug}/${typeSlug}${customerId ? `?customerId=${customerId}` : ""}`);
               return;
             }
             if (wizardStep === "OBJECTIVE") {
