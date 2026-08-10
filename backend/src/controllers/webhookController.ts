@@ -347,22 +347,31 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const type = message.type;
         const context = message.context; // Meta context block for quotes: { id, from }
         
+        const referral = message.referral; // Meta Ads Click referral: { source_url, source_type, source_id, headline, body, media_type, image_url, video_url }
+        let referralText = "";
+        if (referral) {
+          const headline = referral.headline || "";
+          const bodyText = referral.body || "";
+          referralText = `[Customer clicked Meta Ad: "${headline || bodyText || referral.source_url || 'Meta Ad'}"] `;
+          console.log(`[META ADS REFERRAL DETECTED] Headline: "${headline}", Body: "${bodyText}"`);
+        }
+
         let content = "";
         let mimeType: string | undefined = undefined;
 
         // Extract message content cleanly based on Meta type
         if (type === "text") {
-          content = message.text?.body || "";
+          content = (referralText ? referralText : "") + (message.text?.body || "");
         } else if (type === "button") {
-          content = message.button?.text || message.button?.payload || "";
+          content = (referralText ? referralText : "") + (message.button?.text || message.button?.payload || "");
         } else if (type === "interactive") {
           const interactiveType = message.interactive?.type;
           if (interactiveType === "button_reply") {
-            content = message.interactive.button_reply?.id || message.interactive.button_reply?.title || "";
+            content = (referralText ? referralText : "") + (message.interactive.button_reply?.id || message.interactive.button_reply?.title || "");
           } else if (interactiveType === "list_reply") {
-            content = message.interactive.list_reply?.id || message.interactive.list_reply?.title || "";
+            content = (referralText ? referralText : "") + (message.interactive.list_reply?.id || message.interactive.list_reply?.title || "");
           } else {
-            content = "Interactive response";
+            content = (referralText ? referralText : "") + "Interactive response";
           }
         } else if (type === "location") {
           const loc = message.location;

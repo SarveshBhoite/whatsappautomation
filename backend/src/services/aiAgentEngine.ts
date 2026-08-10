@@ -372,25 +372,78 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     }
 
     // 8. Handle AI Captured Lead
-    if (parsedResult.capturedLead && (parsedResult.capturedLead.phone || parsedResult.capturedLead.email || parsedResult.capturedLead.name)) {
+    if (parsedResult.capturedLead && (parsedResult.capturedLead.topic || parsedResult.capturedLead.phone || parsedResult.capturedLead.email || parsedResult.capturedLead.name)) {
       const leadData = parsedResult.capturedLead;
+      // Derive accurate topic if null or vague
+      let finalTopic = leadData.topic || customerQuery;
+      if (finalTopic.length > 100) {
+        finalTopic = finalTopic.slice(0, 100);
+      }
+
       await prisma.aiCapturedLead.create({
         data: {
           organizationId: orgId,
           customerPhone: leadData.phone || customerPhone,
           customerName: leadData.name || conversation.customerName || "WhatsApp User",
           email: leadData.email || null,
-          topicDiscussed: leadData.topic || customerQuery,
+          topicDiscussed: finalTopic,
           notes: leadData.notes || `Captured by AI Agent during WhatsApp conversation`,
           status: "NEW",
         },
       });
 
-      console.log(`[AI AGENT ENGINE] ✅ Lead captured successfully for phone: ${customerPhone}`);
+      console.log(`[AI AGENT ENGINE] ✅ Lead captured successfully for phone: ${customerPhone} (Topic: ${finalTopic})`);
     }
 
     console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
   } catch (error: any) {
     console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
+    
+    // GUARANTEED ZERO UNREPLIED MESSAGES FALLBACK
+    try {
+      const fallbackConv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: { organization: { include: { waConfig: true, igConfig: true } } },
+      });
+      if (fallbackConv && !fallbackConv.isBotPaused) {
+        const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
+        const waConfig = fallbackConv.organization.waConfig;
+        const customerPhone = fallbackConv.customerPhone;
+        
+        let outWaId: string | null = null;
+        if (fallbackConv.platform === "whatsapp" && waConfig?.phoneNumberId && waConfig?.accessToken) {
+          const resData = await WhatsAppService.sendTextMessage(
+            waConfig.phoneNumberId,
+            waConfig.accessToken,
+            customerPhone,
+            fallbackText
+          );
+          outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
+        }
+
+        const savedFallback = await prisma.message.create({
+          data: {
+            conversationId: fallbackConv.id,
+            direction: "outbound",
+            messageType: "text",
+            content: fallbackText,
+            waMessageId: outWaId,
+            status: "sent",
+            senderName: "AI Sales Specialist",
+          },
+        });
+
+        const { io: socketIo } = require("../index");
+        if (socketIo) {
+          socketIo.to(fallbackConv.organizationId).emit("new-message", {
+            conversationId: fallbackConv.id,
+            message: savedFallback,
+          });
+        }
+        console.log(`[AI AGENT ENGINE] Emergency fallback reply sent to ${customerPhone}`);
+      }
+    } catch (fallbackErr: any) {
+      console.error("[AI AGENT ENGINE] Emergency fallback error:", fallbackErr.message);
+    }
   }
 }
