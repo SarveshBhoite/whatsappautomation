@@ -347,6 +347,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const type = message.type;
         const context = message.context; // Meta context block for quotes: { id, from }
         
+        const referral = message.referral; // Meta Ads Referral object when customer clicks an Ad
+        
         let content = "";
         let mimeType: string | undefined = undefined;
 
@@ -413,9 +415,33 @@ export const handleWebhook = async (req: Request, res: Response) => {
           } else {
             content = "Media reference empty";
           }
+        } else if (type === "unsupported") {
+          const errDetail = message.errors?.[0]?.title || message.errors?.[0]?.details || message.unsupported?.details || "";
+          console.log(`[UNSUPPORTED PAYLOAD DETECTED]:`, JSON.stringify(message, null, 2));
+          if (errDetail.toLowerCase().includes("delete")) {
+            content = "🗑️ [Message deleted by user]";
+          } else if (errDetail.toLowerCase().includes("call")) {
+            content = "📞 [WhatsApp Call notification]";
+          } else if (errDetail) {
+            content = `⚠️ [System Event: ${errDetail}]`;
+          } else {
+            content = "ℹ️ [WhatsApp System Notification]";
+          }
+        } else if (type === "order") {
+          content = `🛒 [WhatsApp Order Received: ${message.order?.catalog_id || ''}]`;
+        } else if (type === "system") {
+          content = `⚙️ [System: ${message.system?.body || message.system?.type || 'WhatsApp Notification'}]`;
         } else {
-          // Meta unsupported payload or system message
-          content = "💬 System Message / Unsupported Media Payload";
+          // Fallback for any other Meta payload type
+          console.log(`[UNKNOWN MESSAGE TYPE PAYLOAD]: type=${type}`, JSON.stringify(message, null, 2));
+          content = `💬 [WhatsApp ${type || 'System'} Event]`;
+        }
+
+        // If message was triggered by a Meta Click-to-WhatsApp Ad, tag it with referral info
+        if (referral) {
+          const adHeadline = referral.headline || referral.body || "Meta Ad Promotion";
+          console.log(`[META AD REFERRAL]: Customer clicked Ad "${adHeadline}" (Source ID: ${referral.source_id || 'N/A'})`);
+          content = `[Customer clicked Meta Ad: "${adHeadline}"] ${content}`;
         }
 
         // Find or create the conversation using unique index organizationId_platform_customerPhone

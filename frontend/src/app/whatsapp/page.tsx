@@ -419,12 +419,45 @@ export default function Dashboard() {
     }
     if (content.includes("|")) {
       const urlPart = content.split("|")[1];
-      if (urlPart.startsWith("/uploads/")) {
+      if (urlPart && urlPart.startsWith("/uploads/")) {
         return `${BACKEND_URL}${urlPart}`;
       }
-      return urlPart;
+      return urlPart || content;
     }
     return content;
+  };
+
+  // Date & Time formatting helpers
+  const formatMessageTime = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const formatDateHeader = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "";
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (d.toDateString() === today.toDateString()) {
+        return "Today";
+      } else if (d.toDateString() === yesterday.toDateString()) {
+        return "Yesterday";
+      } else {
+        return d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+    } catch (e) {
+      return "";
+    }
   };
 
   // Convert uploaded file to base64 and send it as a media message
@@ -677,18 +710,19 @@ export default function Dashboard() {
         });
       }
       
-      // Update conversations list state so last message & timestamp update in real-time
-      setConversations((prev) => 
-        prev.map((c) => {
-          if (c.id === data.conversationId) {
-            return { ...c, messages: [data.message], updatedAt: new Date().toISOString() };
-          }
-          return c;
-        })
-      );
-
-      // Re-fetch conversation list to pick up any new conversations
-      fetchConversations();
+      // Update conversations list state so last message & timestamp update in real-time and jump to top of list
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.id === data.conversationId);
+        const msgTime = data.message.createdAt || new Date().toISOString();
+        if (index !== -1) {
+          const target = { ...prev[index], messages: [data.message], updatedAt: msgTime };
+          const rest = prev.filter((_, i) => i !== index);
+          return [target, ...rest];
+        } else {
+          fetchConversations();
+          return prev;
+        }
+      });
     });
 
     // Handle Status Updates (Ticks)
@@ -1222,7 +1256,13 @@ export default function Dashboard() {
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
           const currentPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
-          const filteredConversations = conversations.filter(c => (c.platform || "whatsapp") === currentPlatform);
+          const filteredConversations = conversations
+            .filter(c => (c.platform || "whatsapp") === currentPlatform)
+            .sort((a, b) => {
+              const timeA = a.messages?.[0]?.createdAt ? new Date(a.messages[0].createdAt).getTime() : new Date(a.updatedAt).getTime();
+              const timeB = b.messages?.[0]?.createdAt ? new Date(b.messages[0].createdAt).getTime() : new Date(b.updatedAt).getTime();
+              return timeB - timeA;
+            });
           const isInstagramTab = activeTab === "chats_instagram";
 
           return (
@@ -1274,8 +1314,12 @@ export default function Dashboard() {
                                 {conv.customerName || conv.customerPhone}
                               </span>
                             </div>
-                            <span className="text-[10px] text-slate-500">
-                              {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {(() => {
+                                const lastMsgDate = conv.messages?.[0]?.createdAt || conv.updatedAt;
+                                const header = formatDateHeader(lastMsgDate);
+                                return header === "Today" ? formatMessageTime(lastMsgDate) : header;
+                              })()}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
@@ -1379,8 +1423,11 @@ export default function Dashboard() {
                     </div>
                     {/* Messages list container */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
-                      {messages.map((msg) => {
+                      {messages.map((msg, index) => {
                         const isInbound = msg.direction === "inbound";
+                        const msgDateHeader = formatDateHeader(msg.createdAt);
+                        const prevMsgDateHeader = index > 0 ? formatDateHeader(messages[index - 1].createdAt) : null;
+                        const showDateDivider = msgDateHeader && msgDateHeader !== prevMsgDateHeader;
                         
                         // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
                         const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
@@ -1441,10 +1488,17 @@ export default function Dashboard() {
                         }
 
                         return (
-                          <div
-                            key={msg.id}
-                            className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
-                          >
+                          <React.Fragment key={msg.id}>
+                            {showDateDivider && (
+                              <div className="flex justify-center my-3">
+                                <span className="bg-slate-800/90 border border-slate-700/60 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full shadow-sm tracking-wide">
+                                  {msgDateHeader}
+                                </span>
+                              </div>
+                            )}
+                            <div
+                              className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
+                            >
                             <div className="relative max-w-[70%]">
                               {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
                               <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
@@ -1629,27 +1683,28 @@ export default function Dashboard() {
                                 )}
 
                                 {/* Ticks status and time */}
-                                <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${
-                                  isInbound 
-                                    ? "text-slate-500" 
-                                    : activeConv?.platform === "instagram"
-                                      ? "text-pink-100/85"
-                                      : "text-slate-800/80"
-                                }`}>
-                                  <span>
-                                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                  {!isInbound && (
-                                    <span>
-                                      {msg.status === "sent" && <Check className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                      {msg.status === "delivered" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                      {msg.status === "read" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-white" : "text-emerald-950"}`} />}
+                                  <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${
+                                    isInbound 
+                                      ? "text-slate-500" 
+                                      : activeConv?.platform === "instagram"
+                                        ? "text-pink-100/85"
+                                        : "text-slate-800/80"
+                                  }`}>
+                                    <span title={new Date(msg.createdAt).toLocaleString()}>
+                                      {formatMessageTime(msg.createdAt)}
                                     </span>
-                                  )}
+                                    {!isInbound && (
+                                      <span>
+                                        {msg.status === "sent" && <Check className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
+                                        {msg.status === "delivered" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
+                                        {msg.status === "read" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-white" : "text-emerald-950"}`} />}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
+                          </React.Fragment>
                         );
                       })}
                       <div ref={messageEndRef} />
