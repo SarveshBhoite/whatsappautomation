@@ -479,5 +479,52 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
   } catch (error: any) {
     console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
+    
+    // GUARANTEED ZERO UNREPLIED MESSAGES FALLBACK
+    try {
+      const fallbackConv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: { organization: { include: { waConfig: true, igConfig: true } } },
+      });
+      if (fallbackConv && !fallbackConv.isBotPaused) {
+        const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
+        const waConfig = fallbackConv.organization.waConfig;
+        const customerPhone = fallbackConv.customerPhone;
+        
+        let outWaId: string | null = null;
+        if (fallbackConv.platform === "whatsapp" && waConfig?.phoneNumberId && waConfig?.accessToken) {
+          const resData = await WhatsAppService.sendTextMessage(
+            waConfig.phoneNumberId,
+            waConfig.accessToken,
+            customerPhone,
+            fallbackText
+          );
+          outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
+        }
+
+        const savedFallback = await prisma.message.create({
+          data: {
+            conversationId: fallbackConv.id,
+            direction: "outbound",
+            messageType: "text",
+            content: fallbackText,
+            waMessageId: outWaId,
+            status: "sent",
+            senderName: "AI Sales Specialist",
+          },
+        });
+
+        const { io: socketIo } = require("../index");
+        if (socketIo) {
+          socketIo.to(fallbackConv.organizationId).emit("new-message", {
+            conversationId: fallbackConv.id,
+            message: savedFallback,
+          });
+        }
+        console.log(`[AI AGENT ENGINE] Emergency fallback reply sent to ${customerPhone}`);
+      }
+    } catch (fallbackErr: any) {
+      console.error("[AI AGENT ENGINE] Emergency fallback error:", fallbackErr.message);
+    }
   }
 }

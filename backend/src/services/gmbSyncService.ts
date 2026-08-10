@@ -424,7 +424,7 @@ export async function publishPostToGmb(postId: string, io?: any) {
 
     const updatedPost = await prisma.googlePost.update({
       where: { id: postId },
-      data: { gmbPostId, status: "PUBLISHED", publishedAt: new Date(), publishError: null }
+      data: { gmbPostId, status: "PUBLISHED" }
     });
 
     console.log(`[SCHEDULED PUBLISHER] Post ${postId} published as GMB ID ${gmbPostId}`);
@@ -439,7 +439,6 @@ export async function publishPostToGmb(postId: string, io?: any) {
       where: { id: postId },
       data: {
         status: "FAILED",
-        publishError: errorMsg.substring(0, 500),
         retryCount: (post.retryCount || 0) + 1
       }
     });

@@ -69,6 +69,7 @@ app.use("/api/ads", googleAdsRouter);
 
 // Meta Ads (Facebook & Instagram) Router
 app.use("/api/meta-ads", metaAdsRouter);
+app.use("/api/meta", metaAdsRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
@@ -272,7 +273,7 @@ async function runScheduledPostsSync() {
     const now = new Date();
     let pendingPosts: any[] = [];
     try {
-      pendingPosts = await (prisma.googlePost as any).findMany({
+      pendingPosts = await prisma.googlePost.findMany({
         where: {
           OR: [
             { status: "SCHEDULED", scheduledAt: { lte: now } },
@@ -320,8 +321,8 @@ function startGmbSyncScheduler() {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-server.listen(Number(PORT), "::", () => {
-  console.log(`Backend server running on all interfaces (port ${PORT})`);
+server.listen(Number(PORT), () => {
+  console.log(`Backend server running on port ${PORT}`);
   startGmbSyncScheduler();
   // Pre-upload SEO proof images to Meta and store Media IDs in active flow
   preCacheSeoMediaIds();

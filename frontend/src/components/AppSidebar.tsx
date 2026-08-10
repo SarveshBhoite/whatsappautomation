@@ -36,6 +36,13 @@ const LinkedIn = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// Meta SVG icon
+const Meta = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M22.5 12c0-5.799-4.701-10.5-10.5-10.5S1.5 6.201 1.5 12c0 5.24 3.84 9.584 8.86 10.368v-7.334h-2.665V12h2.665V9.797c0-2.632 1.568-4.085 3.966-4.085 1.149 0 2.351.205 2.351.205v2.585h-1.324c-1.305 0-1.712.81-1.712 1.64V12h2.913l-.466 3.034h-2.447v7.334c5.02-.784 8.86-5.128 8.86-10.368z"/>
+  </svg>
+);
+
 // ─── Nav definition ──────────────────────────────────────────────────────────
 interface NavItem {
   href: string;
@@ -55,6 +62,7 @@ const navItems: NavItem[] = [
   { href: "/reviews",   icon: <Star className="h-5 w-5" />,        label: "Google Reviews",   match: "/reviews" },
   { href: "/gmb",       icon: <Store className="h-5 w-5" />,       label: "Google Listing",   match: "/gmb" },
   { href: "/ads",       icon: <Megaphone className="h-5 w-5" />,   label: "Google Ads",       match: "/ads" },
+  { href: "/meta-ads",  icon: <Meta className="h-5 w-5" />,        label: "Meta Ads Manager", match: "/meta-ads" },
   { href: "/tools",     icon: <Wrench className="h-5 w-5" />,      label: "Tools Suite",      match: "/tools" },
 ];
 

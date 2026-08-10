@@ -374,6 +374,7 @@ model GooglePost {
   mediaFormat      String?      @default("PHOTO")
   state            String       @default("LIVE")
   status           String       @default("LIVE")
+  scheduledAt      DateTime?
   gmbPostId        String?      @unique
   retryCount       Int          @default(0)
   createTime       DateTime     @default(now())
@@ -481,6 +482,7 @@ model GoogleAdAccount {
   currencyCode    String       @default("USD")
   timeZone        String       @default("UTC")
   isManager       Boolean      @default(false)
+  isActive        Boolean      @default(true)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -709,44 +711,59 @@ model MetaAdAccount {
 }
 
 model MetaAdCampaign {
-  id              String        @id @default(uuid())
-  organizationId  String
-  organization    Organization  @relation(fields: [organizationId], references: [id])
-  adAccountId     String
-  metaCampaignId  String?       @unique
-  name            String
-  objective       String        @default("MESSAGES")
-  buyingType      String        @default("AUCTION")
-  status          String        @default("PAUSED")
-  effectiveStatus String?       @default("PAUSED")
-  dailyBudget     Float?
-  lifetimeBudget  Float?
-  bidStrategy     String?
-  startTime       DateTime?
-  stopTime        DateTime?
-  adSets          MetaAdSet[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                String        @id @default(uuid())
+  organizationId    String
+  organization      Organization  @relation(fields: [organizationId], references: [id])
+  adAccountId       String
+  metaCampaignId    String?       @unique
+  name              String
+  objective         String        @default("OUTCOME_LEADS")
+  buyingType        String        @default("AUCTION")
+  specialAdCategory String?       @default("NONE")
+  cboEnabled        Boolean       @default(true)
+  advantagePlus     Boolean       @default(false)
+  spendingLimit     Float?
+  status            String        @default("PAUSED")
+  effectiveStatus   String?       @default("PAUSED")
+  dailyBudget       Float?
+  lifetimeBudget    Float?
+  impressions       Int           @default(0)
+  clicks            Int           @default(0)
+  spend             Float         @default(0)
+  conversions       Int           @default(0)
+  reach             Int           @default(0)
+  bidStrategy       String?       @default("LOWEST_COST_WITHOUT_CAP")
+  startTime         DateTime?
+  stopTime          DateTime?
+  adSets            MetaAdSet[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 }
 
 model MetaAdSet {
-  id               String         @id @default(uuid())
-  organizationId   String
-  campaignId       String
-  campaign         MetaAdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  adAccountId      String
-  metaAdSetId      String?        @unique
-  name             String
-  status           String         @default("PAUSED")
-  dailyBudget      Float?
-  lifetimeBudget   Float?
-  billingEvent     String         @default("IMPRESSIONS")
-  optimizationGoal String         @default("MESSAGES")
-  destinationType  String         @default("WHATSAPP")
-  targeting        Json           @default("{}")
-  ads              MetaAd[]
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                     String         @id @default(uuid())
+  organizationId         String
+  campaignId             String
+  campaign               MetaAdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adAccountId            String
+  metaAdSetId            String?        @unique
+  name                   String
+  status                 String         @default("PAUSED")
+  dailyBudget            Float?
+  lifetimeBudget         Float?
+  billingEvent           String         @default("IMPRESSIONS")
+  optimizationGoal       String         @default("MESSAGES")
+  destinationType        String         @default("WHATSAPP")
+  targeting              Json           @default("{}")
+  advantagePlusAudience  Boolean        @default(true)
+  placements             Json           @default("[]")
+  advantagePlusPlacement Boolean        @default(true)
+  deviceTypes            Json           @default("[\"desktop\", \"mobile\"]")
+  attributionWindow      String?        @default("7d_click_1d_view")
+  adScheduling           Json?          @default("{}")
+  ads                    MetaAd[]
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 }
 
 model MetaAd {
@@ -761,7 +778,37 @@ model MetaAd {
   effectiveStatus    String?   @default("PENDING_REVIEW")
   approvalStatus     String    @default("PENDING_REVIEW")
   reviewResultReason String?
+  adFormat           String    @default("SINGLE_IMAGE")
+  callToAction       String    @default("WHATSAPP_MESSAGE")
+  utmParameters      String?
   creative           Json      @default("{}")
   createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  updatedAt          DateTime  @default(now())
+}
+
+model MetaCustomAudience {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  adAccountId        String
+  metaAudienceId     String?  @unique
+  name               String
+  description        String?
+  subtype            String   @default("CUSTOM")
+  rule               Json     @default("{}")
+  approximateCount   Int      @default(0)
+  lookalikeSpec      Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model MetaAutomatedRule {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  action         String
+  evaluationSpec Json
+  status         String   @default("ACTIVE")
+  lastTriggered  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

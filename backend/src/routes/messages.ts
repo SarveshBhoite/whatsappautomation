@@ -9,15 +9,24 @@ const router = Router();
 
 // POST: Send Manual Message (from Sales Agent)
 router.post("/send", async (req: Request, res: Response) => {
+  let conversationId: string | undefined;
+  let messageType: string | undefined;
+  let content: string | undefined;
+  let filename: string | undefined;
+  let quotedMessageId: string | undefined;
+  let conversation: any = null;
+  let contentForDb: string = "";
+  let mediaUrlOrId: string = "";
+
   try {
-    const { conversationId, messageType, content, filename, quotedMessageId } = req.body;
+    ({ conversationId, messageType, content, filename, quotedMessageId } = req.body);
 
     if (!conversationId || !messageType || !content) {
       return res.status(400).json({ error: "Missing required fields: conversationId, messageType, content" });
     }
 
     // 1. Fetch Conversation and Configs
-    const conversation = await prisma.conversation.findUnique({
+    conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: {
         organization: {
@@ -57,7 +66,7 @@ router.post("/send", async (req: Request, res: Response) => {
 
     const customerPhone = conversation.customerPhone;
     let responseData;
-    let mediaUrlOrId = content;
+    mediaUrlOrId = content!;
 
     // Decode base64 file upload if provided by client
     const { fileBase64 } = req.body;
@@ -123,7 +132,7 @@ router.post("/send", async (req: Request, res: Response) => {
     }
 
     const { caption } = req.body;
-    let contentForDb = mediaUrlOrId;
+    contentForDb = mediaUrlOrId;
 
     // 2. Call WhatsApp or Instagram APIs
     if (isWhatsApp) {
@@ -141,7 +150,7 @@ router.post("/send", async (req: Request, res: Response) => {
           waConfig!.phoneNumberId!,
           waConfig!.accessToken!,
           customerPhone,
-          messageType,
+          messageType as "document" | "image" | "video" | "audio",
           mediaUrlOrId,
           filename,
           caption,
@@ -172,7 +181,7 @@ router.post("/send", async (req: Request, res: Response) => {
         responseData = await InstagramService.sendMediaMessage(
           igConfig!.pageAccessToken!,
           customerPhone,
-          messageType,
+          messageType as "document" | "image" | "video" | "audio",
           mediaUrlOrId,
           filename,
           caption
@@ -283,22 +292,34 @@ router.post("/send", async (req: Request, res: Response) => {
 
     // Save message in DB with 'failed' status so CRM Inbox displays it with error indication
     let savedMessage = null;
-    try {
-      if (req.body.conversationId) {
+    if (conversationId) {
+      try {
         savedMessage = await prisma.message.create({
           data: {
-            conversationId: req.body.conversationId,
+            conversationId,
             direction: "outbound",
-            messageType: req.body.messageType || "text",
-            content: req.body.text || req.body.mediaUrl || "Failed message",
+            messageType: messageType || "text",
+            content: contentForDb || mediaUrlOrId,
             status: "failed",
             senderName: "Agent",
-            quotedMessageId: req.body.quotedMessageId || null,
+            quotedMessageId: quotedMessageId || null,
           },
         });
+
+        const fullMessage = await prisma.message.findUnique({
+          where: { id: savedMessage.id },
+          include: { quotedMessage: true },
+        });
+
+        if (conversation?.organizationId) {
+          io.to(conversation.organizationId).emit("new-message", {
+            conversationId,
+            message: fullMessage,
+          });
+        }
+      } catch (dbErr) {
+        console.error("Failed to record failed message to DB:", dbErr);
       }
-    } catch (dbErr) {
-      console.error("Failed to record failed message to DB:", dbErr);
     }
 
     return res.status(500).json({
