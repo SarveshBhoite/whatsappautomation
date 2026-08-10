@@ -165,6 +165,23 @@ router.get("/pixels", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/parameters
+ * GET /api/meta-ads/campaigns/:id/parameters
+ * Fetch all available Meta Ads parameters with options and selected campaign values
+ */
+router.get(["/parameters", "/campaigns/:id/parameters"], async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const campaignId = (req.params.id as string) || (req.query.campaignId as string) || undefined;
+    const result = await MetaAdsService.getParameterDefinitions(orgId, campaignId);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching parameter definitions:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/meta-ads/campaigns
  * Get Meta campaigns
  */

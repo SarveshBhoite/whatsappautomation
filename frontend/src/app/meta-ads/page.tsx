@@ -1222,6 +1222,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   // Detail Inspector & Media Library state
   const [selectedCampDetail, setSelectedCampDetail] = useState<any>(null);
   const [liveMetaDetail, setLiveMetaDetail] = useState<any>(null);
+  const [selectedCampParams, setSelectedCampParams] = useState<any[]>([]);
+  const [selectedCampValues, setSelectedCampValues] = useState<Record<string, any>>({});
   const [fetchingDetail, setFetchingDetail] = useState(false);
   const [detailModalTab, setDetailModalTab] = useState<"metrics" | "config" | "adsets" | "creatives" | "raw">("metrics");
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -1748,6 +1750,36 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
       if (!finalBody) finalBody = "Click below to send us a direct message on WhatsApp and connect immediately with our team.";
     }
 
+    // Resolve objective-specific Special Ad Category
+    let resolvedSpecialCategory = specialAdCategory;
+    if (campObjective === "OUTCOME_TRAFFIC" && trafficSpecialCategory && trafficSpecialCategory !== "NONE") {
+      resolvedSpecialCategory = trafficSpecialCategory;
+    } else if (campObjective === "OUTCOME_LEADS" && leadsSpecialCategory && leadsSpecialCategory !== "NONE") {
+      resolvedSpecialCategory = leadsSpecialCategory;
+    } else if (campObjective === "OUTCOME_SALES" && salesSpecialCategory && salesSpecialCategory !== "NONE") {
+      resolvedSpecialCategory = salesSpecialCategory;
+    } else if (campObjective === "OUTCOME_ENGAGEMENT" && engManualSpecialCategory && engManualSpecialCategory !== "NONE") {
+      resolvedSpecialCategory = engManualSpecialCategory;
+    }
+
+    // Resolve objective-specific Daily Budget
+    let resolvedDailyBudget = 500;
+    if (campObjective === "OUTCOME_TRAFFIC" && step3BudgetAmount) {
+      resolvedDailyBudget = Number(step3BudgetAmount) || 500;
+    } else if (campObjective === "OUTCOME_LEADS" && leadsBudget) {
+      resolvedDailyBudget = Number(leadsBudget) || 500;
+    } else if (campObjective === "OUTCOME_SALES" && salesBudget) {
+      resolvedDailyBudget = Number(salesBudget) || 500;
+    } else if (campObjective === "OUTCOME_ENGAGEMENT" && engManualBudget) {
+      resolvedDailyBudget = Number(engManualBudget) || 500;
+    } else if (campObjective === "OUTCOME_APP_PROMOTION" && appPromoBudget) {
+      resolvedDailyBudget = Number(appPromoBudget) || 500;
+    } else if (campObjective === "OUTCOME_AWARENESS" && (awarenessAdSetBudgetAmount || awarenessBudgetAmount)) {
+      resolvedDailyBudget = Number(awarenessAdSetBudgetAmount) || Number(awarenessBudgetAmount) || 500;
+    } else if (campBudget) {
+      resolvedDailyBudget = Number(campBudget) || 500;
+    }
+
     setCreatingCamp(true);
     try {
       const res = await fetch(`${BACKEND}/api/meta-ads/campaigns`, {
@@ -1758,11 +1790,11 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
           name: finalName,
           objective: campObjective,
           buyingType: buyingType,
-          specialAdCategory: specialAdCategory,
+          specialAdCategory: resolvedSpecialCategory,
           bidStrategy: bidStrategy,
           cboEnabled: cboEnabled,
           advantagePlus: advantagePlus,
-          dailyBudget: Number(campBudget) || Number(step3BudgetAmount) || 500,
+          dailyBudget: resolvedDailyBudget,
           destinationType: campDestination,
           optimizationGoal: campObjective === "OUTCOME_AWARENESS" ? (awarenessPerformanceGoal || "REACH") : campObjective === "OUTCOME_TRAFFIC" ? (trafficPerformanceGoal || "LINK_CLICKS") : campDestination === "WHATSAPP" ? "MESSAGES" : "LINK_CLICKS",
           costPerResult: campObjective === "OUTCOME_AWARENESS" ? awarenessCostPerResult : campObjective === "OUTCOME_TRAFFIC" ? trafficCostPerResult : "",
@@ -1775,6 +1807,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
           creativeMediaUrl: campMediaUrl,
           whatsappNumber: campWhatsappNum,
           pageId: formPageId,
+          appPromoLiveVideo,
+          appPromoLiveVideoLocation,
+          appPromoIos14,
+          appPromoSelectedApp,
           targeting: {
             countries: [campCountry],
             ageMin: Number(campAgeMin),
@@ -3602,7 +3638,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               <p className="text-[10px] text-slate-500">Select the categories that best describe what this campaign will advertise.</p>
                               <select
                                 value={trafficSpecialCategory}
-                                onChange={(e) => setTrafficSpecialCategory(e.target.value)}
+                                onChange={(e) => {
+                                  setTrafficSpecialCategory(e.target.value);
+                                  setSpecialAdCategory(e.target.value);
+                                }}
                                 className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
                               >
                                 <option value="NONE">Declare category if applicable</option>
@@ -3972,13 +4011,16 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                               <label className="block text-[11px] font-semibold text-slate-400">Categories</label>
                               <p className="text-[10px] text-slate-500">Select the categories that best describe what this campaign will advertise.</p>
                               <select value={leadsSpecialCategory}
-                                onChange={(e) => setLeadsSpecialCategory(e.target.value)}
+                                onChange={(e) => {
+                                  setLeadsSpecialCategory(e.target.value);
+                                  setSpecialAdCategory(e.target.value);
+                                }}
                                 className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500">
                                 <option value="NONE">Declare category if applicable</option>
-                                <option value="FINANCIAL">Financial products and services</option>
+                                <option value="CREDIT">Financial products and services (Credit)</option>
                                 <option value="EMPLOYMENT">Employment</option>
                                 <option value="HOUSING">Housing</option>
-                                <option value="SOCIAL_ISSUES">Social issues, elections or politics</option>
+                                <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
                               </select>
                             </div>
                           </div>
@@ -5211,14 +5253,17 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           <p className="text-[10px] text-slate-500">Select the categories that best describe what this campaign will advertise.</p>
                           <select
                             value={salesSpecialCategory}
-                            onChange={(e) => setSalesSpecialCategory(e.target.value)}
+                            onChange={(e) => {
+                              setSalesSpecialCategory(e.target.value);
+                              setSpecialAdCategory(e.target.value);
+                            }}
                             className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
                           >
                             <option value="NONE">Declare category if applicable</option>
-                            <option value="FINANCIAL">Financial products and services</option>
+                            <option value="CREDIT">Financial products and services (Credit)</option>
                             <option value="EMPLOYMENT">Employment</option>
                             <option value="HOUSING">Housing</option>
-                            <option value="SOCIAL_ISSUES">Social issues, elections or politics</option>
+                            <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
                           </select>
                         </div>
                       </div>
@@ -9420,14 +9465,17 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           <label className="block text-[11px] font-semibold text-slate-400">Categories</label>
                           <select
                             value={engManualSpecialCategory}
-                            onChange={(e) => setEngManualSpecialCategory(e.target.value)}
+                            onChange={(e) => {
+                              setEngManualSpecialCategory(e.target.value);
+                              setSpecialAdCategory(e.target.value);
+                            }}
                             className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
                           >
                             <option value="NONE">Declare category if applicable</option>
-                            <option value="FINANCIAL">Financial products and services</option>
+                            <option value="CREDIT">Financial products and services (Credit)</option>
                             <option value="EMPLOYMENT">Employment</option>
                             <option value="HOUSING">Housing</option>
-                            <option value="SOCIAL_ISSUES">Social issues, elections or politics</option>
+                            <option value="ISSUES_ELECTIONS_POLITICS">Social issues, elections or politics</option>
                           </select>
                         </div>
                       </div>
@@ -12468,74 +12516,169 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
               {/* TAB 2: Campaign & Bidding Config */}
               {detailModalTab === "config" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
-                    <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
-                      <Megaphone className="h-4 w-4 text-sky-400" /> Core Campaign Parameters
-                    </h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Campaign Name:</span>
-                        <span className="font-semibold text-slate-100">{liveMetaDetail?.name || selectedCampDetail.name}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Objective:</span>
-                        <span className="font-mono text-sky-400">{liveMetaDetail?.objective || selectedCampDetail.objective || "OUTCOME_LEADS"}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Buying Type:</span>
-                        <span className="font-semibold text-slate-200">{liveMetaDetail?.buying_type || selectedCampDetail.buyingType || "AUCTION"}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Special Ad Category:</span>
-                        <span className="font-semibold text-slate-200">{liveMetaDetail?.special_ad_categories?.[0] || selectedCampDetail.specialAdCategory || "NONE"}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Status:</span>
-                        <Pill status={liveMetaDetail?.status || selectedCampDetail.status || "ACTIVE"} />
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Effective Status:</span>
-                        <span className="font-mono text-emerald-400">{liveMetaDetail?.effective_status || selectedCampDetail.effectiveStatus || "ACTIVE"}</span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="space-y-4 text-xs">
+                  {(() => {
+                    const firstAdSet = selectedCampDetail?.adSets?.[0];
+                    const firstAd = firstAdSet?.ads?.[0];
+                    const creative = (firstAd?.creative as any) || {};
+                    const sv = selectedCampValues || {};
 
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
-                    <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
-                      <DollarSign className="h-4 w-4 text-emerald-400" /> Budget, Bidding & Timestamps
-                    </h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Daily Budget:</span>
-                        <span className="font-bold text-emerald-400">₹{liveMetaDetail?.daily_budget ? (Number(liveMetaDetail.daily_budget) / 100).toFixed(2) : (selectedCampDetail.dailyBudget?.toFixed(2) || "500.00")}</span>
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* CARD 1: Core Campaign Parameters */}
+                        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3 shadow-md">
+                          <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
+                            <Megaphone className="h-4 w-4 text-sky-400" /> Core Campaign Parameters
+                          </h4>
+                          <div className="space-y-2">
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Campaign Name:</span>
+                              <span className="font-bold text-slate-100 text-right">{sv.name || liveMetaDetail?.name || selectedCampDetail?.name || "N/A"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Objective:</span>
+                              <span className="font-mono font-bold text-sky-400">{sv.objective || liveMetaDetail?.objective || selectedCampDetail?.objective || "OUTCOME_LEADS"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Buying Type:</span>
+                              <span className="font-semibold text-slate-200">{sv.buyingType || liveMetaDetail?.buying_type || selectedCampDetail?.buyingType || "AUCTION"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Special Ad Category:</span>
+                              <span className="font-semibold text-slate-200">{sv.specialAdCategory || liveMetaDetail?.special_ad_categories?.[0] || selectedCampDetail?.specialAdCategory || "NONE"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Status:</span>
+                              <Pill status={liveMetaDetail?.status || selectedCampDetail?.status || "PAUSED"} />
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Effective Status:</span>
+                              <span className="font-mono text-emerald-400">{liveMetaDetail?.effective_status || selectedCampDetail?.effectiveStatus || "PAUSED"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CARD 2: Budget, Bidding & Strategy */}
+                        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3 shadow-md">
+                          <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
+                            <DollarSign className="h-4 w-4 text-emerald-400" /> Budget, Bidding & Strategy
+                          </h4>
+                          <div className="space-y-2">
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Daily Budget:</span>
+                              <span className="font-bold text-emerald-400">₹{(sv.dailyBudget || selectedCampDetail?.dailyBudget || 500).toFixed(2)}/day</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Lifetime Budget:</span>
+                              <span className="font-semibold text-slate-200">{sv.lifetimeBudget ? `₹${sv.lifetimeBudget}` : "N/A"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Spend Limit:</span>
+                              <span className="font-semibold text-slate-200">{sv.spendingLimit ? `₹${sv.spendingLimit}` : "None set"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Bid Strategy:</span>
+                              <span className="font-mono text-amber-400">{sv.bidStrategy || selectedCampDetail?.bidStrategy || "LOWEST_COST_WITHOUT_CAP"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Campaign Budget (CBO):</span>
+                              <span className="font-semibold text-sky-400">{sv.cboEnabled !== false ? "Advantage+ On" : "Off"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Created Time:</span>
+                              <span className="font-mono text-slate-300">
+                                {selectedCampDetail?.createdAt ? new Date(selectedCampDetail.createdAt).toLocaleString() : "N/A"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Updated Time:</span>
+                              <span className="font-mono text-slate-300">
+                                {selectedCampDetail?.updatedAt ? new Date(selectedCampDetail.updatedAt).toLocaleString() : "N/A"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CARD 3: Ad Set & Destination Setup */}
+                        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3 shadow-md">
+                          <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
+                            <Target className="h-4 w-4 text-purple-400" /> Ad Set & Destination Parameters
+                          </h4>
+                          <div className="space-y-2">
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Ad Set Name:</span>
+                              <span className="font-semibold text-slate-100">{sv.adSetName || firstAdSet?.name || "N/A"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Destination Type:</span>
+                              <span className="font-mono text-sky-400 font-bold">{sv.destinationType || firstAdSet?.destinationType || "WHATSAPP"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Optimization Goal:</span>
+                              <span className="font-mono text-emerald-400 font-bold">{sv.optimizationGoal || firstAdSet?.optimizationGoal || "MESSAGES"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Billing Event:</span>
+                              <span className="font-semibold text-slate-200">{sv.billingEvent || firstAdSet?.billingEvent || "IMPRESSIONS"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Advantage+ Audience:</span>
+                              <span className="font-semibold text-emerald-400">{sv.advantagePlusAudience ?? firstAdSet?.advantagePlusAudience ?? true ? "On (Meta AI)" : "Off"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Advantage+ Placements:</span>
+                              <span className="font-semibold text-emerald-400">{sv.advantagePlusPlacement ?? firstAdSet?.advantagePlusPlacement ?? true ? "On (All Networks)" : "Off"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Attribution Window:</span>
+                              <span className="font-mono text-slate-300">{sv.attributionWindow || firstAdSet?.attributionWindow || "7d_click_1d_view"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CARD 4: Ad Creative & Special Features */}
+                        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 space-y-3 shadow-md">
+                          <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
+                            <Sparkles className="h-4 w-4 text-amber-400" /> Ad Creative & Special Features
+                          </h4>
+                          <div className="space-y-2">
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Ad Format:</span>
+                              <span className="font-semibold text-slate-200">{sv.adFormat || firstAd?.adFormat || "SINGLE_IMAGE"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Call To Action (CTA):</span>
+                              <span className="font-bold text-sky-400">{sv.callToAction || firstAd?.callToAction || "WHATSAPP_MESSAGE"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Headline:</span>
+                              <span className="font-semibold text-slate-100 truncate max-w-[200px]" title={sv.creativeHeadline || creative.headline}>{sv.creativeHeadline || creative.headline || creative.title || "N/A"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Primary Text:</span>
+                              <span className="font-semibold text-slate-300 truncate max-w-[200px]" title={sv.creativeBody || creative.body}>{sv.creativeBody || creative.body || "N/A"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">WhatsApp Number:</span>
+                              <span className="font-mono text-emerald-400">{sv.whatsappNumber || creative.whatsappNumber || "N/A"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Live Video Ad Mode:</span>
+                              <span className="font-semibold text-purple-400">{creative.appPromoLiveVideo || sv.appPromoLiveVideo ? `On (${sv.appPromoLiveVideoLocation || creative.appPromoLiveVideoLocation || 'FACEBOOK'})` : "Off"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">iOS 14+ Campaign:</span>
+                              <span className="font-semibold text-sky-400">{creative.appPromoIos14 || sv.appPromoIos14 ? "On (SKAdNetwork)" : "Off"}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-800/40">
+                              <span className="text-slate-400">Promoted App:</span>
+                              <span className="font-mono text-slate-300">{creative.appPromoSelectedApp || sv.appPromoSelectedApp || "whatsapp_automation_app"}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Lifetime Budget:</span>
-                        <span className="font-semibold text-slate-200">{liveMetaDetail?.lifetime_budget ? `₹${(Number(liveMetaDetail.lifetime_budget) / 100).toFixed(2)}` : "N/A"}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Bid Strategy:</span>
-                        <span className="font-mono text-amber-400">{liveMetaDetail?.bid_strategy || selectedCampDetail.bidStrategy || "LOWEST_COST_WITHOUT_CAP"}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Created Time:</span>
-                        <span className="font-mono text-slate-300">
-                          {liveMetaDetail?.created_time || selectedCampDetail?.createdAt
-                            ? new Date(liveMetaDetail?.created_time || selectedCampDetail.createdAt).toLocaleString()
-                            : "N/A"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800/40">
-                        <span className="text-slate-400">Updated Time:</span>
-                        <span className="font-mono text-slate-300">
-                          {liveMetaDetail?.updated_time || selectedCampDetail?.updatedAt
-                            ? new Date(liveMetaDetail?.updated_time || selectedCampDetail.updatedAt).toLocaleString()
-                            : "N/A"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               )}
 

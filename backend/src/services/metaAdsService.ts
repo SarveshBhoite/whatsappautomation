@@ -550,10 +550,15 @@ export class MetaAdsService {
               adSetPayload.promoted_object = { page_id: activePageId };
             }
           } else if (graphObjective === "OUTCOME_APP_PROMOTION") {
+            adSetPayload.destination_type = "APP";
+            adSetPayload.optimization_goal = "APP_INSTALLS";
             adSetPayload.promoted_object = {
               application_id: config.appId,
               object_store_url: payload.objectStoreUrl || "https://play.google.com/store/apps/details?id=com.whatsapp",
             };
+          } else if (graphObjective === "OUTCOME_TRAFFIC" && payload.destinationType !== "WHATSAPP") {
+            adSetPayload.destination_type = "WEBSITE";
+            adSetPayload.optimization_goal = "LINK_CLICKS";
           } else if (payload.destinationType === "WHATSAPP") {
             adSetPayload.destination_type = "WHATSAPP";
             adSetPayload.optimization_goal = "CONVERSATIONS";
@@ -582,11 +587,16 @@ export class MetaAdsService {
             const msg = asErr.response?.data?.error?.message || "";
             const userMsg = asErr.response?.data?.error?.error_user_msg || "";
             if (
-              subcode === 1815857 || subcode === 1815183 ||
-              msg.includes("doesn't match") || msg.includes("object_store_url") || msg.includes("application_id") || msg.includes("bid_strategy")
+              subcode === 1815857 || subcode === 1815183 || subcode === 1885093 ||
+              msg.includes("doesn't match") || msg.includes("object_store_url") || msg.includes("application_id") || msg.includes("bid_strategy") ||
+              userMsg.includes("Application/Object Store URL Mismatch") || userMsg.includes("doesn't match")
             ) {
-              console.warn(`[MetaAdsService] Retrying AdSet creation for App Promotion without object store url restriction...`);
+              console.warn(`[MetaAdsService] Retrying AdSet creation for App Promotion with fallback destination...`);
               delete adSetPayload.promoted_object;
+              if (adSetPayload.destination_type === "APP") {
+                adSetPayload.destination_type = "WEBSITE";
+                adSetPayload.optimization_goal = "LINK_CLICKS";
+              }
               try {
                 adSetResp = await axios.post(
                   `${META_GRAPH_BASE}/${formattedAccountId}/adsets`,
@@ -594,6 +604,7 @@ export class MetaAdsService {
                 );
               } catch (retryErr: any) {
                 console.warn(`[MetaAdsService] AdSet fallback notice:`, retryErr.response?.data?.error?.message || retryErr.message);
+                throw retryErr;
               }
             } else {
               throw asErr;
@@ -617,7 +628,7 @@ export class MetaAdsService {
                   name: payload.creativeHeadline,
                   description: payload.creativeDescription || undefined,
                   link: payload.creativeMediaUrl || "https://whatsapp.com",
-                  picture: payload.creativeMediaUrl || undefined,
+                  picture: payload.creativeMediaUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe",
                   call_to_action: {
                     type: payload.callToAction || "LEARN_MORE",
                   },
@@ -627,11 +638,11 @@ export class MetaAdsService {
             }
           );
 
-          if (creativeResp.data?.id) {
+          if (creativeResp?.data?.id) {
             const adResp = await axios.post(
               `${META_GRAPH_BASE}/${formattedAccountId}/ads`,
               {
-                name: payload.adName || `${payload.name} Ad`,
+                name: payload.adName || `${payload.name} Creative Ad`,
                 adset_id: metaAdSetId,
                 creative: { creative_id: creativeResp.data.id },
                 status: "PAUSED",
@@ -644,6 +655,13 @@ export class MetaAdsService {
       } catch (err: any) {
         const errorData = err.response?.data?.error || {};
         console.warn("[MetaAdsService] Graph API creation error detail:", JSON.stringify(err.response?.data || err.message, null, 2));
+
+        // Subcode 1885093: App / Object Store URL Mismatch
+        if (errorData.error_subcode === 1885093 || (errorData.error_user_title && errorData.error_user_title.includes("Object Store URL Mismatch"))) {
+          throw new Error(
+            `Meta App Mismatch Error: The App Store URL is not registered in your Meta Developer App (ID: ${config.appId || '36702477879366478'}). Please add your Android/iOS App in Meta App Settings (https://developers.facebook.com/apps/${config.appId || '36702477879366478'}/settings/basic/) or select WhatsApp / Website as campaign destination.`
+          );
+        }
 
         // Subcode 1815089: Lead Generation Terms of Service not accepted for Page
         if (errorData.error_subcode === 1815089) {
@@ -711,6 +729,10 @@ export class MetaAdsService {
                   mediaUrl: payload.creativeMediaUrl,
                   callToAction: payload.callToAction || "WHATSAPP_MESSAGE",
                   whatsappNumber: payload.whatsappNumber,
+                  appPromoLiveVideo: (payload as any).appPromoLiveVideo ?? false,
+                  appPromoLiveVideoLocation: (payload as any).appPromoLiveVideoLocation ?? "FACEBOOK",
+                  appPromoIos14: (payload as any).appPromoIos14 ?? false,
+                  appPromoSelectedApp: (payload as any).appPromoSelectedApp ?? "whatsapp_automation_app",
                 },
               },
             },
@@ -1175,6 +1197,10 @@ export class MetaAdsService {
       mediaUrl: data.creativeMediaUrl !== undefined ? data.creativeMediaUrl : currentCreative.mediaUrl,
       callToAction: data.callToAction !== undefined ? data.callToAction : currentCreative.callToAction,
       whatsappNumber: data.whatsappNumber !== undefined ? data.whatsappNumber : currentCreative.whatsappNumber,
+      appPromoLiveVideo: data.appPromoLiveVideo !== undefined ? data.appPromoLiveVideo : currentCreative.appPromoLiveVideo,
+      appPromoLiveVideoLocation: data.appPromoLiveVideoLocation !== undefined ? data.appPromoLiveVideoLocation : currentCreative.appPromoLiveVideoLocation,
+      appPromoIos14: data.appPromoIos14 !== undefined ? data.appPromoIos14 : currentCreative.appPromoIos14,
+      appPromoSelectedApp: data.appPromoSelectedApp !== undefined ? data.appPromoSelectedApp : currentCreative.appPromoSelectedApp,
     };
 
     return prisma.metaAd.update({
@@ -1322,5 +1348,380 @@ export class MetaAdsService {
       console.warn("[MetaAdsService] Failed to fetch Meta Pixels:", err.response?.data?.error?.message || err.message);
       return [];
     }
+  }
+
+  /**
+   * Fetch all Meta Ads campaign parameters, options, and selected values for a given campaign
+   */
+  static async getParameterDefinitions(organizationId: string, campaignId?: string) {
+    let selectedValues: Record<string, any> = {};
+    let campaignFound = false;
+
+    if (campaignId) {
+      const dbCampaign = await prisma.metaAdCampaign.findFirst({
+        where: {
+          organizationId,
+          OR: [{ id: campaignId }, { metaCampaignId: campaignId }],
+        },
+        include: {
+          adSets: {
+            include: { ads: true },
+          },
+        },
+      });
+
+      if (dbCampaign) {
+        campaignFound = true;
+        const firstAdSet = dbCampaign.adSets?.[0];
+        const firstAd = firstAdSet?.ads?.[0];
+        const creative = (firstAd?.creative as any) || {};
+
+        selectedValues = {
+          // Campaign Level
+          id: dbCampaign.id,
+          metaCampaignId: dbCampaign.metaCampaignId,
+          name: dbCampaign.name,
+          objective: dbCampaign.objective,
+          buyingType: dbCampaign.buyingType,
+          specialAdCategory: dbCampaign.specialAdCategory || "NONE",
+          cboEnabled: dbCampaign.cboEnabled,
+          advantagePlus: dbCampaign.advantagePlus,
+          status: dbCampaign.status,
+          spendingLimit: dbCampaign.spendingLimit,
+          dailyBudget: dbCampaign.dailyBudget,
+          lifetimeBudget: dbCampaign.lifetimeBudget,
+          bidStrategy: dbCampaign.bidStrategy || "LOWEST_COST_WITHOUT_CAP",
+
+          // Ad Set Level
+          adSetName: firstAdSet?.name,
+          destinationType: firstAdSet?.destinationType || "WHATSAPP",
+          optimizationGoal: firstAdSet?.optimizationGoal || "MESSAGES",
+          billingEvent: firstAdSet?.billingEvent || "IMPRESSIONS",
+          targeting: firstAdSet?.targeting || {},
+          advantagePlusAudience: firstAdSet?.advantagePlusAudience ?? true,
+          placements: firstAdSet?.placements || [],
+          advantagePlusPlacement: firstAdSet?.advantagePlusPlacement ?? true,
+          deviceTypes: firstAdSet?.deviceTypes || ["desktop", "mobile"],
+          attributionWindow: firstAdSet?.attributionWindow || "7d_click_1d_view",
+
+          // Ad Creative Level
+          adName: firstAd?.name,
+          adFormat: firstAd?.adFormat || "SINGLE_IMAGE",
+          callToAction: firstAd?.callToAction || "WHATSAPP_MESSAGE",
+          creativeHeadline: creative.title || creative.headline || "",
+          creativeBody: creative.body || "",
+          creativeDescription: creative.description || "",
+          creativeMediaUrl: creative.image_url || creative.mediaUrl || "",
+          utmParameters: firstAd?.utmParameters || "",
+          whatsappNumber: creative.whatsappNumber || "",
+
+          // Special Features / Toggles
+          appPromoLiveVideo: creative.appPromoLiveVideo || false,
+          appPromoLiveVideoLocation: creative.appPromoLiveVideoLocation || "FACEBOOK",
+          appPromoIos14: creative.appPromoIos14 || false,
+          appPromoSelectedApp: creative.appPromoSelectedApp || "whatsapp_automation_app",
+        };
+      }
+    }
+
+    const parameterDefinitions = [
+      {
+        key: "name",
+        label: "Campaign Name",
+        category: "Campaign Header",
+        type: "text",
+        description: "The name identifier of the Meta Ad Campaign.",
+        selectedValue: selectedValues.name ?? "New App promotion Campaign",
+      },
+      {
+        key: "objective",
+        label: "Campaign Objective",
+        category: "Campaign Level",
+        type: "select",
+        description: "Primary business goal for the campaign (ODAX v26.0).",
+        options: [
+          { value: "OUTCOME_LEADS", label: "Leads (Lead Generation & Conversions)" },
+          { value: "OUTCOME_SALES", label: "Sales (E-Commerce & Purchases)" },
+          { value: "OUTCOME_TRAFFIC", label: "Traffic (Website & App Clicks)" },
+          { value: "OUTCOME_ENGAGEMENT", label: "Engagement (Messages & Interactions)" },
+          { value: "OUTCOME_AWARENESS", label: "Awareness (Reach & Impressions)" },
+          { value: "OUTCOME_APP_PROMOTION", label: "App Promotion (Installs & In-App Events)" },
+        ],
+        selectedValue: selectedValues.objective ?? "OUTCOME_APP_PROMOTION",
+      },
+      {
+        key: "buyingType",
+        label: "Buying Type",
+        category: "Campaign Level",
+        type: "select",
+        description: "Auction or Reservation buying model.",
+        options: [
+          { value: "AUCTION", label: "Auction (Standard flexible bidding)" },
+          { value: "RESERVED", label: "Reservation (Fixed CPM / Reach & Frequency)" },
+        ],
+        selectedValue: selectedValues.buyingType ?? "AUCTION",
+      },
+      {
+        key: "specialAdCategory",
+        label: "Special Ad Category",
+        category: "Campaign Level",
+        type: "select",
+        description: "Regulated ad categories with non-discrimination targeting rules.",
+        options: [
+          { value: "NONE", label: "None (Standard Ads)" },
+          { value: "EMPLOYMENT", label: "Employment (Job offers, recruiting)" },
+          { value: "HOUSING", label: "Housing (Real estate listings, loans)" },
+          { value: "CREDIT", label: "Credit (Credit cards, auto loans)" },
+          { value: "ISSUES_ELECTIONS_POLITICS", label: "Social Issues, Elections or Politics" },
+        ],
+        selectedValue: selectedValues.specialAdCategory ?? "NONE",
+      },
+      {
+        key: "cboEnabled",
+        label: "Advantage Campaign Budget (CBO)",
+        category: "Budget & Bidding",
+        type: "boolean",
+        description: "Automatically optimize budget distribution across active ad sets.",
+        selectedValue: selectedValues.cboEnabled ?? true,
+      },
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        category: "Budget & Bidding",
+        type: "select",
+        description: "Meta Bidding Strategy for cost control.",
+        options: [
+          { value: "LOWEST_COST_WITHOUT_CAP", label: "Highest Volume / Lowest Cost (No cap)" },
+          { value: "LOWEST_COST_WITH_BID_CAP", label: "Bid Cap (Maximum bid per auction)" },
+          { value: "COST_CAP", label: "Cost Cap (Target average cost per result)" },
+          { value: "TARGET_COST", label: "Target Cost (Stable target cost)" },
+        ],
+        selectedValue: selectedValues.bidStrategy ?? "LOWEST_COST_WITHOUT_CAP",
+      },
+      {
+        key: "dailyBudget",
+        label: "Daily Budget (INR)",
+        category: "Budget & Bidding",
+        type: "number",
+        description: "Daily spending budget for the campaign.",
+        selectedValue: selectedValues.dailyBudget ?? 500,
+      },
+      {
+        key: "lifetimeBudget",
+        label: "Lifetime Budget (INR)",
+        category: "Budget & Bidding",
+        type: "number",
+        description: "Total budget for the entire run time of the campaign.",
+        selectedValue: selectedValues.lifetimeBudget ?? null,
+      },
+      {
+        key: "spendingLimit",
+        label: "Campaign Spend Limit",
+        category: "Budget & Bidding",
+        type: "number",
+        description: "Hard stop spending limit for the campaign.",
+        selectedValue: selectedValues.spendingLimit ?? null,
+      },
+      {
+        key: "destinationType",
+        label: "Destination Type",
+        category: "Ad Set Level",
+        type: "select",
+        description: "Where users are directed after clicking the ad.",
+        options: [
+          { value: "WHATSAPP", label: "WhatsApp Chat" },
+          { value: "MESSENGER", label: "Facebook Messenger" },
+          { value: "INSTAGRAM_DIRECT", label: "Instagram Direct" },
+          { value: "WEBSITE", label: "Website URL" },
+          { value: "APP", label: "App Store / Mobile App" },
+          { value: "FACEBOOK_PAGE", label: "Facebook Page" },
+        ],
+        selectedValue: selectedValues.destinationType ?? "WHATSAPP",
+      },
+      {
+        key: "optimizationGoal",
+        label: "Optimization Goal",
+        category: "Ad Set Level",
+        type: "select",
+        description: "Performance metric Meta optimizes delivery towards.",
+        options: [
+          { value: "MESSAGES", label: "Conversations / Messaging" },
+          { value: "LEAD_GENERATION", label: "Lead Form Submissions" },
+          { value: "OFFSITE_CONVERSIONS", label: "Website Purchases / Conversions" },
+          { value: "LINK_CLICKS", label: "Link Clicks" },
+          { value: "APP_INSTALLS", label: "App Installs" },
+          { value: "IMPRESSIONS", label: "Impressions" },
+          { value: "REACH", label: "Unique Reach" },
+          { value: "LANDING_PAGE_VIEWS", label: "Landing Page Views" },
+        ],
+        selectedValue: selectedValues.optimizationGoal ?? "MESSAGES",
+      },
+      {
+        key: "advantagePlusAudience",
+        label: "Advantage+ Audience",
+        category: "Targeting",
+        type: "boolean",
+        description: "Meta AI dynamically expands targeting beyond initial suggestions.",
+        selectedValue: selectedValues.advantagePlusAudience ?? true,
+      },
+      {
+        key: "advantagePlusPlacement",
+        label: "Advantage+ Placements",
+        category: "Placements",
+        type: "boolean",
+        description: "Maximize budget across all Meta networks (Feeds, Stories, Reels, Audience Network).",
+        selectedValue: selectedValues.advantagePlusPlacement ?? true,
+      },
+      {
+        key: "deviceTypes",
+        label: "Device Types",
+        category: "Placements",
+        type: "multiselect",
+        description: "Targeted hardware platforms.",
+        options: [
+          { value: "desktop", label: "Desktop Computers" },
+          { value: "mobile", label: "Mobile Phones & Tablets" },
+        ],
+        selectedValue: selectedValues.deviceTypes ?? ["desktop", "mobile"],
+      },
+      {
+        key: "attributionWindow",
+        label: "Attribution Window",
+        category: "Ad Set Level",
+        type: "select",
+        description: "Timeframe used to attribute conversions back to ad interactions.",
+        options: [
+          { value: "7d_click_1d_view", label: "7-day click or 1-day view (Default)" },
+          { value: "1d_click_1d_view", label: "1-day click or 1-day view" },
+          { value: "7d_click", label: "7-day click" },
+          { value: "1d_click", label: "1-day click" },
+        ],
+        selectedValue: selectedValues.attributionWindow ?? "7d_click_1d_view",
+      },
+      {
+        key: "adFormat",
+        label: "Ad Format",
+        category: "Ad Creative",
+        type: "select",
+        description: "Visual layout format of the ad creative.",
+        options: [
+          { value: "SINGLE_IMAGE", label: "Single Image or Video" },
+          { value: "CAROUSEL", label: "Carousel (2+ scrollable images/videos)" },
+          { value: "COLLECTION", label: "Collection (Grid layout with storefront)" },
+        ],
+        selectedValue: selectedValues.adFormat ?? "SINGLE_IMAGE",
+      },
+      {
+        key: "callToAction",
+        label: "Call To Action (CTA)",
+        category: "Ad Creative",
+        type: "select",
+        description: "Button text displayed on the ad.",
+        options: [
+          { value: "WHATSAPP_MESSAGE", label: "Send WhatsApp Message" },
+          { value: "LEARN_MORE", label: "Learn More" },
+          { value: "SHOP_NOW", label: "Shop Now" },
+          { value: "SIGN_UP", label: "Sign Up" },
+          { value: "GET_OFFER", label: "Get Offer" },
+          { value: "INSTALL_APP", label: "Install App" },
+          { value: "USE_APP", label: "Use App" },
+          { value: "CONTACT_US", label: "Contact Us" },
+          { value: "SUBSCRIBE", label: "Subscribe" },
+          { value: "BOOK_NOW", label: "Book Now" },
+        ],
+        selectedValue: selectedValues.callToAction ?? "WHATSAPP_MESSAGE",
+      },
+      {
+        key: "creativeHeadline",
+        label: "Primary Headline",
+        category: "Ad Creative",
+        type: "text",
+        description: "Catchy headline text displayed prominently on ad creative.",
+        selectedValue: selectedValues.creativeHeadline ?? "",
+      },
+      {
+        key: "creativeBody",
+        label: "Primary Text (Body)",
+        category: "Ad Creative",
+        type: "text",
+        description: "Main copy text for the ad.",
+        selectedValue: selectedValues.creativeBody ?? "",
+      },
+      {
+        key: "creativeMediaUrl",
+        label: "Media Asset URL",
+        category: "Ad Creative",
+        type: "text",
+        description: "URL of image or video asset for ad creative.",
+        selectedValue: selectedValues.creativeMediaUrl ?? "",
+      },
+      {
+        key: "whatsappNumber",
+        label: "WhatsApp Business Phone",
+        category: "Ad Creative",
+        type: "text",
+        description: "Target WhatsApp number for Click-to-WhatsApp ads.",
+        selectedValue: selectedValues.whatsappNumber ?? "",
+      },
+      {
+        key: "utmParameters",
+        label: "URL Tracking Parameters (UTM)",
+        category: "Tracking",
+        type: "text",
+        description: "Custom URL parameters appended for Analytics tracking.",
+        selectedValue: selectedValues.utmParameters ?? "utm_source=meta&utm_medium=cpc&utm_campaign={{campaign.name}}",
+      },
+      {
+        key: "appPromoLiveVideo",
+        label: "Live Video Ad Mode",
+        category: "Special Features",
+        type: "boolean",
+        description: "Adjust budget and schedule specifically for live video streaming ads.",
+        selectedValue: selectedValues.appPromoLiveVideo ?? false,
+      },
+      {
+        key: "appPromoLiveVideoLocation",
+        label: "Live Video Placement Location",
+        category: "Special Features",
+        type: "select",
+        description: "Placement node for live video stream.",
+        options: [
+          { value: "FACEBOOK", label: "Facebook Live" },
+          { value: "INSTAGRAM", label: "Instagram Live" },
+          { value: "AUDIENCE_NETWORK", label: "Audience Network" },
+          { value: "FACEBOOK_INSTAGRAM", label: "Facebook & Instagram Live" },
+        ],
+        selectedValue: selectedValues.appPromoLiveVideoLocation ?? "FACEBOOK",
+      },
+      {
+        key: "appPromoIos14",
+        label: "iOS 14+ Campaign Mode",
+        category: "Special Features",
+        type: "boolean",
+        description: "SKAdNetwork compliant targeting for iOS 14.5+ devices.",
+        selectedValue: selectedValues.appPromoIos14 ?? false,
+      },
+      {
+        key: "appPromoSelectedApp",
+        label: "Promoted Mobile Application",
+        category: "Special Features",
+        type: "select",
+        description: "App package registered with Meta Business Manager for app install ads.",
+        options: [
+          { value: "whatsapp_automation_app", label: "📱 WhatsApp Automation Pro (org.jisnu.wa)" },
+          { value: "jisnu_crm_app", label: "💼 JISNU CRM Mobile (org.jisnu.crm)" },
+        ],
+        selectedValue: selectedValues.appPromoSelectedApp ?? "whatsapp_automation_app",
+      },
+    ];
+
+    return {
+      metaGraphVersion: META_GRAPH_VERSION,
+      campaignId: campaignId || null,
+      campaignFound,
+      totalParameters: parameterDefinitions.length,
+      selectedValues,
+      parameters: parameterDefinitions,
+    };
   }
 }
