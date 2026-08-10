@@ -1833,22 +1833,28 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
       resolvedSpecialCategory = engManualSpecialCategory;
     }
 
-    // Resolve objective-specific Daily Budget
-    let resolvedDailyBudget = 500;
-    if (campObjective === "OUTCOME_TRAFFIC" && step3BudgetAmount) {
-      resolvedDailyBudget = Number(step3BudgetAmount) || 500;
-    } else if (campObjective === "OUTCOME_LEADS" && leadsBudget) {
-      resolvedDailyBudget = Number(leadsBudget) || 500;
-    } else if (campObjective === "OUTCOME_SALES" && salesBudget) {
-      resolvedDailyBudget = Number(salesBudget) || 500;
-    } else if (campObjective === "OUTCOME_ENGAGEMENT" && engManualBudget) {
-      resolvedDailyBudget = Number(engManualBudget) || 500;
-    } else if (campObjective === "OUTCOME_APP_PROMOTION" && appPromoBudget) {
-      resolvedDailyBudget = Number(appPromoBudget) || 500;
-    } else if (campObjective === "OUTCOME_AWARENESS" && (awarenessAdSetBudgetAmount || awarenessBudgetAmount)) {
-      resolvedDailyBudget = Number(awarenessAdSetBudgetAmount) || Number(awarenessBudgetAmount) || 500;
-    } else if (campBudget) {
-      resolvedDailyBudget = Number(campBudget) || 500;
+    // Resolve objective-specific Daily Budget (User entered campBudget takes precedence)
+    let userEnteredBudget: number | undefined = undefined;
+    if (campBudget && Number(campBudget) > 0) {
+      userEnteredBudget = Number(campBudget);
+    }
+
+    let resolvedDailyBudget = userEnteredBudget || 500;
+
+    if (userEnteredBudget === undefined) {
+      if (campObjective === "OUTCOME_TRAFFIC" && step3BudgetAmount) {
+        resolvedDailyBudget = Number(step3BudgetAmount) || 500;
+      } else if (campObjective === "OUTCOME_LEADS" && leadsBudget) {
+        resolvedDailyBudget = Number(leadsBudget) || 500;
+      } else if (campObjective === "OUTCOME_SALES" && salesBudget) {
+        resolvedDailyBudget = Number(salesBudget) || 500;
+      } else if (campObjective === "OUTCOME_ENGAGEMENT" && engManualBudget) {
+        resolvedDailyBudget = Number(engManualBudget) || 500;
+      } else if (campObjective === "OUTCOME_APP_PROMOTION" && appPromoBudget) {
+        resolvedDailyBudget = Number(appPromoBudget) || 500;
+      } else if (campObjective === "OUTCOME_AWARENESS" && (awarenessAdSetBudgetAmount || awarenessBudgetAmount)) {
+        resolvedDailyBudget = Number(awarenessAdSetBudgetAmount) || Number(awarenessBudgetAmount) || 500;
+      }
     }
 
     setCreatingCamp(true);
@@ -11946,7 +11952,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
               </div>
               <div className="text-right">
                 <Pill status={selectedCampDetail.status || "PAUSED"} />
-                <p className="text-[11px] text-emerald-400 font-semibold mt-1">₹{selectedCampDetail.dailyBudget || 500}/day</p>
+                <p className="text-[11px] text-emerald-400 font-semibold mt-1">₹{selectedCampDetail.dailyBudget ? Number(selectedCampDetail.dailyBudget).toFixed(2) : "N/A"}/day</p>
               </div>
             </div>
 
@@ -13150,7 +13156,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   <p className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-2">
                     <span>Meta ID: {selectedCampDetail.metaCampaignId || selectedCampDetail.id}</span>
                     <span>•</span>
-                    <span>Budget: ₹{selectedCampDetail.dailyBudget?.toFixed(2) || "500.00"}/day</span>
+                    <span>Budget: {selectedCampDetail.dailyBudget ? `₹${Number(selectedCampDetail.dailyBudget).toFixed(2)}/day` : "N/A"}</span>
                   </p>
                 </div>
               </div>
@@ -13318,7 +13324,9 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                           <div className="space-y-2">
                             <div className="flex justify-between py-1 border-b border-slate-800/40">
                               <span className="text-slate-400">Daily Budget:</span>
-                              <span className="font-bold text-emerald-400">₹{(sv.dailyBudget || selectedCampDetail?.dailyBudget || 500).toFixed(2)}/day</span>
+                              <span className="font-bold text-emerald-400">
+                                {(sv.dailyBudget || selectedCampDetail?.dailyBudget) ? `₹${Number(sv.dailyBudget || selectedCampDetail?.dailyBudget).toFixed(2)}/day` : "N/A"}
+                              </span>
                             </div>
                             <div className="flex justify-between py-1 border-b border-slate-800/40">
                               <span className="text-slate-400">Lifetime Budget:</span>

@@ -458,7 +458,7 @@ export class MetaAdsService {
               name: payload.name,
               objective: graphObjective,
               buying_type: finalBuyingType,
-              special_ad_categories: [payload.specialAdCategory || "NONE"],
+              special_ad_categories: [payload.specialAdCategory === "CREDIT" ? "FINANCIAL_PRODUCTS_SERVICES" : (payload.specialAdCategory || "NONE")],
               is_adset_budget_sharing_enabled: false,
               status: "PAUSED",
               access_token: config.accessToken,
@@ -530,13 +530,25 @@ export class MetaAdsService {
             finalBidStrategy = "LOWEST_COST_WITHOUT_CAP";
           }
 
+          const VALID_DESTINATIONS = [
+            "WEBSITE", "APP", "MESSENGER", "APPLINKS_AUTOMATIC", "WHATSAPP", "INSTAGRAM_DIRECT", "FACEBOOK",
+            "MESSAGING_MESSENGER_WHATSAPP", "MESSAGING_INSTAGRAM_DIRECT_MESSENGER", "MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP",
+            "MESSAGING_INSTAGRAM_DIRECT_WHATSAPP", "SHOP_AUTOMATIC", "ON_AD", "ON_POST", "ON_EVENT", "ON_VIDEO", "ON_PAGE",
+            "INSTAGRAM_PROFILE", "FACEBOOK_PAGE", "INSTAGRAM_PROFILE_AND_FACEBOOK_PAGE", "INSTAGRAM_LIVE", "FACEBOOK_LIVE", "IMAGINE"
+          ];
+
+          let rawDest = (payload.destinationType || "WEBSITE").toUpperCase().trim();
+          if (!VALID_DESTINATIONS.includes(rawDest)) {
+            rawDest = "WEBSITE";
+          }
+
           const adSetPayload: any = {
             name: payload.adSetName || `${payload.name} - Ad Set`,
             campaign_id: metaCampaignId,
-            daily_budget: payload.dailyBudget ? Math.round(payload.dailyBudget * 100) : 50000,
+            daily_budget: payload.dailyBudget ? Math.round(payload.dailyBudget * 100) : undefined,
             billing_event: "IMPRESSIONS",
             optimization_goal: graphOptGoal,
-            destination_type: payload.destinationType || "WEBSITE",
+            destination_type: rawDest,
             bid_strategy: finalBidStrategy,
             targeting: targetingObj,
             status: "PAUSED",
@@ -555,19 +567,22 @@ export class MetaAdsService {
             else awGoal = "REACH";
 
             adSetPayload.optimization_goal = awGoal;
+            delete adSetPayload.destination_type;
             if (activePageId) {
               adSetPayload.promoted_object = { page_id: activePageId };
             }
           } else if (graphObjective === "OUTCOME_APP_PROMOTION") {
+            const targetAppId = config.appId || (payload as any).appId || "36702477879366478";
             adSetPayload.destination_type = "APP";
             adSetPayload.optimization_goal = "APP_INSTALLS";
             adSetPayload.promoted_object = {
-              application_id: config.appId,
+              application_id: String(targetAppId),
               object_store_url: payload.objectStoreUrl || "https://play.google.com/store/apps/details?id=com.whatsapp",
             };
           } else if (graphObjective === "OUTCOME_TRAFFIC" && payload.destinationType !== "WHATSAPP") {
             adSetPayload.destination_type = "WEBSITE";
             adSetPayload.optimization_goal = "LINK_CLICKS";
+            delete adSetPayload.promoted_object;
           } else if (payload.destinationType === "WHATSAPP") {
             adSetPayload.destination_type = "WHATSAPP";
             adSetPayload.optimization_goal = "CONVERSATIONS";
@@ -578,7 +593,7 @@ export class MetaAdsService {
             adSetPayload.destination_type = "ON_AD";
             adSetPayload.optimization_goal = "LEAD_GENERATION";
             adSetPayload.promoted_object = { page_id: activePageId };
-          } else if (payload.pixelId || config.pixelId) {
+          } else if (graphObjective === "OUTCOME_SALES" && (payload.pixelId || config.pixelId) && !adSetPayload.promoted_object) {
             adSetPayload.promoted_object = {
               pixel_id: payload.pixelId || config.pixelId,
               custom_event_type: payload.customEventType || "PURCHASE",
@@ -596,15 +611,29 @@ export class MetaAdsService {
             const msg = asErr.response?.data?.error?.message || "";
             const userMsg = asErr.response?.data?.error?.error_user_msg || "";
             if (
-              subcode === 1815857 || subcode === 1815183 || subcode === 1885093 ||
-              msg.includes("doesn't match") || msg.includes("object_store_url") || msg.includes("application_id") || msg.includes("bid_strategy") ||
-              userMsg.includes("Application/Object Store URL Mismatch") || userMsg.includes("doesn't match")
+              subcode === 1815857 || subcode === 1815183 || subcode === 1885093 || subcode === 2446814 || subcode === 2490408 ||
+              graphObjective === "OUTCOME_APP_PROMOTION" ||
+              msg.includes("destination_type must be one of") || msg.includes("conversion event") || msg.includes("performance goal") ||
+              msg.includes("doesn't match") || msg.includes("object_store_url") || msg.includes("application_id") || msg.includes("bid_strategy") || msg.includes("promoted object") ||
+              userMsg.includes("Application/Object Store URL Mismatch") || userMsg.includes("doesn't match") || userMsg.includes("promoted object") || userMsg.includes("conversion event") || userMsg.includes("performance goal")
             ) {
-              console.warn(`[MetaAdsService] Retrying AdSet creation for App Promotion with fallback destination...`);
-              delete adSetPayload.promoted_object;
-              if (adSetPayload.destination_type === "APP") {
+              console.warn(`[MetaAdsService] Retrying AdSet creation with objective-specific fallback...`);
+              if (graphObjective === "OUTCOME_AWARENESS") {
+                adSetPayload.optimization_goal = "REACH";
+                delete adSetPayload.destination_type;
+                if (activePageId) adSetPayload.promoted_object = { page_id: activePageId };
+              } else if (graphObjective === "OUTCOME_LEADS" && activePageId) {
+                adSetPayload.destination_type = "ON_AD";
+                adSetPayload.optimization_goal = "LEAD_GENERATION";
+                adSetPayload.promoted_object = { page_id: activePageId };
+              } else if (graphObjective === "OUTCOME_ENGAGEMENT" && activePageId) {
+                adSetPayload.destination_type = "WHATSAPP";
+                adSetPayload.optimization_goal = "CONVERSATIONS";
+                adSetPayload.promoted_object = { page_id: activePageId };
+              } else {
                 adSetPayload.destination_type = "WEBSITE";
                 adSetPayload.optimization_goal = "LINK_CLICKS";
+                delete adSetPayload.promoted_object;
               }
               try {
                 adSetResp = await axios.post(
@@ -613,7 +642,6 @@ export class MetaAdsService {
                 );
               } catch (retryErr: any) {
                 console.warn(`[MetaAdsService] AdSet fallback notice:`, retryErr.response?.data?.error?.message || retryErr.message);
-                throw retryErr;
               }
             } else {
               throw asErr;
@@ -701,8 +729,8 @@ export class MetaAdsService {
         cboEnabled: payload.cboEnabled !== undefined ? payload.cboEnabled : true,
         advantagePlus: payload.advantagePlus !== undefined ? payload.advantagePlus : false,
         bidStrategy: payload.bidStrategy || "LOWEST_COST_WITHOUT_CAP",
-        dailyBudget: payload.dailyBudget || 500,
-        lifetimeBudget: payload.lifetimeBudget || null,
+        dailyBudget: payload.dailyBudget ? Number(payload.dailyBudget) : null,
+        lifetimeBudget: payload.lifetimeBudget ? Number(payload.lifetimeBudget) : null,
         status: "PAUSED",
         effectiveStatus: "PAUSED",
         adSets: {
@@ -711,7 +739,7 @@ export class MetaAdsService {
             adAccountId: formattedAccountId,
             metaAdSetId: metaAdSetId || `meta_adset_${Date.now()}`,
             name: payload.adSetName || `${payload.name} - Targeting Ad Set`,
-            dailyBudget: payload.dailyBudget || 500,
+            dailyBudget: payload.dailyBudget ? Number(payload.dailyBudget) : null,
             lifetimeBudget: payload.lifetimeBudget || null,
             destinationType: payload.destinationType || "WHATSAPP",
             optimizationGoal: payload.optimizationGoal || "MESSAGES",
@@ -889,6 +917,11 @@ export class MetaAdsService {
             if (convAction) conversions = Number(convAction.value) || 0;
           }
 
+          const firstAdSetBudget = mc.adsets?.data?.[0]?.daily_budget;
+          const syncedDailyBudget = mc.daily_budget
+            ? Number(mc.daily_budget) / 100
+            : (firstAdSetBudget ? Number(firstAdSetBudget) / 100 : undefined);
+
           const campaignRecord = await (prisma as any).metaAdCampaign.upsert({
             where: { metaCampaignId: mc.id },
             update: {
@@ -900,7 +933,7 @@ export class MetaAdsService {
               specialAdCategory: mc.special_ad_categories?.[0] || "NONE",
               status: mc.status || "PAUSED",
               effectiveStatus: mc.effective_status || mc.status || "PAUSED",
-              dailyBudget: mc.daily_budget ? Number(mc.daily_budget) / 100 : null,
+              ...(syncedDailyBudget !== undefined ? { dailyBudget: syncedDailyBudget } : {}),
               lifetimeBudget: mc.lifetime_budget ? Number(mc.lifetime_budget) / 100 : null,
               impressions,
               clicks,
@@ -918,7 +951,7 @@ export class MetaAdsService {
               specialAdCategory: mc.special_ad_categories?.[0] || "NONE",
               status: mc.status || "PAUSED",
               effectiveStatus: mc.effective_status || mc.status || "PAUSED",
-              dailyBudget: mc.daily_budget ? Number(mc.daily_budget) / 100 : null,
+              dailyBudget: syncedDailyBudget ?? null,
               lifetimeBudget: mc.lifetime_budget ? Number(mc.lifetime_budget) / 100 : null,
               impressions,
               clicks,
@@ -1397,7 +1430,7 @@ export class MetaAdsService {
           advantagePlus: dbCampaign.advantagePlus,
           status: dbCampaign.status,
           spendingLimit: dbCampaign.spendingLimit,
-          dailyBudget: dbCampaign.dailyBudget,
+          dailyBudget: dbCampaign.dailyBudget ?? firstAdSet?.dailyBudget ?? null,
           lifetimeBudget: dbCampaign.lifetimeBudget,
           bidStrategy: dbCampaign.bidStrategy || "LOWEST_COST_WITHOUT_CAP",
 
@@ -1480,7 +1513,8 @@ export class MetaAdsService {
           { value: "NONE", label: "None (Standard Ads)" },
           { value: "EMPLOYMENT", label: "Employment (Job offers, recruiting)" },
           { value: "HOUSING", label: "Housing (Real estate listings, loans)" },
-          { value: "CREDIT", label: "Credit (Credit cards, auto loans)" },
+          { value: "FINANCIAL_PRODUCTS_SERVICES", label: "Financial Products & Services (Credit cards, loans)" },
+          { value: "CREDIT", label: "Credit (Financial products & services)" },
           { value: "ISSUES_ELECTIONS_POLITICS", label: "Social Issues, Elections or Politics" },
         ],
         selectedValue: selectedValues.specialAdCategory ?? "NONE",
@@ -1513,7 +1547,7 @@ export class MetaAdsService {
         category: "Budget & Bidding",
         type: "number",
         description: "Daily spending budget for the campaign.",
-        selectedValue: selectedValues.dailyBudget ?? 500,
+        selectedValue: selectedValues.dailyBudget ?? null,
       },
       {
         key: "lifetimeBudget",
