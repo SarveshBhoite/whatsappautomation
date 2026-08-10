@@ -7,27 +7,10 @@ import {
   Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, MoreVertical, Settings, Sparkles, Image as ImageIcon, Video as VideoIcon, Edit3
 } from "lucide-react";
 
-const DISPLAY_CONFIGS = {
-  SALES: {
-    objective: "SALES",
-    objectiveLabel: "Sales",
-    displayName: "Sales-Display-2",
-    goals: "Sales, Purchases"
-  },
-  LEADS: {
-    objective: "LEADS",
-    objectiveLabel: "Leads",
-    displayName: "Leads-Display-1",
-    goals: "Downloads, Phone call leads"
-  }
-};
-
 export default function DisplayCampaignCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("customerId");
-  const rawObjective = (searchParams.get("objective") || "SALES").toUpperCase();
-  const currentConfig = rawObjective === "LEADS" ? DISPLAY_CONFIGS.LEADS : DISPLAY_CONFIGS.SALES;
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
 
@@ -689,7 +672,7 @@ export default function DisplayCampaignCreatePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-1">
                     <span className="text-slate-400 block font-semibold">Campaign name</span>
-                    <span className="text-slate-100 font-bold">{currentConfig.displayName}</span>
+                    <span className="text-slate-100 font-bold">Sales-Display-2</span>
                   </div>
                   <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-1">
                     <span className="text-slate-400 block font-semibold">Campaign type</span>
@@ -697,11 +680,11 @@ export default function DisplayCampaignCreatePage() {
                   </div>
                   <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-1">
                     <span className="text-slate-400 block font-semibold">Objective</span>
-                    <span className="text-slate-100 font-bold">{currentConfig.objectiveLabel}</span>
+                    <span className="text-slate-100 font-bold">Sales</span>
                   </div>
                   <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-1">
                     <span className="text-slate-400 block font-semibold">Goal</span>
-                    <span className="text-slate-100 font-bold">{currentConfig.goals}</span>
+                    <span className="text-slate-100 font-bold">Downloads, Phone call leads</span>
                   </div>
                 </div>
 

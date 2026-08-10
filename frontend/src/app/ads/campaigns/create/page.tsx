@@ -6364,24 +6364,16 @@ export default function CampaignCreatePage() {
         <button
           disabled={(wizardStep === "OBJECTIVE" && (!selectedObjective || !selectedType)) || isPublishing}
           onClick={async () => {
-            const objParam = selectedObjective || "LEADS";
-            const subParam = selectedReachGoals[0] || "phone_calls";
-            const queryParams = `?customerId=${customerId || ""}&objective=${objParam}&subtype=${subParam}`;
-
-            if (selectedType === "PERFORMANCE_MAX") {
-              router.push(`/ads/campaigns/create/pmax${queryParams}`);
-              return;
-            }
             if (selectedType === "DISPLAY") {
-              router.push(`/ads/campaigns/create/display${queryParams}`);
+              router.push(`/ads/campaigns/create/display${customerId ? `?customerId=${customerId}` : ""}`);
               return;
             }
             if (selectedType === "VIDEO") {
-              router.push(`/ads/campaigns/create/video${queryParams}`);
+              router.push(`/ads/campaigns/create/video${customerId ? `?customerId=${customerId}` : ""}`);
               return;
             }
             if (selectedType === "DEMAND_GEN") {
-              router.push(`/ads/campaigns/create/demand-gen${queryParams}`);
+              router.push(`/ads/campaigns/create/demand-gen${customerId ? `?customerId=${customerId}` : ""}`);
               return;
             }
             if (wizardStep === "OBJECTIVE") {

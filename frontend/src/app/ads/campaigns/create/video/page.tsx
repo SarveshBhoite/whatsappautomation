@@ -7,25 +7,10 @@ import {
   Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, MoreVertical
 } from "lucide-react";
 
-const VIDEO_CONFIGS = {
-  SALES: {
-    objective: "SALES",
-    objectiveLabel: "Sales",
-    headerTitle: "Sales Video Campaign Setup"
-  },
-  LEADS: {
-    objective: "LEADS",
-    objectiveLabel: "Leads",
-    headerTitle: "Leads Video Campaign Setup"
-  }
-};
-
 export default function VideoCampaignCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("customerId");
-  const rawObjective = (searchParams.get("objective") || "LEADS").toUpperCase();
-  const currentConfig = rawObjective === "SALES" ? VIDEO_CONFIGS.SALES : VIDEO_CONFIGS.LEADS;
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
 
@@ -71,7 +56,7 @@ export default function VideoCampaignCreatePage() {
             <X className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
-            <span className="text-sm font-semibold text-slate-200">{currentConfig.headerTitle}</span>
+            <span className="text-sm font-semibold text-slate-200">Video Campaign Setup</span>
           </div>
         </div>
 
