@@ -1075,6 +1075,99 @@ Return ONLY a JSON array of strings (no markdown):
   }
 });
 
+// POST /api/ads/generate-copy — AI ad copy generation using env API key (GROQ_KEY)
+router.post("/generate-copy", async (req, res) => {
+  try {
+    const { businessName, finalUrl, type = "HEADLINES" } = req.body;
+    const targetUrl = finalUrl && finalUrl.trim() ? finalUrl.trim() : "https://japatracker-7f759.web.app/";
+    
+    // Extract domain keyword (e.g., japatracker, portfolio, store, etc.)
+    let domainName = "My Product";
+    try {
+      const parsed = new URL(targetUrl.startsWith("http") ? targetUrl : `https://${targetUrl}`);
+      domainName = parsed.hostname.replace("www.", "").split(".")[0] || "Business";
+      domainName = domainName.charAt(0).toUpperCase() + domainName.slice(1);
+    } catch (e) {
+      domainName = "Business";
+    }
+
+    // Try AI generation with GROQ LLM
+    let copyData: any = {};
+    const apiKey = process.env.GROQ_KEY || GROQ_KEY;
+
+    if (apiKey) {
+      try {
+        const prompt = `You are a Google Ads copywriter. Generate unique, high-converting ad copy for website: ${targetUrl} (Domain: ${domainName}).
+Return ONLY a JSON object:
+{
+  "headlines": ["Unique Headline 1", "Unique Headline 2", "Unique Headline 3", "Unique Headline 4", "Unique Headline 5"],
+  "longHeadlines": ["Long Headline 1", "Long Headline 2", "Long Headline 3", "Long Headline 4", "Long Headline 5"],
+  "descriptions": ["Description 1", "Description 2", "Description 3", "Description 4", "Description 5"]
+}`;
+
+        const response = await axios.post(
+          GROQ_API_URL,
+          {
+            model: "llama-3.3-70b-versatile",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+            max_tokens: 800
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`
+            },
+            timeout: 5000
+          }
+        );
+
+        const raw = response.data?.choices?.[0]?.message?.content || "{}";
+        const cleaned = raw.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
+        copyData = JSON.parse(cleaned);
+      } catch (aiErr: any) {
+        console.warn("[AI Copy LLM Warning]: Using dynamic domain copy fallback for", targetUrl);
+      }
+    }
+
+    // Fallbacks tailored directly to the specified domain
+    const headlines = (Array.isArray(copyData.headlines) && copyData.headlines.length >= 5)
+      ? copyData.headlines.map((s: string) => s.substring(0, 30))
+      : [
+          `${domainName} Official Site`,
+          `Explore ${domainName} Deals`,
+          `Top ${domainName} Services`,
+          `Get Started With ${domainName}`,
+          `Instant ${domainName} Solutions`
+        ];
+
+    const longHeadlines = (Array.isArray(copyData.longHeadlines) && copyData.longHeadlines.length >= 5)
+      ? copyData.longHeadlines.map((s: string) => s.substring(0, 90))
+      : [
+          `Experience Industry-Leading Digital Solutions With ${domainName} Official Website`,
+          `Streamline Customer Operations & Growth - Visit ${domainName} Online Today`,
+          `Discover Top Rated Features & Exclusive Offerings Tailored For ${domainName} Users`,
+          `Maximize Conversions & Business Reach With ${domainName} Smart Software Tools`,
+          `Get Fast 24/7 Access To Premium Features Available Directly On ${domainName}`
+        ];
+
+    const descriptions = (Array.isArray(copyData.descriptions) && copyData.descriptions.length >= 5)
+      ? copyData.descriptions.map((s: string) => s.substring(0, 90))
+      : [
+          `Discover premium solutions and fast services on ${domainName}. Visit our website today!`,
+          `Streamline your workflows and boost results with ${domainName}. Explore all features online.`,
+          `Get started with ${domainName} for real-time tracking, automated tools, and 24/7 support.`,
+          `Try ${domainName} today to scale your business efficiency and reach maximum customer potential.`,
+          `Visit ${domainName} now to unlock exclusive digital tools and transform your operations.`
+        ];
+
+    return res.status(200).json({ headlines, longHeadlines, descriptions });
+  } catch (error: any) {
+    console.error("[AI Copy Generation Error]:", error?.message);
+    res.status(500).json({ error: "Failed to generate AI copy" });
+  }
+});
+
 // POST /api/ads/analyze-campaign — AI campaign health analysis
 router.post("/analyze-campaign", async (req, res) => {
   try {

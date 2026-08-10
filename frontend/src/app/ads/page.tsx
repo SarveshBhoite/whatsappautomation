@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Megaphone, TrendingUp, MousePointerClick, Eye, DollarSign,
   Target, Plus, Play, Pause, Sparkles, ChevronRight, ChevronLeft,
@@ -2098,6 +2098,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
 
 export default function GoogleAdsPage() {
   const orgId = DEFAULT_ORG_ID;
+  const router = useRouter();
 
   const [platform, setPlatform] = useState<"google" | "meta">("google");
   const [isConnected, setIsConnected] = useState(false);
@@ -2698,7 +2699,7 @@ export default function GoogleAdsPage() {
           </button>
 
           {selectedCustomerId && (
-            <button onClick={() => setShowCreator(true)}
+            <button onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-slate-950 text-sm font-bold hover:bg-secondary transition-all shadow-lg shadow-primary/20">
               <Plus className="h-4 w-4" /> New Campaign
             </button>
@@ -2831,7 +2832,7 @@ export default function GoogleAdsPage() {
               <button onClick={() => loadCampaigns(selectedCustomerId)} className="p-2.5 rounded-xl border border-slate-700/50 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all">
                 <RefreshCw className="h-4 w-4" />
               </button>
-              <button onClick={() => setShowCreator(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-slate-950 text-sm font-bold hover:bg-secondary transition-all shadow-lg shadow-primary/20">
+              <button onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-slate-950 text-sm font-bold hover:bg-secondary transition-all shadow-lg shadow-primary/20">
                 <Plus className="h-4 w-4" /> New Campaign
               </button>
             </div>
@@ -2840,7 +2841,7 @@ export default function GoogleAdsPage() {
               {campsLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-primary animate-spin" /></div>
               ) : filteredCamps.length === 0 ? (
-                <EmptyState icon={Megaphone} title="No campaigns" sub="Create your first AI-powered campaign to start reaching customers." action="Create Campaign" onAction={() => setShowCreator(true)} />
+                <EmptyState icon={Megaphone} title="No campaigns" sub="Create your first campaign to start reaching customers." action="Create Campaign" onAction={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)} />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
