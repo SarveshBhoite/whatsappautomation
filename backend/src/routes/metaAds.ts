@@ -1,8 +1,12 @@
 import { Router, Request, Response } from "express";
 import { MetaAdsService } from "../services/metaAdsService";
+import metaAdsSubRouter from "./meta-ads";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
+
+// Mount modular campaign routes (/campaigns/traffic, /campaigns/awareness, etc.)
+router.use(metaAdsSubRouter);
 
 /**
  * GET /api/meta-ads/config
@@ -322,12 +326,8 @@ router.get("/campaigns/:id", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
     const campaignId = req.params.id as string;
-    const result = await MetaAdsService.getCampaignById(orgId, campaignId);
-    if (result && typeof result === "object" && "campaign" in result) {
-      res.json({ success: true, campaign: result.campaign, liveMeta: result.liveMeta });
-    } else {
-      res.json({ success: true, campaign: result });
-    }
+    const campaign = await MetaAdsService.getCampaignById(orgId, campaignId);
+    res.json({ success: true, campaign });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching campaign:", error.message);
     res.status(500).json({ success: false, error: error.message });
