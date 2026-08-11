@@ -254,7 +254,15 @@ export default function CampaignCreatePage() {
   const [selectedReachGoals, setSelectedReachGoals] = useState<string[]>(["website_visits"]);
 
   // Demand Gen Custom Form States
-  const [demandGenCampaignName, setDemandGenCampaignName] = useState<string>("Demand Gen - 2026-08-07");
+  const getTodayFormattedDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [demandGenCampaignName, setDemandGenCampaignName] = useState<string>(`Demand Gen - ${getTodayFormattedDate()}`);
   const [demandGenGoal, setDemandGenGoal] = useState<"Conversions" | "Clicks" | "Conversion value" | "YouTube engagements">("Conversions");
   const [includeViewThrough, setIncludeViewThrough] = useState<boolean>(false);
   const [targetCpaDemandGen, setTargetCpaDemandGen] = useState<boolean>(false);

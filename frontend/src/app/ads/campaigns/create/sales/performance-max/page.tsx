@@ -233,7 +233,7 @@ export default function SalesPerformanceMaxPage() {
                       : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
                   }`}
                 >
-                  <span>Bidding</span>
+                  <span>1. Bidding</span>
                 </div>
                 {wizardStep === "BIDDING" && (
                   <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
@@ -254,7 +254,7 @@ export default function SalesPerformanceMaxPage() {
                       : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
                   }`}
                 >
-                  <span>Campaign settings</span>
+                  <span>2. Campaign settings</span>
                 </div>
                 {wizardStep === "CAMPAIGN_SETTINGS" && (
                   <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
@@ -288,7 +288,7 @@ export default function SalesPerformanceMaxPage() {
                       : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
                   }`}
                 >
-                  <span>Asset group</span>
+                  <span>3. Asset group</span>
                 </div>
                 {wizardStep === "ASSET_GROUP" && (
                   <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
@@ -311,7 +311,7 @@ export default function SalesPerformanceMaxPage() {
                     : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
                 }`}
               >
-                <span>Budget</span>
+                <span>4. Budget</span>
               </div>
 
               {/* 5. Summary */}
@@ -323,7 +323,7 @@ export default function SalesPerformanceMaxPage() {
                     : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
                 }`}
               >
-                <span>Summary</span>
+                <span>5. Summary</span>
               </div>
             </nav>
           </div>

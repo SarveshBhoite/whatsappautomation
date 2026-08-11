@@ -18,17 +18,40 @@ export default function DemandGenCreatePage() {
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW"
   const [demandGenStep, setDemandGenStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW">("CAMPAIGN_SETTINGS");
 
+  // Get formatted today's date YYYY-MM-DD
+  const getTodayFormattedDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Demand Gen Campaign States
-  const [demandGenCampaignName, setDemandGenCampaignName] = useState<string>("Demand Gen - 2026-08-07");
+  const [demandGenCampaignName, setDemandGenCampaignName] = useState<string>(`Demand Gen - ${getTodayFormattedDate()}`);
+  const [selectedSourceCampaign, setSelectedSourceCampaign] = useState<string | null>(null);
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false);
+  const [campaignSearchTerm, setCampaignSearchTerm] = useState<string>("");
+
+  // Sample old campaign list
+  const existingCampaigns = [
+    { id: "c-101", name: "Demand Gen - 2026-07-15", type: "Demand Gen", status: "Active", budget: "₹1,500/day" },
+    { id: "c-102", name: "Sales Summer Promo - Video", type: "Video", status: "Ended", budget: "₹2,000/day" },
+    { id: "c-103", name: "Demand Gen - High Intent Audiences", type: "Demand Gen", status: "Active", budget: "₹3,500/day" },
+    { id: "c-104", name: "Website Traffic - Discovery 2026", type: "Display", status: "Paused", budget: "₹1,000/day" },
+    { id: "c-105", name: "Demand Gen - Product Launch", type: "Demand Gen", status: "Active", budget: "₹5,000/day" },
+  ];
   const [demandGenGoal, setDemandGenGoal] = useState<"Conversions" | "Clicks" | "Conversion value" | "YouTube engagements">("Conversions");
   const [includeViewThrough, setIncludeViewThrough] = useState<boolean>(false);
   const [targetCpaDemandGen, setTargetCpaDemandGen] = useState<boolean>(false);
   const [demandGenBudgetType, setDemandGenBudgetType] = useState<string>("Daily");
   const [demandGenBudgetAmount, setDemandGenBudgetAmount] = useState<string>("");
   const [onlyNewCustomers, setOnlyNewCustomers] = useState<boolean>(false);
-  const [mainBrandColor, setMainBrandColor] = useState<string>("");
-  const [accentBrandColor, setAccentBrandColor] = useState<string>("");
+  const [mainBrandColor, setMainBrandColor] = useState<string>("#3b82f6");
+  const [accentBrandColor, setAccentBrandColor] = useState<string>("#10b981");
   const [brandFont, setBrandFont] = useState<string>("Any font");
+  const [startDate, setStartDate] = useState<string>(getTodayFormattedDate());
+  const [endDate, setEndDate] = useState<string>("");
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
 
   // Ad Group List State (Supporting Multiple Ad Groups)
@@ -73,8 +96,8 @@ export default function DemandGenCreatePage() {
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_OR_INTEREST" | "PRESENCE">("PRESENCE_OR_INTEREST");
   const [deviceTargetingType, setDeviceTargetingType] = useState<"ALL" | "SPECIFIC">("ALL");
   const [adScheduleDays, setAdScheduleDays] = useState<string>("All days");
-  const [adScheduleStartTime, setAdScheduleStartTime] = useState<string>("12:00 AM");
-  const [adScheduleEndTime, setAdScheduleEndTime] = useState<string>("12:00 AM");
+  const [adScheduleStartTime, setAdScheduleStartTime] = useState<string>("00:00");
+  const [adScheduleEndTime, setAdScheduleEndTime] = useState<string>("23:45");
   const [trackingTemplate, setTrackingTemplate] = useState<string>("");
   const [finalUrlSuffix, setFinalUrlSuffix] = useState<string>("");
   const [customParametersDemandGen, setCustomParametersDemandGen] = useState<Array<{ id: string; name: string; value: string }>>([
@@ -518,12 +541,99 @@ export default function DemandGenCreatePage() {
                 <div className="flex items-center justify-between text-xs pt-1">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400">Source campaign:</span>
-                    <button className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer">
-                      Choose a campaign <Edit3 className="h-3 w-3" />
+                    <button 
+                      type="button"
+                      onClick={() => setIsCampaignModalOpen(true)}
+                      className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20 hover:bg-primary/20 transition-all"
+                    >
+                      {selectedSourceCampaign ? selectedSourceCampaign : "Choose a campaign"} <Edit3 className="h-3 w-3" />
                     </button>
                   </div>
+                  {selectedSourceCampaign && (
+                    <button 
+                      onClick={() => setSelectedSourceCampaign(null)}
+                      className="text-[11px] text-slate-500 hover:text-rose-400 underline cursor-pointer"
+                    >
+                      Clear selection
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* Old Campaign List Modal */}
+              {isCampaignModalOpen && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150">
+                    <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-100">Select an existing campaign</h3>
+                        <p className="text-xs text-slate-400">Choose a campaign to prefill settings and assets</p>
+                      </div>
+                      <button 
+                        onClick={() => setIsCampaignModalOpen(false)}
+                        className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <div className="p-4 border-b border-slate-800">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                        <input
+                          type="text"
+                          placeholder="Search existing campaigns..."
+                          value={campaignSearchTerm}
+                          onChange={(e) => setCampaignSearchTerm(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-4 overflow-y-auto space-y-2 flex-1">
+                      {existingCampaigns
+                        .filter(c => c.name.toLowerCase().includes(campaignSearchTerm.toLowerCase()))
+                        .map((camp) => (
+                          <div
+                            key={camp.id}
+                            onClick={() => {
+                              setSelectedSourceCampaign(camp.name);
+                              setIsCampaignModalOpen(false);
+                            }}
+                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              selectedSourceCampaign === camp.name
+                                ? "bg-primary/10 border-primary text-primary"
+                                : "bg-slate-950 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50 text-slate-200"
+                            }`}
+                          >
+                            <div>
+                              <p className="text-xs font-bold">{camp.name}</p>
+                              <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
+                                <span>Type: {camp.type}</span>
+                                <span>•</span>
+                                <span>Budget: {camp.budget}</span>
+                              </div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              camp.status === "Active" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400"
+                            }`}>
+                              {camp.status}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+
+                    <div className="p-4 border-t border-slate-800 bg-slate-950 flex justify-end gap-2 text-xs">
+                      <button
+                        onClick={() => setIsCampaignModalOpen(false)}
+                        className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 2. Campaign Name Card */}
               <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-lg">
@@ -571,57 +681,61 @@ export default function DemandGenCreatePage() {
                 </div>
               </div>
 
-              {/* 4. Conversion Goals Card */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-lg">
-                <h3 className="text-xs font-bold text-slate-200">Conversion goals</h3>
-                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 text-xs">
-                  <div className="grid grid-cols-12 px-4 py-2.5 bg-slate-900/80 font-semibold text-slate-400 border-b border-slate-800">
-                    <div className="col-span-4">Conversion Goals</div>
-                    <div className="col-span-3">Conversion Source</div>
-                    <div className="col-span-3 text-right">Conversion Actions</div>
-                    <div className="col-span-2 text-right">More actions</div>
-                  </div>
-                  <div className="grid grid-cols-12 px-4 py-3 text-slate-200 items-center">
-                    <div className="col-span-4 font-medium flex items-center gap-2">
-                      <PhoneCall className="h-3.5 w-3.5 text-primary shrink-0" />
-                      Phone call leads (account default)
+              {/* 4. Conversion Goals Card (Hidden for Clicks and YouTube engagements) */}
+              {demandGenGoal !== "Clicks" && demandGenGoal !== "YouTube engagements" && (
+                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-lg">
+                  <h3 className="text-xs font-bold text-slate-200">Conversion goals</h3>
+                  <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950 text-xs">
+                    <div className="grid grid-cols-12 px-4 py-2.5 bg-slate-900/80 font-semibold text-slate-400 border-b border-slate-800">
+                      <div className="col-span-4">Conversion Goals</div>
+                      <div className="col-span-3">Conversion Source</div>
+                      <div className="col-span-3 text-right">Conversion Actions</div>
+                      <div className="col-span-2 text-right">More actions</div>
                     </div>
-                    <div className="col-span-3 text-slate-400">Call from Ads</div>
-                    <div className="col-span-3 text-right text-amber-400 font-medium">1 action</div>
-                    <div className="col-span-2 text-right text-slate-400 hover:text-white cursor-pointer">More actions ▾</div>
+                    <div className="grid grid-cols-12 px-4 py-3 text-slate-200 items-center">
+                      <div className="col-span-4 font-medium flex items-center gap-2">
+                        <PhoneCall className="h-3.5 w-3.5 text-primary shrink-0" />
+                        Phone call leads (account default)
+                      </div>
+                      <div className="col-span-3 text-slate-400">Call from Ads</div>
+                      <div className="col-span-3 text-right text-amber-400 font-medium">1 action</div>
+                      <div className="col-span-2 text-right text-slate-400 hover:text-white cursor-pointer">More actions ▾</div>
+                    </div>
+                  </div>
+                  <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
+                    <p className="leading-relaxed">All of the actions in your selected conversion goals are unverified. Select a goal with verified actions or add a verified action to this goal.</p>
                   </div>
                 </div>
-                <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-                  <p className="leading-relaxed">All of the actions in your selected conversion goals are unverified. Select a goal with verified actions or add a verified action to this goal.</p>
-                </div>
-              </div>
+              )}
 
-              {/* 5. View-through conversion optimization Beta */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-lg">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-bold text-slate-200">View-through conversion optimization</h3>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold text-[10px]">Beta</span>
+              {/* 5. View-through conversion optimization Beta (Hidden only for Clicks) */}
+              {demandGenGoal !== "Clicks" && (
+                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-lg">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-bold text-slate-200">View-through conversion optimization</h3>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold text-[10px]">Beta</span>
+                    </div>
+                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                   </div>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Google Ads can include view-through conversions, in addition to click-through and engaged-view conversions, when bidding and reporting. While in beta, not all channels are supported. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                  </p>
+                  <label className="flex items-start gap-3 cursor-pointer pt-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={includeViewThrough}
+                      onChange={(e) => setIncludeViewThrough(e.target.checked)}
+                      className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                    />
+                    <div>
+                      <span className="font-semibold text-slate-200 block">Include view-through conversions</span>
+                      <span className="text-[11px] text-slate-400 block">Recorded when users view (but don't interact with) an ad and then later convert</span>
+                    </div>
+                  </label>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Google Ads can include view-through conversions, in addition to click-through and engaged-view conversions, when bidding and reporting. While in beta, not all channels are supported. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
-                </p>
-                <label className="flex items-start gap-3 cursor-pointer pt-1 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={includeViewThrough}
-                    onChange={(e) => setIncludeViewThrough(e.target.checked)}
-                    className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
-                  />
-                  <div>
-                    <span className="font-semibold text-slate-200 block">Include view-through conversions</span>
-                    <span className="text-[11px] text-slate-400 block">Recorded when users view (but don't interact with) an ad and then later convert</span>
-                  </div>
-                </label>
-              </div>
+              )}
 
               {/* 6. Target cost per action */}
               <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-lg">
@@ -680,9 +794,27 @@ export default function DemandGenCreatePage() {
                     </div>
                   </div>
 
-                  <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 space-y-1 text-slate-300">
-                    <p>Start date: <strong>8/8/2026</strong></p>
-                    <p>End date: <strong>None</strong></p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-800 bg-slate-950">
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-300 font-medium">Start date</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-300 font-medium">End date (optional)</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        placeholder="Select end date"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                      />
+                      {!endDate && <p className="text-[10px] text-slate-500">None (Run continuously)</p>}
+                    </div>
                   </div>
 
                   <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -725,26 +857,66 @@ export default function DemandGenCreatePage() {
 
                 <p className="text-slate-400">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about brand guidelines</a></p>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <h4 className="font-semibold text-slate-300">Custom colors</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="block text-slate-400">Main color</label>
-                      <input type="text" value={mainBrandColor} onChange={(e) => setMainBrandColor(e.target.value)} placeholder="Example: #ffffff" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100" />
+                    {/* Main Color Picker */}
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-400 font-medium">Main color</label>
+                      <div className="flex items-center gap-2.5 bg-slate-950 border border-slate-800 rounded-xl p-2">
+                        <input
+                          type="color"
+                          value={mainBrandColor}
+                          onChange={(e) => setMainBrandColor(e.target.value)}
+                          className="h-8 w-10 bg-transparent cursor-pointer border-0 rounded"
+                        />
+                        <input
+                          type="text"
+                          value={mainBrandColor}
+                          onChange={(e) => setMainBrandColor(e.target.value)}
+                          placeholder="#3b82f6"
+                          className="w-full bg-transparent text-slate-100 font-mono text-xs focus:outline-none uppercase"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="block text-slate-400">Accent color</label>
-                      <input type="text" value={accentBrandColor} onChange={(e) => setAccentBrandColor(e.target.value)} placeholder="Example: #ffffff" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100" />
+
+                    {/* Accent Color Picker */}
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-400 font-medium">Accent color</label>
+                      <div className="flex items-center gap-2.5 bg-slate-950 border border-slate-800 rounded-xl p-2">
+                        <input
+                          type="color"
+                          value={accentBrandColor}
+                          onChange={(e) => setAccentBrandColor(e.target.value)}
+                          className="h-8 w-10 bg-transparent cursor-pointer border-0 rounded"
+                        />
+                        <input
+                          type="text"
+                          value={accentBrandColor}
+                          onChange={(e) => setAccentBrandColor(e.target.value)}
+                          placeholder="#10b981"
+                          className="w-full bg-transparent text-slate-100 font-mono text-xs focus:outline-none uppercase"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1 pt-2">
-                    <label className="block text-slate-400">Font</label>
-                    <select value={brandFont} onChange={(e) => setBrandFont(e.target.value)} className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100">
+                  <div className="space-y-1.5 pt-2">
+                    <label className="block text-slate-400 font-medium">Font</label>
+                    <select
+                      value={brandFont}
+                      onChange={(e) => setBrandFont(e.target.value)}
+                      className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                    >
                       <option value="Any font">Any font</option>
-                      <option value="Roboto">Roboto</option>
                       <option value="Open Sans">Open Sans</option>
+                      <option value="Roboto">Roboto</option>
+                      <option value="Roboto Slab">Roboto Slab</option>
                       <option value="Montserrat">Montserrat</option>
+                      <option value="Poppins">Poppins</option>
+                      <option value="Lato">Lato</option>
+                      <option value="Oswald">Oswald</option>
+                      <option value="Playfair Display">Playfair Display</option>
                     </select>
                   </div>
                 </div>
@@ -869,24 +1041,45 @@ export default function DemandGenCreatePage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <select value={adScheduleDays} onChange={(e) => setAdScheduleDays(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-semibold">
+                  <select value={adScheduleDays} onChange={(e) => setAdScheduleDays(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none focus:border-primary">
                     <option value="All days">All days</option>
                     <option value="Mondays - Fridays">Mondays - Fridays</option>
                     <option value="Saturdays - Sundays">Saturdays - Sundays</option>
+                    <option value="Mondays">Mondays</option>
+                    <option value="Tuesdays">Tuesdays</option>
+                    <option value="Wednesdays">Wednesdays</option>
+                    <option value="Thursdays">Thursdays</option>
+                    <option value="Fridays">Fridays</option>
+                    <option value="Saturdays">Saturdays</option>
+                    <option value="Sundays">Sundays</option>
                   </select>
 
-                  <select value={adScheduleStartTime} onChange={(e) => setAdScheduleStartTime(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-semibold">
-                    <option value="12:00 AM">12:00 AM</option>
-                    <option value="06:00 AM">06:00 AM</option>
-                    <option value="09:00 AM">09:00 AM</option>
+                  <select value={adScheduleStartTime} onChange={(e) => setAdScheduleStartTime(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none focus:border-primary">
+                    {Array.from({ length: 96 }).map((_, i) => {
+                      const hours = String(Math.floor(i / 4)).padStart(2, "0");
+                      const mins = String((i % 4) * 15).padStart(2, "0");
+                      const timeStr = `${hours}:${mins}`;
+                      return (
+                        <option key={`start-${timeStr}`} value={timeStr}>
+                          {timeStr}
+                        </option>
+                      );
+                    })}
                   </select>
 
                   <span className="text-slate-400 font-medium">to</span>
 
-                  <select value={adScheduleEndTime} onChange={(e) => setAdScheduleEndTime(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 font-semibold">
-                    <option value="12:00 AM">12:00 AM</option>
-                    <option value="05:00 PM">05:00 PM</option>
-                    <option value="11:59 PM">11:59 PM</option>
+                  <select value={adScheduleEndTime} onChange={(e) => setAdScheduleEndTime(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none focus:border-primary">
+                    {Array.from({ length: 96 }).map((_, i) => {
+                      const hours = String(Math.floor(i / 4)).padStart(2, "0");
+                      const mins = String((i % 4) * 15).padStart(2, "0");
+                      const timeStr = `${hours}:${mins}`;
+                      return (
+                        <option key={`end-${timeStr}`} value={timeStr}>
+                          {timeStr}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
