@@ -199,6 +199,40 @@ router.get("/whatsapp-numbers", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/search/targeting
+ * Search live Meta Graph API targeting specs (interests, behaviors, job titles, demographics)
+ */
+router.get("/search/targeting", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const q = (req.query.q as string) || "";
+    const type = (req.query.type as string) || "adinterest";
+    const results = await MetaAdsService.searchTargeting(orgId, q, type);
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error searching targeting:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/search/locations
+ * Search live Meta Graph API geo locations (countries, regions, cities, zips)
+ */
+router.get("/search/locations", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const q = (req.query.q as string) || "";
+    const locationTypes = (req.query.locationTypes as string) || "country,region,city,zip";
+    const results = await MetaAdsService.searchLocations(orgId, q, locationTypes);
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error searching locations:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/meta-ads/campaigns
  * Get Meta campaigns
  */

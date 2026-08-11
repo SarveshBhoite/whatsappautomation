@@ -585,6 +585,51 @@ export class MetaAdsService {
   }
 
   /**
+   * Search Meta Targeting Specs (Interests, Behaviors, Demographics, Job Titles) via Graph API
+   */
+  static async searchTargeting(organizationId: string, q: string, type: string = "adinterest") {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken || !q) return [];
+
+    try {
+      const resp = await axios.get(`${META_GRAPH_BASE}/search`, {
+        params: {
+          type: type || "adinterest",
+          q: q,
+          access_token: config.accessToken,
+        },
+      });
+      return resp.data?.data || [];
+    } catch (err: any) {
+      console.warn(`[MetaAdsService] Targeting search error for query "${q}":`, err.response?.data?.error?.message || err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Search Meta Geo Locations (Countries, Regions, Cities, Zip codes) via Graph API
+   */
+  static async searchLocations(organizationId: string, q: string, locationTypes: string = "country,region,city,zip") {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken || !q) return [];
+
+    try {
+      const resp = await axios.get(`${META_GRAPH_BASE}/search`, {
+        params: {
+          type: "adgeolocation",
+          q: q,
+          location_types: locationTypes,
+          access_token: config.accessToken,
+        },
+      });
+      return resp.data?.data || [];
+    } catch (err: any) {
+      console.warn(`[MetaAdsService] Geo location search error for query "${q}":`, err.response?.data?.error?.message || err.message);
+      return [];
+    }
+  }
+
+  /**
    * Create a new Meta Campaign, Ad Set, and Ad (with full Graph API v26.0 and ODAX support)
    */
   static async createCampaign(organizationId: string, payload: CreateMetaCampaignPayload) {
