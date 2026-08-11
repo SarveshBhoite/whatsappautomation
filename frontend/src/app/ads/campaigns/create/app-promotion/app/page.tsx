@@ -1,7 +1,8 @@
 "use client";
 
-import GenericCampaignFlow from "../../GenericCampaignFlow";
+import AppPromotionWizard from "./AppPromotionWizard";
 
 export default function AppPromotionAppPage() {
-  return <GenericCampaignFlow objective="app-promotion" type="app" />;
+  return <AppPromotionWizard />;
 }
+

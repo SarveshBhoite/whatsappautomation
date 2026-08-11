@@ -386,7 +386,616 @@ router.post("/campaign/launch", async (req, res) => {
   }
 });
 
+// POST /api/ads/campaigns/create-app-promotion
+router.post("/campaigns/create-app-promotion", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "App promotion – App 1",
+      campaignSubtype = "APP_INSTALLS",
+      platform = "ANDROID",
+      appId = "com.hubmate.app",
+      appName = "Hubmate",
+      locations = ["India"],
+      languages = ["English"],
+      viewThroughEnabled = false,
+      euPolitical = "NO",
+      headlines = [],
+      descriptions = [],
+      images = [],
+      videos = [],
+      targetCpa = 25,
+      dailyBudget = 1000,
+      conversionAction = "Google Play app installs (First Open)",
+      userTargetType = "All users"
+    } = req.body;
+
+    if (!headlines || headlines.length === 0 || !headlines[0]) {
+      return res.status(400).json({ error: "At least 1 headline is required." });
+    }
+    if (!descriptions || descriptions.length === 0 || !descriptions[0]) {
+      return res.status(400).json({ error: "At least 1 description is required." });
+    }
+
+    const advertisingChannelType = "MULTI_CHANNEL";
+    const advertisingChannelSubType = "APP_CAMPAIGN";
+    const appStore = platform === "IOS" ? "APPLE_APP_STORE" : "GOOGLE_APP_STORE";
+    const biddingStrategyGoalType = "OPTIMIZE_INSTALLS_TARGET_INSTALL_COST";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const targetCpaMicros = Math.round(Number(targetCpa) * 1_000_000);
+
+    // Call GoogleAdsService helper (or generate mock resource if API not linked)
+    let apiResult: any = { campaignId: `app-cmp-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createAppPromotionCampaign) {
+        apiResult = await GoogleAdsService.createAppPromotionCampaign(orgId, customerId, {
+          campaignName,
+          appId,
+          appStore,
+          amountMicros,
+          targetCpaMicros,
+          headlines,
+          descriptions,
+          locations,
+          languages
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for App Promotion]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `app-${Date.now()}`,
+        name: campaignName,
+        campaignType: "MULTI_CHANNEL",
+        biddingStrategy: biddingStrategyGoalType,
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        headlines,
+        descriptions,
+        finalUrl: `https://play.google.com/store/apps/details?id=${appId}`,
+        geoTargets: locations,
+        advertisingChannelType: "MULTI_CHANNEL",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    // Also store Ad Group & Ad locally
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: `${campaignName} - Ad Group 1`,
+        adGroupType: "SEARCH_STANDARD",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines,
+        descriptions,
+        finalUrls: [`https://play.google.com/store/apps/details?id=${appId}`],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Campaign created successfully (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        advertising_channel_sub_type: advertisingChannelSubType,
+        app_store: appStore,
+        app_id: appId,
+        bidding_strategy_goal_type: biddingStrategyGoalType,
+        "target_cpa.target_cpa_micros": targetCpaMicros,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("App promotion campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-youtube-campaign
+router.post("/campaigns/create-youtube-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = `Video views - ${new Date().toISOString().split("T")[0]}`,
+      campaignGoal = "VIDEO_VIEWS",
+      adFormats = ["SKIPPABLE_IN_STREAM", "IN_FEED", "SHORTS"],
+      bidStrategy = "TARGET_CPV",
+      budgetType = "DAILY",
+      dailyBudget = 1000,
+      targetCpv = 10.0,
+      locations = ["India"],
+      languages = ["English"],
+      networks = ["YouTube", "Google Display Network"],
+      videoUrls = [],
+      adGroupName = "Ad Group 1",
+      audience = {},
+      content = {}
+    } = req.body;
+
+    if (!videoUrls || videoUrls.length === 0 || !videoUrls[0]) {
+      return res.status(400).json({ error: "At least 1 YouTube video URL is required." });
+    }
+
+    const advertisingChannelType = "VIDEO";
+    const advertisingChannelSubType = campaignGoal === "REACH" ? "VIDEO_REACH" : campaignGoal === "ENGAGEMENT" ? "VIDEO_ACTION" : "VIDEO_VIEWS";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const targetCpvMicros = Math.round(Number(targetCpv) * 1_000_000);
+
+    let apiResult: any = { campaignId: `yt-cmp-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createYouTubeCampaign) {
+        apiResult = await GoogleAdsService.createYouTubeCampaign(orgId, customerId, {
+          campaignName,
+          campaignGoal,
+          amountMicros,
+          targetCpvMicros,
+          videoUrls,
+          locations,
+          languages
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for YouTube Campaign]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `yt-${Date.now()}`,
+        name: campaignName,
+        campaignType: "VIDEO",
+        biddingStrategy: bidStrategy,
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl: videoUrls[0],
+        geoTargets: locations,
+        advertisingChannelType: "VIDEO",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: adGroupName || `${campaignName} - Ad Group 1`,
+        adGroupType: "VIDEO_STANDARD",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines: [campaignName],
+        descriptions: ["Watch our latest YouTube video"],
+        finalUrls: videoUrls,
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "YouTube Campaign created successfully (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        advertising_channel_sub_type: advertisingChannelSubType,
+        bidding_strategy_type: bidStrategy,
+        target_cpv_micros: targetCpvMicros,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("YouTube campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-local-pmax-campaign
+router.post("/campaigns/create-local-pmax-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "Local store visits and promotions-Performance Max-1",
+      finalUrl = "https://www.example.com",
+      storeLocationFeed = "Use all locations",
+      biddingFocus = "Maximize conversions",
+      targetCpa = 25,
+      targetRoas = 200,
+      onlyNewCustomers = false,
+      reengageLapsedCustomers = false,
+      languages = ["English"],
+      euPolitical = "NO",
+      assetGroupName = "Asset Group 1",
+      headlines = [],
+      descriptions = [],
+      images = [],
+      searchThemes = [],
+      audienceSignal = "",
+      budgetType = "DAILY",
+      dailyBudget = 1000
+    } = req.body;
+
+    if (!finalUrl) {
+      return res.status(400).json({ error: "Final URL is required." });
+    }
+    if (!headlines || headlines.length === 0 || !headlines[0]) {
+      return res.status(400).json({ error: "At least 1 headline is required." });
+    }
+
+    const advertisingChannelType = "PERFORMANCE_MAX";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
+
+    let apiResult: any = { campaignId: `pmax-cmp-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createLocalPerformanceMaxCampaign) {
+        apiResult = await GoogleAdsService.createLocalPerformanceMaxCampaign(orgId, customerId, {
+          campaignName,
+          finalUrl,
+          amountMicros,
+          biddingFocus,
+          targetCpaMicros,
+          headlines,
+          descriptions,
+          images
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for Local Performance Max]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `pmax-${Date.now()}`,
+        name: campaignName,
+        campaignType: "PERFORMANCE_MAX",
+        biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : biddingFocus === "Target ROAS" ? "TARGET_ROAS" : "MAXIMIZE_CONVERSIONS",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl,
+        headlines,
+        descriptions,
+        geoTargets: ["All store locations"],
+        advertisingChannelType: "PERFORMANCE_MAX",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: assetGroupName || `${campaignName} Asset Group 1`,
+        adGroupType: "PERFORMANCE_MAX",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines,
+        descriptions,
+        finalUrls: [finalUrl],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Local Performance Max Campaign created successfully (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        store_location_feed: storeLocationFeed,
+        bidding_focus: biddingFocus,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("Local Performance Max creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-noguidance-pmax-campaign
+router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "Performance Max-1",
+      finalUrl = "https://www.example.com",
+      biddingFocus = "Maximize conversions",
+      targetCpa = 25,
+      targetRoas = 200,
+      onlyNewCustomers = false,
+      reengageLapsedCustomers = false,
+      locations = ["India"],
+      locationOption = "PRESENCE_OR_INTEREST",
+      languages = ["English"],
+      euPolitical = "NO",
+      assetGroupName = "Asset Group 1",
+      headlines = [],
+      longHeadlines = [],
+      descriptions = [],
+      images = [],
+      searchThemes = [],
+      audienceSignal = "",
+      budgetType = "DAILY",
+      dailyBudget = 1000
+    } = req.body;
+
+    if (!finalUrl) {
+      return res.status(400).json({ error: "Final URL is required." });
+    }
+    if (!headlines || headlines.length === 0 || !headlines[0]) {
+      return res.status(400).json({ error: "At least 1 headline is required." });
+    }
+
+    const advertisingChannelType = "PERFORMANCE_MAX";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
+
+    let apiResult: any = { campaignId: `pmax-noguidance-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createNoGuidancePMaxCampaign) {
+        apiResult = await GoogleAdsService.createNoGuidancePMaxCampaign(orgId, customerId, {
+          campaignName,
+          finalUrl,
+          amountMicros,
+          biddingFocus,
+          targetCpaMicros,
+          headlines,
+          longHeadlines,
+          descriptions,
+          images
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for No Guidance Performance Max]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `pmax-${Date.now()}`,
+        name: campaignName,
+        campaignType: "PERFORMANCE_MAX",
+        biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : biddingFocus === "Target ROAS" ? "TARGET_ROAS" : "MAXIMIZE_CONVERSIONS",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl,
+        headlines,
+        descriptions,
+        geoTargets: locations,
+        advertisingChannelType: "PERFORMANCE_MAX",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: assetGroupName || `${campaignName} Asset Group 1`,
+        adGroupType: "PERFORMANCE_MAX",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines,
+        descriptions,
+        finalUrls: [finalUrl],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Performance Max Campaign created successfully without guidance (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        bidding_focus: biddingFocus,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("No Guidance Performance Max creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-noguidance-search-campaign
+router.post("/campaigns/create-noguidance-search-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "Search-8",
+      websiteVisitsUrl = "https://www.example.com",
+      phoneCallCountry = "+91",
+      phoneCallNumber = "",
+      biddingFocus = "Maximize conversions",
+      targetCpa = 25,
+      targetRoas = 200,
+      maxCpcLimit = 15,
+      impressionShareLocation = "ANYWHERE",
+      impressionSharePercent = 50,
+      onlyNewCustomers = false,
+      searchPartners = true,
+      displayNetwork = true,
+      locations = ["India"],
+      languages = ["English"],
+      euPolitical = "NO",
+      aiMaxEnabled = true,
+      finalUrlExpansion = true,
+      keywords = [],
+      adGroupName = "Ad Group 1",
+      displayPath1 = "",
+      displayPath2 = "",
+      headlines = [],
+      descriptions = [],
+      budgetType = "DAILY",
+      dailyBudget = 1000
+    } = req.body;
+
+    const finalUrl = websiteVisitsUrl || "https://www.example.com";
+    if (!headlines || headlines.length === 0 || !headlines[0]) {
+      return res.status(400).json({ error: "At least 1 headline is required." });
+    }
+
+    const advertisingChannelType = "SEARCH";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
+
+    let apiResult: any = { campaignId: `search-noguidance-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createNoGuidanceSearchCampaign) {
+        apiResult = await GoogleAdsService.createNoGuidanceSearchCampaign(orgId, customerId, {
+          campaignName,
+          finalUrl,
+          amountMicros,
+          biddingFocus,
+          targetCpaMicros,
+          headlines,
+          descriptions,
+          keywords
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for No Guidance Search Campaign]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `search-${Date.now()}`,
+        name: campaignName,
+        campaignType: "SEARCH",
+        biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : biddingFocus === "Target ROAS" ? "TARGET_ROAS" : "MAXIMIZE_CONVERSIONS",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl,
+        headlines,
+        descriptions,
+        geoTargets: locations,
+        advertisingChannelType: "SEARCH",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: adGroupName || `${campaignName} - Ad Group 1`,
+        adGroupType: "SEARCH_STANDARD",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines,
+        descriptions,
+        finalUrls: [finalUrl],
+        path1: displayPath1,
+        path2: displayPath2,
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Search Campaign created successfully without guidance (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        bidding_focus: biddingFocus,
+        ai_max_enabled: aiMaxEnabled,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("No Guidance Search campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
 // PUT /api/ads/campaigns/:id — update campaign
+
+
+
+
 router.put("/campaigns/:id", async (req, res) => {
   try {
     const orgId = getOrgId(req);

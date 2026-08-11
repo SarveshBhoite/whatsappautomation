@@ -1,7 +1,8 @@
 "use client";
 
-import GenericCampaignFlow from "../../GenericCampaignFlow";
+import NoGuidanceSearchWizard from "./NoGuidanceSearchWizard";
 
 export default function NoGuidanceSearchPage() {
-  return <GenericCampaignFlow objective="no-guidance" type="search" />;
+  return <NoGuidanceSearchWizard />;
 }
+

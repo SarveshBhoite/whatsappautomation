@@ -1,7 +1,8 @@
 "use client";
 
-import GenericCampaignFlow from "../../GenericCampaignFlow";
+import NoGuidancePMaxWizard from "./NoGuidancePMaxWizard";
 
 export default function NoGuidancePerformanceMaxPage() {
-  return <GenericCampaignFlow objective="no-guidance" type="performance-max" />;
+  return <NoGuidancePMaxWizard />;
 }
+
