@@ -101,7 +101,7 @@ export default function WebsiteTrafficSearchPage() {
 
   // Modals State
   const [activeModal, setActiveModal] = useState<
-    "SITELINKS" | "CALLS" | "PROMOTIONS" | "PRICES" | "SNIPPETS" | "LEAD_FORMS" | "APPS" | "BRAND_GUIDELINES" | "AUDIENCE_SIGNAL" | "CALLOUTS" | null
+    "SITELINKS" | "CALLS" | "PROMOTIONS" | "PRICES" | "MESSAGES" | "SNIPPETS" | "LEAD_FORMS" | "APPS" | "BRAND_GUIDELINES" | "AUDIENCE_SIGNAL" | "CALLOUTS" | null
   >(null);
 
   // Step 4: Budget State

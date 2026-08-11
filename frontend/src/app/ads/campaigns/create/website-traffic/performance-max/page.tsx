@@ -36,6 +36,8 @@ export default function WebsiteTrafficPerformanceMaxPage() {
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  const [isSearchingLanguages, setIsSearchingLanguages] = useState<boolean>(false);
+  const [languageSearchResults, setLanguageSearchResults] = useState<string[]>([]);
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
   const [audienceTab, setAudienceTab] = useState<"SEARCH" | "BROWSE">("SEARCH");
   const [audienceTargetingMode, setAudienceTargetingMode] = useState<"TARGETING" | "OBSERVATION">("OBSERVATION");
