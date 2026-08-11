@@ -1709,15 +1709,30 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
       const res = await fetch(`${BACKEND}/api/meta-ads/accounts?organizationId=${orgId}`);
       const data = await res.json();
       if (data.accounts) {
-        setAccounts(data.accounts);
-        if (data.accounts.length > 0 && !selectedAccountId) {
-          setSelectedAccountId(data.accounts[0].adAccountId);
+        // Map items to uniform structure
+        const normalized = data.accounts.map((a: any) => ({
+          ...a,
+          adAccountId: a.adAccountId || a.id || "",
+          name: a.name || a.businessName || "Meta Ad Account",
+        }));
+
+        // If config has an adAccountId not present in the graph response, include it
+        if (config?.adAccountId && !normalized.some((a: any) => a.adAccountId === config.adAccountId)) {
+          normalized.unshift({
+            adAccountId: config.adAccountId,
+            name: "Connected Primary Ad Account",
+          });
+        }
+
+        setAccounts(normalized);
+        if (normalized.length > 0 && !selectedAccountId) {
+          setSelectedAccountId(normalized[0].adAccountId);
         }
       }
     } catch (e: any) {
       console.warn("Failed to fetch Meta accounts:", e);
     }
-  }, [orgId, selectedAccountId]);
+  }, [orgId, selectedAccountId, config?.adAccountId]);
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -2172,11 +2187,15 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                     No Ad Accounts Found (Click Meta Credentials)
                   </option>
                 ) : (
-                  accounts.map(acc => (
-                    <option key={acc.adAccountId} value={acc.adAccountId} className="bg-slate-900 text-slate-100">
-                      {acc.name || acc.businessName || "Meta Ad Account"} ({acc.adAccountId})
-                    </option>
-                  ))
+                  accounts.map((acc, index) => {
+                    const accId = acc.adAccountId || acc.id || `acc_${index}`;
+                    const accName = acc.name || acc.businessName || "Meta Ad Account";
+                    return (
+                      <option key={accId} value={accId} className="bg-slate-900 text-slate-100">
+                        {accName} ({accId})
+                      </option>
+                    );
+                  })
                 )}
               </select>
             </div>

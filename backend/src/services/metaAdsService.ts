@@ -4,6 +4,22 @@ import axios from "axios";
 const META_GRAPH_VERSION = "v26.0";
 const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
 
+// In-memory cache for Meta Graph API responses to avoid rate limiting
+const metaApiCache: Record<string, { data: any; expiresAt: number }> = {};
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+
+function getCached<T>(key: string): T | null {
+  const item = metaApiCache[key];
+  if (item && Date.now() < item.expiresAt) {
+    return item.data as T;
+  }
+  return null;
+}
+
+function setCache(key: string, data: any) {
+  metaApiCache[key] = { data, expiresAt: Date.now() + CACHE_TTL_MS };
+}
+
 export interface MetaConnectivityResult {
   connected: boolean;
   appIdVerified: boolean;
@@ -152,6 +168,11 @@ export class MetaAdsService {
     instagramAccountId: string;
     pixelId: string;
   }>) {
+    // Invalidate API cache when configuration updates
+    Object.keys(metaApiCache).forEach(k => {
+      if (k.startsWith(organizationId)) delete metaApiCache[k];
+    });
+
     const existing = await this.getConfig(organizationId);
 
     const updated = await prisma.metaAdConfig.update({
@@ -359,6 +380,10 @@ export class MetaAdsService {
    * Fetch accessible Ad Accounts
    */
   static async getAdAccounts(organizationId: string) {
+    const cacheKey = `${organizationId}_adaccounts`;
+    const cached = getCached<any[]>(cacheKey);
+    if (cached) return cached;
+
     const config = await this.getConfig(organizationId);
     if (!config.accessToken) return [];
 
@@ -366,12 +391,16 @@ export class MetaAdsService {
       const resp = await axios.get(`${META_GRAPH_BASE}/me/adaccounts`, {
         params: {
           fields: "id,name,account_status,currency,timezone_name",
+          limit: 100,
           access_token: config.accessToken,
         },
       });
-      return resp.data?.data || [];
+      const result = resp.data?.data || [];
+      if (result.length > 0) setCache(cacheKey, result);
+      return result;
     } catch (err: any) {
-      console.warn("[MetaAdsService] Failed to fetch Ad Accounts:", err.message);
+      const detail = err.response?.data?.error?.message || err.message;
+      console.warn(`[MetaAdsService] Failed to fetch Ad Accounts: ${detail}`);
       return [];
     }
   }
@@ -380,6 +409,10 @@ export class MetaAdsService {
    * Fetch connected Facebook Pages
    */
   static async getPages(organizationId: string) {
+    const cacheKey = `${organizationId}_pages`;
+    const cached = getCached<any[]>(cacheKey);
+    if (cached) return cached;
+
     const config = await this.getConfig(organizationId);
     if (!config.accessToken) return [];
 
@@ -390,9 +423,12 @@ export class MetaAdsService {
           access_token: config.accessToken,
         },
       });
-      return resp.data?.data || [];
+      const result = resp.data?.data || [];
+      if (result.length > 0) setCache(cacheKey, result);
+      return result;
     } catch (err: any) {
-      console.warn("[MetaAdsService] Failed to fetch Facebook Pages:", err.message);
+      const detail = err.response?.data?.error?.message || err.message;
+      console.warn(`[MetaAdsService] Failed to fetch Facebook Pages: ${detail}`);
       return [];
     }
   }
@@ -401,6 +437,10 @@ export class MetaAdsService {
    * Fetch connected Meta Pixels
    */
   static async getPixels(organizationId: string) {
+    const cacheKey = `${organizationId}_pixels_${organizationId}`;
+    const cached = getCached<any[]>(cacheKey);
+    if (cached) return cached;
+
     const config = await this.getConfig(organizationId);
     if (!config.accessToken || !config.adAccountId) return [];
 
@@ -415,9 +455,12 @@ export class MetaAdsService {
           access_token: config.accessToken,
         },
       });
-      return resp.data?.data || [];
+      const result = resp.data?.data || [];
+      if (result.length > 0) setCache(cacheKey, result);
+      return result;
     } catch (err: any) {
-      console.warn("[MetaAdsService] Failed to fetch Meta Pixels:", err.message);
+      const detail = err.response?.data?.error?.message || err.message;
+      console.warn(`[MetaAdsService] Failed to fetch Meta Pixels: ${detail}`);
       return [];
     }
   }

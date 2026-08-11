@@ -288,7 +288,8 @@ export class MetaAdsCoreService {
       });
       return resp.data?.data || [];
     } catch (err: any) {
-      console.warn("[MetaAdsCoreService] Failed to fetch Ad Accounts:", err.message);
+      const detail = err.response?.data?.error?.message || err.message;
+      console.warn(`[MetaAdsCoreService] Failed to fetch Ad Accounts: ${detail}`);
       return [];
     }
   }
@@ -309,7 +310,8 @@ export class MetaAdsCoreService {
       });
       return resp.data?.data || [];
     } catch (err: any) {
-      console.warn("[MetaAdsCoreService] Failed to fetch Facebook Pages:", err.message);
+      const detail = err.response?.data?.error?.message || err.message;
+      console.warn(`[MetaAdsCoreService] Failed to fetch Facebook Pages: ${detail}`);
       return [];
     }
   }
@@ -334,7 +336,8 @@ export class MetaAdsCoreService {
       });
       return resp.data?.data || [];
     } catch (err: any) {
-      console.warn("[MetaAdsCoreService] Failed to fetch Meta Pixels:", err.message);
+      const detail = err.response?.data?.error?.message || err.message;
+      console.warn(`[MetaAdsCoreService] Failed to fetch Meta Pixels: ${detail}`);
       return [];
     }
   }
