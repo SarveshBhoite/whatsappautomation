@@ -93,7 +93,7 @@ export default function EngagementCampaignFlow({
 
     setPublishing(true);
     try {
-      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns`, {
+      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns/engagement`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

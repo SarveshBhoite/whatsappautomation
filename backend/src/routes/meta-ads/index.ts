@@ -5,6 +5,7 @@ import awarenessRoutes from "./awarenessRoutes";
 import leadsRoutes from "./leadsRoutes";
 import appPromotionRoutes from "./appPromotionRoutes";
 import salesRoutes from "./salesRoutes";
+import engagementRoutes from "./engagementRoutes";
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use("/", awarenessRoutes);
 router.use("/", leadsRoutes);
 router.use("/", appPromotionRoutes);
 router.use("/", salesRoutes);
+router.use("/", engagementRoutes);
 
 export default router;
