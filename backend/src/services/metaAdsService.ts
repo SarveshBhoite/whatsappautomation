@@ -387,6 +387,9 @@ export class MetaAdsService {
     const config = await this.getConfig(organizationId);
     if (!config.accessToken) return [];
 
+    const accountMap = new Map<string, any>();
+
+    // 1. Fetch direct user ad accounts (/me/adaccounts)
     try {
       const resp = await axios.get(`${META_GRAPH_BASE}/me/adaccounts`, {
         params: {
@@ -395,14 +398,56 @@ export class MetaAdsService {
           access_token: config.accessToken,
         },
       });
-      const result = resp.data?.data || [];
-      if (result.length > 0) setCache(cacheKey, result);
-      return result;
+      (resp.data?.data || []).forEach((acc: any) => {
+        const id = acc.id || acc.adAccountId;
+        if (id) accountMap.set(id, { ...acc, adAccountId: id });
+      });
     } catch (err: any) {
       const detail = err.response?.data?.error?.message || err.message;
-      console.warn(`[MetaAdsService] Failed to fetch Ad Accounts: ${detail}`);
-      return [];
+      console.warn(`[MetaAdsService] Failed to fetch direct Ad Accounts: ${detail}`);
     }
+
+    // 2. Fetch Meta Business Manager linked ad accounts (/me/businesses)
+    try {
+      const bizResp = await axios.get(`${META_GRAPH_BASE}/me/businesses`, {
+        params: {
+          fields: "id,name,client_ad_accounts{id,name,account_status,currency},owned_ad_accounts{id,name,account_status,currency}",
+          access_token: config.accessToken,
+        },
+      });
+      (bizResp.data?.data || []).forEach((biz: any) => {
+        const clientAccs = biz.client_ad_accounts?.data || [];
+        const ownedAccs = biz.owned_ad_accounts?.data || [];
+        [...clientAccs, ...ownedAccs].forEach((acc: any) => {
+          const id = acc.id || acc.adAccountId;
+          if (id && !accountMap.has(id)) {
+            accountMap.set(id, {
+              ...acc,
+              adAccountId: id,
+              businessName: biz.name,
+            });
+          }
+        });
+      });
+    } catch (err: any) {
+      // Business Manager query optional
+    }
+
+    // 3. Include any ad accounts recorded in Prisma DB
+    try {
+      const dbAccounts = await prisma.metaAdAccount.findMany({
+        where: { organizationId },
+      });
+      dbAccounts.forEach((acc: any) => {
+        if (!accountMap.has(acc.adAccountId)) {
+          accountMap.set(acc.adAccountId, acc);
+        }
+      });
+    } catch (err: any) {}
+
+    const result = Array.from(accountMap.values());
+    if (result.length > 0) setCache(cacheKey, result);
+    return result;
   }
 
   /**

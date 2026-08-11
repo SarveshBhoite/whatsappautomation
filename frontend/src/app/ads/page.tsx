@@ -1500,15 +1500,8 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
         const normalized = data.accounts.map((a: any) => ({
           ...a,
           adAccountId: a.adAccountId || a.id || "",
-          name: a.name || a.businessName || "Meta Ad Account",
+          name: a.name || a.businessName || a.adAccountId || a.id || "Meta Ad Account",
         }));
-
-        if (config?.adAccountId && !normalized.some((a: any) => a.adAccountId === config.adAccountId)) {
-          normalized.unshift({
-            adAccountId: config.adAccountId,
-            name: "Connected Primary Ad Account",
-          });
-        }
 
         setAccounts(normalized);
         if (normalized.length > 0 && !selectedAccountId) {
@@ -1518,7 +1511,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
     } catch (e: any) {
       console.warn("Failed to fetch Meta accounts:", e);
     }
-  }, [orgId, selectedAccountId, config?.adAccountId]);
+  }, [orgId, selectedAccountId]);
 
   const fetchCampaigns = useCallback(async () => {
     try {
