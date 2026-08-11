@@ -123,7 +123,22 @@ export default function YouTubeCampaignWizard() {
     setFormData(prev => ({ ...prev, videoUrls: prev.videoUrls.filter(u => u !== url) }));
   };
 
+  // Step Validation Helper
+  const isCurrentStepValid = (): boolean => {
+    if (step === 3) {
+      if (!formData.campaignName.trim() || !formData.budgetAmount || parseFloat(formData.budgetAmount) <= 0) return false;
+    }
+    if (step === 5) {
+      return formData.videoUrls.length > 0 && formData.videoUrls[0].trim().length > 0;
+    }
+    if (step === 6) {
+      return !!formData.targetCpv && parseFloat(formData.targetCpv) > 0;
+    }
+    return true;
+  };
+
   // Step 7 Publish handler
+
   const handlePublish = async () => {
     setIsPublishing(true);
 
@@ -989,9 +1004,9 @@ export default function YouTubeCampaignWizard() {
         <div className="flex items-center gap-3">
           {step < 7 ? (
             <button
-              disabled={step === 5 && formData.videoUrls.length === 0}
+              disabled={!isCurrentStepValid()}
               onClick={() => setStep(step + 1)}
-              className="px-6 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-red-900/30 flex items-center gap-2 transition-all cursor-pointer"
+              className="px-6 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-red-900/30 flex items-center gap-2 transition-all cursor-pointer"
             >
               Continue <ArrowRight className="h-4 w-4" />
             </button>

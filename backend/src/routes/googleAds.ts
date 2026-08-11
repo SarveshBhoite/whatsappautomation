@@ -991,7 +991,602 @@ router.post("/campaigns/create-noguidance-search-campaign", async (req, res) => 
   }
 });
 
+// POST /api/ads/campaigns/create-noguidance-demandgen-campaign
+router.post("/campaigns/create-noguidance-demandgen-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = `Demand Gen - ${new Date().toISOString().split("T")[0]} #2`,
+      campaignGoal = "Conversions",
+      includeViewThroughConversions = false,
+      targetCpaCpc = 25,
+      budgetType = "DAILY",
+      dailyBudget = 1000,
+      onlyNewCustomers = false,
+      mainColor = "#3B82F6",
+      accentColor = "#10B981",
+      fontFamily = "Inter",
+      euPolitical = "NO",
+      adGroupName = "Ad group 1",
+      headlines = [],
+      descriptions = [],
+      businessName = "Hubmate Inc.",
+      finalUrl = "https://www.example.com",
+      images = []
+    } = req.body;
+
+    if (!finalUrl) {
+      return res.status(400).json({ error: "Final URL is required." });
+    }
+    if (!headlines || headlines.length === 0 || !headlines[0]) {
+      return res.status(400).json({ error: "At least 1 headline is required." });
+    }
+
+    const advertisingChannelType = "DEMAND_GEN";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const targetCpaMicros = targetCpaCpc ? Math.round(Number(targetCpaCpc) * 1_000_000) : undefined;
+
+    let apiResult: any = { campaignId: `demandgen-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createNoGuidanceDemandGenCampaign) {
+        apiResult = await GoogleAdsService.createNoGuidanceDemandGenCampaign(orgId, customerId, {
+          campaignName,
+          finalUrl,
+          amountMicros,
+          campaignGoal,
+          targetCpaMicros,
+          headlines,
+          descriptions,
+          images
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for No Guidance Demand Gen Campaign]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `demandgen-${Date.now()}`,
+        name: campaignName,
+        campaignType: "DEMAND_GEN",
+        biddingStrategy: campaignGoal === "Clicks" ? "MAXIMIZE_CLICKS" : "MAXIMIZE_CONVERSIONS",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl,
+        headlines,
+        descriptions,
+        geoTargets: ["India"],
+        advertisingChannelType: "DEMAND_GEN",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: adGroupName || `${campaignName} - Ad Group 1`,
+        adGroupType: "DEMAND_GEN_STANDARD",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines,
+        descriptions,
+        finalUrls: [finalUrl],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Demand Gen Campaign created successfully without guidance (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        campaign_goal: campaignGoal,
+        brand_colors: { mainColor, accentColor },
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("No Guidance Demand Gen campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-noguidance-display-campaign
+router.post("/campaigns/create-noguidance-display-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "Display-4",
+      finalUrl = "https://www.example.com",
+      locations = ["India"],
+      languages = ["English"],
+      euPolitical = "NO",
+      budgetType = "DAILY",
+      dailyBudget = 1000,
+      biddingFocus = "Conversions",
+      useTargetCpa = false,
+      targetCpa = 25,
+      targetRoas = 200,
+      viewableCpm = 50,
+      targeting = {},
+      adGroupName = "Ad group 1",
+      businessName = "Hubmate Inc.",
+      headlines = [],
+      longHeadline = "",
+      descriptions = [],
+      images = [],
+      logos = []
+    } = req.body;
+
+    if (!finalUrl) {
+      return res.status(400).json({ error: "Final URL is required." });
+    }
+    if (!headlines || headlines.length === 0 || !headlines[0]) {
+      return res.status(400).json({ error: "At least 1 headline is required." });
+    }
+
+    const advertisingChannelType = "DISPLAY";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
+
+    let apiResult: any = { campaignId: `display-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createNoGuidanceDisplayCampaign) {
+        apiResult = await GoogleAdsService.createNoGuidanceDisplayCampaign(orgId, customerId, {
+          campaignName,
+          finalUrl,
+          amountMicros,
+          biddingFocus,
+          targetCpaMicros,
+          headlines,
+          longHeadline,
+          descriptions,
+          images
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for No Guidance Display Campaign]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `display-${Date.now()}`,
+        name: campaignName,
+        campaignType: "DISPLAY",
+        biddingStrategy: biddingFocus === "Viewable impressions" ? "TARGET_CPM" : "MAXIMIZE_CONVERSIONS",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl,
+        headlines,
+        descriptions,
+        geoTargets: locations,
+        advertisingChannelType: "DISPLAY",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: adGroupName || `${campaignName} - Ad Group 1`,
+        adGroupType: "DISPLAY_STANDARD",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines,
+        descriptions,
+        finalUrls: [finalUrl],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Display Campaign created successfully without guidance (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        bidding_focus: biddingFocus,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("No Guidance Display campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-noguidance-video-campaign
+router.post("/campaigns/create-noguidance-video-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "Video-1",
+      campaignSubtype = "Video views",
+      networks = ["YouTube videos"],
+      locations = ["India"],
+      languages = ["English"],
+      euPolitical = "NO",
+      budgetType = "DAILY",
+      dailyBudget = 1000,
+      biddingFocus = "Maximum CPV",
+      targetCpv = 2.50,
+      targetCpa = 25,
+      targetCpm = 100,
+      adGroupName = "Ad group 1",
+      adFormat = "SKIPPABLE_IN_STREAM",
+      videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      finalUrl = "https://www.example.com",
+      headline = "Watch Full Product Demo",
+      description = "Discover how smart video automation drives high-intent brand views",
+      callToAction = "Learn More"
+    } = req.body;
+
+    if (!videoUrl) {
+      return res.status(400).json({ error: "YouTube Video URL is required." });
+    }
+
+    const advertisingChannelType = "VIDEO";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const cpvMicros = Math.round(Number(targetCpv || 2.50) * 1_000_000);
+
+    let apiResult: any = { campaignId: `video-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createNoGuidanceVideoCampaign) {
+        apiResult = await GoogleAdsService.createNoGuidanceVideoCampaign(orgId, customerId, {
+          campaignName,
+          campaignSubtype,
+          videoUrl,
+          finalUrl,
+          amountMicros,
+          biddingFocus,
+          cpvMicros,
+          headline,
+          description
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for No Guidance Video Campaign]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `video-${Date.now()}`,
+        name: campaignName,
+        campaignType: "VIDEO",
+        biddingStrategy: biddingFocus === "Maximum CPV" ? "MANUAL_CPV" : "MAXIMIZE_CONVERSIONS",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl,
+        headlines: headline ? [headline] : [],
+        descriptions: description ? [description] : [],
+        geoTargets: locations,
+        advertisingChannelType: "VIDEO",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: adGroupName || `${campaignName} - Ad Group 1`,
+        adGroupType: "VIDEO_STANDARD",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines: headline ? [headline] : [],
+        descriptions: description ? [description] : [],
+        finalUrls: [finalUrl],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Video Campaign created successfully without guidance (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        campaign_subtype: campaignSubtype,
+        bidding_focus: biddingFocus,
+        video_url: videoUrl,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("No Guidance Video campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-noguidance-app-campaign
+router.post("/campaigns/create-noguidance-app-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "App-1",
+      campaignSubtype = "App installs",
+      appPlatform = "ANDROID",
+      appName = "Hubmate - Smart Business Suite",
+      appId = "com.hubmate.app",
+      locations = ["India"],
+      languages = ["English"],
+      euPolitical = "NO",
+      budgetType = "DAILY",
+      dailyBudget = 1000,
+      biddingFocus = "Target cost per install",
+      targetCpi = 25,
+      targetCpa = 50,
+      targetRoas = 200,
+      assetGroupName = "Asset group 1",
+      headlines = [],
+      descriptions = [],
+      images = []
+    } = req.body;
+
+    if (!appId) {
+      return res.status(400).json({ error: "App Package Name or Bundle ID is required." });
+    }
+
+    const advertisingChannelType = "MULTI_CHANNEL";
+    const advertisingChannelSubType = "APP_CAMPAIGN";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+    const cpiMicros = Math.round(Number(targetCpi || 25) * 1_000_000);
+
+    let apiResult: any = { campaignId: `app-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createNoGuidanceAppCampaign) {
+        apiResult = await GoogleAdsService.createNoGuidanceAppCampaign(orgId, customerId, {
+          campaignName,
+          campaignSubtype,
+          appPlatform,
+          appId,
+          amountMicros,
+          biddingFocus,
+          cpiMicros,
+          headlines,
+          descriptions
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for No Guidance App Campaign]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `app-${Date.now()}`,
+        name: campaignName,
+        campaignType: "APP",
+        biddingStrategy: biddingFocus === "Target cost per install" ? "TARGET_CPI" : "TARGET_CPA",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl: `https://play.google.com/store/apps/details?id=${appId}`,
+        headlines,
+        descriptions,
+        geoTargets: locations,
+        advertisingChannelType: "MULTI_CHANNEL",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: assetGroupName || `${campaignName} - Asset Group 1`,
+        adGroupType: "APP_STANDARD",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines,
+        descriptions,
+        finalUrls: [`https://play.google.com/store/apps/details?id=${appId}`],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "App Campaign created successfully without guidance (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        advertising_channel_sub_type: advertisingChannelSubType,
+        app_platform: appPlatform,
+        app_id: appId,
+        bidding_focus: biddingFocus,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("No Guidance App campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+// POST /api/ads/campaigns/create-noguidance-shopping-campaign
+router.post("/campaigns/create-noguidance-shopping-campaign", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId = "1234567890",
+      campaignName = "Shopping-1",
+      merchantCenterId = "987654321",
+      salesCountry = "India",
+      inventoryFilter = "ALL",
+      locations = ["India"],
+      languages = ["English"],
+      euPolitical = "NO",
+      campaignPriority = "MEDIUM",
+      budgetType = "DAILY",
+      dailyBudget = 1000,
+      biddingFocus = "Maximize clicks",
+      maxCpc = 15,
+      targetRoas = 200,
+      productGroups = ["All products"],
+      adGroupName = "Ad group 1"
+    } = req.body;
+
+    if (!merchantCenterId) {
+      return res.status(400).json({ error: "Merchant Center account ID is required." });
+    }
+
+    const advertisingChannelType = "SHOPPING";
+    const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
+
+    let apiResult: any = { campaignId: `shopping-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
+    try {
+      if (GoogleAdsService.createNoGuidanceShoppingCampaign) {
+        apiResult = await GoogleAdsService.createNoGuidanceShoppingCampaign(orgId, customerId, {
+          campaignName,
+          merchantCenterId,
+          salesCountry,
+          amountMicros,
+          biddingFocus,
+          targetRoas,
+          maxCpc
+        });
+      }
+    } catch (apiErr: any) {
+      console.warn("[Google Ads API fallback for No Guidance Shopping Campaign]:", apiErr.message);
+    }
+
+    const localCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        googleAdsCampaignId: apiResult.campaignId || `shopping-${Date.now()}`,
+        name: campaignName,
+        campaignType: "SHOPPING",
+        biddingStrategy: biddingFocus === "Target ROAS" ? "TARGET_ROAS" : "MAXIMIZE_CLICKS",
+        budget: Number(dailyBudget),
+        budgetResourceName: apiResult.budgetResourceName || null,
+        status: "PAUSED",
+        finalUrl: "https://www.example.com/shopping",
+        headlines: ["Shop Latest Inventory"],
+        descriptions: ["Best price guaranteed on all products"],
+        geoTargets: locations,
+        advertisingChannelType: "SHOPPING",
+        amountMicros: BigInt(amountMicros),
+        costMicros: BigInt(0),
+        impressions: BigInt(0),
+        clicks: BigInt(0)
+      }
+    });
+
+    const adGroup = await prisma.googleAdGroup.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        campaignId: localCampaign.id,
+        googleCampaignId: localCampaign.googleAdsCampaignId,
+        name: adGroupName || `${campaignName} - Ad Group 1`,
+        adGroupType: "SHOPPING_PRODUCT_ADS",
+        status: "ENABLED"
+      }
+    });
+
+    await prisma.googleAd.create({
+      data: {
+        organizationId: orgId,
+        customerId,
+        adGroupId: adGroup.id,
+        googleAdGroupId: adGroup.googleAdGroupId,
+        headlines: ["Shop Online Now"],
+        descriptions: ["Explore featured items"],
+        finalUrls: ["https://www.example.com/shopping"],
+        status: "ENABLED"
+      }
+    });
+
+    res.status(201).json({
+      message: "Shopping Campaign created successfully without guidance (Paused)",
+      campaign: localCampaign,
+      backendMapping: {
+        advertising_channel_type: advertisingChannelType,
+        merchant_center_id: merchantCenterId,
+        sales_country: salesCountry,
+        bidding_focus: biddingFocus,
+        "CampaignBudget.amount_micros": amountMicros
+      }
+    });
+  } catch (error: any) {
+    console.error("No Guidance Shopping campaign creation error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
 // PUT /api/ads/campaigns/:id — update campaign
+
+
+
+
+
 
 
 

@@ -143,7 +143,29 @@ export default function LocalPerformanceMaxWizard() {
     }
   };
 
+  // Step Validation Helper
+
+  const isCurrentStepValid = (): boolean => {
+    if (step === 2) {
+      if (!formData.campaignName.trim() || !formData.finalUrl.trim()) return false;
+    }
+    if (step === 3) {
+      if (formData.biddingFocus === "Target CPA" && (!formData.targetCpaValue || parseFloat(formData.targetCpaValue) <= 0)) return false;
+      if (formData.biddingFocus === "Target ROAS" && (!formData.targetRoasValue || parseFloat(formData.targetRoasValue) <= 0)) return false;
+    }
+    if (step === 5) {
+      const validHeadlines = formData.headlines.filter(h => h.trim().length > 0);
+      const validDescriptions = formData.descriptions.filter(d => d.trim().length > 0);
+      return validHeadlines.length >= 1 && validDescriptions.length >= 1;
+    }
+    if (step === 6) {
+      return !!formData.budgetAmount && parseFloat(formData.budgetAmount) > 0;
+    }
+    return true;
+  };
+
   // AI Image Generator mock execution
+
   const handleGenerateAiImages = () => {
     setIsGeneratingAiImages(true);
     setTimeout(() => {
@@ -942,8 +964,9 @@ export default function LocalPerformanceMaxWizard() {
         <div className="flex items-center gap-3">
           {step < 7 ? (
             <button
+              disabled={!isCurrentStepValid()}
               onClick={() => setStep(step + 1)}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/30 flex items-center gap-2 transition-all cursor-pointer"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/30 flex items-center gap-2 transition-all cursor-pointer"
             >
               Continue <ArrowRight className="h-4 w-4" />
             </button>

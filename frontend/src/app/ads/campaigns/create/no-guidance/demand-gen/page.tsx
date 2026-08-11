@@ -1,7 +1,8 @@
 "use client";
 
-import DemandGenCreatePage from "../../demand-gen/page";
+import NoGuidanceDemandGenWizard from "./NoGuidanceDemandGenWizard";
 
 export default function NoGuidanceDemandGenPage() {
-  return <DemandGenCreatePage />;
+  return <NoGuidanceDemandGenWizard />;
 }
+

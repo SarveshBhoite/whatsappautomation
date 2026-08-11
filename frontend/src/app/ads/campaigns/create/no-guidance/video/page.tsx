@@ -1,7 +1,8 @@
 "use client";
 
-import VideoCampaignCreatePage from "../../video/page";
+import NoGuidanceVideoWizard from "./NoGuidanceVideoWizard";
 
 export default function NoGuidanceVideoPage() {
-  return <VideoCampaignCreatePage />;
+  return <NoGuidanceVideoWizard />;
 }
+

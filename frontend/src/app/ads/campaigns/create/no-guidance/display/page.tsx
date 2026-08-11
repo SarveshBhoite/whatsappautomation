@@ -1,7 +1,8 @@
 "use client";
 
-import DisplayCampaignCreatePage from "../../display/page";
+import NoGuidanceDisplayWizard from "./NoGuidanceDisplayWizard";
 
 export default function NoGuidanceDisplayPage() {
-  return <DisplayCampaignCreatePage />;
+  return <NoGuidanceDisplayWizard />;
 }
+

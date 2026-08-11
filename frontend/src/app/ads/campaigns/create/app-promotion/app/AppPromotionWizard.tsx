@@ -208,7 +208,25 @@ export default function AppPromotionWizard() {
 
   const adStrength = calculateAdStrength();
 
+  // Step Validation Helper
+  const isCurrentStepValid = (): boolean => {
+    if (step === 2) {
+      if (!formData.campaignName.trim() || !formData.appId.trim()) return false;
+    }
+    if (step === 4) {
+      const validHeadlines = formData.headlines.filter(h => h.trim().length > 0);
+      const validDescriptions = formData.descriptions.filter(d => d.trim().length > 0);
+      return validHeadlines.length >= 1 && validDescriptions.length >= 1;
+    }
+    if (step === 5) {
+      const effectiveBudget = formData.budgetPreset === "custom" ? formData.customBudgetValue : formData.budgetPreset;
+      return !!effectiveBudget && parseFloat(effectiveBudget) > 0;
+    }
+    return true;
+  };
+
   // Headlines handlers
+
   const addHeadline = () => {
     if (formData.headlines.length < 5) {
       setFormData(prev => ({ ...prev, headlines: [...prev.headlines, ""] }));
@@ -1626,9 +1644,9 @@ export default function AppPromotionWizard() {
         <div className="flex items-center gap-3">
           {step < 6 ? (
             <button
-              disabled={step === 1 && !formData.objective}
+              disabled={!isCurrentStepValid()}
               onClick={() => setStep(step + 1)}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/30 flex items-center gap-2 transition-all cursor-pointer"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/30 flex items-center gap-2 transition-all cursor-pointer"
             >
               Continue <ArrowRight className="h-4 w-4" />
             </button>

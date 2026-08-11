@@ -136,7 +136,28 @@ export default function NoGuidancePMaxWizard() {
     }
   };
 
+  // Step Validation Helper
+  const isCurrentStepValid = (): boolean => {
+    if (step === 3) {
+      if (!formData.campaignName.trim() || !formData.finalUrl.trim()) return false;
+    }
+    if (step === 4) {
+      if (formData.biddingFocus === "Target CPA" && (!formData.targetCpaValue || parseFloat(formData.targetCpaValue) <= 0)) return false;
+      if (formData.biddingFocus === "Target ROAS" && (!formData.targetRoasValue || parseFloat(formData.targetRoasValue) <= 0)) return false;
+    }
+    if (step === 6) {
+      const validHeadlines = formData.headlines.filter(h => h.trim().length > 0);
+      const validDescriptions = formData.descriptions.filter(d => d.trim().length > 0);
+      return validHeadlines.length >= 1 && validDescriptions.length >= 1;
+    }
+    if (step === 7) {
+      return !!formData.budgetAmount && parseFloat(formData.budgetAmount) > 0;
+    }
+    return true;
+  };
+
   // Step 8 Publish handler
+
   const handlePublish = async () => {
     setIsPublishing(true);
     const activeHeadlines = formData.headlines.filter(h => h.trim().length > 0);
@@ -936,8 +957,9 @@ export default function NoGuidancePMaxWizard() {
         <div className="flex items-center gap-3">
           {step < 8 ? (
             <button
+              disabled={!isCurrentStepValid()}
               onClick={() => setStep(step + 1)}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/30 flex items-center gap-2 transition-all cursor-pointer"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-900/30 flex items-center gap-2 transition-all cursor-pointer"
             >
               Continue <ArrowRight className="h-4 w-4" />
             </button>
