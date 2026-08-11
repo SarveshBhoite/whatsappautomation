@@ -2,6 +2,9 @@ import { Router } from "express";
 import configRoutes from "./configRoutes";
 import trafficRoutes from "./trafficRoutes";
 import awarenessRoutes from "./awarenessRoutes";
+import leadsRoutes from "./leadsRoutes";
+import appPromotionRoutes from "./appPromotionRoutes";
+import salesRoutes from "./salesRoutes";
 
 const router = Router();
 
@@ -9,5 +12,8 @@ const router = Router();
 router.use("/", configRoutes);
 router.use("/", trafficRoutes);
 router.use("/", awarenessRoutes);
+router.use("/", leadsRoutes);
+router.use("/", appPromotionRoutes);
+router.use("/", salesRoutes);
 
 export default router;
