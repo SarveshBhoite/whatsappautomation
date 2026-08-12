@@ -1,0 +1,172 @@
+[
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\app-promotion\\app\\page.tsx",
+    "size": 198,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\awareness\\demand-gen\\page.tsx",
+    "size": 160,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\awareness\\display\\page.tsx",
+    "size": 167,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\awareness\\video\\page.tsx",
+    "size": 195,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\demand-gen\\page.tsx",
+    "size": 77044,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\display\\page.tsx",
+    "size": 130576,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\leads\\demand-gen\\page.tsx",
+    "size": 76989,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\leads\\display\\page.tsx",
+    "size": 121361,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\leads\\performance-max\\page.tsx",
+    "size": 131665,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\leads\\search\\page.tsx",
+    "size": 190533,
+    "lines": 2
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\leads\\shopping\\page.tsx",
+    "size": 14116,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\leads\\video\\page.tsx",
+    "size": 44529,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\local\\performance-max\\page.tsx",
+    "size": 206,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\no-guidance\\app\\page.tsx",
+    "size": 194,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\no-guidance\\demand-gen\\page.tsx",
+    "size": 161,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\no-guidance\\display\\page.tsx",
+    "size": 168,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\no-guidance\\performance-max\\page.tsx",
+    "size": 15502,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\no-guidance\\search\\page.tsx",
+    "size": 16521,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\no-guidance\\shopping\\page.tsx",
+    "size": 16456,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\no-guidance\\video\\page.tsx",
+    "size": 160,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\page.tsx",
+    "size": 462073,
+    "lines": 13
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\sales\\demand-gen\\page.tsx",
+    "size": 77043,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\sales\\display\\page.tsx",
+    "size": 130567,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\sales\\performance-max\\page.tsx",
+    "size": 131691,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\sales\\search\\page.tsx",
+    "size": 308438,
+    "lines": 2
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\sales\\shopping\\page.tsx",
+    "size": 14044,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\sales\\video\\page.tsx",
+    "size": 67775,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\video\\page.tsx",
+    "size": 67776,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\website-traffic\\demand-gen\\page.tsx",
+    "size": 77038,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\website-traffic\\display\\page.tsx",
+    "size": 130596,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\website-traffic\\performance-max\\page.tsx",
+    "size": 144629,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\website-traffic\\search\\page.tsx",
+    "size": 142023,
+    "lines": 3
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\website-traffic\\shopping\\page.tsx",
+    "size": 14189,
+    "lines": 1
+  },
+  {
+    "path": "\\src\\app\\ads\\campaigns\\create\\website-traffic\\video\\page.tsx",
+    "size": 67794,
+    "lines": 1
+  }
+]
