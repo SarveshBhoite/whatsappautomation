@@ -1134,11 +1134,25 @@ export default function SalesVideoPage() {
             /* ── REVIEW CAMPAIGN PAGE ── */
             <div className="space-y-6 animate-in fade-in duration-200">
               <h1 className="text-2xl font-semibold text-white tracking-tight">Review campaign</h1>
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 text-xs text-slate-300 space-y-2">
-                <p>Campaign: <strong>{videoCampaignName}</strong></p>
-                <p>Ad Group: <strong>{activeAdGroup.name}</strong></p>
-                <p>Location: <strong>{selectedLocation}</strong></p>
-                <p>Status: <span className="text-emerald-400 font-bold">Ready to publish</span></p>
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 text-xs text-slate-300 space-y-4">
+                <div className="space-y-2">
+                  <p>Campaign: <strong>{videoCampaignName}</strong></p>
+                  <p>Ad Group: <strong>{activeAdGroup.name}</strong></p>
+                  <p>Location: <strong>{selectedLocation}</strong></p>
+                  <p>Status: <span className="text-emerald-400 font-bold">Ready to publish</span></p>
+                </div>
+                <div className="pt-3 border-t border-slate-800 flex justify-end">
+                  <button
+                    onClick={() => {
+                      alert(`Video campaign "${videoCampaignName}" published successfully!`);
+                      router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                    }}
+                    className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+                  >
+                    Publish campaign
+                    <Check className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}

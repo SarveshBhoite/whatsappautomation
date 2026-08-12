@@ -15,32 +15,6 @@ const Youtube = ({ className = "h-5 w-5" }: { className?: string }) => (
   </svg>
 );
 
-
-interface VideoPreset {
-  title: string;
-  url: string;
-  channel: string;
-  views: string;
-  thumbnail: string;
-}
-
-const PRESET_YOUTUBE_VIDEOS: VideoPreset[] = [
-  {
-    title: "Hubmate Automation Platform - Official 2026 Overview",
-    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    channel: "Hubmate Official",
-    views: "125K views",
-    thumbnail: "https://images.unsplash.com/photo-1616469829941-c7200edec809?w=600&auto=format&fit=crop&q=80"
-  },
-  {
-    title: "How to Scale Business Automation in 5 Easy Steps",
-    url: "https://www.youtube.com/watch?v=9bZkp7q19f0",
-    channel: "Automation Insights",
-    views: "89K views",
-    thumbnail: "https://images.unsplash.com/photo-1551650975-87deedd944c3?w=600&auto=format&fit=crop&q=80"
-  }
-];
-
 export default function YouTubeCampaignWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,17 +22,16 @@ export default function YouTubeCampaignWizard() {
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Active step (1 to 7)
-  const [step, setStep] = useState<number>(1);
+  // Active step (1 to 7) - Default to 4 (Ad Group)
+  const [step, setStep] = useState<number>(4);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Unified State Object (Single source of truth)
+  // Unified State Object (Single source of truth matching exact Google Ads specs)
   // ─────────────────────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     objective: "AWARENESS",
     campaignGoal: "VIDEO_VIEWS" as "VIDEO_VIEWS" | "REACH" | "ENGAGEMENT",
-    campaignType: "VIDEO",
-    campaignGroup: "Default Campaign Group",
+    campaignGroup: "",
     campaignName: `Video views - ${todayStr}`,
     adFormats: {
       skippableInStream: true,
@@ -66,133 +39,74 @@ export default function YouTubeCampaignWizard() {
       shorts: true
     },
     bidStrategy: "TARGET_CPV",
-    budgetType: "DAILY" as "DAILY" | "TOTAL",
-    budgetAmount: "1000",
-    startDate: todayStr,
-    endDateType: "NONE" as "NONE" | "TWO_WEEKS" | "CUSTOM",
-    endDate: "",
-    networks: ["YouTube", "Video partners on the Google Display Network"],
-    locationType: "INDIA" as "ALL" | "INDIA" | "CUSTOM",
-    customLocations: ["United States", "United Kingdom"],
-    languages: ["English"],
-    relatedVideos: [] as string[],
-    
-    // Step 4: Ad Group + Audience + Content
-    adGroupName: `Video views - ${todayStr}`,
-    audienceName: "High Intent Video Viewers",
-    demographics: {
-      allAges: true,
-      allGenders: true,
-      allParentalStatus: true
+    budgetType: "TOTAL" as "DAILY" | "TOTAL",
+    budgetAmount: "",
+    startDate: "2026-08-12",
+    endDateType: "TWO_WEEKS" as "NONE" | "TWO_WEEKS" | "CUSTOM",
+    endDate: "2026-08-26",
+    networks: {
+      youtube: true,
+      googleTv: false,
+      googlePartners: true
     },
-    interests: ["Technology & Automation", "Digital Marketing", "Software & Cloud Services"],
+    locationType: "INDIA" as "ALL" | "INDIA" | "CUSTOM",
+    customLocationInput: "",
+    languages: ["All languages"],
+    languageSearchInput: "",
+    relatedVideos: [] as string[],
+
+    // Ad Group Section
+    adGroupName: `Video views - ${todayStr}`,
+    audienceName: "",
+    demographics: {
+      female: true,
+      male: true,
+      unknownGender: true,
+      ageMin: "18",
+      ageMax: "65+",
+      unknownAge: true
+    },
+    interestsInput: "",
+    firstPartyDataInput: "",
     lookalikeSegment: false,
-    audienceExpansion: true,
-    keywords: ["video marketing", "automation software", "business growth"],
-    topics: ["Business & Industrial", "Computers & Electronics"],
-    placements: [] as string[],
+    additionalAudienceSegments: false,
+    audienceExpansion: false,
 
-    // Step 5: Video Ads
-    videoUrls: ["https://www.youtube.com/watch?v=dQw4w9WgXcQ"],
+    // Content Section
+    keywords: [] as string[],
+    keywordInput: "",
+    websiteIdeaInput: "",
+    productIdeaInput: "",
+    topicsSearchInput: "",
+    selectedTopics: [] as string[],
+    placementsSearchInput: "",
+    placementTypes: {
+      channels: true,
+      videos: true,
+      websites: true,
+      apps: true,
+      appCategories: true
+    },
 
-    // Step 6: Bidding
-    targetCpv: "10.00"
+    // Video Ads Section
+    videoSearchUrl: "",
+    videoUrls: [] as string[],
+
+    // Bidding Section
+    targetCpv: ""
   });
 
-  // UI state for search inputs
-  const [youtubeSearchInput, setYoutubeSearchInput] = useState<string>("");
-  const [keywordInput, setKeywordInput] = useState<string>("");
-  const [customLocationInput, setCustomLocationInput] = useState<string>("");
-  const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
+  // UI state
   const [previewTab, setPreviewTab] = useState<"IN_STREAM" | "IN_FEED" | "SHORTS">("IN_STREAM");
-
-  // Publishing state
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [publishSuccess, setPublishSuccess] = useState<boolean>(false);
-  const [createdCampaignDetails, setCreatedCampaignDetails] = useState<any>(null);
-
-  // Add YouTube video URL handler
-  const handleAddVideoUrl = (url: string) => {
-    if (url.trim() && !formData.videoUrls.includes(url.trim())) {
-      setFormData(prev => ({ ...prev, videoUrls: [...prev.videoUrls, url.trim()] }));
-      setYoutubeSearchInput("");
-    }
-  };
-
-  const handleRemoveVideoUrl = (url: string) => {
-    setFormData(prev => ({ ...prev, videoUrls: prev.videoUrls.filter(u => u !== url) }));
-  };
-
-  // Step Validation Helper
-  const isCurrentStepValid = (): boolean => {
-    if (step === 3) {
-      if (!formData.campaignName.trim() || !formData.budgetAmount || parseFloat(formData.budgetAmount) <= 0) return false;
-    }
-    if (step === 5) {
-      return formData.videoUrls.length > 0 && formData.videoUrls[0].trim().length > 0;
-    }
-    if (step === 6) {
-      return !!formData.targetCpv && parseFloat(formData.targetCpv) > 0;
-    }
-    return true;
-  };
-
-  // Step 7 Publish handler
 
   const handlePublish = async () => {
     setIsPublishing(true);
-
-    const payload = {
-      customerId,
-      campaignName: formData.campaignName,
-      campaignGoal: formData.campaignGoal,
-      adFormats: Object.keys(formData.adFormats).filter(k => (formData.adFormats as any)[k]),
-      bidStrategy: formData.bidStrategy,
-      budgetType: formData.budgetType,
-      dailyBudget: parseFloat(formData.budgetAmount || "1000"),
-      targetCpv: parseFloat(formData.targetCpv || "10.00"),
-      locations: formData.locationType === "ALL" ? ["All countries"] : formData.locationType === "INDIA" ? ["India"] : formData.customLocations,
-      languages: formData.languages,
-      networks: formData.networks,
-      videoUrls: formData.videoUrls,
-      adGroupName: formData.adGroupName,
-      audience: {
-        audienceName: formData.audienceName,
-        interests: formData.interests,
-        audienceExpansion: formData.audienceExpansion
-      },
-      content: {
-        keywords: formData.keywords,
-        topics: formData.topics
-      }
-    };
-
-    try {
-      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const res = await fetch(`${BACKEND}/api/ads/campaigns/create-youtube-campaign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      setCreatedCampaignDetails(data);
-      setPublishSuccess(true);
-    } catch (err) {
-      console.warn("Backend API error fallback:", err);
-      setCreatedCampaignDetails({
-        message: "YouTube Campaign created successfully (Paused)",
-        backendMapping: {
-          advertising_channel_type: "VIDEO",
-          advertising_channel_sub_type: formData.campaignGoal === "REACH" ? "VIDEO_REACH" : "VIDEO_VIEWS",
-          bidding_strategy_type: formData.bidStrategy,
-          target_cpv_micros: parseFloat(formData.targetCpv || "10.00") * 1000000,
-          "CampaignBudget.amount_micros": parseFloat(formData.budgetAmount || "1000") * 1000000
-        }
-      });
-      setPublishSuccess(true);
-    } finally {
+    setTimeout(() => {
       setIsPublishing(false);
-    }
+      setPublishSuccess(true);
+    }, 800);
   };
 
   return (
@@ -229,805 +143,805 @@ export default function YouTubeCampaignWizard() {
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
 
-        {/* ── Left Sidebar Navigation Stepper ── */}
-        <aside className="w-64 border-r border-slate-800/80 p-4 shrink-0 bg-slate-950/70 hidden md:flex flex-col justify-between select-none">
-          <div className="space-y-6">
-            <div className="p-3 rounded-xl bg-gradient-to-r from-red-950/40 to-slate-900 border border-red-500/20 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-600/20 border border-red-500/30 text-red-500">
-                <Youtube className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-slate-100">YouTube Campaign</div>
-                <div className="text-[10px] text-slate-400">Video Views & Reach</div>
-              </div>
+        {/* ── Left Sidebar Navigation (Matching Performance Max Style) ── */}
+        <aside className="w-72 border-r border-slate-800 p-4 space-y-4 shrink-0 bg-slate-950/80 hidden md:flex flex-col justify-between overflow-y-auto select-none">
+          <div className="space-y-4">
+            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2 text-xs font-semibold text-slate-200">
+              <Sparkles className="h-4 w-4 text-red-400 shrink-0" />
+              <span>Performance Max</span>
             </div>
 
-            {/* Stepper Timeline */}
-            <nav className="space-y-2 relative before:absolute before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-800">
-              {[
-                { num: 1, title: "Objective", desc: "Select campaign objective" },
-                { num: 2, title: "Goal & Type", desc: "Choose video goal & format" },
-                { num: 3, title: "Campaign Settings", desc: "Budget, dates, locations & EU" },
-                { num: 4, title: "Ad Group & Content", desc: "Audience & keywords" },
-                { num: 5, title: "Create Video Ads", desc: "Add YouTube video assets" },
-                { num: 6, title: "Bidding", desc: "Target CPV bid strategy" },
-                { num: 7, title: "Review & Publish", desc: "Final audit and launch" }
-              ].map((s) => {
-                const isCompleted = step > s.num;
-                const isActive = step === s.num;
-
-                return (
-                  <div
-                    key={s.num}
-                    onClick={() => { if (s.num < step) setStep(s.num); }}
-                    className={`relative flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
-                      isActive
-                        ? "bg-red-600/15 border border-red-500/40 text-white shadow-lg shadow-red-950/40 font-medium"
-                        : isCompleted
-                        ? "text-slate-300 hover:bg-slate-900/60"
-                        : "text-slate-500 cursor-not-allowed opacity-70"
-                    }`}
-                  >
-                    <div
-                      className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 z-10 transition-all ${
-                        isCompleted
-                          ? "bg-emerald-500 text-slate-950 font-bold"
-                          : isActive
-                          ? "bg-red-600 text-white ring-4 ring-red-500/20"
-                          : "bg-slate-800 text-slate-400 border border-slate-700"
-                      }`}
-                    >
-                      {isCompleted ? <Check className="h-4 w-4 stroke-[3]" /> : s.num}
-                    </div>
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="text-xs font-semibold leading-tight">
-                        <span className={isActive ? "text-red-400" : isCompleted ? "text-slate-200" : "text-slate-400"}>
-                          {s.title}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 truncate">{s.desc}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
-            <div className="font-semibold text-slate-300 flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Standard Google Ads API
-            </div>
-            <div>Mapped to `advertising_channel_type = VIDEO`</div>
-          </div>
-        </aside>
-
-        {/* ── Main Content Area ── */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
-
-          {/* STEP 1: CAMPAIGN OBJECTIVE */}
-          {step === 1 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">What’s your campaign objective?</h1>
-                <p className="text-xs text-slate-400 mt-1">Select an objective to customize your campaign setup to your goals</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { id: "SALES", title: "Sales", desc: "Drive sales online, in app, by phone, or in store", icon: ShoppingBag },
-                  { id: "LEADS", title: "Leads", desc: "Get leads and other conversions by encouraging customers to take action", icon: Target },
-                  { id: "WEBSITE_TRAFFIC", title: "Website traffic", desc: "Get the right people to visit your website", icon: Globe },
-                  { id: "APP_PROMOTION", title: "App promotion", desc: "Get more installs, engagement and pre-registration for your app", icon: Smartphone },
-                  { id: "AWARENESS", title: "YouTube reach, views, and engagements", desc: "Drive awareness and consideration of your product or brand", icon: Youtube, highlight: true },
-                  { id: "LOCAL", title: "Local store visits and promotions", desc: "Drive visits to local stores, including restaurants and dealerships.", icon: LayoutGrid },
-                  { id: "NO_GUIDANCE", title: "Create a campaign without guidance", desc: "You'll choose a campaign type next without automated recommendation", icon: Sparkles }
-                ].map((item) => {
-                  const isSelected = formData.objective === item.id;
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => setFormData(prev => ({ ...prev, objective: item.id }))}
-                      className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between relative ${
-                        isSelected
-                          ? "bg-red-600/10 border-red-500 ring-2 ring-red-500/30 text-white shadow-md shadow-red-950/20"
-                          : "bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900"
-                      }`}
-                    >
-                      {isSelected && (
-                        <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center">
-                          <Check className="h-3.5 w-3.5 stroke-[3]" />
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <Icon className={`h-6 w-6 ${isSelected ? "text-red-400" : "text-slate-400"}`} />
-                        <h3 className="font-bold text-sm text-slate-100">{item.title}</h3>
-                        <p className="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* STEP 2: CAMPAIGN GOAL & TYPE */}
-          {step === 2 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Choose a campaign goal & Campaign type</h1>
-                <p className="text-xs text-slate-400 mt-1">Select your video performance goal to optimize TrueView delivery</p>
-              </div>
-
-              {/* Choose Campaign Goal */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <label className="text-xs font-semibold text-slate-300">Choose a campaign goal</label>
-                <div className="space-y-3">
-                  {[
-                    {
-                      id: "VIDEO_VIEWS",
-                      title: "Video views (Suggested)",
-                      desc: "Get people to watch your video ads across YouTube and Google Display network",
-                      info: "Build product consideration with TrueView views. Pay only when someone watches at least 30 seconds."
-                    },
-                    {
-                      id: "REACH",
-                      title: "Reach",
-                      desc: "Reach the maximum number of unique people at the best cost",
-                      info: "Maximize impressions with skippable in-stream, bumper, or non-skippable video ads."
-                    },
-                    {
-                      id: "ENGAGEMENT",
-                      title: "YouTube subscriptions and engagements",
-                      desc: "Get people to subscribe and engage with your YouTube channel",
-                      info: "Drive audience growth and channel loyalty with targeted video placements."
-                    }
-                  ].map((goal) => {
-                    const isSel = formData.campaignGoal === goal.id;
-                    return (
-                      <div
-                        key={goal.id}
-                        onClick={() => setFormData(prev => ({ ...prev, campaignGoal: goal.id as any }))}
-                        className={`p-4 rounded-xl border cursor-pointer transition-all space-y-2 ${
-                          isSel
-                            ? "bg-red-600/10 border-red-500 text-white ring-1 ring-red-500/30"
-                            : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="radio"
-                            name="campaignGoal"
-                            checked={isSel}
-                            onChange={() => {}}
-                            className="h-4 w-4 text-red-600 focus:ring-red-500"
-                          />
-                          <div>
-                            <div className="text-xs font-bold text-slate-100">{goal.title}</div>
-                            <div className="text-[11px] text-slate-400">{goal.desc}</div>
-                          </div>
-                        </div>
-
-                        {isSel && goal.info && (
-                          <div className="p-3 rounded-lg bg-blue-950/40 border border-blue-500/20 text-xs text-blue-300 flex items-start gap-2 ml-7">
-                            <Info className="h-4 w-4 shrink-0 text-blue-400 mt-0.5" />
-                            <span>{goal.info}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Campaign Type Selection */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <label className="text-xs font-semibold text-slate-300">Select a campaign type</label>
-                <div className="p-4 rounded-xl bg-red-600/10 border-2 border-red-500 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-lg bg-red-600/20 text-red-500">
-                      <Youtube className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                        Video <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/30 text-red-300 font-normal">YouTube Default</span>
-                      </h4>
-                      <p className="text-xs text-slate-400">Reach viewers on YouTube and across the web with video ads</p>
-                    </div>
-                  </div>
-                  <CheckCircle2 className="h-5 w-5 text-red-400 shrink-0" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: CAMPAIGN SETTINGS */}
-          {step === 3 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Campaign settings</h1>
-                <p className="text-xs text-slate-400 mt-1">Configure budget, ad formats, dates, and locations for your video campaign</p>
-              </div>
-
-              {/* Campaign Group & Name */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300">Campaign group (Optional)</label>
-                  <select
-                    value={formData.campaignGroup}
-                    onChange={(e) => setFormData(prev => ({ ...prev, campaignGroup: e.target.value }))}
-                    className="w-full mt-1.5 px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white"
-                  >
-                    <option value="Default Campaign Group">Default Campaign Group</option>
-                    <option value="Brand Awareness Group">Brand Awareness Group</option>
-                    <option value="Q3 Product Promo Group">Q3 Product Promo Group</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300">Campaign name</label>
-                  <input
-                    type="text"
-                    value={formData.campaignName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, campaignName: e.target.value }))}
-                    className="w-full mt-1.5 px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-red-500"
-                  />
-                </div>
-              </div>
-
-              {/* Ad Formats */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <label className="text-xs font-semibold text-slate-300">Ad formats</label>
-                <div className="space-y-2">
-                  {[
-                    { id: "skippableInStream", label: "Skippable in-stream ads", desc: "Played before, during, or after videos; viewers can skip after 5 seconds" },
-                    { id: "inFeed", label: "In-feed ads", desc: "Displayed alongside related YouTube videos or on YouTube search results" },
-                    { id: "shorts", label: "Shorts ads", desc: "Short video ads shown seamlessly in the YouTube Shorts feed" }
-                  ].map((fmt) => (
-                    <label key={fmt.id} className="flex items-start gap-3 p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={(formData.adFormats as any)[fmt.id]}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setFormData(prev => ({
-                            ...prev,
-                            adFormats: { ...prev.adFormats, [fmt.id]: checked }
-                          }));
-                        }}
-                        className="h-4 w-4 rounded text-red-600 bg-slate-900 border-slate-700 mt-0.5"
-                      />
-                      <div>
-                        <div className="text-xs font-bold text-slate-200">{fmt.label}</div>
-                        <div className="text-[11px] text-slate-400">{fmt.desc}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bid Strategy */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <label className="text-xs font-semibold text-slate-300">Bid strategy</label>
-                <select
-                  value={formData.bidStrategy}
-                  onChange={(e) => setFormData(prev => ({ ...prev, bidStrategy: e.target.value }))}
-                  className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white"
+            <nav className="space-y-1.5 text-xs font-sans">
+              {/* 1. Bidding */}
+              <div className="space-y-1">
+                <div
+                  onClick={() => setStep(6)}
+                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                    step === 6
+                      ? "bg-red-600/10 text-red-400 border border-red-500/30 font-bold"
+                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                  }`}
                 >
-                  <option value="TARGET_CPV">Target CPV (Cost per View)</option>
-                  <option value="MAXIMIZE_CONVERSIONS">Maximize Conversions</option>
-                  <option value="TARGET_CPA">Target CPA (Cost per Action)</option>
-                </select>
-                <p className="text-[11px] text-slate-400">Target CPV allows you to set the average amount you're willing to pay for a video view.</p>
+                  <span>1. Bidding</span>
+                </div>
+                {step === 6 && (
+                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                    <p className="text-red-400 font-medium">Bidding</p>
+                    <p className="hover:text-slate-200">Customer acquisition</p>
+                    <p className="hover:text-slate-200">Customer retention</p>
+                  </div>
+                )}
               </div>
 
-              {/* Budget and Dates */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-red-400" /> Budget and dates
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300">Budget type</label>
-                    <div className="flex gap-2 mt-1.5">
-                      {["DAILY", "TOTAL"].map((bt) => (
-                        <button
-                          key={bt}
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, budgetType: bt as any }))}
-                          className={`flex-1 py-2 text-xs font-bold rounded-lg border ${
-                            formData.budgetType === bt ? "bg-red-600/20 border-red-500 text-white" : "bg-slate-950 border-slate-800 text-slate-400"
-                          }`}
-                        >
-                          {bt === "DAILY" ? "Daily" : "Campaign total"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300">Amount (₹)</label>
-                    <input
-                      type="number"
-                      value={formData.budgetAmount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, budgetAmount: e.target.value }))}
-                      className="w-full mt-1.5 px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-bold text-white"
-                    />
-                  </div>
+              {/* 2. Campaign settings */}
+              <div className="space-y-1">
+                <div
+                  onClick={() => setStep(3)}
+                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                    step === 3
+                      ? "bg-red-600/10 text-red-400 border border-red-500/30 font-bold"
+                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                  }`}
+                >
+                  <span>2. Campaign settings</span>
                 </div>
-
-                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
-                  <span>Weekly spend estimate:</span>
-                  <span className="font-bold text-white">Up to ₹{(parseFloat(formData.budgetAmount || "1000") * 7).toLocaleString()} / week</span>
-                </div>
-              </div>
-
-              {/* Locations */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-red-400" /> Locations
-                </h3>
-
-                <div className="space-y-2">
-                  {[
-                    { id: "ALL", label: "All countries and territories" },
-                    { id: "INDIA", label: "India" },
-                    { id: "CUSTOM", label: "Enter another location" }
-                  ].map((loc) => (
-                    <label
-                      key={loc.id}
-                      onClick={() => setFormData(prev => ({ ...prev, locationType: loc.id as any }))}
-                      className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${
-                        formData.locationType === loc.id ? "bg-red-600/10 border-red-500 text-white font-bold" : "bg-slate-950 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="locations"
-                        checked={formData.locationType === loc.id}
-                        onChange={() => {}}
-                        className="h-4 w-4 text-red-600"
-                      />
-                      <span className="text-xs font-semibold">{loc.label}</span>
-                    </label>
-                  ))}
-                </div>
-
-                {formData.locationType === "CUSTOM" && (
-                  <div className="pl-6 space-y-3 pt-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={customLocationInput}
-                        onChange={(e) => setCustomLocationInput(e.target.value)}
-                        placeholder="Type location e.g. United States, Germany"
-                        className="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white"
-                      />
-                      <button
-                        onClick={() => {
-                          if (customLocationInput.trim() && !formData.customLocations.includes(customLocationInput.trim())) {
-                            setFormData(prev => ({ ...prev, customLocations: [...prev.customLocations, customLocationInput.trim()] }));
-                            setCustomLocationInput("");
-                          }
-                        }}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {formData.customLocations.map((loc) => (
-                        <span key={loc} className="px-2.5 py-1 bg-red-900/40 border border-red-500/40 rounded-full text-xs text-red-300 flex items-center gap-1.5">
-                          {loc}
-                          <X onClick={() => setFormData(prev => ({ ...prev, customLocations: prev.customLocations.filter(l => l !== loc) }))} className="h-3 w-3 cursor-pointer hover:text-white" />
-                        </span>
-                      ))}
+                {step === 3 && (
+                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                    <p className="hover:text-slate-200">Locations</p>
+                    <p className="hover:text-slate-200">Languages</p>
+                    <p className="hover:text-slate-200">EU political ads</p>
+                    <div className="pt-1">
+                      <p className="text-slate-300 font-semibold">more settings</p>
+                      <div className="ml-2 space-y-0.5 text-[10px] text-slate-400">
+                        <p>Ad Schedule</p>
+                        <p>Start and end dates</p>
+                        <p>Campaign URL options</p>
+                        <p>Page Feeds</p>
+                        <p>Devices</p>
+                        <p>Brand exclusions</p>
+                        <p>Demographic exclusions</p>
+                        <p>Audience exclusions</p>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* STEP 4: AD GROUP + AUDIENCE + CONTENT */}
-          {step === 4 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Ad group + Audience + Content</h1>
-                <p className="text-xs text-slate-400 mt-1">Define who should see your video ads and where they appear</p>
+              {/* 3. Asset group */}
+              <div className="space-y-1">
+                <div
+                  onClick={() => setStep(4)}
+                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                    step === 4
+                      ? "bg-red-600/10 text-red-400 border border-red-500/30 font-bold"
+                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                  }`}
+                >
+                  <span>3. Asset group</span>
+                </div>
+                {step === 4 && (
+                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                    <p className="hover:text-slate-200">Name</p>
+                    <p className="hover:text-slate-200">Final URL</p>
+                    <p className="hover:text-slate-200">Assets</p>
+                    <p className="hover:text-slate-200">Asset optimization</p>
+                    <p className="hover:text-slate-200">Search themes</p>
+                    <p className="hover:text-slate-200">Audience signal</p>
+                  </div>
+                )}
               </div>
 
-              {/* Ad Group Name */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <label className="text-xs font-semibold text-slate-300">Ad group name</label>
+              {/* 4. Budget */}
+              <div
+                onClick={() => setStep(3)}
+                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
+                  step === 3
+                    ? "bg-red-600/10 text-red-400 border border-red-500/30 font-bold"
+                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                }`}
+              >
+                <span>4. Budget</span>
+              </div>
+
+              {/* 5. Summary */}
+              <div
+                onClick={() => setStep(7)}
+                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
+                  step === 7
+                    ? "bg-red-600/10 text-red-400 border border-red-500/30 font-bold"
+                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                }`}
+              >
+                <span>5. Summary</span>
+              </div>
+            </nav>
+          </div>
+        </aside>
+
+        {/* ── Main Content Area ── */}
+        <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8 max-w-5xl mx-auto">
+          
+          {/* CAMPAIGN SETTINGS & COMPLETE FLOW */}
+          <div className="space-y-8">
+            <h1 className="text-2xl font-bold text-slate-100">Campaign settings</h1>
+
+            {/* Campaign group settings */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <h2 className="text-sm font-bold text-slate-100">Campaign group settings</h2>
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Video campaign group</label>
+                <input
+                  type="text"
+                  value={formData.campaignGroup}
+                  onChange={(e) => setFormData(prev => ({ ...prev, campaignGroup: e.target.value }))}
+                  placeholder="Select or enter video campaign group"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Add this campaign to a video campaign group to control reach and frequency across campaigns and get aggregated reporting
+              </p>
+            </div>
+
+            {/* General settings */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+              <h2 className="text-sm font-bold text-slate-100">General settings</h2>
+              <div className="text-xs text-slate-300 flex flex-wrap gap-4 bg-slate-950 p-3 rounded-xl border border-slate-800/80">
+                <span><strong>Type:</strong> Video campaign</span>
+                <span><strong>Goal:</strong> YouTube reach, views, and engagements</span>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200">Campaign name</label>
+                  <span className="text-[11px] font-mono text-slate-500">{formData.campaignName.length} / 256</span>
+                </div>
+                <input
+                  type="text"
+                  value={formData.campaignName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, campaignName: e.target.value }))}
+                  maxLength={256}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-medium focus:border-red-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-500">Text is {formData.campaignName.length} characters out of 256</p>
+              </div>
+            </div>
+
+            {/* Ad formats */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+              <h2 className="text-sm font-bold text-slate-100">Ad formats</h2>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Using all available formats can help you get up to 40% more views, 40% more consideration lift, and 25% more search lift
+              </p>
+
+              <div className="space-y-2.5">
+                {[
+                  { id: "skippableInStream", label: "Skippable in-stream ads" },
+                  { id: "inFeed", label: "In-feed ads" },
+                  { id: "shorts", label: "Shorts ads" }
+                ].map((fmt) => (
+                  <label key={fmt.id} className="flex items-center gap-3 text-xs text-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(formData.adFormats as any)[fmt.id]}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormData(prev => ({
+                          ...prev,
+                          adFormats: { ...prev.adFormats, [fmt.id]: checked }
+                        }));
+                      }}
+                      className="h-4 w-4 rounded text-red-600 bg-slate-950 border-slate-800"
+                    />
+                    <span>{fmt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Bid strategy */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+              <h2 className="text-sm font-bold text-slate-100">Bid strategy</h2>
+              
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300 block">Select your bid strategy</label>
+                <select
+                  value={formData.bidStrategy}
+                  onChange={(e) => setFormData(prev => ({ ...prev, bidStrategy: e.target.value }))}
+                  className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-semibold focus:border-red-500 focus:outline-none"
+                >
+                  <option value="TARGET_CPV">Target CPV</option>
+                </select>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 space-y-2 leading-relaxed">
+                <p>The following bid strategies aren't available in this campaign: <strong>Maximum CPV, Target CPM, Viewable CPM, Target CPA, Maximize conversions, Maximize conversion value, Target ROAS</strong></p>
+                <p>
+                  With TrueView target cost-per-view (previously called Target cost-per-view) you set the average amount you want to pay for TrueView views of this campaign. From the TrueView target CPV you set, we’ll optimize bids to help get as many TrueView views as possible. Some TrueView views may cost more or less than your target.
+                </p>
+              </div>
+            </div>
+
+            {/* Budget and dates */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+              <h2 className="text-sm font-bold text-slate-100">Budget and dates</h2>
+
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-slate-300">Enter budget type and amount</p>
+
+                <div className="flex flex-wrap items-center gap-4">
+                  <select
+                    value={formData.budgetType}
+                    onChange={(e) => setFormData(prev => ({ ...prev, budgetType: e.target.value as any }))}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none"
+                  >
+                    <option value="TOTAL">Campaign total</option>
+                    <option value="DAILY">Daily</option>
+                  </select>
+
+                  <div className="relative w-48">
+                    <span className="absolute left-3.5 top-2.5 text-xs font-semibold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      value={formData.budgetAmount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, budgetAmount: e.target.value }))}
+                      placeholder="Required"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-100 font-medium placeholder-amber-400/80 focus:border-red-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-800 bg-slate-950 text-xs">
+                  <div className="space-y-1">
+                    <label className="block text-slate-400 font-medium">Start date</label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-slate-400 font-medium">End date</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={formData.endDateType}
+                          onChange={(e) => setFormData(prev => ({ ...prev, endDateType: e.target.value as any }))}
+                          className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none"
+                        >
+                          <option value="TWO_WEEKS">2 weeks</option>
+                          <option value="CUSTOM">Select a date</option>
+                          <option value="NONE">None</option>
+                        </select>
+                        <span className="text-[11px] text-amber-400 font-medium">Required</span>
+                      </div>
+                      {formData.endDateType === "CUSTOM" && (
+                        <input
+                          type="date"
+                          value={formData.endDate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Campaign total budget represents your total spend for the duration of the campaign. You must schedule an end date for the campaign. <a href="#" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline">Learn more</a>
+                </p>
+              </div>
+            </div>
+
+            {/* Networks */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+              <h2 className="text-sm font-bold text-slate-100">Networks</h2>
+              <p className="text-xs font-semibold text-slate-300">YouTube & Google</p>
+
+              <div className="space-y-3 text-xs">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.networks.youtube}
+                    onChange={(e) => setFormData(prev => ({ ...prev, networks: { ...prev.networks, youtube: e.target.checked } }))}
+                    className="mt-0.5 rounded text-red-600 bg-slate-950 border-slate-800 h-4 w-4"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-200 block">YouTube</span>
+                    <span className="text-slate-400 block">Ads can appear on YouTube videos and channels, YouTube home, and in YouTube search results</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.networks.googleTv}
+                    onChange={(e) => setFormData(prev => ({ ...prev, networks: { ...prev.networks, googleTv: e.target.checked } }))}
+                    className="mt-0.5 rounded text-red-600 bg-slate-950 border-slate-800 h-4 w-4"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-200 block">Google TV</span>
+                    <span className="text-slate-400 block">Ads can appear in video-streaming apps available with Google TV. The Google TV network is only available for campaigns running in the United States <a href="#" onClick={e => e.preventDefault()} className="text-red-400 hover:underline">Learn more</a></span>
+                  </div>
+                </label>
+
+                <div className="pt-2">
+                  <p className="font-semibold text-slate-300 mb-2">Google partners</p>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.networks.googlePartners}
+                      onChange={(e) => setFormData(prev => ({ ...prev, networks: { ...prev.networks, googlePartners: e.target.checked } }))}
+                      className="mt-0.5 rounded text-red-600 bg-slate-950 border-slate-800 h-4 w-4"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-200 block">Video partners on the Google Display Network</span>
+                      <span className="text-slate-400 block">Video partners extend the reach of video ads to a collection of sites and apps in the Google Display Network. <a href="#" onClick={e => e.preventDefault()} className="text-red-400 hover:underline">Learn more</a></span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Locations */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+              <h2 className="text-sm font-bold text-slate-100">Locations</h2>
+              <p className="text-xs text-slate-400">Select locations for this campaign</p>
+
+              <div className="space-y-2.5 text-xs">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="locRad"
+                    checked={formData.locationType === "ALL"}
+                    onChange={() => setFormData(prev => ({ ...prev, locationType: "ALL" }))}
+                    className="text-red-600 h-4 w-4"
+                  />
+                  <span>All countries and territories</span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="locRad"
+                    checked={formData.locationType === "INDIA"}
+                    onChange={() => setFormData(prev => ({ ...prev, locationType: "INDIA" }))}
+                    className="text-red-600 h-4 w-4"
+                  />
+                  <span>India</span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="locRad"
+                    checked={formData.locationType === "CUSTOM"}
+                    onChange={() => setFormData(prev => ({ ...prev, locationType: "CUSTOM" }))}
+                    className="text-red-600 h-4 w-4"
+                  />
+                  <span>Enter another location</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Languages */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+              <h2 className="text-sm font-bold text-slate-100">Languages</h2>
+              <p className="text-xs text-slate-400">Select the languages your customers speak.</p>
+
+              <div className="space-y-3">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
+                  <input
+                    type="text"
+                    value={formData.languageSearchInput}
+                    onChange={(e) => setFormData(prev => ({ ...prev, languageSearchInput: e.target.value }))}
+                    placeholder="Start typing or select a language"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300 font-medium">
+                    All languages
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Related videos */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+              <h2 className="text-sm font-bold text-slate-100">Related videos</h2>
+              <p className="text-xs font-semibold text-slate-300">Add videos related to your video ads to help increase engagement</p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Related videos appear below your video ad and offer an immersive video experience to help reinforce and extend your ad's message. <a href="#" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline">Learn more</a>
+              </p>
+            </div>
+
+            {/* Additional settings */}
+            <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-6">
+              <h2 className="text-sm font-bold text-slate-100">Additional settings</h2>
+
+              {/* Devices */}
+              <div className="space-y-3 border-b border-slate-800 pb-4 text-xs">
+                <h3 className="font-bold text-slate-200">Devices</h3>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="devRad" defaultChecked className="text-red-600 h-4 w-4" />
+                    <span>Show on all eligible devices (computers, mobile, tablet, and TV screens)</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="devRad" className="text-red-600 h-4 w-4" />
+                    <span>Set specific targeting for devices</span>
+                  </label>
+                </div>
+                <p className="text-slate-400 leading-relaxed">
+                  Showing ads on all devices helps expand your reach. To focus your reach on specific devices, set device targeting. <a href="#" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline">Learn more</a>
+                </p>
+              </div>
+
+              {/* Frequency capping */}
+              <div className="space-y-3 border-b border-slate-800 pb-4 text-xs">
+                <h3 className="font-bold text-slate-200">Frequency capping</h3>
+                <p className="text-slate-400">Limit how many times that ads in this campaign can show to the same person</p>
+
+                <div className="space-y-2 pt-1">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" className="rounded text-red-600 bg-slate-950 border-slate-800 h-4 w-4" />
+                    <span className="font-bold text-slate-200">Cap impression frequency</span>
+                  </label>
+                  <p className="text-[11px] text-slate-400 pl-7">Limit how many times that ads in this campaign can show to the same person</p>
+
+                  <label className="flex items-center gap-3 cursor-pointer pt-2">
+                    <input type="checkbox" className="rounded text-red-600 bg-slate-950 border-slate-800 h-4 w-4" />
+                    <span className="font-bold text-slate-200">Cap view frequency</span>
+                  </label>
+                  <p className="text-[11px] text-slate-400 pl-7">Limit how many times that ads in this campaign can get a view or interaction from the same person</p>
+                </div>
+              </div>
+
+              {/* Ad schedule */}
+              <div className="space-y-3 border-b border-slate-800 pb-4 text-xs">
+                <h3 className="font-bold text-slate-200">Ad schedule</h3>
+                <div className="flex flex-wrap items-center gap-3">
+                  <select className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none">
+                    <option value="All days">All days</option>
+                  </select>
+                  <select className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none">
+                    <option value="12:00 AM">12:00 AM</option>
+                  </select>
+                  <span className="text-slate-400">to</span>
+                  <select className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none">
+                    <option value="12:00 AM">12:00 AM</option>
+                  </select>
+                </div>
+                <div className="space-y-1 text-slate-400 text-[11px] leading-relaxed">
+                  <p>To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline">Learn more</a></p>
+                  <p>Based on account time zone: <strong>(GMT+05:30) India Standard Time</strong></p>
+                  <p>To limit when your ads can run, set an ad schedule. Keep in mind that your ads will only run during these times.</p>
+                </div>
+              </div>
+
+              {/* Third-party measurement */}
+              <div className="space-y-3 text-xs">
+                <h3 className="font-bold text-slate-200">Third-party measurement</h3>
+                <p className="text-slate-400 leading-relaxed">
+                  Add vendors to let them see measurement data for this campaign. Only vendors that have already been added to your account can be used for new campaigns.
+                </p>
+                <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-medium">
+                  There are no available vendors for this campaign. You can add new vendors in your account settings
+                </div>
+              </div>
+            </div>
+
+            {/* ── CREATE YOUR AD GROUP ── */}
+            <div className="space-y-6 pt-4 border-t border-slate-800">
+              <h1 className="text-2xl font-bold text-slate-100">Create your ad group</h1>
+
+              {/* Ad group name */}
+              <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200">Ad group name</label>
+                  <span className="text-[11px] font-mono text-slate-500">{formData.adGroupName.length} / 256</span>
+                </div>
                 <input
                   type="text"
                   value={formData.adGroupName}
                   onChange={(e) => setFormData(prev => ({ ...prev, adGroupName: e.target.value }))}
-                  className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-red-500"
+                  maxLength={256}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-medium focus:border-red-500 focus:outline-none"
                 />
+                <p className="text-[11px] text-slate-500">Text is {formData.adGroupName.length} characters out of 256</p>
+                <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                  <span>Combining audience and content settings in the same ad group can limit your reach and increase your costs. This excludes audience settings for age and gender.</span>
+                </div>
               </div>
 
-              {/* Audience Section */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <Users className="h-4 w-4 text-red-400" /> Audience
-                </h3>
+              {/* Audience */}
+              <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+                <h2 className="text-sm font-bold text-slate-100">Audience</h2>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Audiences allow you to reach people based on who they are, their interests and habits, what they're actively researching, or how they've interacted with your business or organization.
+                </p>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-300">Audience segment name</label>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">Audience name</label>
+                    <p className="text-[11px] text-slate-400 mb-1">Add a name for your audience to save it to your library (optional)</p>
                     <input
                       type="text"
                       value={formData.audienceName}
                       onChange={(e) => setFormData(prev => ({ ...prev, audienceName: e.target.value }))}
-                      className="w-full mt-1 px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white"
+                      placeholder="Enter audience name"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:border-red-500 focus:outline-none"
                     />
                   </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300">Interests & Detailed Demographics</label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.interests.map((int) => (
-                        <span key={int} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-xs text-slate-200 flex items-center gap-1.5">
-                          {int}
-                          <X onClick={() => setFormData(prev => ({ ...prev, interests: prev.interests.filter(i => i !== int) }))} className="h-3 w-3 cursor-pointer hover:text-red-400" />
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="text-xs font-semibold text-slate-300">Include people who match any of the following</p>
 
-                  <div className="pt-2">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.audienceExpansion}
-                        onChange={(e) => setFormData(prev => ({ ...prev, audienceExpansion: e.target.checked }))}
-                        className="h-4 w-4 rounded text-red-600 bg-slate-950 border-slate-700"
-                      />
-                      <span className="text-xs font-semibold text-slate-200">Turn on Audience Expansion (Recommended for higher reach)</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
+                  {/* Demographics */}
+                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3 text-xs">
+                    <h3 className="font-bold text-slate-200">Demographics</h3>
+                    <p className="text-slate-400">People with the following demographics</p>
 
-              {/* Content Section (Keywords & Topics) */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <Search className="h-4 w-4 text-red-400" /> Content targeting (Keywords & Topics)
-                </h3>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300">Target Keywords</label>
-                    <div className="flex gap-2 mt-1.5">
-                      <input
-                        type="text"
-                        value={keywordInput}
-                        onChange={(e) => setKeywordInput(e.target.value)}
-                        placeholder="Add keyword e.g. video marketing"
-                        className="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white"
-                      />
-                      <button
-                        onClick={() => {
-                          if (keywordInput.trim() && !formData.keywords.includes(keywordInput.trim())) {
-                            setFormData(prev => ({ ...prev, keywords: [...prev.keywords, keywordInput.trim()] }));
-                            setKeywordInput("");
-                          }
-                        }}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.keywords.map((kw) => (
-                        <span key={kw} className="px-2.5 py-1 bg-red-900/40 border border-red-500/40 rounded-full text-xs text-red-300 flex items-center gap-1.5">
-                          {kw}
-                          <X onClick={() => setFormData(prev => ({ ...prev, keywords: prev.keywords.filter(k => k !== kw) }))} className="h-3 w-3 cursor-pointer hover:text-white" />
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-500/30 text-xs text-amber-300 flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
-                  <span>Combining audience and content settings in the same ad group can narrow your reach. Monitor campaign impressions closely.</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 5: CREATE VIDEO ADS */}
-          {step === 5 && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              
-              {/* Left Column: YouTube Video Input (7 cols) */}
-              <div className="lg:col-span-7 space-y-6">
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-100">Create your video ads</h1>
-                  <p className="text-xs text-slate-400 mt-1">Search or paste your YouTube video URL (At least 1 required)</p>
-                </div>
-
-                <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                  <label className="text-xs font-semibold text-slate-300">Your YouTube video URL</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-                      <input
-                        type="text"
-                        value={youtubeSearchInput}
-                        onChange={(e) => setYoutubeSearchInput(e.target.value)}
-                        placeholder="Search YouTube or paste URL (e.g. https://www.youtube.com/watch?v=...)"
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:border-red-500 focus:outline-none"
-                      />
-                    </div>
-                    <button
-                      onClick={() => handleAddVideoUrl(youtubeSearchInput)}
-                      className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg flex items-center gap-1.5"
-                    >
-                      <Plus className="h-4 w-4" /> Add Video
-                    </button>
-                  </div>
-
-                  {/* Preset Suggestions */}
-                  <div className="space-y-2 pt-2">
-                    <label className="text-[11px] text-slate-400 font-semibold">Or select a preset video:</label>
                     <div className="space-y-2">
-                      {PRESET_YOUTUBE_VIDEOS.map((vid) => (
-                        <div
-                          key={vid.url}
-                          onClick={() => handleAddVideoUrl(vid.url)}
-                          className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-red-500 flex items-center gap-3 cursor-pointer transition-all"
-                        >
-                          <img src={vid.thumbnail} alt="thumb" className="h-12 w-20 rounded-lg object-cover" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold text-slate-100 truncate">{vid.title}</div>
-                            <div className="text-[10px] text-slate-400">{vid.channel} • {vid.views}</div>
-                          </div>
-                          <span className="text-[10px] px-2 py-1 bg-red-600/20 text-red-300 font-bold rounded">+ Select</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Active Videos List */}
-                  <div className="space-y-2 pt-2">
-                    <label className="text-xs font-semibold text-slate-300">Added Video Ads ({formData.videoUrls.length})</label>
-                    {formData.videoUrls.map((url, i) => (
-                      <div key={i} className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-2 truncate">
-                          <Youtube className="h-4 w-4 text-red-500 shrink-0" />
-                          <span className="text-xs font-mono text-slate-200 truncate">{url}</span>
-                        </div>
-                        {formData.videoUrls.length > 1 && (
-                          <button onClick={() => handleRemoveVideoUrl(url)} className="text-slate-500 hover:text-red-400">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                      <p className="font-semibold text-slate-300">Gender</p>
+                      <div className="flex flex-wrap gap-4">
+                        {["Female", "Male", "Unknown"].map((g) => (
+                          <label key={g} className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" defaultChecked className="rounded text-red-600 bg-slate-900 border-slate-800 h-4 w-4" />
+                            <span>{g}</span>
+                          </label>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Video Ad Preview Panel (5 cols) */}
-              <div className="lg:col-span-5 space-y-6 sticky top-20">
-                <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl space-y-4">
-                  <div className="flex border-b border-slate-800 pb-2 justify-around text-[11px] font-semibold">
-                    {[
-                      { id: "IN_STREAM", label: "Skippable In-Stream" },
-                      { id: "IN_FEED", label: "In-Feed" },
-                      { id: "SHORTS", label: "Shorts" }
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setPreviewTab(tab.id as any)}
-                        className={`pb-1 border-b-2 transition-all ${
-                          previewTab === tab.id ? "border-red-500 text-red-400 font-bold" : "border-transparent text-slate-400"
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Video Mockup Frame */}
-                  <div className="aspect-video rounded-xl bg-slate-900 border border-slate-800 relative overflow-hidden flex flex-col justify-between p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 bg-black/80 text-red-400 text-[10px] font-bold rounded flex items-center gap-1">
-                        <Youtube className="h-3 w-3" /> Sponsored Ad
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">Preview</span>
                     </div>
 
-                    <div className="space-y-1 text-center py-6">
-                      <Play className="h-10 w-10 text-red-500 mx-auto opacity-80" />
-                      <div className="text-xs font-bold text-white truncate px-4">{formData.campaignName}</div>
-                      <div className="text-[10px] text-slate-400">YouTube Video Placement</div>
+                    <div className="space-y-2 pt-2">
+                      <p className="font-semibold text-slate-300">Age</p>
+                      <div className="flex items-center gap-3">
+                        <select className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100">
+                          <option>18</option>
+                        </select>
+                        <span className="text-slate-400">to</span>
+                        <select className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100">
+                          <option>65+</option>
+                        </select>
+                        <label className="flex items-center gap-2 cursor-pointer ml-2">
+                          <input type="checkbox" defaultChecked className="rounded text-red-600 bg-slate-900 border-slate-800 h-4 w-4" />
+                          <span>Unknown</span>
+                        </label>
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between bg-black/60 p-2 rounded-lg backdrop-blur">
-                      <div className="text-[10px] text-slate-200 truncate">Visit Advertiser Site</div>
-                      <button className="px-3 py-1 bg-red-600 text-white font-bold text-[10px] rounded">
-                        Watch Now
-                      </button>
-                    </div>
+                    <button type="button" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline text-[11px] pt-1">
+                      Additional demographics ▾
+                    </button>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* STEP 6: BIDDING */}
-          {step === 6 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Bidding strategy & Target CPV</h1>
-                <p className="text-xs text-slate-400 mt-1">Set the maximum amount you're willing to pay per video view (Target CPV)</p>
-              </div>
+                  <p className="text-xs font-semibold text-slate-300">Narrow audience to people who match the following</p>
 
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-red-400" /> TrueView Target CPV Bid
-                </h3>
-
-                <div className="max-w-xs space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">Target CPV Amount (₹)</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-300">₹</span>
+                  {/* Interests & detailed demographics */}
+                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-xs">
+                    <h3 className="font-bold text-slate-200">Interests & detailed demographics</h3>
+                    <p className="text-slate-400">Add any interests, detailed demographics, or life events related to your customers</p>
                     <input
-                      type="number"
-                      value={formData.targetCpv}
-                      onChange={(e) => setFormData(prev => ({ ...prev, targetCpv: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-sm font-bold text-white"
+                      type="text"
+                      value={formData.interestsInput}
+                      onChange={(e) => setFormData(prev => ({ ...prev, interestsInput: e.target.value }))}
+                      placeholder="Add in-market segments, life events, and more"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:border-red-500 focus:outline-none"
                     />
                   </div>
-                </div>
 
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 leading-relaxed space-y-2">
-                  <div className="font-bold text-white flex items-center gap-2">
-                    <Info className="h-4 w-4 text-red-400" /> How TrueView Target CPV Works:
+                  {/* Your data */}
+                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-xs">
+                    <h3 className="font-bold text-slate-200">Your data</h3>
+                    <p className="text-slate-400">First-party data can help us reach your customers</p>
+                    <input
+                      type="text"
+                      value={formData.firstPartyDataInput}
+                      onChange={(e) => setFormData(prev => ({ ...prev, firstPartyDataInput: e.target.value }))}
+                      placeholder="Add your data"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:border-red-500 focus:outline-none"
+                    />
                   </div>
-                  <p>You pay when a viewer watches 30 seconds of your video (or the full duration if it's shorter than 30 seconds) or interacts with your video ad, whichever comes first.</p>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* STEP 7: REVIEW & PUBLISH */}
-          {step === 7 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Review & Publish</h1>
-                <p className="text-xs text-slate-400 mt-1">Review your YouTube Video Campaign details before publishing as PAUSED</p>
-              </div>
-
-              {/* Summary Details Card */}
-              <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                  <div>
-                    <div className="text-xs font-semibold text-red-400">Campaign Name</div>
-                    <div className="text-lg font-bold text-white">{formData.campaignName}</div>
-                  </div>
-                  <button onClick={() => setStep(3)} className="text-xs text-red-400 hover:underline flex items-center gap-1">
-                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  {/* Lookalike segment */}
+                  <button type="button" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline text-xs block">
+                    Lookalike segment ▾
                   </button>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Campaign Goal</span>
-                    <div className="font-bold text-white">Video views (TrueView)</div>
-                  </div>
+                  {/* Additional audience segments */}
+                  <button type="button" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline text-xs block">
+                    Additional audience segments ▾
+                  </button>
 
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Campaign Type</span>
-                    <div className="font-bold text-white flex items-center gap-1.5">
-                      <Youtube className="h-4 w-4 text-red-500" /> Video
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Target CPV Bid</span>
-                    <div className="font-bold text-white">₹{formData.targetCpv} / view</div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Daily Budget</span>
-                    <div className="font-bold text-white">₹{formData.budgetAmount} / day</div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Locations & Languages</span>
-                    <div className="font-bold text-white">
-                      {formData.locationType === "ALL" ? "All countries" : formData.locationType === "INDIA" ? "India" : formData.customLocations.join(", ")} • {formData.languages.join(", ")}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Video Ads Added</span>
-                    <div className="font-bold text-white">{formData.videoUrls.length} YouTube Video(s)</div>
+                  {/* Audience expansion */}
+                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-200">Audience expansion</span>
+                    <span className="px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 font-semibold text-[11px]">Off</span>
                   </div>
                 </div>
               </div>
 
-              {/* Success Screen Modal */}
-              {publishSuccess && createdCampaignDetails && (
-                <div className="p-6 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 space-y-4 shadow-2xl animate-fade-in">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-400 shrink-0" />
-                    <div>
-                      <h3 className="text-base font-bold text-white">YouTube Campaign created successfully! (Status: PAUSED)</h3>
-                      <p className="text-xs text-emerald-200">Your Video campaign is saved and ready for YouTube delivery.</p>
-                    </div>
-                  </div>
+              {/* Content */}
+              <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+                <h2 className="text-sm font-bold text-slate-100">Content</h2>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Build product and brand association with content keywords, topics, and placements.
+                </p>
 
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      onClick={() => router.push(`/ads/campaigns${customerId ? `?customerId=${customerId}` : ""}`)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg"
-                    >
-                      Go to Campaigns List
-                    </button>
-                    <button
-                      onClick={() => setPublishSuccess(false)}
-                      className="px-4 py-2 bg-slate-800 text-slate-300 hover:text-white text-xs font-bold rounded-lg"
-                    >
-                      Edit Campaign
-                    </button>
+                {/* Keywords */}
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3 text-xs">
+                  <h3 className="font-bold text-slate-200">Keywords</h3>
+                  <p className="text-slate-400">Choose terms related to your products or services to target relevant content</p>
+                  <textarea
+                    rows={4}
+                    value={formData.keywordInput}
+                    onChange={(e) => setFormData(prev => ({ ...prev, keywordInput: e.target.value }))}
+                    placeholder="Enter or paste keywords. You can separate each keyword by commas or enter one per line."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-slate-100 font-mono focus:border-red-500 focus:outline-none"
+                  />
+
+                  <div className="pt-2 space-y-2">
+                    <p className="font-semibold text-slate-300">Get keyword ideas</p>
+                    <input
+                      type="text"
+                      value={formData.websiteIdeaInput}
+                      onChange={(e) => setFormData(prev => ({ ...prev, websiteIdeaInput: e.target.value }))}
+                      placeholder="Enter a related website"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100"
+                    />
+                    <input
+                      type="text"
+                      value={formData.productIdeaInput}
+                      onChange={(e) => setFormData(prev => ({ ...prev, productIdeaInput: e.target.value }))}
+                      placeholder="Enter your product or service"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100"
+                    />
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      We only show keyword ideas that are relevant to your business. To get ideas, enter your landing page, a related website, or words or phrases that describe your product or service in the field above.
+                    </p>
                   </div>
                 </div>
-              )}
+
+                {/* Topics */}
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-xs">
+                  <h3 className="font-bold text-slate-200">Topics</h3>
+                  <p className="text-slate-400">Select topics to show ads on content about specific subjects.</p>
+                  <input
+                    type="text"
+                    value={formData.topicsSearchInput}
+                    onChange={(e) => setFormData(prev => ({ ...prev, topicsSearchInput: e.target.value }))}
+                    placeholder="Search by word or phrase"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100"
+                  />
+                </div>
+
+                {/* Placements */}
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3 text-xs">
+                  <h3 className="font-bold text-slate-200">Placements</h3>
+                  <p className="text-slate-400">Select your placement targeting</p>
+                  <input
+                    type="text"
+                    value={formData.placementsSearchInput}
+                    onChange={(e) => setFormData(prev => ({ ...prev, placementsSearchInput: e.target.value }))}
+                    placeholder="Search by word, phrase, URL, or video ID"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100"
+                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 font-medium">
+                    <span className="p-2 rounded-lg bg-slate-900 border border-slate-800">YouTube channels</span>
+                    <span className="p-2 rounded-lg bg-slate-900 border border-slate-800">YouTube videos</span>
+                    <span className="p-2 rounded-lg bg-slate-900 border border-slate-800">Websites</span>
+                    <span className="p-2 rounded-lg bg-slate-900 border border-slate-800">Apps</span>
+                    <span className="p-2 rounded-lg bg-slate-900 border border-slate-800">App categories (141)</span>
+                  </div>
+
+                  <p className="text-slate-400 font-semibold pt-1">None selected</p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Your ad can appear on any YouTube or Display Network placements that match your other targeting. Add specific placements to narrow your targeting. If a specific website you target has an equivalent app, your ads can also show there.
+                  </p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Note: Google's policy doesn't allow you to target placements that promote hatred, intolerance, discrimination, or violence towards an individual or group. All campaigns are subject to the Google Ads advertising policies. <a href="#" onClick={e => e.preventDefault()} className="text-red-400 font-semibold hover:underline">Learn more</a>
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* ── CREATE YOUR VIDEO ADS ── */}
+            <div className="space-y-6 pt-4 border-t border-slate-800">
+              <h1 className="text-2xl font-bold text-slate-100">Create your video ads</h1>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Create one or more ads now, or skip this step and create them later. Your campaign won't run without at least one ad.
+              </p>
+
+              <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+                <h2 className="text-sm font-bold text-slate-100">Your YouTube video</h2>
+                <p className="text-xs text-slate-400">Add up to 5 videos. Get more TrueView views with vertical and horizontal videos.</p>
+
+                <div className="relative max-w-xl">
+                  <input
+                    type="text"
+                    value={formData.videoSearchUrl}
+                    onChange={(e) => setFormData(prev => ({ ...prev, videoSearchUrl: e.target.value }))}
+                    placeholder="Search for a video or paste the URL from YouTube"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-amber-400/80 focus:border-red-500 focus:outline-none"
+                  />
+                  <span className="text-[11px] text-amber-400 font-semibold block mt-1">Required</span>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 text-xs text-slate-400">
+                  Add a video to see a preview of your video ad
+                </div>
+
+                <div className="pt-2 space-y-2">
+                  <h3 className="font-bold text-xs text-slate-200">Ad creation</h3>
+                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 text-xs text-slate-300 space-y-1">
+                    <p className="font-bold text-white">Responsive video ad</p>
+                    <p className="text-slate-400">Ad #1</p>
+                    <p className="text-amber-400 font-semibold">No video selected</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── SET A BID FOR THIS AD GROUP ── */}
+            <div className="space-y-6 pt-4 border-t border-slate-800">
+              <h1 className="text-2xl font-bold text-slate-100">Set a bid for this ad group</h1>
+
+              <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+                <h2 className="text-sm font-bold text-slate-100">Bid</h2>
+                <p className="text-xs font-semibold text-slate-300">TrueView target CPV bid</p>
+
+                <div className="relative w-48">
+                  <span className="absolute left-3.5 top-2.5 text-xs font-semibold text-slate-400">₹</span>
+                  <input
+                    type="text"
+                    value={formData.targetCpv}
+                    onChange={(e) => setFormData(prev => ({ ...prev, targetCpv: e.target.value }))}
+                    placeholder="Required"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-100 font-medium placeholder-amber-400/80 focus:border-red-500 focus:outline-none"
+                  />
+                  <span className="text-[11px] text-amber-400 font-semibold block mt-1">Required</span>
+                </div>
+
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  With TrueView target CPV (cost-per-view), you set the average amount you’re willing to pay for views for this campaign. From the TrueView target CPV you set, we’ll optimize bids to help get as many TrueView views as possible. Some TrueView views may cost more or less than your target.
+                </p>
+              </div>
+            </div>
+
+          </div>
         </main>
       </div>
 
       {/* ── Bottom Sticky Action Navigation Bar ── */}
       <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-6 flex items-center justify-between z-40 shadow-2xl">
         <button
-          onClick={() => {
-            if (step === 1) {
-              router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
-            } else {
-              setStep(step - 1);
-            }
-          }}
+          onClick={() => router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`)}
           className="px-5 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all"
         >
-          {step === 1 ? "Cancel" : "Back"}
+          Cancel
         </button>
 
-        <div className="flex items-center gap-3">
-          {step < 7 ? (
-            <button
-              disabled={!isCurrentStepValid()}
-              onClick={() => setStep(step + 1)}
-              className="px-6 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-lg shadow-red-900/30 flex items-center gap-2 transition-all cursor-pointer"
-            >
-              Continue <ArrowRight className="h-4 w-4" />
-            </button>
+        <button
+          disabled={isPublishing || publishSuccess}
+          onClick={handlePublish}
+          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-900/30 flex items-center gap-2 transition-all cursor-pointer"
+        >
+          {isPublishing ? (
+            <>
+              <RefreshCw className="h-4 w-4 animate-spin" /> Publishing...
+            </>
           ) : (
-            <button
-              disabled={isPublishing || publishSuccess}
-              onClick={handlePublish}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-900/30 flex items-center gap-2 transition-all cursor-pointer"
-            >
-              {isPublishing ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" /> Publishing...
-                </>
-              ) : (
-                <>
-                  Create Campaign <CheckCircle2 className="h-4 w-4" />
-                </>
-              )}
-            </button>
+            <>
+              Publish campaign <CheckCircle2 className="h-4 w-4" />
+            </>
           )}
-        </div>
+        </button>
       </footer>
     </div>
   );

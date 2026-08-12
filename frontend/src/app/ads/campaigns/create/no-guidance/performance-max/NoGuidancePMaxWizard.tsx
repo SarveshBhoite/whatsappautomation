@@ -7,7 +7,7 @@ import {
   Sparkles, Layers, Target, Search, Video as VideoIcon, LayoutGrid, ShoppingBag,
   Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3,
   Image as ImageIcon, Play, Upload, ExternalLink, ShieldCheck, DollarSign, RefreshCw, MapPin,
-  Building2, Store, Wand2, Compass, Tag, Layers3
+  Building2, Store, Wand2, Compass, Tag, Layers3, Phone
 } from "lucide-react";
 
 const Youtube = ({ className = "h-5 w-5" }: { className?: string }) => (
@@ -37,7 +37,7 @@ export default function NoGuidancePMaxWizard() {
 
     // Step 4: Bidding
     biddingFocus: "Maximize conversions", // "Maximize conversions" | "Target CPA" | "Maximize conversion value" | "Target ROAS"
-    targetCpaValue: "25.00",
+    targetCpaValue: "166.11",
     targetRoasValue: "200",
     onlyNewCustomers: false,
     reengageLapsedCustomers: false,
@@ -46,15 +46,21 @@ export default function NoGuidancePMaxWizard() {
     locationType: "INDIA" as "ALL" | "INDIA" | "CUSTOM",
     customLocations: ["United States"],
     locationOption: "PRESENCE_OR_INTEREST" as "PRESENCE_OR_INTEREST" | "PRESENCE_ONLY",
+    showLocationOptions: true,
     languages: ["English"],
     euPolitical: "NO" as "YES" | "NO",
     moreSettingsOpen: false,
+    adScheduleList: [{ day: "All days", start: "00:00", end: "00:00" }],
     startDate: new Date().toISOString().split("T")[0],
     endDate: "",
+    devicesSelection: { computers: true, mobile: true, tablets: true, tv: true },
+    turnOnAgeExclusions: false,
+    turnOnGenderExclusions: false,
 
-    // Step 6: Asset Group
+    // Step 6: Asset Group & Creative Assets
     assetGroupName: "Asset Group 1",
     assetFinalUrl: "https://www.example.com",
+    businessName: "Hubmate Inc.",
     headlines: [
       "Grow Your Business Online",
       "Get Instant Leads Today",
@@ -70,8 +76,22 @@ export default function NoGuidancePMaxWizard() {
     uploadedImages: [
       "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&auto=format&fit=crop&q=80"
     ],
+    uploadedVideos: [
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    ],
+    uploadedClips: [] as string[],
+    ctaOption: "Automated (recommended)",
+    savedSitelinks: [] as Array<{ text: string; desc1: string; desc2: string; url: string }>,
+    savedPromotions: [] as Array<{ occasion: string; item: string; discount: string; url: string }>,
+    savedPrices: [] as Array<{ type: string; price: string }>,
+    savedMessages: [] as Array<{ platform: string }>,
+    savedSnippets: [] as Array<{ header: string; values: string[] }>,
+    savedLeadForms: [] as Array<{ headline: string; business: string }>,
+    savedCallouts: [] as string[],
+    enableTextCustomization: true,
+    enableFinalUrlExpansion: true,
     searchThemes: ["digital marketing", "lead generation", "business services"],
-    audienceSignal: "",
+    audienceSignal: "High Intent Buyers 2026",
 
     // Step 7: Budget
     budgetType: "DAILY" as "DAILY" | "TOTAL",
@@ -82,6 +102,7 @@ export default function NoGuidancePMaxWizard() {
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
   const [searchThemeInput, setSearchThemeInput] = useState<string>("");
+  const [activeModal, setActiveModal] = useState<"SITELINKS" | "CALLS" | "PROMOTIONS" | "PRICES" | "SNIPPETS" | "LEAD_FORMS" | "APPS" | "BRAND_GUIDELINES" | "AUDIENCE_SIGNAL" | null>(null);
 
   // Publishing State
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
@@ -580,111 +601,312 @@ export default function NoGuidancePMaxWizard() {
 
           {/* STEP 5: CAMPAIGN SETTINGS */}
           {step === 5 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Campaign Settings</h1>
-                <p className="text-xs text-slate-400 mt-1">Configure location options, languages, and regulatory disclosures</p>
-              </div>
+            <div className="space-y-6 animate-in fade-in duration-200 text-xs max-w-4xl">
+              <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign settings</h1>
+              <p className="text-slate-400">To reach the right people, start by defining key settings for your campaign</p>
 
               {/* Locations */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-blue-400" /> Locations
-                </h3>
-
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <h2 className="text-sm font-semibold text-slate-100">Locations</h2>
+                <p className="text-slate-400">Select locations for this campaign</p>
                 <div className="space-y-2">
-                  {[
-                    { id: "ALL", label: "All countries and territories" },
-                    { id: "INDIA", label: "India" },
-                    { id: "CUSTOM", label: "Enter another location" }
-                  ].map((loc) => (
-                    <label
-                      key={loc.id}
-                      onClick={() => setFormData(prev => ({ ...prev, locationType: loc.id as any }))}
-                      className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${
-                        formData.locationType === loc.id ? "bg-blue-600/10 border-blue-500 text-white font-bold" : "bg-slate-950 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="locations"
-                        checked={formData.locationType === loc.id}
-                        onChange={() => {}}
-                        className="h-4 w-4 text-blue-500"
-                      />
-                      <span className="text-xs font-semibold">{loc.label}</span>
-                    </label>
-                  ))}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="salesPmaxLoc" checked={formData.locationType === "ALL"} onChange={() => setFormData(prev => ({ ...prev, locationType: "ALL" }))} className="text-primary h-4 w-4" />
+                    <span>All countries and territories</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="salesPmaxLoc" checked={formData.locationType === "INDIA"} onChange={() => setFormData(prev => ({ ...prev, locationType: "INDIA" }))} className="text-primary h-4 w-4" />
+                    <span>India</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="radio" name="salesPmaxLoc" checked={formData.locationType === "CUSTOM"} onChange={() => setFormData(prev => ({ ...prev, locationType: "CUSTOM" }))} className="text-primary h-4 w-4" />
+                    <span>Enter another location</span>
+                  </label>
                 </div>
 
-                <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">Location options</label>
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="locationOption"
-                        checked={formData.locationOption === "PRESENCE_OR_INTEREST"}
-                        onChange={() => setFormData(prev => ({ ...prev, locationOption: "PRESENCE_OR_INTEREST" }))}
-                        className="h-3.5 w-3.5 text-blue-500"
-                      />
-                      <span className="text-xs text-slate-300">Presence or interest: People in, regularly in, or who've shown interest in your targeted locations (Recommended)</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="locationOption"
-                        checked={formData.locationOption === "PRESENCE_ONLY"}
-                        onChange={() => setFormData(prev => ({ ...prev, locationOption: "PRESENCE_ONLY" }))}
-                        className="h-3.5 w-3.5 text-blue-500"
-                      />
-                      <span className="text-xs text-slate-300">Presence: People in or regularly in your targeted locations</span>
-                    </label>
-                  </div>
+                {/* Location Options Accordion */}
+                <div className="pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, showLocationOptions: !prev.showLocationOptions }))}
+                    className="flex items-center justify-between w-full py-1 text-slate-300 font-semibold cursor-pointer"
+                  >
+                    <span>Location options</span>
+                    {formData.showLocationOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+
+                  {formData.showLocationOptions && (
+                    <div className="mt-3 p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3 animate-in fade-in duration-150">
+                      <span className="font-semibold text-slate-200 block">Include</span>
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="locTargetType"
+                          checked={formData.locationOption === "PRESENCE_OR_INTEREST"}
+                          onChange={() => setFormData(prev => ({ ...prev, locationOption: "PRESENCE_OR_INTEREST" }))}
+                          className="mt-0.5 text-primary h-4 w-4"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-200 block">Presence or interest: People in, regularly in, or who've shown interest in your included locations (recommended)</span>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-3 cursor-pointer border-t border-slate-800/60 pt-2">
+                        <input
+                          type="radio"
+                          name="locTargetType"
+                          checked={formData.locationOption === "PRESENCE_ONLY"}
+                          onChange={() => setFormData(prev => ({ ...prev, locationOption: "PRESENCE_ONLY" }))}
+                          className="mt-0.5 text-primary h-4 w-4"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-200 block">Presence: People in or regularly in your included locations</span>
+                        </div>
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Languages */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <h3 className="text-sm font-bold text-slate-100">Languages</h3>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {formData.languages.map((lang) => (
-                    <span key={lang} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-xs text-slate-200 flex items-center gap-1.5">
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <h2 className="text-sm font-semibold text-slate-100">Languages</h2>
+                <p className="text-slate-400">Select the languages your customers speak.</p>
+
+                <div className="relative max-w-md">
+                  <input
+                    type="text"
+                    value={languageSearchInput}
+                    onChange={(e) => setLanguageSearchInput(e.target.value)}
+                    placeholder="Start typing or select a language"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                  />
+
+                  {/* API search results popup */}
+                  {languageSearchInput.trim() !== "" && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto py-1 text-xs">
+                      {formData.languages.filter(l => l.toLowerCase().includes(languageSearchInput.toLowerCase())).map((lang, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            if (!formData.languages.includes(lang)) {
+                              setFormData(prev => ({ ...prev, languages: [...prev.languages, lang] }));
+                            }
+                            setLanguageSearchInput("");
+                          }}
+                          className="w-full text-left px-4 py-2 hover:bg-slate-800 text-slate-200 cursor-pointer flex items-center justify-between"
+                        >
+                          <span>{lang}</span>
+                          <Plus className="h-3.5 w-3.5 text-primary" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {formData.languages.map((lang, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-xs text-primary font-semibold">
                       {lang}
-                      <X onClick={() => setFormData(prev => ({ ...prev, languages: prev.languages.filter(l => l !== lang) }))} className="h-3 w-3 cursor-pointer hover:text-red-400" />
+                      <button type="button" onClick={() => setFormData(prev => ({ ...prev, languages: prev.languages.filter((_, i) => i !== idx) }))}>
+                        <X className="h-3 w-3 hover:text-rose-400" />
+                      </button>
                     </span>
                   ))}
                 </div>
               </div>
 
-              {/* EU Political Ads */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-100">EU political ads (Required)</h3>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-300 font-semibold">Regulatory Requirement</span>
+              {/* EU political ads */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-slate-100">EU political ads</h2>
+                  <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
                 </div>
-                <div className="space-y-2">
-                  {[
-                    { id: "YES", label: "Yes" },
-                    { id: "NO", label: "No" }
-                  ].map((eu) => (
-                    <label
-                      key={eu.id}
-                      onClick={() => setFormData(prev => ({ ...prev, euPolitical: eu.id as any }))}
-                      className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${
-                        formData.euPolitical === eu.id ? "bg-blue-600/10 border-blue-500 text-white font-bold" : "bg-slate-950 border-slate-800 text-slate-300"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="euPolitical"
-                        checked={formData.euPolitical === eu.id}
-                        onChange={() => {}}
-                        className="h-4 w-4 text-blue-500"
-                      />
-                      <span className="text-xs font-semibold">{eu.label}</span>
-                    </label>
+                <p className="text-slate-300">Does your campaign have European Union political ads?</p>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="radio" name="euPolSales" checked={formData.euPolitical === "YES"} onChange={() => setFormData(prev => ({ ...prev, euPolitical: "YES" }))} className="text-primary h-4 w-4" />
+                  <span>Yes, this campaign has EU political ads</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="radio" name="euPolSales" checked={formData.euPolitical === "NO"} onChange={() => setFormData(prev => ({ ...prev, euPolitical: "NO" }))} className="text-primary h-4 w-4" />
+                  <span>No, this campaign doesn't have EU political ads</span>
+                </label>
+                <p className="text-[11px] text-slate-500 pt-1">EU regulation requires Google to ask this question. Learn how an EU political ad is defined</p>
+              </div>
+
+              {/* More settings Section */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
+                <h3 className="font-bold text-slate-200 text-sm border-b border-slate-800 pb-2">More settings</h3>
+
+                {/* Ad schedule */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-300">Ad schedule</h4>
+                  
+                  {formData.adScheduleList.map((sched, idx) => (
+                    <div key={idx} className="flex flex-wrap items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                      <select
+                        value={sched.day}
+                        onChange={(e) => {
+                          const updated = [...formData.adScheduleList];
+                          updated[idx].day = e.target.value;
+                          setFormData(prev => ({ ...prev, adScheduleList: updated }));
+                        }}
+                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-medium"
+                      >
+                        {["All days", "Mondays - Fridays", "Saturdays - Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"].map((day, i) => (
+                          <option key={i} value={day}>{day}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={sched.start}
+                        onChange={(e) => {
+                          const updated = [...formData.adScheduleList];
+                          updated[idx].start = e.target.value;
+                          setFormData(prev => ({ ...prev, adScheduleList: updated }));
+                        }}
+                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                      >
+                        {["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"].map((t, i) => (
+                          <option key={i} value={t}>{t}</option>
+                        ))}
+                      </select>
+
+                      <span className="text-slate-400">to</span>
+
+                      <select
+                        value={sched.end}
+                        onChange={(e) => {
+                          const updated = [...formData.adScheduleList];
+                          updated[idx].end = e.target.value;
+                          setFormData(prev => ({ ...prev, adScheduleList: updated }));
+                        }}
+                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                      >
+                        {["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"].map((t, i) => (
+                          <option key={i} value={t}>{t}</option>
+                        ))}
+                      </select>
+
+                      {formData.adScheduleList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, adScheduleList: prev.adScheduleList.filter((_, i) => i !== idx) }))}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 ml-auto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, adScheduleList: [...prev.adScheduleList, { day: "All days", start: "00:00", end: "00:00" }] }))}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add ad schedule
+                  </button>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more</p>
+                  <p className="text-[11px] text-slate-500 font-mono">Based on account time zone: (GMT+05:30) India Standard Time</p>
+                </div>
+
+                {/* Start and end dates with Date Inputs */}
+                <div className="space-y-3 pt-3 border-t border-slate-800">
+                  <h4 className="font-semibold text-slate-300">Start and end dates</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
+                    <div className="space-y-1">
+                      <label className="block text-[11px] text-slate-400 font-semibold">Start date</label>
+                      <input
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
+                      <input
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Your ads will continue to run unless you specify an end date.</p>
+                </div>
+
+                {/* Devices */}
+                <div className="space-y-2 pt-3 border-t border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold text-slate-300">Devices</h4>
+                    <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Choose the devices where your ads can appear.</p>
+                  <div className="flex flex-wrap gap-4 pt-1">
+                    {[
+                      { key: "computers", label: "Computers" },
+                      { key: "mobile", label: "Mobile phones" },
+                      { key: "tablets", label: "Tablets" },
+                      { key: "tv", label: "TV screens" }
+                    ].map((d) => (
+                      <label key={d.key} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(formData.devicesSelection as any)[d.key]}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            devicesSelection: { ...prev.devicesSelection, [d.key]: e.target.checked }
+                          }))}
+                          className="rounded text-primary h-4 w-4"
+                        />
+                        <span>{d.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Brand exclusions */}
+                <div className="space-y-2 pt-3 border-t border-slate-800">
+                  <h4 className="font-semibold text-slate-300">Brand exclusions</h4>
+                  <p className="text-[11px] text-slate-400">Exclude brands so your ads won't show on searches that mention those brands. Learn more about brand exclusions</p>
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <button
+                      type="button"
+                      className="px-3.5 py-1.5 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer transition-all shadow-md shadow-primary/20 flex items-center gap-1.5"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      New account-level brand list
+                    </button>
+                  </div>
+                </div>
+
+                {/* Demographic exclusions */}
+                <div className="space-y-2 pt-3 border-t border-slate-800">
+                  <h4 className="font-semibold text-slate-300">Demographic exclusions</h4>
+                  <p className="text-[11px] text-slate-400">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
+                  <div className="space-y-2 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={formData.turnOnAgeExclusions} onChange={(e) => setFormData(prev => ({ ...prev, turnOnAgeExclusions: e.target.checked }))} className="rounded text-primary h-4 w-4" />
+                      <span>Turn on age exclusions</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={formData.turnOnGenderExclusions} onChange={(e) => setFormData(prev => ({ ...prev, turnOnGenderExclusions: e.target.checked }))} className="rounded text-primary h-4 w-4" />
+                      <span>Turn on gender exclusions</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Your data exclusions */}
+                <div className="space-y-2 pt-3 border-t border-slate-800">
+                  <h4 className="font-semibold text-slate-300">Your data exclusions</h4>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" defaultChecked className="rounded text-primary h-4 w-4" />
+                    <span>Enable your data exclusions</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -692,130 +914,378 @@ export default function NoGuidancePMaxWizard() {
 
           {/* STEP 6: ASSET GROUP */}
           {step === 6 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Asset Group & Creative Assets</h1>
-                <p className="text-xs text-slate-400 mt-1">Provide headlines, long headlines, descriptions, images, and search themes</p>
+            <div className="space-y-6 animate-in fade-in duration-200 text-xs max-w-4xl">
+              <h1 className="text-2xl font-semibold text-white tracking-tight">Asset group</h1>
+              <p className="text-slate-400">Show high quality ads to the right people. Start by adding your assets, the building blocks of every ad.</p>
+
+              {/* Asset Group Name & Final URL */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <div>
+                  <label className="block font-semibold text-slate-300">Asset group name</label>
+                  <input type="text" value={formData.assetGroupName} onChange={(e) => setFormData(prev => ({ ...prev, assetGroupName: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-medium" />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-300">Final URL</label>
+                  <input type="text" value={formData.assetFinalUrl} onChange={(e) => setFormData(prev => ({ ...prev, assetFinalUrl: e.target.value }))} placeholder="https://www.example.com" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-mono" />
+                </div>
               </div>
 
-              {/* Asset Group Name */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <label className="text-xs font-semibold text-slate-300">Asset group name</label>
-                <input
-                  type="text"
-                  value={formData.assetGroupName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, assetGroupName: e.target.value }))}
-                  className="w-full px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* Headlines Section */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-100">Headlines ({formData.headlines.filter(h=>h.trim()).length}/5)</h3>
-                    <p className="text-[11px] text-slate-400">Add up to 5 headlines (At least 1 required, max 30 chars)</p>
-                  </div>
-                  <button
-                    onClick={addHeadline}
-                    disabled={formData.headlines.length >= 5}
-                    className="px-3 py-1.5 text-xs bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-600/30 disabled:opacity-50 flex items-center gap-1.5 font-semibold"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add Headline
-                  </button>
+              {/* Assets Section */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Assets</h2>
+                <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-300 text-[11px]">
+                  Google AI isn't able to generate assets for your final url. You can still add assets yourself. Let's start adding ad assets
                 </div>
 
-                <div className="space-y-2.5">
-                  {formData.headlines.map((hl, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <input
-                          type="text"
-                          value={hl}
-                          onChange={(e) => updateHeadline(idx, e.target.value)}
-                          placeholder={`Headline ${idx + 1}`}
-                          className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white pr-14 focus:border-blue-500 focus:outline-none"
-                        />
-                        <span className="absolute right-3 top-3 text-[10px] font-mono text-slate-400">
-                          {hl.length}/30
-                        </span>
+                <div className="flex items-center justify-between pt-2">
+                  <span className="font-semibold text-slate-300">Ad strength</span>
+                  <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">Incomplete</span>
+                </div>
+
+                {/* Asset Input Rows */}
+                <div className="space-y-4 pt-3 border-t border-slate-800">
+                  
+                  {/* 1) Calls Section at Top */}
+                  <div className="space-y-3 p-3.5 rounded-xl border border-slate-800 bg-slate-950">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-slate-300">Calls</h4>
+                        <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold text-[10px]">1 call (account)</span>
                       </div>
-                      {formData.headlines.length > 1 && (
-                        <button onClick={() => removeHeadline(idx)} className="p-2 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-800">
-                          <Trash2 className="h-4 w-4" />
+                      <button
+                        type="button"
+                        onClick={() => setActiveModal("CALLS")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add calls
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 font-mono text-slate-200 text-xs">
+                      <Phone className="h-3.5 w-3.5 text-primary" />
+                      <span>Account-level: 077099 36965</span>
+                    </div>
+                  </div>
+
+                  {/* 2) Headlines */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-300">Headlines ({formData.headlines.length})</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const aiGens = Array.from({ length: formData.headlines.length }, (_, i) => `AI Headline ${i + 1}: Sales Boost`);
+                            setFormData(prev => ({ ...prev, headlines: aiGens }));
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles className="h-3 w-3" /> Generate headlines using AI
                         </button>
+                        <button type="button" onClick={addHeadline} className="text-primary font-semibold text-[11px] hover:underline">+ Add headline</button>
+                      </div>
+                    </div>
+                    {formData.headlines.map((hl, i) => (
+                      <div key={i} className="space-y-1">
+                        <input type="text" value={hl} onChange={(e) => updateHeadline(i, e.target.value)} maxLength={30} placeholder="Headline" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                        <div className="flex justify-between text-[10px] text-slate-500">
+                          <span>Text is {hl.length} characters out of 30</span>
+                          <span>{hl.length} / 30</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 3) Long Headlines */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-300">Long headlines ({formData.longHeadlines.length})</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const aiGens = Array.from({ length: formData.longHeadlines.length }, (_, i) => `AI Long Headline ${i + 1}: Comprehensive solutions to grow your audience and revenue.`);
+                            setFormData(prev => ({ ...prev, longHeadlines: aiGens }));
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles className="h-3 w-3" /> Generate long headlines using AI
+                        </button>
+                        <button type="button" onClick={addLongHeadline} className="text-primary font-semibold text-[11px] hover:underline">+ Add long headline</button>
+                      </div>
+                    </div>
+                    {formData.longHeadlines.map((lh, i) => (
+                      <div key={i} className="space-y-1">
+                        <input type="text" value={lh} onChange={(e) => updateLongHeadline(i, e.target.value)} maxLength={90} placeholder="Long headline" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                        <div className="flex justify-between text-[10px] text-slate-500">
+                          <span>Text is {lh.length} characters out of 90</span>
+                          <span>{lh.length} / 90</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 4) Descriptions */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-300">Descriptions ({formData.descriptions.length})</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const aiGens = Array.from({ length: formData.descriptions.length }, (_, i) => `AI Description ${i + 1}: High converting copies tailored for your campaigns.`);
+                            setFormData(prev => ({ ...prev, descriptions: aiGens }));
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles className="h-3 w-3" /> Generate descriptions using AI
+                        </button>
+                        <button type="button" onClick={addDescription} className="text-primary font-semibold text-[11px] hover:underline">+ Add description</button>
+                      </div>
+                    </div>
+                    {formData.descriptions.map((desc, i) => (
+                      <div key={i} className="space-y-1">
+                        <input type="text" value={desc} onChange={(e) => updateDescription(i, e.target.value)} maxLength={90} placeholder="Description" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                        <div className="flex justify-between text-[10px] text-slate-500">
+                          <span>Text is {desc.length} characters out of 90</span>
+                          <span>{desc.length} / 90</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 5) Images, Videos, Animated Clips Uploads with Native System Input */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-800">
+                    {/* Images */}
+                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-center">
+                      <ImageIcon className="h-5 w-5 text-primary mx-auto" />
+                      <span className="font-semibold text-slate-200 block text-xs">Images ({formData.uploadedImages.length})</span>
+                      <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                        + Add images
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              const filesArr = Array.from(e.target.files).map(f => f.name);
+                              setFormData(prev => ({ ...prev, uploadedImages: [...prev.uploadedImages, ...filesArr] }));
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      {formData.uploadedImages.length > 0 && (
+                        <div className="flex flex-wrap gap-1 justify-center pt-1">
+                          {formData.uploadedImages.map((img, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-300 truncate max-w-[100px]">{img}</span>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Long Headlines Section */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-100">Long Headlines ({formData.longHeadlines.filter(lh=>lh.trim()).length}/5)</h3>
-                    <p className="text-[11px] text-slate-400">Add up to 5 long headlines (Max 90 chars)</p>
-                  </div>
-                  <button
-                    onClick={addLongHeadline}
-                    disabled={formData.longHeadlines.length >= 5}
-                    className="px-3 py-1.5 text-xs bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-600/30 disabled:opacity-50 flex items-center gap-1.5 font-semibold"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add Long Headline
-                  </button>
-                </div>
-
-                <div className="space-y-2.5">
-                  {formData.longHeadlines.map((lh, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <div className="relative flex-1">
+                    {/* Videos */}
+                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-center">
+                      <VideoIcon className="h-5 w-5 text-primary mx-auto" />
+                      <span className="font-semibold text-slate-200 block text-xs">Videos ({formData.uploadedVideos.length})</span>
+                      <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                        + Add videos
                         <input
-                          type="text"
-                          value={lh}
-                          onChange={(e) => updateLongHeadline(idx, e.target.value)}
-                          placeholder={`Long Headline ${idx + 1}`}
-                          className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white pr-14 focus:border-blue-500 focus:outline-none"
+                          type="file"
+                          accept="video/*"
+                          multiple
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              const filesArr = Array.from(e.target.files).map(f => f.name);
+                              setFormData(prev => ({ ...prev, uploadedVideos: [...prev.uploadedVideos, ...filesArr] }));
+                            }
+                          }}
+                          className="hidden"
                         />
-                        <span className="absolute right-3 top-3 text-[10px] font-mono text-slate-400">
-                          {lh.length}/90
-                        </span>
-                      </div>
+                      </label>
+                      {formData.uploadedVideos.length > 0 && (
+                        <div className="flex flex-wrap gap-1 justify-center pt-1">
+                          {formData.uploadedVideos.map((vid, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-300 truncate max-w-[100px]">{vid}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+
+                    {/* Animated clips */}
+                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-center">
+                      <Upload className="h-5 w-5 text-primary mx-auto" />
+                      <span className="font-semibold text-slate-200 block text-xs">Animated clips ({formData.uploadedClips.length})</span>
+                      <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                        + Add animated clips
+                        <input
+                          type="file"
+                          accept=".gif,video/*,image/*"
+                          multiple
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              const filesArr = Array.from(e.target.files).map(f => f.name);
+                              setFormData(prev => ({ ...prev, uploadedClips: [...prev.uploadedClips, ...filesArr] }));
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      {formData.uploadedClips.length > 0 && (
+                        <div className="flex flex-wrap gap-1 justify-center pt-1">
+                          {formData.uploadedClips.map((clip, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-300 truncate max-w-[100px]">{clip}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Business Name */}
+                  <div className="space-y-1 pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-300">Business name</span>
+                      <span className="text-[10px] text-slate-500">Required</span>
+                    </div>
+                    <input type="text" value={formData.businessName} onChange={(e) => setFormData(prev => ({ ...prev, businessName: e.target.value }))} maxLength={25} placeholder="Business name" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span>Text is {formData.businessName.length} characters out of 25</span>
+                      <span>{formData.businessName.length} / 25</span>
+                    </div>
+                  </div>
+
+                  {/* 9) Call-to-action Dropdown */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                    <label className="block text-slate-300 font-semibold">Call-to-action</label>
+                    <select
+                      value={formData.ctaOption}
+                      onChange={(e) => setFormData(prev => ({ ...prev, ctaOption: e.target.value }))}
+                      className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                    >
+                      <option value="Automated (recommended)">Automated (recommended)</option>
+                      <option value="Learn more">Learn more</option>
+                      <option value="Get quote">Get quote</option>
+                      <option value="Apply now">Apply now</option>
+                      <option value="Sign up">Sign up</option>
+                      <option value="Contact us">Contact us</option>
+                      <option value="Subscribe">Subscribe</option>
+                      <option value="Download">Download</option>
+                      <option value="Book now">Book now</option>
+                      <option value="Shop now">Shop now</option>
+                    </select>
+                  </div>
+
+                  {/* 6) Sitelinks with Display of Saved Sitelinks */}
+                  <div className="space-y-3 pt-3 border-t border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-slate-300">Sitelinks ({formData.savedSitelinks.length})</h4>
+                      <button
+                        type="button"
+                        onClick={() => setActiveModal("SITELINKS")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Create sitelink
+                      </button>
+                    </div>
+
+                    {formData.savedSitelinks.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.savedSitelinks.map((st, i) => (
+                          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-semibold text-slate-200">
+                            {st.text}
+                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, savedSitelinks: prev.savedSitelinks.filter((_, idx) => idx !== i) }))}>
+                              <X className="h-3 w-3 hover:text-rose-400" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {["Sitelink 1", "Sitelink 2", "Sitelink 3", "Sitelink 4"].map((s, i) => (
+                          <button key={i} type="button" onClick={() => setActiveModal("SITELINKS")} className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-[11px] text-slate-400 hover:text-white cursor-pointer">{s} (Recommended)</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 7 & 8) More asset types with Live Display of Saved Assets */}
+                  <div className="space-y-3 pt-3 border-t border-slate-800">
+                    <h4 className="font-semibold text-slate-300">More asset types</h4>
+                    <p className="text-[11px] text-slate-400">Improve your ad performance and make your ad more interactive by adding more details about your business and website</p>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button type="button" onClick={() => setActiveModal("PROMOTIONS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                        + Promotions {formData.savedPromotions.length > 0 && `(${formData.savedPromotions.length})`}
+                      </button>
+                      <button type="button" onClick={() => setActiveModal("PRICES")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                        + Prices {formData.savedPrices.length > 0 && `(${formData.savedPrices.length})`}
+                      </button>
+                      <button type="button" onClick={() => setActiveModal("APPS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                        + Messages {formData.savedMessages.length > 0 && `(${formData.savedMessages.length})`}
+                      </button>
+                      <button type="button" onClick={() => setActiveModal("SNIPPETS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                        + Structured snippets {formData.savedSnippets.length > 0 && `(${formData.savedSnippets.length})`}
+                      </button>
+                      <button type="button" onClick={() => setActiveModal("LEAD_FORMS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                        + Lead forms {formData.savedLeadForms.length > 0 && `(${formData.savedLeadForms.length})`}
+                      </button>
+                      <button type="button" onClick={() => setActiveModal("BRAND_GUIDELINES")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                        + Callouts {formData.savedCallouts.length > 0 && `(${formData.savedCallouts.length})`}
+                      </button>
+                    </div>
+
+                    {/* Display active saved extensions */}
+                    {(formData.savedPromotions.length > 0 || formData.savedPrices.length > 0 || formData.savedSnippets.length > 0 || formData.savedCallouts.length > 0) && (
+                      <div className="pt-2 space-y-2">
+                        <span className="text-[11px] text-slate-400 font-semibold block">Added Extensions:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {formData.savedPromotions.map((p, i) => (
+                            <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Promo: {p.item || "Discount"}</span>
+                          ))}
+                          {formData.savedPrices.map((pr, i) => (
+                            <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Price: {pr.price}</span>
+                          ))}
+                          {formData.savedCallouts.map((co, i) => (
+                            <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Callout: {co}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Search Themes */}
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-                <label className="text-xs font-semibold text-slate-300">Search Themes (Up to 50)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={searchThemeInput}
-                    onChange={(e) => setSearchThemeInput(e.target.value)}
-                    placeholder="Type search theme e.g. digital marketing"
-                    className="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white"
-                  />
-                  <button
-                    onClick={() => {
-                      if (searchThemeInput.trim() && !formData.searchThemes.includes(searchThemeInput.trim())) {
-                        setFormData(prev => ({ ...prev, searchThemes: [...prev.searchThemes, searchThemeInput.trim()] }));
-                        setSearchThemeInput("");
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg"
-                  >
-                    Add Theme
-                  </button>
+              {/* Asset optimization Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Asset optimization</h2>
+                <p className="text-slate-400">To show more relevant ads, Google AI can enhance or generate assets using the information you’ve provided.</p>
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" checked={formData.enableTextCustomization} onChange={(e) => setFormData(prev => ({ ...prev, enableTextCustomization: e.target.checked }))} className="mt-0.5 rounded text-primary h-4 w-4" />
+                    <div>
+                      <span className="font-semibold text-slate-200 block">Text Customization</span>
+                      <span className="text-[11px] text-slate-400 block">Use text from your site, landing pages, ads, and provided assets to create customized ad copy.</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 border-t border-slate-800/60 pt-2.5">
+                    <input type="checkbox" checked={formData.enableFinalUrlExpansion} onChange={(e) => setFormData(prev => ({ ...prev, enableFinalUrlExpansion: e.target.checked }))} className="mt-0.5 rounded text-primary h-4 w-4" />
+                    <div>
+                      <span className="font-semibold text-slate-200 block">Final URL expansion</span>
+                      <span className="text-[11px] text-slate-400 block">Send traffic to the most relevant URLs on your site when it's likely to result in better performance.</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {formData.searchThemes.map((st) => (
-                    <span key={st} className="px-2.5 py-1 bg-blue-900/40 border border-blue-500/40 rounded-full text-xs text-blue-300 flex items-center gap-1.5">
-                      {st}
-                      <X onClick={() => setFormData(prev => ({ ...prev, searchThemes: prev.searchThemes.filter(t => t !== st) }))} className="h-3 w-3 cursor-pointer hover:text-white" />
-                    </span>
-                  ))}
+              </div>
+
+              {/* Signals Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Signals</h2>
+                <p className="text-slate-400">Signals provide valuable information about the people you want to reach.</p>
+                <div>
+                  <h3 className="font-semibold text-slate-300 mb-1">Search themes</h3>
+                  <input type="text" placeholder="Add search themes (up to 50)" className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
                 </div>
               </div>
             </div>
@@ -823,87 +1293,296 @@ export default function NoGuidancePMaxWizard() {
 
           {/* STEP 7: BUDGET */}
           {step === 7 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Budget</h1>
-                <p className="text-xs text-slate-400 mt-1">Set your daily or campaign total budget</p>
-              </div>
+            <div className="space-y-6 animate-in fade-in duration-200 text-xs max-w-4xl">
+              <h1 className="text-2xl font-semibold text-white tracking-tight">Budget</h1>
+              <p className="text-slate-400">Decide how much you want to spend.</p>
 
-              <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">Select budget type</label>
-                  <div className="flex gap-4">
-                    {[
-                      { id: "DAILY", label: "Average daily budget" },
-                      { id: "TOTAL", label: "Campaign total budget" }
-                    ].map((bt) => (
-                      <label
-                        key={bt.id}
-                        onClick={() => setFormData(prev => ({ ...prev, budgetType: bt.id as any }))}
-                        className={`flex-1 p-3 rounded-lg border text-xs cursor-pointer ${
-                          formData.budgetType === bt.id ? "bg-blue-600/10 border-blue-500 text-white font-bold" : "bg-slate-950 border-slate-800 text-slate-400"
-                        }`}
-                      >
-                        <input type="radio" name="budgetType" checked={formData.budgetType === bt.id} onChange={() => {}} className="mr-2" />
-                        {bt.label}
-                      </label>
-                    ))}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
+                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Budget</h2>
+                <p className="text-slate-400 leading-relaxed">Your budget type (daily or campaign total) can’t be changed once this campaign has started. You can change your budget amount at any time.</p>
+
+                {/* Select Budget Type */}
+                <div className="space-y-3 pt-2">
+                  <label className="block font-semibold text-slate-300">Select budget type</label>
+                  
+                  <div className="space-y-3">
+                    {/* Daily Budget Option */}
+                    <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${formData.budgetType === "DAILY" ? "bg-primary/10 border-primary" : "bg-slate-950 border-slate-800 hover:border-slate-700"}`}>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          name="pmaxBudgetType"
+                          checked={formData.budgetType === "DAILY"}
+                          onChange={() => setFormData(prev => ({ ...prev, budgetType: "DAILY" }))}
+                          className="mt-0.5 text-primary h-4 w-4"
+                        />
+                        <div className="space-y-1">
+                          <span className="font-bold text-slate-100 block">Average daily budget</span>
+                          <span className="text-[11px] text-slate-400 block">Set your average daily budget for this campaign</span>
+                        </div>
+                      </div>
+                    </label>
+
+                    {/* Campaign Total Budget Option */}
+                    <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${formData.budgetType === "TOTAL" ? "bg-primary/10 border-primary" : "bg-slate-950 border-slate-800 hover:border-slate-700"}`}>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          name="pmaxBudgetType"
+                          checked={formData.budgetType === "TOTAL"}
+                          onChange={() => setFormData(prev => ({ ...prev, budgetType: "TOTAL" }))}
+                          className="mt-0.5 text-primary h-4 w-4"
+                        />
+                        <div className="space-y-1">
+                          <span className="font-bold text-slate-100 block">Campaign total budget</span>
+                          <span className="text-[11px] text-slate-400 block">Set a budget for the duration of your campaign</span>
+                        </div>
+                      </div>
+                    </label>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-300">Amount (₹)</label>
-                  <input
-                    type="number"
-                    value={formData.budgetAmount}
-                    onChange={(e) => setFormData(prev => ({ ...prev, budgetAmount: e.target.value }))}
-                    className="w-full mt-1 px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-sm font-bold text-white"
-                  />
+                {/* Budget Amount Input */}
+                <div className="space-y-3 pt-3 border-t border-slate-800">
+                  <label className="block font-semibold text-slate-300">
+                    {formData.budgetType === "DAILY" ? "Average daily budget amount" : "Campaign total budget amount"}
+                  </label>
+                  <div className="relative max-w-xs">
+                    <span className="absolute left-3.5 top-2.5 font-bold text-slate-400">₹</span>
+                    <input
+                      type="text"
+                      value={formData.budgetAmount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, budgetAmount: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-100 font-medium focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                  {!formData.budgetAmount && <p className="text-rose-400 font-semibold text-[11px]">Value is required</p>}
                 </div>
+
+                {/* Campaign Dates Card for Campaign Total Budget */}
+                {formData.budgetType === "TOTAL" && (
+                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3 pt-3 border-t border-slate-800">
+                    <div>
+                      <h4 className="font-semibold text-slate-200">Campaign dates</h4>
+                      <p className="text-[11px] text-slate-400">To set a campaign total budget add the dates of your campaign</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-slate-400 font-semibold">Start date</label>
+                        <input
+                          type="date"
+                          value={formData.startDate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
+                        <input
+                          type="date"
+                          value={formData.endDate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-amber-400 font-semibold leading-relaxed pt-1">
+                      Your campaign total budget is what the campaign should spend over its runtime. To use a campaign total budget, you must add an end date for your campaign.
+                    </p>
+                  </div>
+                )}
+
+                {/* Monthly Spending Note */}
+                <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/60">
+                  For the month, you won't pay more than your daily budget times the average number of days in a month. Some days you might spend less than your daily budget, and on others you might spend up to twice as much.
+                </p>
               </div>
             </div>
           )}
 
           {/* STEP 8: SUMMARY / REVIEW & PUBLISH */}
           {step === 8 && (
-            <div className="space-y-6 max-w-4xl">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-100">Summary / Review & Publish</h1>
-                <p className="text-xs text-slate-400 mt-1">Audit your Performance Max campaign details before publishing as PAUSED</p>
+            <div className="space-y-6 animate-in fade-in duration-200 text-xs max-w-4xl">
+              <h1 className="text-2xl font-semibold text-white tracking-tight">Your campaign is almost ready to publish</h1>
+
+              {/* Issues Card */}
+              <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-xl">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-rose-400" />
+                  <h2 className="text-sm font-bold text-rose-200">Issues</h2>
+                </div>
+                <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
+                <ul className="space-y-1.5 list-disc list-inside text-[11px] text-rose-300">
+                  {!formData.budgetAmount && <li><strong>Add a budget:</strong> To publish your campaign, enter a budget</li>}
+                  {!formData.assetFinalUrl && <li><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</li>}
+                  {!formData.budgetAmount && <li><strong>Budget:</strong> Value is required</li>}
+                </ul>
               </div>
 
-              {/* Summary Details Card */}
-              <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                  <div>
-                    <div className="text-xs font-semibold text-blue-400">Campaign Name</div>
-                    <div className="text-lg font-bold text-white">{formData.campaignName}</div>
+              {/* Recommendations Card */}
+              <div className="p-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-blue-400" />
+                    <h2 className="text-sm font-bold text-slate-100">Recommendations</h2>
                   </div>
-                  <button onClick={() => setStep(3)} className="text-xs text-blue-400 hover:underline flex items-center gap-1">
-                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold text-[10px]">1 / 2</span>
+                </div>
+                <p className="text-slate-300">Apply these recommendations to optimize campaign performance</p>
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-200 mt-2">
+                  <span className="font-bold block text-blue-400">Add sitelinks</span>
+                  <span>Draw more attention to your ads by adding at least 4 sitelinks.</span>
+                </div>
+              </div>
+
+              {/* Overview Section Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h2 className="text-sm font-semibold text-white">Overview</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Campaign name</span>
+                    <span className="font-bold text-slate-100 text-sm">{formData.campaignName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Campaign type</span>
+                    <span className="font-bold text-slate-100 text-sm">Performance Max</span>
+                  </div>
+                  <div className="md:col-span-2">
+                    <span className="text-slate-400 block text-[11px]">Goal</span>
+                    <span className="font-bold text-slate-100">{formData.conversionGoals.join(", ")}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bidding Section Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h2 className="text-sm font-semibold text-white">Bidding</h2>
+                  <button
+                    type="button"
+                    onClick={() => setStep(4)}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    Edit
                   </button>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Objective & Type</span>
-                    <div className="font-bold text-white">No guidance → Performance Max</div>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Bidding focus</span>
+                    <span className="font-bold text-slate-100">{formData.biddingFocus}</span>
                   </div>
-
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Bidding Focus</span>
-                    <div className="font-bold text-white">{formData.biddingFocus}</div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Customer acquisition</span>
+                    <span className="text-slate-200">{formData.onlyNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}</span>
                   </div>
-
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Daily Budget</span>
-                    <div className="font-bold text-white">₹{formData.budgetAmount}/day</div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Customer retention</span>
+                    <span className="text-slate-200">{formData.reengageLapsedCustomers ? "Adjust bidding to re-engage lapsed customers" : "Do not adjust bidding to re-engage lapsed customers"}</span>
                   </div>
+                </div>
+              </div>
 
-                  <div className="space-y-1">
-                    <span className="text-slate-400">Final URL</span>
-                    <div className="font-bold text-white font-mono text-[11px] truncate">{formData.finalUrl}</div>
+              {/* Campaign settings Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h2 className="text-sm font-semibold text-white">Campaign settings</h2>
+                  <button
+                    type="button"
+                    onClick={() => setStep(5)}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Locations</span>
+                    <span className="font-medium text-slate-200">{formData.locationType === "ALL" ? "All countries and territories" : formData.locationType === "INDIA" ? "India" : "Custom locations"}</span>
                   </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Languages</span>
+                    <span className="font-medium text-slate-200">{formData.languages.join(", ") || "English"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">EU political ads</span>
+                    <span className="font-medium text-slate-200">{formData.euPolitical === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Asset group Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h2 className="text-sm font-semibold text-white">Asset group</h2>
+                  <button
+                    type="button"
+                    onClick={() => setStep(6)}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Asset group name</span>
+                    <span className="font-bold text-slate-100">{formData.assetGroupName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Final URL</span>
+                    <span className={formData.assetFinalUrl ? "font-mono text-emerald-400" : "font-semibold text-rose-400"}>
+                      {formData.assetFinalUrl || "Enter a valid URL (ex. https://www.example.com)"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Assets</span>
+                    <span className="text-slate-300">
+                      {formData.headlines.filter(h => h).length > 0 || formData.descriptions.filter(d => d).length > 0 || formData.uploadedImages.length > 0 || formData.uploadedVideos.length > 0
+                        ? `${formData.headlines.filter(h => h).length} headlines, ${formData.longHeadlines.filter(lh => lh).length} long headlines, ${formData.descriptions.filter(d => d).length} descriptions, ${formData.uploadedImages.length} images, ${formData.uploadedVideos.length} videos`
+                        : "No assets"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Asset optimization</span>
+                    <span className="text-slate-200">
+                      {formData.enableTextCustomization ? "Text customization" : ""}{formData.enableTextCustomization && formData.enableFinalUrlExpansion ? ", " : ""}{formData.enableFinalUrlExpansion ? "final URL expansion" : ""}, and 2 more are turned on
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Search themes</span>
+                      <span className="text-slate-400 italic">{formData.searchThemes.length > 0 ? formData.searchThemes.join(", ") : "No signals provided"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Audience</span>
+                      <span className="text-slate-400 italic">{formData.audienceSignal || "No signal provided"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Budget Summary Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h2 className="text-sm font-semibold text-white">Budget</h2>
+                  <button
+                    type="button"
+                    onClick={() => setStep(7)}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Budget</span>
+                  <span className="font-bold text-slate-100 text-sm">
+                    {formData.budgetType === "TOTAL" ? `Campaign total: ₹${formData.budgetAmount || "0.00"}` : `Daily: ₹${formData.budgetAmount || "0.00"}`}
+                  </span>
+                  {!formData.budgetAmount && <p className="text-rose-400 font-semibold text-[11px] mt-1">Value is required</p>}
                 </div>
               </div>
 
