@@ -37,6 +37,7 @@ export default function NoGuidanceDisplayWizard() {
     moreSettingsOpen: false,
 
     // Step 3: Budget and Bidding
+    budgetType: "DAILY" as "DAILY" | "TOTAL",
     budgetAmount: "1000",
     biddingFocus: "Conversions" as "Conversions" | "Conversion value" | "Viewable impressions" | "Other",
     useTargetCpa: true,

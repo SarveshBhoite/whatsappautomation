@@ -211,7 +211,7 @@ export default function AppPromotionWizard() {
   // Step Validation Helper
   const isCurrentStepValid = (): boolean => {
     if (step === 2) {
-      if (!formData.campaignName.trim() || !formData.appId.trim()) return false;
+      if (!formData.campaignName.trim() || !formData.selectedApp?.packageName) return false;
     }
     if (step === 4) {
       const validHeadlines = formData.headlines.filter(h => h.trim().length > 0);
