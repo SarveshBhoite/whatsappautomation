@@ -7,8 +7,11 @@ import {
   getGmbLocationPath,
   mapStarRatingToNumber,
   executeAutoReplyIfApplicable,
-  syncGmbReviews
+  syncGmbReviews,
+  buildGmbPostPayload,
+  logGmbRequest
 } from "../services/gmbSyncService";
+import { syncGmailThreads } from "../services/gmailService";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123"; // Seeded organization ID for developer/sandbox environment
@@ -28,7 +31,6 @@ router.get("/config", async (req, res) => {
         data: {
           organizationId: orgId,
           locationName: "Jisnu Digitals Pune",
-          googlePlaceId: "",
           googleReviewUrl: "",
           autoReplyEnabled: false,
           autoReplyMinRating: 4,
@@ -50,7 +52,6 @@ router.post("/config", async (req, res) => {
     const { 
       orgId = DEFAULT_ORG_ID,
       locationName,
-      googlePlaceId,
       googleReviewUrl,
       googleLocationId,
       googleClientId,
@@ -66,7 +67,6 @@ router.post("/config", async (req, res) => {
       where: { organizationId: orgId },
       update: {
         locationName,
-        googlePlaceId,
         googleReviewUrl,
         googleLocationId,
         googleClientId,
@@ -80,7 +80,6 @@ router.post("/config", async (req, res) => {
       create: {
         organizationId: orgId,
         locationName: locationName || "My Business",
-        googlePlaceId,
         googleReviewUrl,
         googleLocationId,
         googleClientId,
@@ -104,6 +103,7 @@ router.post("/config", async (req, res) => {
 router.get("/oauth/connect", (req, res) => {
   try {
     const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    const redirectPath = (req.query.redirect as string) || "/";
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
 
@@ -111,8 +111,15 @@ router.get("/oauth/connect", (req, res) => {
       return res.status(400).send("GOOGLE_CLIENT_ID is not configured in backend .env");
     }
 
-    const scope = "https://www.googleapis.com/auth/business.manage";
-    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${encodeURIComponent(orgId)}`;
+    // Include both GMB and Google Ads scopes in one OAuth consent screen
+    const scopes = [
+      "https://www.googleapis.com/auth/business.manage",
+      "https://www.googleapis.com/auth/adwords"
+    ].join(" ");
+    
+    // Pass both orgId and redirect path in the state parameter
+    const statePayload = JSON.stringify({ orgId, redirect: redirectPath });
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(statePayload)}`;
     
     res.redirect(oauthUrl);
   } catch (error: any) {
@@ -123,7 +130,20 @@ router.get("/oauth/connect", (req, res) => {
 // Real Google OAuth: Handle OAuth Code Callback from Google
 router.get("/oauth/callback", async (req, res) => {
   const code = req.query.code as string;
-  const orgId = (req.query.state as string) || DEFAULT_ORG_ID;
+  const stateStr = req.query.state as string;
+  
+  let orgId = DEFAULT_ORG_ID;
+  let redirectPath = "/";
+
+  if (stateStr) {
+    try {
+      const parsed = JSON.parse(stateStr);
+      orgId = parsed.orgId || DEFAULT_ORG_ID;
+      redirectPath = parsed.redirect || "/";
+    } catch {
+      orgId = stateStr;
+    }
+  }
 
   if (!code) {
     return res.status(400).send("No authorization code returned from Google");
@@ -182,19 +202,47 @@ router.get("/oauth/callback", async (req, res) => {
       }
     }
 
-    // Update config in database
+    // Auto-discover Google Ads Customer ID from the linked Google account
+    let googleAdsCustomerId: string | undefined = existingConfig?.googleAdsCustomerId || undefined;
+    if (!googleAdsCustomerId) {
+      try {
+        const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
+        const adsListRes = await axios.get(
+          "https://googleads.googleapis.com/v24/customers:listAccessibleCustomers",
+          {
+            headers: {
+              Authorization: `Bearer ${access_token}`,
+              "developer-token": DEVELOPER_TOKEN,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+        const resourceNames: string[] = adsListRes.data.resourceNames || [];
+        if (resourceNames.length > 0) {
+          // resourceNames[0] = "customers/1234567890" — extract the numeric ID
+          googleAdsCustomerId = resourceNames[0].split("/")[1];
+          console.log(`[OAuth] Auto-discovered Google Ads Customer ID: ${googleAdsCustomerId}`);
+        }
+      } catch (adsErr: any) {
+        console.warn("[OAuth] Could not auto-discover Google Ads Customer ID:", adsErr?.response?.data || adsErr.message);
+      }
+    }
+
+    // Update config in database — save refresh token, location, and ads customer ID
     await prisma.googleBusinessConfig.upsert({
       where: { organizationId: orgId },
       update: {
         googleRefreshToken: refresh_token || undefined,
         locationName: locationName || undefined,
-        googleLocationId: googleLocationId || undefined
+        googleLocationId: googleLocationId || undefined,
+        googleAdsCustomerId: googleAdsCustomerId || undefined
       },
       create: {
         organizationId: orgId,
         googleRefreshToken: refresh_token || "",
         locationName,
         googleLocationId,
+        googleAdsCustomerId: googleAdsCustomerId || "",
         autoReplyEnabled: true,
         autoReplyMinRating: 4,
         autoReplyTemplate: "Thank you so much for your review! We value your feedback."
@@ -202,11 +250,11 @@ router.get("/oauth/callback", async (req, res) => {
     });
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    res.redirect(`${frontendUrl}/?tab=settings&oauth=success`);
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=success`);
   } catch (error: any) {
     console.error("OAuth Token Exchange Error:", error?.response?.data || error.message);
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    res.redirect(`${frontendUrl}/?tab=settings&oauth=error`);
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=error`);
   }
 });
 
@@ -235,6 +283,49 @@ router.get("/reviews/sync", async (req, res) => {
     });
   } catch (error: any) {
     console.error("GMB Reviews Sync failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3.2 POST Trigger AI Sentiment Auto-Reply for all unreplied reviews
+router.post("/reviews/auto-reply-all", async (req, res) => {
+  try {
+    const orgId = (req.body.orgId as string) || DEFAULT_ORG_ID;
+
+    const config = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: orgId }
+    });
+
+    const unrepliedReviews = await prisma.googleReview.findMany({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { replyText: null },
+          { replyStatus: "UNREPLIED" },
+          { replyStatus: "ERROR" }
+        ]
+      }
+    });
+
+    let autoRepliedCount = 0;
+    for (const review of unrepliedReviews) {
+      await executeAutoReplyIfApplicable(review, config);
+      autoRepliedCount++;
+    }
+
+    const updatedReviews = await prisma.googleReview.findMany({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: "desc" }
+    });
+
+    io.to(orgId).emit("reviews-synced", updatedReviews);
+
+    res.status(200).json({
+      message: `Generated AI sentiment responses for ${autoRepliedCount} reviews!`,
+      reviews: updatedReviews
+    });
+  } catch (error: any) {
+    console.error("Failed to auto-reply all reviews:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -416,11 +507,32 @@ router.post("/posts/create", async (req, res) => {
       summary,
       mediaUrl,
       callToActionType,
-      callToActionUrl
+      callToActionUrl,
+      scheduledAt
     } = req.body;
 
     if (!summary) {
       return res.status(400).json({ error: "Summary text is required for GMB Posts." });
+    }
+
+    // ── Scheduled post: save to DB for background publisher ──────────────────
+    const isScheduled = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
+    if (isScheduled) {
+      const post = await prisma.googlePost.create({
+        data: {
+          organizationId: orgId,
+          gmbPostId: null,
+          title: title || "",
+          summary,
+          mediaUrl: mediaUrl || null,
+          callToActionType: callToActionType || "NONE",
+          callToActionUrl: callToActionUrl || null,
+          status: "SCHEDULED",
+          scheduledAt: new Date(scheduledAt)
+        }
+      });
+      io.to(orgId).emit("new-post", post);
+      return res.status(201).json(post);
     }
 
     const config = await prisma.googleBusinessConfig.findUnique({
@@ -432,40 +544,26 @@ router.post("/posts/create", async (req, res) => {
 
     let gmbPostId: string | null = null;
 
-    // If live credentials are connected, publish to Google Maps Business API
+    // If live credentials are connected, publish immediately to Google Business API
     if (config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
       try {
         const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
         const locationPath = await getGmbLocationPath(token, config.googleLocationId);
-
         const localPostUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/localPosts`;
-        
-        const payload: any = {
-          summary: summary,
-          languageCode: "en"
-        };
 
-        if (callToActionType && callToActionType !== "NONE") {
-          payload.callToAction = {
-            actionType: callToActionType,
-            url: callToActionUrl || config.googleReviewUrl || "https://google.com"
-          };
-        }
+        const payload = buildGmbPostPayload(
+          summary,
+          callToActionType,
+          callToActionUrl,
+          mediaUrl,
+          config.googleReviewUrl || undefined
+        );
 
-        if (mediaUrl) {
-          payload.media = [
-            {
-              mediaFormat: "PHOTO",
-              sourceUrl: mediaUrl
-            }
-          ];
-        }
+        const headers = { Authorization: `Bearer ${token}` };
+        logGmbRequest("POST", localPostUrl, headers, payload);
 
-        const postRes = await axios.post(localPostUrl, payload, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        gmbPostId = postRes.data.name; // Could be accounts/*/locations/*/localPosts/*
+        const postRes = await axios.post(localPostUrl, payload, { headers });
+        gmbPostId = postRes.data.name;
         console.log(`[LIVE GMB POST] Created post successfully: ${gmbPostId}`);
       } catch (apiErr: any) {
         console.error("Failed to publish post to Google API. Saving locally only.", apiErr?.response?.data || apiErr.message);

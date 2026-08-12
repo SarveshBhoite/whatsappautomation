@@ -9,9 +9,12 @@
   --card-foreground: oklch(0.98 0 0);
 
   /* Brand Teal/Cyan Accent Colors */
-  --primary: oklch(0.55 0.14 195);      /* Deep Teal */
-  --secondary: oklch(0.7 0.16 190);    /* Cyan */
-  --accent: oklch(0.72 0.17 185);       /* Aqua */
+  --primary: oklch(0.55 0.14 195);
+  /* Deep Teal */
+  --secondary: oklch(0.7 0.16 190);
+  /* Cyan */
+  --accent: oklch(0.72 0.17 185);
+  /* Aqua */
 
   --muted: oklch(0.3 0 0);
   --muted-foreground: oklch(0.7 0 0);
@@ -19,7 +22,7 @@
   --border: oklch(0.25 0.01 199);
   --input: oklch(0.2 0.01 199);
   --ring: oklch(0.55 0.14 195);
-  
+
   --radius: 0.75rem;
 }
 
@@ -72,54 +75,170 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
+
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 999px;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Mobile safe area */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
 .safe-top {
   padding-top: env(safe-area-inset-top);
 }
 
 /* Slide-in animations */
 @keyframes slideInRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
-}
-@keyframes slideInLeft {
-  from { transform: translateX(-100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
-.animate-fadeIn { animation: fadeIn 0.18s ease-out both; }
-.animate-slideInRight { animation: slideInRight 0.22s ease-out both; }
-.animate-slideInLeft { animation: slideInLeft 0.22s ease-out both; }
-.animate-slideUp { animation: slideUp 0.22s ease-out both; }
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.18s ease-out both;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.22s ease-out both;
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.22s ease-out both;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.22s ease-out both;
+}
 
 /* Prevent layout shift from mobile keyboard */
 @media (max-width: 640px) {
-  html, body {
+
+  html,
+  body {
     height: 100%;
     overflow: hidden;
   }
 }
 
+/* Print / PDF Export Styling */
+@media print {
+
+  aside,
+  nav,
+  header,
+  button,
+  form,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body,
+  main {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  div,
+  section,
+  article {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .bg-slate-900,
+  .bg-slate-950,
+  .bg-slate-950\/40,
+  .bg-slate-900\/80,
+  .bg-slate-900\/60 {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .text-slate-100,
+  .text-slate-200,
+  .text-slate-300,
+  .text-slate-400 {
+    color: #0f172a !important;
+  }
+
+  .text-emerald-400 {
+    color: #047857 !important;
+  }
+
+  .text-amber-400 {
+    color: #b45309 !important;
+  }
+
+  .text-red-400 {
+    color: #b91c1c !important;
+  }
+}

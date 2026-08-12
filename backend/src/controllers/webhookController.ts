@@ -3,6 +3,9 @@ import prisma from "../utils/prisma";
 import { io } from "../index";
 import { processChatbotFlow } from "../services/flowEngine";
 import { WhatsAppService } from "../services/whatsappService";
+import { InstagramService } from "../services/instagramService";
+
+const processedComments = new Set<string>();
 
 // GET: Webhook Verification
 export const verifyWebhook = async (req: Request, res: Response) => {
@@ -30,39 +33,119 @@ export const verifyWebhook = async (req: Request, res: Response) => {
 export const handleWebhook = async (req: Request, res: Response) => {
   try {
     const body = req.body;
+    console.log(`[WEBHOOK RECEIVED] Path: ${req.path}, Object: ${body?.object}`);
+    console.log("FULL PAYLOAD:", JSON.stringify(body, null, 2));
 
-    // Handle Instagram Webhook Events
-    if (body.object === "page") {
-      const entry = body.entry?.[0];
-      const messagingObj = entry?.messaging?.[0];
-      if (!messagingObj) {
-        return res.sendStatus(200);
-      }
+    // Handle Instagram Webhook Events (Messages & Comments)
+    if (body.object === "page" || body.object === "instagram") {
+      console.log("=== INCOMING INSTAGRAM WEBHOOK PAYLOAD ===");
+      console.log(JSON.stringify(body, null, 2));
 
-      const senderId = messagingObj.sender?.id;
-      const recipientId = messagingObj.recipient?.id;
-      const message = messagingObj.message;
+      const entries = body.entry || [];
+      for (const entry of entries) {
+        // 1. Check for Instagram Comments Webhook Event (entry.changes)
+        const commentChange = entry?.changes?.[0];
+        if (commentChange && commentChange.field === "comments") {
+          const commentValue = commentChange.value;
+          const commentId = commentValue?.id;
+          const commentText = commentValue?.text;
+          const mediaId = commentValue?.media?.id || "default_post";
+          const fromUser = commentValue?.from?.username || commentValue?.from?.id;
+          const fromUserId = commentValue?.from?.id;
 
-      if (!message || !senderId || !recipientId) {
-        return res.sendStatus(200);
-      }
+          const igConfig = await prisma.instagramConfig.findFirst({
+            include: { organization: true }
+          });
 
-      const mid = message.mid;
-      const isEcho = message.is_echo === true;
-      const timestamp = new Date(messagingObj.timestamp || Date.now());
+          // Prevent self-loop / duplicate replies when the business page posts a reply
+          const isSelfComment = fromUser === "jisnu_digitalsolution_pvt_ltd" || 
+                                fromUserId === igConfig?.instagramAccountId || 
+                                fromUserId === igConfig?.pageId;
+
+          if (isSelfComment) {
+            console.log(`[INSTAGRAM COMMENT WEBHOOK] Ignored comment from business page self/bot (${fromUser}).`);
+            continue;
+          }
+
+          // Network retry guard: Only prevent duplicate network retries for the exact same comment ID within 10s
+          if (commentId && processedComments.has(commentId)) {
+            continue;
+          }
+
+          if (commentId) {
+            processedComments.add(commentId);
+            setTimeout(() => processedComments.delete(commentId), 10 * 1000);
+          }
+
+          console.log(`[INSTAGRAM COMMENT WEBHOOK] From: @${fromUser}, Post: ${mediaId}, Comment: "${commentText}", ID: ${commentId}`);
+
+          const replyText = `Thanks for commenting @${fromUser}! We appreciate your support. 🚀`;
+
+          if (commentId && igConfig?.pageAccessToken) {
+            try {
+              await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, replyText);
+              console.log(`[INSTAGRAM COMMENT AUTO-REPLY SENT] to comment ${commentId}`);
+            } catch (err: any) {
+              console.warn(`Note on auto-reply for Instagram comment ${commentId}:`, err?.response?.data || err.message);
+            }
+          }
+
+          // Emit real-time comment notification via Socket.IO so it always shows in CRM portal
+          const io = req.app.get("io");
+          if (io && igConfig?.organizationId) {
+            io.to(igConfig.organizationId).emit("instagram-comment-received", {
+              id: commentId || `cmt_${Date.now()}`,
+              fromUser,
+              commentText,
+              createdAt: new Date().toISOString(),
+              status: "REPLIED",
+              autoReplyText: replyText
+            });
+          }
+          continue;
+        }
+
+        const messagingList = entry?.messaging || [];
+        for (const messagingObj of messagingList) {
+          const senderId = messagingObj.sender?.id;
+          const recipientId = messagingObj.recipient?.id;
+          const message = messagingObj.message;
+
+          if (!message || !senderId || !recipientId) {
+            continue;
+          }
+
+          const mid = message.mid;
+          const isEcho = message.is_echo === true;
+          const timestamp = new Date(messagingObj.timestamp || Date.now());
 
       const pageId = isEcho ? senderId : recipientId;
       const customerPhone = isEcho ? recipientId : senderId;
 
-      // 1. Resolve InstagramConfig by pageId
-      const igConfig = await prisma.instagramConfig.findFirst({
-        where: { pageId },
+      // 1. Resolve InstagramConfig by pageId or instagramAccountId
+      let igConfig = await prisma.instagramConfig.findFirst({
+        where: {
+          OR: [
+            { pageId },
+            { instagramAccountId: pageId }
+          ]
+        },
         include: { organization: true }
       });
 
       if (!igConfig) {
-        console.warn(`No Instagram configuration found for Page ID: ${pageId}`);
-        return res.sendStatus(200);
+        // Fallback to first available config if only 1 config exists
+        const count = await prisma.instagramConfig.count();
+        if (count === 1) {
+          igConfig = await prisma.instagramConfig.findFirst({
+            include: { organization: true }
+          });
+        }
+      }
+
+      if (!igConfig) {
+        console.warn(`No Instagram configuration found for Page ID / IG Account ID: ${pageId}`);
+        continue;
       }
 
       const organizationId = igConfig.organizationId;
@@ -104,7 +187,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
         },
       });
 
-      const contactName = "Instagram User";
+      let contactName = `Instagram User (${customerPhone.substring(0, 5)}...)`;
+      if (!isEcho && igConfig.pageAccessToken) {
+        try {
+          const profile = await InstagramService.getUserProfile(igConfig.pageAccessToken, customerPhone);
+          if (profile && (profile.name || profile.username)) {
+            contactName = profile.name || `@${profile.username}`;
+          }
+        } catch (err: any) {
+          // Profile lookup permissions require instagram_manage_messages; fallback cleanly
+          console.warn("Instagram user profile lookup skipped:", err?.message || err);
+        }
+      }
 
       if (!conversation) {
         conversation = await prisma.conversation.create({
@@ -113,27 +207,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
             platform: "instagram",
             customerPhone,
             customerName: contactName,
-            isBotPaused: isEcho,
-            botPausedUntil: isEcho ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
+            isBotPaused: false,
+            botPausedUntil: null,
           },
         });
-      } else if (isEcho) {
-        const pauseDuration = 24 * 60 * 60 * 1000;
-        const botPausedUntil = new Date(Date.now() + pauseDuration);
-        conversation = await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: {
-            isBotPaused: true,
-            botPausedUntil,
-          },
-        });
-
-        // Broadcast bot status update
-        io.to(organizationId).emit("bot-status-change", {
-          conversationId: conversation.id,
-          isBotPaused: true,
-          botPausedUntil,
-        });
+      } else {
+        // Update customerName if it was default fallback or changed
+        if (contactName !== "Instagram User" && conversation.customerName !== contactName) {
+          conversation = await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { customerName: contactName },
+          });
+        }
       }
 
       // Save message in DB
@@ -163,9 +248,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
           console.error("Error executing Instagram chatbot flow engine:", err);
         });
       }
-
-      return res.sendStatus(200);
     }
+  }
+
+  return res.sendStatus(200);
+}
 
     // Handle WhatsApp Webhook Events
     if (body.object !== "whatsapp_business_account") {
@@ -195,18 +282,28 @@ export const handleWebhook = async (req: Request, res: Response) => {
     console.log(`Searching database for Phone Number ID: "${phoneNumberId}"`);
 
     // 1. Find Organization matching the Phone Number ID
-    const waConfig = await prisma.whatsAppConfig.findFirst({
+    let waConfig = await prisma.whatsAppConfig.findFirst({
       where: { phoneNumberId },
       include: { organization: true },
     });
 
     if (!waConfig) {
+      // Fallback to default organization if matching by phoneNumberId fails
+      console.warn(`No exact match for Phone Number ID: ${phoneNumberId}. Falling back to default organization...`);
+      const defaultOrg = await prisma.organization.findFirst({
+        include: { waConfig: true }
+      });
+      if (defaultOrg && defaultOrg.waConfig) {
+        waConfig = defaultOrg.waConfig as any;
+      }
+    }
+
+    if (!waConfig) {
       console.warn(`❌ No organization configuration found for Phone Number ID: ${phoneNumberId}`);
-      return res.sendStatus(200); // return 200 to acknowledge
+      return res.sendStatus(200);
     }
 
     console.log(`✅ Found organization match: "${waConfig.organization.name}" (${waConfig.organizationId})`);
-
     const organizationId = waConfig.organizationId;
 
     // 2. Handle Message Status Updates (Sent, Delivered, Read, Failed)
@@ -225,11 +322,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // If updated, notify the agents in real-time
         if (updatedMessage.count > 0) {
-          io.to(organizationId).emit("message-status-update", {
-            waMessageId,
-            status,
-            customerPhone: recipient_id,
-          });
+          const socketIo = req.app.get("io") || io;
+          if (socketIo) {
+            socketIo.to(organizationId).emit("message-status-update", {
+              waMessageId,
+              status,
+              customerPhone: recipient_id,
+            });
+          }
         }
       }
       return res.sendStatus(200);
@@ -247,19 +347,44 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const type = message.type;
         const context = message.context; // Meta context block for quotes: { id, from }
         
+        const referral = message.referral; // Meta Ads Click referral: { source_url, source_type, source_id, headline, body, media_type, image_url, video_url }
+        let referralText = "";
+        if (referral) {
+          const headline = referral.headline || "";
+          const bodyText = referral.body || "";
+          referralText = `[Customer clicked Meta Ad: "${headline || bodyText || referral.source_url || 'Meta Ad'}"] `;
+          console.log(`[META ADS REFERRAL DETECTED] Headline: "${headline}", Body: "${bodyText}"`);
+        }
         let content = "";
         let mimeType: string | undefined = undefined;
 
-        // Extract message content based on type
+        // Extract message content cleanly based on Meta type
         if (type === "text") {
-          content = message.text?.body || "";
+          content = (referralText ? referralText : "") + (message.text?.body || "");
+        } else if (type === "button") {
+          content = (referralText ? referralText : "") + (message.button?.text || message.button?.payload || "");
         } else if (type === "interactive") {
           const interactiveType = message.interactive?.type;
           if (interactiveType === "button_reply") {
-            content = message.interactive.button_reply?.title || "";
+            content = (referralText ? referralText : "") + (message.interactive.button_reply?.id || message.interactive.button_reply?.title || "");
           } else if (interactiveType === "list_reply") {
-            content = message.interactive.list_reply?.title || "";
+            content = (referralText ? referralText : "") + (message.interactive.list_reply?.id || message.interactive.list_reply?.title || "");
+          } else {
+            content = (referralText ? referralText : "") + "Interactive response";
           }
+        } else if (type === "location") {
+          const loc = message.location;
+          const locName = loc?.name ? `${loc.name} - ` : "";
+          content = `📍 Location: ${locName}${loc?.address || `${loc?.latitude}, ${loc?.longitude}`}`;
+        } else if (type === "contacts") {
+          const c = message.contacts?.[0];
+          const name = c?.name?.formatted_name || "Contact";
+          const phone = c?.phones?.[0]?.phone || "";
+          content = `👤 Shared Contact: ${name} (${phone})`;
+        } else if (type === "reaction") {
+          content = `Reacted: ${message.reaction?.emoji || "👍"}`;
+        } else if (type === "sticker") {
+          content = "🎨 [Sticker]";
         } else if (["image", "document", "video", "audio", "voice"].includes(type)) {
           let mediaId = "";
           let filename: string | undefined = undefined;
@@ -280,23 +405,49 @@ export const handleWebhook = async (req: Request, res: Response) => {
           }
 
           if (mediaId) {
-            // Download file and save locally
-            const localUrl = await WhatsAppService.downloadMedia(
-              waConfig.phoneNumberId || "100000000000000",
+            // Download from Meta and upload to ImageKit CDN
+            const mediaPublicUrl = await WhatsAppService.downloadMedia(
+              waConfig.phoneNumberId || "1192785647248309",
               waConfig.accessToken || "",
               mediaId,
-              mimeType || "application/octet-stream"
+              mimeType || "application/octet-stream",
+              filename  // pass original filename for documents
             );
             if (type === "document" && filename) {
-              content = `${filename}|${localUrl}`;
+              content = `${filename}|${mediaPublicUrl}`;
             } else {
-              content = localUrl;
+              content = mediaPublicUrl;
             }
           } else {
             content = "Media reference empty";
           }
+        } else if (type === "unsupported") {
+          const errDetail = message.errors?.[0]?.title || message.errors?.[0]?.details || message.unsupported?.details || "";
+          console.log(`[UNSUPPORTED PAYLOAD DETECTED]:`, JSON.stringify(message, null, 2));
+          if (errDetail.toLowerCase().includes("delete")) {
+            content = "🗑️ [Message deleted by user]";
+          } else if (errDetail.toLowerCase().includes("call")) {
+            content = "📞 [WhatsApp Call notification]";
+          } else if (errDetail) {
+            content = `⚠️ [System Event: ${errDetail}]`;
+          } else {
+            content = "ℹ️ [WhatsApp System Notification]";
+          }
+        } else if (type === "order") {
+          content = `🛒 [WhatsApp Order Received: ${message.order?.catalog_id || ''}]`;
+        } else if (type === "system") {
+          content = `⚙️ [System: ${message.system?.body || message.system?.type || 'WhatsApp Notification'}]`;
         } else {
-          content = `Unsupported message type: ${type}`;
+          // Fallback for any other Meta payload type
+          console.log(`[UNKNOWN MESSAGE TYPE PAYLOAD]: type=${type}`, JSON.stringify(message, null, 2));
+          content = `💬 [WhatsApp ${type || 'System'} Event]`;
+        }
+
+        // If message was triggered by a Meta Click-to-WhatsApp Ad, tag it with referral info
+        if (referral) {
+          const adHeadline = referral.headline || referral.body || "Meta Ad Promotion";
+          console.log(`[META AD REFERRAL]: Customer clicked Ad "${adHeadline}" (Source ID: ${referral.source_id || 'N/A'})`);
+          content = `[Customer clicked Meta Ad: "${adHeadline}"] ${content}`;
         }
 
         // Find or create the conversation using unique index organizationId_platform_customerPhone
@@ -320,8 +471,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
               isBotPaused: false,
             },
           });
-        } else if (conversation.customerName !== contactName) {
-          // Keep customer name updated
+        } else if (conversation.customerName !== contactName && contactName !== "WhatsApp User") {
+          // Keep customer name updated with WhatsApp Profile Name
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
             data: { customerName: contactName },
@@ -340,22 +491,45 @@ export const handleWebhook = async (req: Request, res: Response) => {
         }
 
         console.log(`Saving message to database: direction=inbound, type=${type}, content="${content}"`);
+        // Determine separate content label and media url for media messages
+        let messageContent = content;
+        let messageMediaUrl: string | undefined = undefined;
+        if (["image", "document", "video", "audio", "voice"].includes(type) && content.includes("|")) {
+          // Document: filename|localUrl
+          const parts = content.split("|");
+          messageContent = parts[0]; // e.g. "Siddhi_Bhoite_8530241573.pdf"
+          messageMediaUrl = parts[1]; // e.g. "/uploads/..."
+        } else if (["image", "video", "audio", "voice"].includes(type)) {
+          messageContent = type === "image" ? "📷 Image" : type === "video" ? "📹 Video" : "🎵 Audio";
+          messageMediaUrl = content; // the local URL
+        }
+
         // Save incoming message in database
         const savedMessage = await prisma.message.create({
           data: {
             conversationId: conversation.id,
             direction: "inbound",
-            messageType: type,
-            content,
+            messageType: type === "button" || type === "interactive" || type === "location" || type === "contacts" ? "text" : type,
+            content: messageContent,
             mediaMimeType: mimeType,
+            mediaUrl: messageMediaUrl,
             waMessageId,
-            status: "read", // Inbound messages are read by server immediately
+            status: "read",
             createdAt: timestamp,
             quotedMessageId: quotedMessageId || null,
           },
         });
         console.log(`Saved message in database successfully. Message ID: "${savedMessage.id}"`);
 
+        // For media messages, set the incoming content to a virtual text so AI can acknowledge receipt
+        if (["image", "document", "video", "audio", "voice"].includes(type)) {
+          const mediaLabel = type === "document" ? messageContent : type;
+          // Patch the incomingMsg content so AI engine knows media was received
+          await prisma.message.update({
+            where: { id: savedMessage.id },
+            data: { content: `[Received ${type}: ${messageContent}] Please acknowledge receipt and continue the conversation.` }
+          });
+        }
         // Fetch populated message with the quoted relation
         const fullMessage = await prisma.message.findUnique({
           where: { id: savedMessage.id },
@@ -366,10 +540,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // Broadcast new message to UI agents
         console.log(`Broadcasting new-message event via Socket.IO to Room: "${organizationId}"`);
-        io.to(organizationId).emit("new-message", {
-          conversationId: conversation.id,
-          message: fullMessage,
-        });
+        const socketIo = req.app.get("io") || io;
+        if (socketIo) {
+          socketIo.to(organizationId).emit("new-message", {
+            conversationId: conversation.id,
+            message: fullMessage,
+          });
+        }
 
         // 4. Trigger Chatbot Flow Logic (if bot is not paused)
         if (!conversation.isBotPaused) {
@@ -391,5 +568,3 @@ export const handleWebhook = async (req: Request, res: Response) => {
     return res.sendStatus(200); // Return 200 so Meta stops retrying
   }
 };
-
-

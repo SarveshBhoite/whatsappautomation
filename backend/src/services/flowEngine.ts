@@ -1,6 +1,9 @@
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "./whatsappService";
 import { InstagramService } from "./instagramService";
+import { YouTubeService } from "./youtubeService";
+import { LinkedInService } from "./linkedinService";
+import { processAiAgentChat } from "./aiAgentEngine";
 
 interface FlowGraph {
   nodes: FlowNode[];
@@ -34,6 +37,15 @@ interface FlowEdge {
   sourceHandle?: string; // Maps to button ID or list row ID
 }
 
+function sanitizeForMatch(str: string): string {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+    .replace(/[^\w\s]/gi, "")
+    .trim();
+}
+
 export async function processChatbotFlow(conversationId: string, incomingMessageId: string) {
   try {
     // 1. Fetch Conversation and Message
@@ -44,6 +56,9 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           include: {
             waConfig: true,
             igConfig: true,
+            ytConfig: true,
+            linkedInConfig: true,
+            aiAgentConfig: true,
           },
         },
       },
@@ -58,23 +73,35 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     }
 
     const isWhatsApp = conversation.platform === "whatsapp";
+    const isInstagram = conversation.platform === "instagram";
+    const isYouTube = conversation.platform === "youtube";
+    const isLinkedIn = conversation.platform === "linkedin";
     const waConfig = conversation.organization.waConfig;
     const igConfig = conversation.organization.igConfig;
+    const ytConfig = conversation.organization.ytConfig;
+    const linkedInConfig = conversation.organization.linkedInConfig;
+
+    // Check Platform Checklist for AI Agent Mode vs Static Flow Mode
+    const aiConfig = conversation.organization.aiAgentConfig;
+    let isPlatformAiEnabled = false;
 
     if (isWhatsApp) {
-      if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
-        console.warn(`WhatsApp credentials missing for conversation ${conversationId}`);
-        return;
-      }
-    } else {
-      if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
-        console.warn(`Instagram credentials missing for conversation ${conversationId}`);
-        return;
-      }
+      isPlatformAiEnabled = !aiConfig || aiConfig.whatsappAiEnabled !== false;
+    } else if (isInstagram) {
+      isPlatformAiEnabled = aiConfig?.instagramAiEnabled === true;
+    } else if (isYouTube) {
+      isPlatformAiEnabled = aiConfig?.youtubeAiEnabled === true;
+    } else if (isLinkedIn) {
+      isPlatformAiEnabled = aiConfig?.linkedinAiEnabled === true;
     }
 
-    // 2. Fetch the Active Flow for the Organization and Platform
-    const activeFlow = await prisma.flow.findFirst({
+    if (isPlatformAiEnabled && aiConfig?.isActive !== false) {
+      console.log(`[FLOW ENGINE] AI Agent enabled for platform "${conversation.platform}" (Conversation: ${conversationId}). Routing to AI Agent Engine...`);
+      return await processAiAgentChat(conversationId, incomingMessageId);
+    }
+
+    // 2. Fetch the Active Flow for the Organization and Platform (Fallback to default if no active flow)
+    let activeFlow = await prisma.flow.findFirst({
       where: { 
         organizationId: conversation.organizationId, 
         platform: conversation.platform,
@@ -83,7 +110,31 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     });
 
     if (!activeFlow) {
-      console.log(`No active flow found for organization ${conversation.organizationId} on platform ${conversation.platform}`);
+      activeFlow = await prisma.flow.findFirst({
+        where: {
+          organizationId: conversation.organizationId,
+          platform: conversation.platform,
+          isDefault: true
+        }
+      });
+    }
+
+    if (!activeFlow) {
+      // Fallback: Find any active or default flow for this organization
+      activeFlow = await prisma.flow.findFirst({
+        where: {
+          organizationId: conversation.organizationId,
+          isActive: true
+        }
+      }) || await prisma.flow.findFirst({
+        where: {
+          organizationId: conversation.organizationId
+        }
+      });
+    }
+
+    if (!activeFlow) {
+      console.log(`No active or default flow found for organization ${conversation.organizationId} on platform ${conversation.platform}`);
       return;
     }
 
@@ -103,31 +154,80 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
         nextNodeId = rootNode.id;
       }
     } else {
-      const currentNode = graph.nodes.find((n) => n.id === currentNodeId);
-      
-      if (currentNode) {
-        const userText = message.content.toLowerCase().trim();
-        const isStartKeyword = ["hi", "hello", "hey", "menu", "start", "restart"].includes(userText);
-        const hasOutgoingEdges = graph.edges.some((e) => e.source === currentNode.id);
+      const userText = message.content.toLowerCase().trim();
+      const isStartKeyword = ["hi", "hii", "hiii", "hello", "hey", "menu", "start", "restart"].includes(userText) || userText.startsWith("hi ") || userText.startsWith("hello ");
 
-        if (isStartKeyword || !hasOutgoingEdges) {
-          console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: ${isStartKeyword ? "keyword" : "terminal node"})`);
+      if (isStartKeyword) {
+        console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: keyword "${userText}")`);
+        const rootNode = findRootNode(graph);
+        if (rootNode) {
+          nextNodeId = rootNode.id;
+        }
+      } else {
+        const currentNode = graph.nodes.find((n) => n.id === currentNodeId);
+        const hasOutgoingEdges = currentNode ? graph.edges.some((e) => e.source === currentNode.id) : false;
+
+        if (!currentNode || !hasOutgoingEdges) {
+          console.log(`Resetting flow to root welcome node for conversation ${conversationId} (Trigger: terminal/unknown node)`);
           const rootNode = findRootNode(graph);
           if (rootNode) {
             nextNodeId = rootNode.id;
           }
         } else if (currentNode.type === "buttonsNode" || currentNode.type === "listNode") {
-          // Interactive Nodes: Match user selection
-          const userResponseText = message.content.toLowerCase().trim();
-          
+          // Interactive Nodes: Match user selection by ID, full title, clean title, or number index
+          const userRaw = message.content.trim();
+          const userClean = sanitizeForMatch(userRaw);
+          const userNum = parseInt(userRaw, 10);
+
           if (currentNode.type === "buttonsNode") {
-            const matchingBtn = currentNode.data.buttons?.find(
-              (btn) => btn.title.toLowerCase().trim() === userResponseText
-            );
+            const buttons = currentNode.data.buttons || [];
+            let matchingBtn = buttons.find((btn) => btn.id === userRaw || btn.id.toLowerCase() === userRaw.toLowerCase());
+            
+            if (!matchingBtn) {
+              matchingBtn = buttons.find((btn) => btn.title.toLowerCase().trim() === userRaw.toLowerCase());
+            }
+
+            if (!matchingBtn && userClean) {
+              matchingBtn = buttons.find((btn) => {
+                const btnClean = sanitizeForMatch(btn.title);
+                return (
+                  btnClean === userClean || 
+                  (btnClean.length >= 2 && userClean.includes(btnClean)) || 
+                  (userClean.length >= 2 && btnClean.includes(userClean)) ||
+                  btnClean.startsWith(userClean) ||
+                  userClean.startsWith(btnClean)
+                );
+              });
+            }
+
+            if (!matchingBtn && userClean) {
+              const u = userClean;
+              matchingBtn = buttons.find((btn) => {
+                const bId = btn.id.toLowerCase();
+                const bTitle = btn.title.toLowerCase();
+                if ((u.includes("web") || u.includes("site") || u.includes("dev")) && (bId.includes("web") || bTitle.includes("web"))) return true;
+                if ((u.includes("mkt") || u.includes("market") || u.includes("digital")) && (bId.includes("mkt") || bId.includes("digital") || bTitle.includes("market"))) return true;
+                if ((u.includes("job") || u.includes("career")) && (bId.includes("job") || bTitle.includes("job"))) return true;
+                if ((u.includes("intern")) && (bId.includes("intern") || bTitle.includes("intern"))) return true;
+                if ((u.includes("call") || u.includes("phone")) && (bId.includes("call") || bTitle.includes("call"))) return true;
+                if ((u.includes("mail") || u.includes("email")) && (bId.includes("email") || bTitle.includes("email"))) return true;
+                if ((u.includes("address") || u.includes("office") || u.includes("location")) && (bId.includes("addr") || bTitle.includes("address"))) return true;
+                if ((u.includes("menu") || u.includes("home") || u.includes("main")) && (bId.includes("menu") || bTitle.includes("menu"))) return true;
+                if ((u.includes("feat")) && (bId.includes("feat") || bTitle.includes("feat"))) return true;
+                if ((u.includes("price") || u.includes("cost") || u.includes("rate")) && (bId.includes("price") || bTitle.includes("price"))) return true;
+                if ((u.includes("book") || u.includes("consult")) && (bId.includes("book") || bTitle.includes("consult"))) return true;
+                return false;
+              });
+            }
+
+            if (!matchingBtn && !isNaN(userNum) && userNum >= 1 && userNum <= buttons.length) {
+              matchingBtn = buttons[userNum - 1];
+            }
+
             if (matchingBtn) {
               const matchingEdge = graph.edges.find(
                 (edge) => edge.source === currentNode.id && edge.sourceHandle === matchingBtn.id
-              );
+              ) || graph.edges.find((edge) => edge.source === currentNode.id);
               if (matchingEdge) {
                 nextNodeId = matchingEdge.target;
               }
@@ -135,13 +235,48 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           } else {
             // List menu item matching
             const allRows = currentNode.data.listSections?.flatMap((sec) => sec.rows) || [];
-            const matchingRow = allRows.find(
-              (row) => row.title.toLowerCase().trim() === userResponseText
-            );
+            let matchingRow = allRows.find((row) => row.id === userRaw || row.id.toLowerCase() === userRaw.toLowerCase());
+
+            if (!matchingRow) {
+              matchingRow = allRows.find((row) => row.title.toLowerCase().trim() === userRaw.toLowerCase());
+            }
+
+            if (!matchingRow && userClean) {
+              matchingRow = allRows.find((row) => {
+                const rowClean = sanitizeForMatch(row.title);
+                return (
+                  rowClean === userClean || 
+                  (rowClean.length >= 2 && userClean.includes(rowClean)) || 
+                  (userClean.length >= 2 && rowClean.includes(userClean)) ||
+                  rowClean.startsWith(userClean) ||
+                  userClean.startsWith(rowClean) ||
+                  (row.id && userRaw.toLowerCase().includes(row.id.toLowerCase()))
+                );
+              });
+            }
+
+            if (!matchingRow && userClean) {
+              const u = userClean;
+              matchingRow = allRows.find((row) => {
+                const rId = row.id.toLowerCase();
+                const rTitle = row.title.toLowerCase();
+                if ((u.includes("python") || u.includes("py")) && (rId.includes("py") || rTitle.includes("python"))) return true;
+                if ((u.includes("web") || u.includes("site") || u.includes("react")) && (rId.includes("web") || rTitle.includes("web"))) return true;
+                if ((u.includes("seo") || u.includes("search")) && (rId.includes("seo") || rTitle.includes("seo"))) return true;
+                if ((u.includes("mkt") || u.includes("market") || u.includes("digital")) && (rId.includes("mkt") || rTitle.includes("market"))) return true;
+                if ((u.includes("des") || u.includes("graphic") || u.includes("design")) && (rId.includes("des") || rTitle.includes("design"))) return true;
+                return false;
+              });
+            }
+
+            if (!matchingRow && !isNaN(userNum) && userNum >= 1 && userNum <= allRows.length) {
+              matchingRow = allRows[userNum - 1];
+            }
+
             if (matchingRow) {
               const matchingEdge = graph.edges.find(
                 (edge) => edge.source === currentNode.id && edge.sourceHandle === matchingRow.id
-              );
+              ) || graph.edges.find((edge) => edge.source === currentNode.id);
               if (matchingEdge) {
                 nextNodeId = matchingEdge.target;
               }
@@ -149,11 +284,55 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           }
 
           if (!nextNodeId) {
-            // Did not match options, re-send options (optionally notify client)
-            const sendToken = isWhatsApp ? waConfig!.accessToken! : igConfig!.pageAccessToken!;
-            const sendId = isWhatsApp ? waConfig!.phoneNumberId! : igConfig!.pageId!;
-            await sendNodeMessage(sendId, sendToken, conversation.customerPhone, currentNode, conversationId, conversation.organizationId, conversation.platform);
-            return;
+            // Global Fallback Traversal across all list nodes and button nodes in graph
+            for (const node of graph.nodes) {
+              if (node.type === "listNode") {
+                const rows = node.data.listSections?.flatMap((sec: any) => sec.rows) || [];
+                const row = rows.find((r: any) => 
+                  r.id === userRaw || 
+                  r.id.toLowerCase() === userRaw.toLowerCase() ||
+                  r.title.toLowerCase().trim() === userRaw.toLowerCase() ||
+                  (userClean && sanitizeForMatch(r.title) === userClean) ||
+                  (userClean && userClean.length >= 3 && sanitizeForMatch(r.title).includes(userClean)) ||
+                  (userClean && userClean.length >= 3 && userClean.includes(sanitizeForMatch(r.title)))
+                );
+                if (row) {
+                  const edge = graph.edges.find((e) => e.source === node.id && e.sourceHandle === row.id);
+                  if (edge) {
+                    nextNodeId = edge.target;
+                    console.log(`Global fallback list match: node=${node.id}, row=${row.id} -> nextNode=${nextNodeId}`);
+                    break;
+                  }
+                }
+              } else if (node.type === "buttonsNode") {
+                const buttons = node.data.buttons || [];
+                const btn = buttons.find((b: any) => 
+                  b.id === userRaw || 
+                  b.id.toLowerCase() === userRaw.toLowerCase() ||
+                  b.title.toLowerCase().trim() === userRaw.toLowerCase() ||
+                  (userClean && sanitizeForMatch(b.title) === userClean) ||
+                  (userClean && userClean.length >= 3 && sanitizeForMatch(b.title).includes(userClean)) ||
+                  (userClean && userClean.length >= 3 && userClean.includes(sanitizeForMatch(b.title)))
+                );
+                if (btn) {
+                  const edge = graph.edges.find((e) => e.source === node.id && e.sourceHandle === btn.id);
+                  if (edge) {
+                    nextNodeId = edge.target;
+                    console.log(`Global fallback button match: node=${node.id}, button=${btn.id} -> nextNode=${nextNodeId}`);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
+          if (!nextNodeId) {
+            // Did not match options, reset to root node to re-trigger the flow
+            console.log(`User input "${message.content}" did not match any options at node ${currentNode.id}. Restarting flow from root node...`);
+            const rootNode = findRootNode(graph);
+            if (rootNode) {
+              nextNodeId = rootNode.id;
+            }
           }
         } else if (currentNode.type === "questionNode") {
           // Input Node: Save response to Database metadata or contact record
@@ -175,21 +354,21 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             nextNodeId = outgoingEdge.target;
           }
         }
-      } else {
-        // The node ID stored in the conversation belongs to an old/deleted flow configuration.
-        // Self-heal and reset the customer back to the welcome node of the new active flow.
-        console.log(`Current node ID "${currentNodeId}" not found in active graph. Resetting to root welcome node.`);
-        const rootNode = findRootNode(graph);
-        if (rootNode) {
-          nextNodeId = rootNode.id;
-        }
       }
     }
 
     // 4. Execute Next Node
     if (nextNodeId) {
-      const sendToken = isWhatsApp ? waConfig!.accessToken! : igConfig!.pageAccessToken!;
-      const sendId = isWhatsApp ? waConfig!.phoneNumberId! : igConfig!.pageId!;
+      const sendToken = isWhatsApp 
+        ? waConfig!.accessToken! 
+        : isInstagram 
+          ? igConfig!.pageAccessToken! 
+          : ytConfig!.accessToken!;
+      const sendId = isWhatsApp 
+        ? waConfig!.phoneNumberId! 
+        : isInstagram 
+          ? (igConfig!.pageId || igConfig!.instagramAccountId || "") 
+          : ytConfig!.channelId!;
       await executeNodeChain(sendId, sendToken, conversation.customerPhone, nextNodeId, graph, conversationId, conversation.organizationId, conversation.platform);
     }
   } catch (error) {
@@ -257,6 +436,25 @@ async function sendNodeMessage(
   let messageType = "text";
   let responseData: any = null;
   const isWhatsApp = platform === "whatsapp";
+  const isInstagram = platform === "instagram";
+  const isYouTube = platform === "youtube";
+  const isLinkedIn = platform === "linkedin";
+
+  // Refresh token dynamically for YouTube & LinkedIn
+  let activeToken = accessToken;
+  if (isYouTube) {
+    try {
+      activeToken = await YouTubeService.refreshAccessToken(organizationId);
+    } catch (err: any) {
+      console.warn("YouTube sync token refresh warning in flow engine:", err.message);
+    }
+  } else if (isLinkedIn) {
+    try {
+      activeToken = await LinkedInService.refreshAccessToken(organizationId);
+    } catch (err: any) {
+      console.warn("LinkedIn sync token refresh warning in flow engine:", err.message);
+    }
+  }
 
   try {
     if (node.type === "textNode" || node.type === "welcomeNode" || node.type === "questionNode") {
@@ -264,34 +462,88 @@ async function sendNodeMessage(
       messageType = "text";
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, content);
-      } else {
-        responseData = await InstagramService.sendTextMessage(accessToken, to, content);
+      } else if (isInstagram) {
+        responseData = await InstagramService.sendTextMessage(accessToken, to, content, phoneNumberId);
+      } else if (isYouTube) {
+        responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, content);
+      } else if (isLinkedIn) {
+        responseData = await LinkedInService.replyToComment(organizationId, to, content);
       }
     } else if (node.type === "mediaNode") {
       const type = data.mediaType || "image";
-      const url = data.mediaUrl || "";
+      let rawUrl = data.mediaUrl || "";
       const filename = data.filename || "";
       const caption = data.caption || "";
-      
+
+      // Handle mediaUrl: raw Meta Media ID (numeric), "meta:" prefixed ID, local path, or full HTTPS URL
+      let url = rawUrl;
+      if (rawUrl.startsWith("meta:")) {
+        // Pre-cached Meta Media ID: strip prefix
+        url = rawUrl.substring(5);
+      } else if (/^\d{10,}$/.test(rawUrl)) {
+        // Already a raw numeric Meta Media ID
+        url = rawUrl;
+      } else if (rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+        // Relative local path like /uploads/seo_result_1.jpg - pass as-is for upload
+        url = rawUrl;
+      }
+
+      console.log(`[FLOW ENGINE] mediaNode ${node.id}: type=${type}, url=${url.substring(0, 30)}, caption=${caption.substring(0, 40)}`);
+
       messageType = type;
       if (isWhatsApp) {
-        responseData = await WhatsAppService.sendMediaMessage(
-          phoneNumberId,
-          accessToken,
-          to,
-          type as any,
-          url,
-          filename,
-          caption
-        );
-      } else {
+        try {
+          responseData = await WhatsAppService.sendMediaMessage(
+            phoneNumberId,
+            accessToken,
+            to,
+            type as any,
+            url,
+            filename,
+            caption
+          );
+          console.log(`[FLOW ENGINE] mediaNode ${node.id}: SENT successfully`);
+        } catch (mediaErr: any) {
+          console.error(`[FLOW ENGINE] mediaNode ${node.id}: sendMediaMessage FAILED:`, mediaErr?.response?.data || mediaErr.message);
+          const fallbackText = `${caption ? `📸 ${caption}\n\n` : ""}🖼️ Image: ${url}`;
+          responseData = await WhatsAppService.sendTextMessage(phoneNumberId, accessToken, to, fallbackText);
+        }
+      } else if (isInstagram) {
         responseData = await InstagramService.sendMediaMessage(
           accessToken,
           to,
           type as any,
           url,
           filename,
-          caption
+          caption,
+          phoneNumberId
+        );
+      } else if (isYouTube) {
+        let mediaText = url;
+        if (type === "document" && filename) {
+          mediaText = `${filename}: ${url}`;
+        }
+        if (caption) {
+          mediaText += ` - ${caption}`;
+        }
+        responseData = await YouTubeService.sendCommentReply(
+          phoneNumberId,
+          activeToken,
+          to,
+          mediaText
+        );
+      } else if (isLinkedIn) {
+        let mediaText = url;
+        if (type === "document" && filename) {
+          mediaText = `${filename}: ${url}`;
+        }
+        if (caption) {
+          mediaText += ` - ${caption}`;
+        }
+        responseData = await LinkedInService.replyToComment(
+          organizationId,
+          to,
+          mediaText
         );
       }
       
@@ -310,8 +562,16 @@ async function sendNodeMessage(
       const buttons = data.buttons || [];
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendButtonMessage(phoneNumberId, accessToken, to, content, buttons);
-      } else {
-        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+      } else if (isInstagram) {
+        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons, phoneNumberId);
+      } else if (isYouTube) {
+        const optionsText = buttons.map((btn, idx) => `\n${idx + 1}. ${btn.title}`).join("");
+        const fullText = `${content}${optionsText}`;
+        responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, fullText);
+      } else if (isLinkedIn) {
+        const optionsText = buttons.map((btn, idx) => `\n${idx + 1}. ${btn.title}`).join("");
+        const fullText = `${content}${optionsText}`;
+        responseData = await LinkedInService.replyToComment(organizationId, to, fullText);
       }
       // Format content to include button info for frontend rendering
       const btnTitles = buttons.map(b => b.title).join(", ");
@@ -323,11 +583,21 @@ async function sendNodeMessage(
       const sections = data.listSections || [];
       if (isWhatsApp) {
         responseData = await WhatsAppService.sendListMessage(phoneNumberId, accessToken, to, content, buttonText, sections);
-      } else {
+      } else if (isInstagram) {
         // Map list options to Instagram quick replies format
         const rows = sections.flatMap((sec) => sec.rows) || [];
         const buttons = rows.map((row) => ({ id: row.id, title: row.title }));
-        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons);
+        responseData = await InstagramService.sendQuickReplyMessage(accessToken, to, content, buttons, phoneNumberId);
+      } else if (isYouTube) {
+        const rows = sections.flatMap((sec) => sec.rows) || [];
+        const optionsText = rows.map((row, idx) => `\n${idx + 1}. ${row.title}${row.description ? ` (${row.description})` : ""}`).join("");
+        const fullText = `${content} (${buttonText})${optionsText}`;
+        responseData = await YouTubeService.sendCommentReply(phoneNumberId, activeToken, to, fullText);
+      } else if (isLinkedIn) {
+        const rows = sections.flatMap((sec) => sec.rows) || [];
+        const optionsText = rows.map((row, idx) => `\n${idx + 1}. ${row.title}${row.description ? ` (${row.description})` : ""}`).join("");
+        const fullText = `${content} (${buttonText})${optionsText}`;
+        responseData = await LinkedInService.replyToComment(organizationId, to, fullText);
       }
       const allRows = sections.flatMap((sec) => sec.rows) || [];
       const rowTitles = allRows.map((r) => r.title).join(", ");

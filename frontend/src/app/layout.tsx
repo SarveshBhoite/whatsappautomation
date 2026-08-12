@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Sora, Inter } from "next/font/google";
 import "./globals.css";
+import ClientLayout from "@/components/ClientLayout";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -15,8 +16,23 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Jisnu CRM Automation Portal",
-  description: "Automated WhatsApp and Instagram flow management system.",
+  title: {
+    default: "Jisnu CRM – Marketing Automation Platform",
+    template: "%s | Jisnu CRM",
+  },
+  description:
+    "Jisnu CRM is an all-in-one marketing automation platform. Manage WhatsApp " +
+    "Business messaging, Google Ads campaigns, and Google Business Profile reviews " +
+    "from a single secure dashboard.",
+  applicationName: "Jisnu CRM",
+  keywords: [
+    "Jisnu CRM",
+    "WhatsApp automation",
+    "Google Ads management",
+    "Google Business Profile",
+    "CRM platform",
+    "marketing automation",
+  ],
   icons: {
     icon: "/icon.jpeg",
     apple: "/icon.jpeg",
@@ -33,8 +49,11 @@ export default function RootLayout({
       lang="en"
       className={`${sora.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <ClientLayout>{children}</ClientLayout>
+      </body>
     </html>
   );
 }
+
 

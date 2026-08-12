@@ -1,8 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import webhookRouter from "./routes/webhook";
@@ -11,8 +13,14 @@ import adminRouter from "./routes/admin";
 import gmbRouter from "./routes/gmb";
 import gmbPerformanceRouter from "./routes/gmbPerformance";
 import googleAdsRouter from "./routes/googleAds";
-
-dotenv.config();
+import youtubeRouter from "./routes/youtube";
+import seoRouter from "./routes/seo";
+import gmailRouter from "./routes/gmail";
+import linkedinRouter from "./routes/linkedin";
+import contentInspectorRouter from "./routes/contentInspector";
+import aiAgentRouter from "./routes/aiAgent";
+import metaAdsRouter from "./routes/metaAds";
+import reportsRouter from "./routes/reports";
 
 const app = express();
 const server = http.createServer(app);
@@ -23,16 +31,23 @@ const io = new Server(server, {
   },
 });
 
+app.set("io", io);
+
 app.use(cors());
 app.use(express.json({ limit: "50mb" })); // Increase limit for base64 file uploads
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Ensure uploads folder exists
+// Ensure uploads folders exist
 const uploadsDir = path.join(process.cwd(), "uploads");
+const publicUploadsDir = path.join(process.cwd(), "public", "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+if (!fs.existsSync(publicUploadsDir)) {
+  fs.mkdirSync(publicUploadsDir, { recursive: true });
+}
 app.use("/uploads", express.static(uploadsDir));
+app.use("/uploads", express.static(publicUploadsDir));
 
 // Webhook Router
 app.use("/api/webhook", webhookRouter);
@@ -52,10 +67,39 @@ app.use("/api/gmb/performance", gmbPerformanceRouter);
 // Google Ads Campaign & Analytics Router
 app.use("/api/ads", googleAdsRouter);
 
+// Meta Ads (Facebook & Instagram) Router
+app.use("/api/meta-ads", metaAdsRouter);
+app.use("/api/meta", metaAdsRouter);
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy", timestamp: new Date() });
+// YouTube Comments & Config Router
+app.use("/api/youtube", youtubeRouter);
+
+// Web SEO Audit Router
+app.use("/api/seo", seoRouter);
+
+// Gmail Router
+app.use("/api/gmail", gmailRouter);
+
+// LinkedIn Integration Router
+app.use("/api/linkedin", linkedinRouter);
+
+// AI Content Inspector Router
+app.use("/api/content-inspector", contentInspectorRouter);
+
+// Reports Router
+app.use("/api/reports", reportsRouter);
+
+// AI Agent Studio & Knowledge Base Engine Router
+app.use("/api/ai-agent", aiAgentRouter);
+
+// Health check endpoints (for Render Keep-Alive cron/uptime pings)
+app.get(["/health", "/api/health"], (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    service: "AutomationCRM API Engine"
+  });
 });
 
 // Socket.io Connection Logic
@@ -74,7 +118,71 @@ io.on("connection", (socket) => {
 });
 
 import prisma from "./utils/prisma";
-import { syncGmbReviews } from "./services/gmbSyncService";
+import { syncGmbReviews, syncGmbPosts, publishPostToGmb } from "./services/gmbSyncService";
+import { YouTubeService } from "./services/youtubeService";
+import { syncGmailThreads } from "./services/gmailService";
+import { WhatsAppService } from "./services/whatsappService";
+
+// Pre-upload SEO + Ads proof images to Meta Cloud API at startup and patch the active flow nodes
+async function preCacheSeoMediaIds() {
+  try {
+    const waConfig = await prisma.whatsAppConfig.findFirst();
+    if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
+      console.log("[SEO MEDIA PRE-CACHE] No WhatsApp config found, skipping pre-upload.");
+      return;
+    }
+    const proofImages = [
+      // SEO proof images
+      { nodeId: "seo_result_media_1", file: "/uploads/seo_result_1.jpg", mime: "image/jpeg" },
+      { nodeId: "seo_result_media_2", file: "/uploads/seo_result_2.jpg", mime: "image/jpeg" },
+      { nodeId: "seo_result_media_3", file: "/uploads/seo_result_3.jpg", mime: "image/jpeg" },
+      // Ads proof images
+      { nodeId: "ads_result_media_1", file: "/uploads/ads_result_1.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_2", file: "/uploads/ads_result_2.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_3", file: "/uploads/ads_result_3.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_4", file: "/uploads/ads_result_4.jpg", mime: "image/jpeg" },
+      { nodeId: "ads_result_media_5", file: "/uploads/ads_result_5.jpg", mime: "image/jpeg" },
+      // Static Website proof images
+      { nodeId: "static_web_media_1", file: "/uploads/static_web_proof_1.png", mime: "image/png" },
+      { nodeId: "static_web_media_2", file: "/uploads/static_web_proof_2.png", mime: "image/png" },
+      // Dynamic Website proof images
+      { nodeId: "dynamic_web_media_1", file: "/uploads/dynamic_web_proof_1.png", mime: "image/png" },
+      { nodeId: "dynamic_web_media_2", file: "/uploads/dynamic_web_proof_2.png", mime: "image/png" },
+    ];
+    const activeFlow = await prisma.flow.findFirst({ where: { isActive: true } });
+    if (!activeFlow) {
+      console.log("[SEO MEDIA PRE-CACHE] No active flow found, skipping.");
+      return;
+    }
+    const graph: any = activeFlow.graphJson;
+    let updated = false;
+    for (const img of proofImages) {
+      const node = graph.nodes.find((n: any) => n.id === img.nodeId);
+      if (!node) continue;
+      // Only upload if current mediaUrl is a local path (not already a raw numeric Meta media ID or ImageKit/HTTP URL)
+      const currentUrl: string = node.data.mediaUrl || "";
+      if (/^\d{10,}$/.test(currentUrl) || currentUrl.startsWith("http://") || currentUrl.startsWith("https://")) {
+        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} already has valid URL/Meta ID (${currentUrl.substring(0, 35)}...), skipping.`);
+        continue;
+      }
+      console.log(`[SEO MEDIA PRE-CACHE] Uploading ${img.file} for node ${img.nodeId}...`);
+      const mediaId = await WhatsAppService.uploadMedia(waConfig.phoneNumberId, waConfig.accessToken, img.file, img.mime);
+      if (mediaId) {
+        node.data.mediaUrl = mediaId;
+        updated = true;
+        console.log(`[SEO MEDIA PRE-CACHE] ${img.nodeId} -> Meta ID: ${mediaId}`);
+      } else {
+        console.warn(`[SEO MEDIA PRE-CACHE] Failed to upload ${img.file}`);
+      }
+    }
+    if (updated) {
+      await prisma.flow.update({ where: { id: activeFlow.id }, data: { graphJson: graph } });
+      console.log("[SEO MEDIA PRE-CACHE] Flow updated with Meta Media IDs.");
+    }
+  } catch (err: any) {
+    console.error("[SEO MEDIA PRE-CACHE] Error:", err.message);
+  }
+}
 
 // Background Google Business Profile Reviews Sync Scheduler
 async function runBackgroundGmbSync() {
@@ -101,6 +209,14 @@ async function runBackgroundGmbSync() {
         console.log(`[BACKGROUND SCHEDULER] Syncing Organization ID: ${config.organizationId}`);
         const result = await syncGmbReviews(config.organizationId, io);
         console.log(`[BACKGROUND SCHEDULER] Sync successful for ${config.organizationId}. Synced ${result.syncedCount} new reviews.`);
+
+        // Also sync GMB posts from Google into local DB
+        try {
+          const postsResult = await syncGmbPosts(config.organizationId, io);
+          console.log(`[BACKGROUND SCHEDULER] Posts sync for ${config.organizationId}: ${postsResult.length} posts total.`);
+        } catch (postErr: any) {
+          console.warn(`[BACKGROUND SCHEDULER] Posts sync skipped for ${config.organizationId}: ${postErr.message}`);
+        }
       } catch (err: any) {
         console.error(`[BACKGROUND SCHEDULER] Sync failed for Organization ${config.organizationId}:`, err.message);
       }
@@ -110,19 +226,106 @@ async function runBackgroundGmbSync() {
   }
 }
 
+// Background YouTube Comments Polling Scheduler
+async function runBackgroundYoutubeSync() {
+  console.log("[BACKGROUND SCHEDULER] Running auto-sync for active YouTube channels...");
+  try {
+    const configs = await prisma.youTubeConfig.findMany({
+      where: {
+        channelId: { not: "" }
+      }
+    });
+
+    console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active YouTube configurations to sync.`);
+
+    for (const config of configs) {
+      await YouTubeService.syncComments(config.organizationId, io);
+    }
+  } catch (err: any) {
+    console.error("[BACKGROUND SCHEDULER] YouTube sync scheduler error:", err.message);
+  }
+}
+
+// Background Gmail Threads Polling Scheduler
+async function runBackgroundGmailSync() {
+  console.log("[BACKGROUND SCHEDULER] Running auto-sync for active Gmail inboxes...");
+  try {
+    const configs = await prisma.gmailConfig.findMany({
+      where: {
+        refreshToken: { not: "" }
+      }
+    });
+
+    console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active Gmail configurations to sync.`);
+
+    for (const config of configs) {
+      await syncGmailThreads(config.organizationId, io);
+    }
+  } catch (err: any) {
+    console.error("[BACKGROUND SCHEDULER] Gmail sync scheduler error:", err.message);
+  }
+}
+
+// Background: check every 60 seconds for SCHEDULED posts due to be published,
+// and auto-retry FAILED posts (up to 3 attempts)
+async function runScheduledPostsSync() {
+  try {
+    const now = new Date();
+    let pendingPosts: any[] = [];
+    try {
+      pendingPosts = await prisma.googlePost.findMany({
+        where: {
+          OR: [
+            { status: "SCHEDULED", scheduledAt: { lte: now } },
+            { status: "FAILED", retryCount: { lt: 3 }, scheduledAt: { not: null, lte: now } }
+          ]
+        }
+      });
+    } catch (dbErr) {
+      // Ignore schema column mismatch warnings for scheduled posts
+      return;
+    }
+
+    if (pendingPosts.length > 0) {
+      console.log(`[SCHEDULED PUBLISHER] ${pendingPosts.length} post(s) due to publish.`);
+      for (const post of pendingPosts) {
+        try {
+          await publishPostToGmb(post.id, io);
+        } catch (err: any) {
+          console.error(`[SCHEDULED PUBLISHER] Error publishing post ${post.id}:`, err.message);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("[SCHEDULED PUBLISHER] Scheduler error:", err.message);
+  }
+}
+
+import { LinkedInSchedulerEngine } from "./services/linkedinService";
+
 function startGmbSyncScheduler() {
   console.log("[BACKGROUND SCHEDULER] Scheduled auto-sync to run every 15 minutes.");
-  // Sync every 15 minutes
   setInterval(() => {
     runBackgroundGmbSync();
+    runBackgroundYoutubeSync();
+    runBackgroundGmailSync();
   }, 15 * 60 * 1000);
+
+  // Check and publish scheduled posts every 60 seconds
+  console.log("[BACKGROUND SCHEDULER] Scheduled post publisher to run every 60 seconds.");
+  setInterval(() => { runScheduledPostsSync(); }, 60 * 1000);
+
+  // Start LinkedIn Post Scheduler Engine (60s loop)
+  LinkedInSchedulerEngine.startScheduler();
 }
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-server.listen(Number(PORT), "::", () => {
-  console.log(`Backend server running on all interfaces (port ${PORT})`);
+server.listen(Number(PORT), () => {
+  console.log(`Backend server running on port ${PORT}`);
   startGmbSyncScheduler();
+  // Pre-upload SEO proof images to Meta and store Media IDs in active flow
+  preCacheSeoMediaIds();
 });
 
 export { io };

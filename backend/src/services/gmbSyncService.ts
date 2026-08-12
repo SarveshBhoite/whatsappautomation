@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma";
 import axios from "axios";
-
-const prisma = new PrismaClient();
 
 // Helper to get Google access token
 export async function getGoogleAccessToken(clientId: string, clientSecret: string, refreshToken: string): Promise<string> {
@@ -59,45 +57,122 @@ export function mapStarRatingToNumber(rating: any): number {
   return 5;
 }
 
-// Helper function to handle auto-replies
+// AI Sentiment Analysis Auto-Reply Generator
+export async function generateSentimentAnalysisReply(review: any, locationName: string = "Our Business"): Promise<string> {
+  const customerName = review.customerName || "Valued Customer";
+  const rating = Number(review.rating || 5);
+  const comment = (review.comment || "").trim();
+
+  // Try Groq AI sentiment generation if GROQ_API_KEY or GROQ_KEY exists
+  const groqApiKey = process.env.GROQ_API_KEY || process.env.GROQ_KEY;
+  if (groqApiKey) {
+    try {
+      const prompt = `
+        You are an AI customer support manager representing "${locationName}". 
+        Analyze the sentiment of the following customer Google Review and generate a personalized, polite response.
+        
+        Customer Name: "${customerName}"
+        Star Rating: ${rating}/5 Stars
+        Customer Comment: "${comment || "(Star rating only)"}"
+        
+        Instructions:
+        - If rating is 4 or 5 stars: Express gratitude warmly, mention company commitment to excellence.
+        - If rating is 3 stars: Thank them for constructive feedback, express commitment to improve.
+        - If rating is 1 or 2 stars: Apologize sincerely for not meeting expectations, offer assistance to resolve their issue.
+        - Maximum 2-3 sentences.
+        - Output direct response text only, without quote marks or prefix:
+      `;
+
+      const response = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            {
+              role: "system",
+              content: "You are a professional customer review reply assistant. Always return polite, concise, sentiment-appropriate replies."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 250
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${groqApiKey}`
+          },
+          timeout: 10000
+        }
+      );
+
+      const aiReply = response.data?.choices?.[0]?.message?.content;
+      if (aiReply && aiReply.trim()) {
+        return aiReply.trim();
+      }
+    } catch (err: any) {
+      console.warn("[SENTIMENT AI REPLY] Groq API request failed, using rule-based sentiment reply:", err?.response?.data || err.message);
+    }
+  }
+
+  // Fallback intelligent sentiment analysis reply based on rating & comments
+  if (rating >= 4) {
+    if (comment.toLowerCase().includes("great") || comment.toLowerCase().includes("best") || comment.toLowerCase().includes("awesome")) {
+      return `Thank you so much, ${customerName}! We're thrilled to hear your great feedback for ${locationName}. We look forward to serving you again!`;
+    }
+    return `Thank you for the 5-star review, ${customerName}! Your support means the world to our team at ${locationName}.`;
+  } else if (rating === 3) {
+    return `Thank you for your feedback, ${customerName}. We appreciate your support and are constantly striving to improve our services at ${locationName}.`;
+  } else {
+    return `Dear ${customerName}, we sincerely apologize for your experience. We take your feedback seriously—please reach out to our management team directly so we can resolve this for you.`;
+  }
+}
+
+// Helper function to handle sentiment analysis auto-replies
 export async function executeAutoReplyIfApplicable(review: any, config: any) {
-  if (!config.autoReplyEnabled || review.rating < config.autoReplyMinRating || !config.autoReplyTemplate) {
+  // If review already has a reply, skip
+  if (review.replyText && review.replyStatus === "REPLIED") {
     return;
   }
 
   try {
-    const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+    const locationName = config?.locationName || "Our Business";
+    const replyText = await generateSentimentAnalysisReply(review, locationName);
 
-    if (review.source === "GOOGLE" && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
+    const clientId = config?.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+    if (review.source === "GOOGLE" && config && clientId && clientSecret && config.googleRefreshToken && config.googleLocationId) {
       const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
       const locationPath = await getGmbLocationPath(token, config.googleLocationId);
       
       const replyUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/reviews/${review.id}/reply`;
       await axios.put(replyUrl, {
-        comment: config.autoReplyTemplate
+        comment: replyText
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log(`[LIVE GMB AUTO-REPLY] Submitted to Google for Review ID ${review.id}`);
+      console.log(`[LIVE GMB SENTIMENT AUTO-REPLY] Submitted to Google for Review ID ${review.id}`);
     } else {
-      console.log(`[LOCAL AUTO-REPLY] Saved locally for ${review.source} review ID ${review.id}`);
+      console.log(`[LOCAL SENTIMENT AUTO-REPLY] Saved locally for ${review.source} review ID ${review.id}`);
     }
 
     await prisma.googleReview.update({
       where: { id: review.id },
       data: {
-        replyText: config.autoReplyTemplate,
+        replyText: replyText,
         replyStatus: "REPLIED"
       }
     });
   } catch (error: any) {
-    console.error("Auto reply failed:", error?.response?.data || error.message);
+    console.error("Sentiment auto-reply failed:", error?.response?.data || error.message);
     await prisma.googleReview.update({
       where: { id: review.id },
       data: {
-        replyText: config.autoReplyTemplate,
         replyStatus: "ERROR"
       }
     });
@@ -187,3 +262,189 @@ export async function syncGmbReviews(orgId: string, io?: any) {
 
   return { syncedCount, reviews: updatedReviews };
 }
+
+// ─── GMB POST SYNC FEATURES (merged from feature/gmb-post-sync) ───────────────
+
+// Build a clean GMB local post payload, handling CALL vs URL-based CTAs correctly
+export function buildGmbPostPayload(
+  summary: string,
+  callToActionType?: string,
+  callToActionUrl?: string,
+  mediaUrl?: string,
+  fallbackUrl?: string
+) {
+  const payload: any = { summary, languageCode: "en" };
+
+  if (callToActionType && callToActionType !== "NONE") {
+    if (callToActionType === "CALL") {
+      // CALL type does NOT take a URL — it dials the business phone number
+      payload.callToAction = { actionType: "CALL" };
+    } else {
+      const targetUrl = callToActionUrl || fallbackUrl;
+      payload.callToAction = { actionType: callToActionType };
+      if (targetUrl) payload.callToAction.url = targetUrl;
+    }
+  }
+
+  if (mediaUrl) {
+    payload.media = [{ mediaFormat: "PHOTO", sourceUrl: mediaUrl }];
+  }
+
+  return payload;
+}
+
+// Log the complete outgoing GMB API request for debugging and audit trails
+export function logGmbRequest(method: string, url: string, headers: Record<string, string>, payload: any) {
+  console.log("[GMB API REQUEST] ──────────────────────────────────");
+  console.log(`  Method:  ${method}`);
+  console.log(`  URL:     ${url}`);
+  console.log(`  Headers: ${JSON.stringify({ ...headers, Authorization: headers.Authorization ? "Bearer ***REDACTED***" : undefined }, null, 2)}`);
+  console.log(`  Payload: ${JSON.stringify(payload, null, 2)}`);
+  console.log("[GMB API REQUEST] ──────────────────────────────────");
+}
+
+// Sync live GMB posts from the Google API into our local database
+export async function syncGmbPosts(orgId: string, io?: any) {
+  const config = await prisma.googleBusinessConfig.findUnique({
+    where: { organizationId: orgId }
+  });
+
+  if (!config) throw new Error("Google Business Configuration not found.");
+
+  const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
+    throw new Error("Google Business account is not authorized or Location ID is not configured.");
+  }
+
+  const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+  const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+  const postsUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/localPosts`;
+
+  console.log(`[BACKGROUND SYNC] Fetching GMB posts for org ${orgId}...`);
+  const response = await axios.get(postsUrl, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const gmbPosts = response.data.localPosts || [];
+  console.log(`[BACKGROUND SYNC] Found ${gmbPosts.length} posts from Google.`);
+
+  let synced = 0;
+
+  for (const gmbPost of gmbPosts) {
+    const existingPost = await prisma.googlePost.findUnique({
+      where: { gmbPostId: gmbPost.name }
+    });
+
+    let statusMapped = "DRAFT";
+    if (gmbPost.state === "LIVE") statusMapped = "PUBLISHED";
+    else if (gmbPost.state === "REJECTED") statusMapped = "FAILED";
+
+    const data = {
+      summary: gmbPost.summary || "",
+      mediaUrl: gmbPost.media?.[0]?.googleUrl || null,
+      callToActionType: gmbPost.callToAction?.actionType || null,
+      callToActionUrl: gmbPost.callToAction?.url || null,
+      status: statusMapped,
+      updatedAt: gmbPost.updateTime ? new Date(gmbPost.updateTime) : new Date()
+    };
+
+    if (!existingPost) {
+      await prisma.googlePost.create({
+        data: {
+          organizationId: orgId,
+          gmbPostId: gmbPost.name,
+          createdAt: gmbPost.createTime ? new Date(gmbPost.createTime) : new Date(),
+          ...data
+        }
+      });
+    } else {
+      await prisma.googlePost.update({ where: { gmbPostId: gmbPost.name }, data });
+    }
+    synced++;
+  }
+
+  const posts = await prisma.googlePost.findMany({
+    where: { organizationId: orgId },
+    orderBy: { createdAt: "desc" }
+  });
+
+  if (io) io.to(orgId).emit("posts-synced", posts);
+
+  return { synced, posts, length: posts.length };
+}
+
+// Publish a single scheduled post to GMB — called by the background scheduler
+export async function publishPostToGmb(postId: string, io?: any) {
+  console.log(`[SCHEDULED PUBLISHER] Attempting to publish post ID ${postId}...`);
+
+  const post = await prisma.googlePost.findUnique({ where: { id: postId } });
+  if (!post) { console.error(`[SCHEDULED PUBLISHER] Post ID ${postId} not found.`); return; }
+  if (post.status === "PUBLISHED" || post.gmbPostId) {
+    console.log(`[SCHEDULED PUBLISHER] Post ID ${postId} already published.`); return;
+  }
+
+  // Mark as PUBLISHING to prevent duplicate publish race conditions
+  let currentPost = await prisma.googlePost.update({
+    where: { id: postId },
+    data: { status: "PUBLISHING" }
+  });
+  if (io) io.to(post.organizationId).emit("post-updated", currentPost);
+
+  try {
+    const config = await prisma.googleBusinessConfig.findUnique({
+      where: { organizationId: post.organizationId }
+    });
+    if (!config) throw new Error("Google Business Configuration not found.");
+
+    const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
+      throw new Error("Google credentials or Location ID are not configured.");
+    }
+
+    const token = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+    const locationPath = await getGmbLocationPath(token, config.googleLocationId);
+    const localPostUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/localPosts`;
+
+    const payload = buildGmbPostPayload(
+      post.summary,
+      post.callToActionType || undefined,
+      post.callToActionUrl || undefined,
+      post.mediaUrl || undefined,
+      config.googleReviewUrl || undefined
+    );
+
+    const headers = { Authorization: `Bearer ${token}` };
+    logGmbRequest("POST", localPostUrl, headers, payload);
+
+    const postRes = await axios.post(localPostUrl, payload, { headers });
+    const gmbPostId = postRes.data.name;
+
+    const updatedPost = await prisma.googlePost.update({
+      where: { id: postId },
+      data: { gmbPostId, status: "PUBLISHED" }
+    });
+
+    console.log(`[SCHEDULED PUBLISHER] Post ${postId} published as GMB ID ${gmbPostId}`);
+    if (io) io.to(post.organizationId).emit("post-updated", updatedPost);
+    return updatedPost;
+
+  } catch (error: any) {
+    const errorMsg = error?.response?.data ? JSON.stringify(error.response.data) : error.message;
+    console.error(`[SCHEDULED PUBLISHER] Failed to publish post ${postId}:`, errorMsg);
+
+    const failedPost = await prisma.googlePost.update({
+      where: { id: postId },
+      data: {
+        status: "FAILED",
+        retryCount: (post.retryCount || 0) + 1
+      }
+    });
+
+    if (io) io.to(post.organizationId).emit("post-updated", failedPost);
+    return failedPost;
+  }
+}
+

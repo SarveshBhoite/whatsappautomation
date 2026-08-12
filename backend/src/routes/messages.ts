@@ -2,27 +2,38 @@ import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "../services/whatsappService";
 import { InstagramService } from "../services/instagramService";
+import { YouTubeService } from "../services/youtubeService";
 import { io } from "../index";
 
 const router = Router();
 
 // POST: Send Manual Message (from Sales Agent)
 router.post("/send", async (req: Request, res: Response) => {
+  let conversationId: string | undefined;
+  let messageType: string | undefined;
+  let content: string | undefined;
+  let filename: string | undefined;
+  let quotedMessageId: string | undefined;
+  let conversation: any = null;
+  let contentForDb: string = "";
+  let mediaUrlOrId: string = "";
+
   try {
-    const { conversationId, messageType, content, filename, quotedMessageId } = req.body;
+    ({ conversationId, messageType, content, filename, quotedMessageId } = req.body);
 
     if (!conversationId || !messageType || !content) {
       return res.status(400).json({ error: "Missing required fields: conversationId, messageType, content" });
     }
 
     // 1. Fetch Conversation and Configs
-    const conversation = await prisma.conversation.findUnique({
+    conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: {
         organization: {
           include: {
             waConfig: true,
             igConfig: true,
+            ytConfig: true,
           },
         },
       },
@@ -33,22 +44,29 @@ router.post("/send", async (req: Request, res: Response) => {
     }
 
     const isWhatsApp = conversation.platform === "whatsapp";
+    const isInstagram = conversation.platform === "instagram";
+    const isYouTube = conversation.platform === "youtube";
     const waConfig = conversation.organization.waConfig;
     const igConfig = conversation.organization.igConfig;
+    const ytConfig = conversation.organization.ytConfig;
 
     if (isWhatsApp) {
       if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
         return res.status(400).json({ error: "WhatsApp credentials not configured for this organization" });
       }
-    } else {
+    } else if (isInstagram) {
       if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
         return res.status(400).json({ error: "Instagram credentials not configured for this organization" });
+      }
+    } else if (isYouTube) {
+      if (!ytConfig || !ytConfig.channelId || !ytConfig.accessToken) {
+        return res.status(400).json({ error: "YouTube credentials not configured for this organization" });
       }
     }
 
     const customerPhone = conversation.customerPhone;
     let responseData;
-    let mediaUrlOrId = content;
+    mediaUrlOrId = content!;
 
     // Decode base64 file upload if provided by client
     const { fileBase64 } = req.body;
@@ -67,7 +85,36 @@ router.post("/send", async (req: Request, res: Response) => {
         const fileBuffer = Buffer.from(fileBase64, "base64");
         
         fs.writeFileSync(filePath, fileBuffer);
-        mediaUrlOrId = `/uploads/${cleanFilename}`;
+
+        // Upload to ImageKit CDN so Meta WhatsApp Cloud API receives a valid public HTTPS URL
+        const ikPrivateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+        if (ikPrivateKey) {
+          try {
+            const FormData = require("form-data");
+            const axios = require("axios");
+            const formData = new FormData();
+            formData.append("file", fileBuffer, { filename: cleanFilename });
+            formData.append("fileName", cleanFilename);
+            formData.append("folder", "/crm-uploads");
+            formData.append("useUniqueFileName", "true");
+
+            const ikRes = await axios.post("https://upload.imagekit.io/api/v1/files/upload", formData, {
+              headers: {
+                ...formData.getHeaders(),
+                Authorization: `Basic ${Buffer.from(`${ikPrivateKey}:`).toString("base64")}`,
+              },
+            });
+            mediaUrlOrId = ikRes.data.url;
+            console.log(`[MANUAL UPLOAD] ImageKit upload success: ${mediaUrlOrId}`);
+          } catch (ikErr: any) {
+            console.warn("[MANUAL UPLOAD] ImageKit upload failed, falling back to public backend URL:", ikErr.message);
+            const backendPublicUrl = process.env.BACKEND_URL || "https://crmapi.jisnudigital.com";
+            mediaUrlOrId = `${backendPublicUrl}/uploads/${cleanFilename}`;
+          }
+        } else {
+          const backendPublicUrl = process.env.BACKEND_URL || "https://crmapi.jisnudigital.com";
+          mediaUrlOrId = `${backendPublicUrl}/uploads/${cleanFilename}`;
+        }
       } catch (err: any) {
         console.error("Error writing base64 file to storage:", err.message);
       }
@@ -85,7 +132,7 @@ router.post("/send", async (req: Request, res: Response) => {
     }
 
     const { caption } = req.body;
-    let contentForDb = mediaUrlOrId;
+    contentForDb = mediaUrlOrId;
 
     // 2. Call WhatsApp or Instagram APIs
     if (isWhatsApp) {
@@ -103,7 +150,7 @@ router.post("/send", async (req: Request, res: Response) => {
           waConfig!.phoneNumberId!,
           waConfig!.accessToken!,
           customerPhone,
-          messageType,
+          messageType as "document" | "image" | "video" | "audio",
           mediaUrlOrId,
           filename,
           caption,
@@ -122,7 +169,7 @@ router.post("/send", async (req: Request, res: Response) => {
       } else {
         return res.status(400).json({ error: "Unsupported message type for manual sending" });
       }
-    } else {
+    } else if (isInstagram) {
       if (messageType === "text") {
         responseData = await InstagramService.sendTextMessage(
           igConfig!.pageAccessToken!,
@@ -134,7 +181,7 @@ router.post("/send", async (req: Request, res: Response) => {
         responseData = await InstagramService.sendMediaMessage(
           igConfig!.pageAccessToken!,
           customerPhone,
-          messageType,
+          messageType as "document" | "image" | "video" | "audio",
           mediaUrlOrId,
           filename,
           caption
@@ -152,9 +199,42 @@ router.post("/send", async (req: Request, res: Response) => {
       } else {
         return res.status(400).json({ error: "Unsupported message type for manual sending" });
       }
+    } else if (isYouTube) {
+      // YouTube only supports plain text replies. Media is appended as a URL link.
+      let textToSend = mediaUrlOrId;
+      if (messageType !== "text") {
+        if (messageType === "document" && filename) {
+          textToSend = `${filename}: ${mediaUrlOrId}`;
+        }
+        if (caption) {
+          textToSend += ` - ${caption}`;
+        }
+      }
+
+      // Refresh accessToken in case it expired
+      let token = ytConfig!.accessToken!;
+      if (ytConfig!.refreshToken) {
+        try {
+          token = await YouTubeService.refreshAccessToken(conversation.organizationId);
+        } catch (err: any) {
+          console.warn("Manual YouTube token refresh warning:", err.message);
+        }
+      }
+
+      responseData = await YouTubeService.sendCommentReply(
+        ytConfig!.channelId!,
+        token,
+        customerPhone, // Parent comment/thread ID
+        textToSend
+      );
+      contentForDb = textToSend;
     }
 
-    const waMessageId = isWhatsApp ? (responseData?.messages?.[0]?.id || null) : (responseData?.message_id || null);
+    const waMessageId = isWhatsApp 
+      ? (responseData?.messages?.[0]?.id || null) 
+      : isInstagram 
+        ? (responseData?.message_id || null) 
+        : (responseData?.id || null);
 
     // 3. Pause the Chatbot (Sending manual message automatically pauses chatbot for 24h)
     const pauseDuration = 24 * 60 * 60 * 1000; // 24 hours
@@ -207,10 +287,45 @@ router.post("/send", async (req: Request, res: Response) => {
 
     return res.status(200).json({ message: "Message sent successfully", data: savedMessage });
   } catch (error: any) {
-    console.error("Error sending manual message:", error);
+    const metaErrorDetails = error.response?.data || error.message;
+    console.error("Error sending manual message:", JSON.stringify(metaErrorDetails, null, 2));
+
+    // Save message in DB with 'failed' status so CRM Inbox displays it with error indication
+    let savedMessage = null;
+    if (conversationId) {
+      try {
+        savedMessage = await prisma.message.create({
+          data: {
+            conversationId,
+            direction: "outbound",
+            messageType: messageType || "text",
+            content: contentForDb || mediaUrlOrId,
+            status: "failed",
+            senderName: "Agent",
+            quotedMessageId: quotedMessageId || null,
+          },
+        });
+
+        const fullMessage = await prisma.message.findUnique({
+          where: { id: savedMessage.id },
+          include: { quotedMessage: true },
+        });
+
+        if (conversation?.organizationId) {
+          io.to(conversation.organizationId).emit("new-message", {
+            conversationId,
+            message: fullMessage,
+          });
+        }
+      } catch (dbErr) {
+        console.error("Failed to record failed message to DB:", dbErr);
+      }
+    }
+
     return res.status(500).json({
-      error: "Failed to send WhatsApp message",
-      details: error.response?.data || error.message,
+      error: "Failed to send message via platform API",
+      details: metaErrorDetails,
+      savedMessage,
     });
   }
 });
