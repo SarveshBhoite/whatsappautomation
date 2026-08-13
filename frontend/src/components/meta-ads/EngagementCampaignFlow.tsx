@@ -70,6 +70,7 @@ export default function EngagementCampaignFlow({
   const [description, setDescription] = useState("");
   const [callToAction, setCallToAction] = useState("WHATSAPP_MESSAGE");
   const [urlParameters, setUrlParameters] = useState("key1=value1&key2=value2");
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["ALL"]);
 
   // Publishing & Toast State
   const [publishing, setPublishing] = useState(false);
@@ -126,6 +127,32 @@ export default function EngagementCampaignFlow({
       console.warn("Targeting search error:", e);
     } finally {
       setSearchingTargeting(false);
+    }
+  };
+
+  const [langQuery, setLangQuery] = useState("");
+  const [langResults, setLangResults] = useState<any[]>([]);
+  const [searchingLang, setSearchingLang] = useState(false);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
+
+  // Search Meta Languages (Ad Locales) via Graph API
+  const handleSearchLanguages = async (q: string) => {
+    setLangQuery(q);
+    if (!q.trim()) {
+      setLangResults([]);
+      setShowLangDropdown(false);
+      return;
+    }
+    setSearchingLang(true);
+    setShowLangDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/languages?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setLangResults(data.results);
+    } catch (e) {
+      console.warn("Language search error:", e);
+    } finally {
+      setSearchingLang(false);
     }
   };
 
@@ -678,9 +705,63 @@ export default function EngagementCampaignFlow({
                       />
                       <p className="text-[10px] text-slate-500 mt-1">Unknown age on WhatsApp: Excluded</p>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400">Languages</label>
-                      <input type="text" value="All languages" disabled className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-400 cursor-not-allowed" />
+                    <div className="space-y-1.5 relative">
+                      <label className="block text-[11px] font-semibold text-slate-300">Languages</label>
+                      <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-950 border border-slate-700/60 min-h-[40px]">
+                        {selectedLanguages.map((lang, idx) => (
+                          <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-semibold">
+                            🗣️ {lang === "ALL" ? "All Languages" : lang}
+                            {lang !== "ALL" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = selectedLanguages.filter((_, i) => i !== idx);
+                                  setSelectedLanguages(next.length === 0 ? ["ALL"] : next);
+                                }}
+                                className="hover:text-red-400 ml-1 text-slate-400"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          value={langQuery}
+                          onChange={(e) => handleSearchLanguages(e.target.value)}
+                          onFocus={() => langQuery && setShowLangDropdown(true)}
+                          className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                          placeholder="Search Meta languages (e.g. Hindi, English, Marathi)..."
+                        />
+                        {searchingLang && <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin shrink-0" />}
+                      </div>
+
+                      {/* Live Meta Graph API Languages Autocomplete Dropdown */}
+                      {showLangDropdown && langResults.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                          {langResults.map((item: any, i: number) => (
+                            <div
+                              key={i}
+                              onClick={() => {
+                                const lName = item.name || item.key;
+                                const cleaned = selectedLanguages.filter(l => l !== "ALL");
+                                if (!cleaned.includes(lName)) {
+                                  setSelectedLanguages([...cleaned, lName]);
+                                }
+                                setLangQuery("");
+                                setShowLangDropdown(false);
+                              }}
+                              className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                            >
+                              <div>
+                                <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                                <p className="text-[10px] text-slate-400">Meta Locale Key: {item.key}</p>
+                              </div>
+                              <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Add Language</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -745,17 +826,60 @@ export default function EngagementCampaignFlow({
                 </div>
               </div>
 
-              {/* Placements */}
-              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
+              {/* Placements Selection */}
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3.5">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div>
                       <h4 className="font-bold text-slate-200 text-xs">Placements</h4>
-                      <span className="text-[10px] font-bold bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full border border-sky-500/20">Advantage+ on</span>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Maximize your budget and show your ads to more people.</p>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">We'll automatically show ads in the places where people are likely to respond. Includes **WhatsApp Status** placement.</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${placementsAdvantage ? "bg-sky-500/10 text-sky-400 border-sky-500/20" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                      {placementsAdvantage ? "Advantage+ on" : "Manual placements"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div
+                      onClick={() => setPlacementsAdvantage(true)}
+                      className={`p-3 rounded-xl border cursor-pointer ${placementsAdvantage ? "bg-sky-500/10 border-sky-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                    >
+                      <p className="text-xs font-bold">Advantage+ placements (Recommended)</p>
+                      <p className="text-[10px] mt-0.5">We'll allocate your ad set's budget across multiple placements based on performance. Includes WhatsApp Status & Instagram Reels.</p>
+                    </div>
+                    <div
+                      onClick={() => setPlacementsAdvantage(false)}
+                      className={`p-3 rounded-xl border cursor-pointer ${!placementsAdvantage ? "bg-sky-500/10 border-sky-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                    >
+                      <p className="text-xs font-bold">Manual placements</p>
+                      <p className="text-[10px] mt-0.5">Manually choose the places to show your ad. The more placements selected, the more opportunities to reach your audience.</p>
+                    </div>
                   </div>
                 </div>
+
+                {!placementsAdvantage && (
+                  <div className="pt-3 border-t border-slate-800 space-y-3 animate-fadeIn">
+                    <h5 className="font-bold text-slate-200 text-xs">Platforms & Placement Feeds</h5>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
+                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-slate-700 text-sky-500 focus:ring-0" />
+                        <span>Facebook & Instagram Feeds</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-slate-700 text-sky-500 focus:ring-0" />
+                        <span>Stories & Reels (IG / FB)</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-slate-700 text-sky-500 focus:ring-0" />
+                        <span>In-stream ads for videos</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                        <input type="checkbox" defaultChecked className="rounded border-slate-700 text-sky-500 focus:ring-0" />
+                        <span>Search results & WhatsApp Status</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Navigation Buttons */}

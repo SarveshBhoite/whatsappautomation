@@ -33,7 +33,7 @@ router.get("/oauth/connect", async (req: Request, res: Response) => {
     const redirect = (req.query.redirect as string) || "/ads";
     const appId = process.env.META_APP_ID || "36702477879366478";
     const redirectUri = process.env.META_REDIRECT_URI || "https://crmapi.jisnudigital.com/api/meta/callback";
-    const scopes = "ads_management,ads_read,business_management,pages_read_engagement,pages_show_list";
+    const scopes = "ads_management,ads_read,business_management,pages_read_engagement,pages_show_list,instagram_basic,whatsapp_business_management";
     const statePayload = Buffer.from(JSON.stringify({ orgId, redirect })).toString("base64");
 
     const authUrl = `https://www.facebook.com/v26.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(statePayload)}`;
@@ -228,6 +228,22 @@ router.get("/search/locations", async (req: Request, res: Response) => {
     res.json({ success: true, results });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error searching locations:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/search/languages
+ * Search live Meta Graph API languages / ad locales
+ */
+router.get("/search/languages", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const q = (req.query.q as string) || "";
+    const results = await MetaAdsService.searchLanguages(orgId, q);
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error searching languages:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

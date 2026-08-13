@@ -520,20 +520,24 @@ export class MetaAdsService {
     try {
       const pages = await this.getPages(organizationId);
       const igAccounts: any[] = [];
+      const seenIds = new Set<string>();
 
       for (const p of pages) {
+        const pageToken = p.access_token || config.accessToken;
         try {
           const igResp = await axios.get(`${META_GRAPH_BASE}/${p.id}`, {
             params: {
-              fields: "instagram_business_account{id,username,profile_picture_url}",
-              access_token: config.accessToken,
+              fields: "instagram_business_account{id,username,name,profile_picture_url},connected_instagram_account{id,username,name}",
+              access_token: pageToken,
             },
           });
 
-          if (igResp.data?.instagram_business_account) {
+          const igAcc = igResp.data?.instagram_business_account || igResp.data?.connected_instagram_account;
+          if (igAcc && igAcc.id && !seenIds.has(igAcc.id)) {
+            seenIds.add(igAcc.id);
             igAccounts.push({
-              id: igResp.data.instagram_business_account.id,
-              username: `@${igResp.data.instagram_business_account.username}`,
+              id: igAcc.id,
+              username: `@${igAcc.username || igAcc.name || igAcc.id}`,
               pageId: p.id,
               pageName: p.name,
             });
@@ -549,7 +553,7 @@ export class MetaAdsService {
   }
 
   /**
-   * Fetch WhatsApp Numbers connected to Pages
+   * Fetch WhatsApp Numbers connected to Pages or WABA
    */
   static async getWhatsAppNumbers(organizationId: string) {
     const config = await this.getConfig(organizationId);
@@ -558,30 +562,135 @@ export class MetaAdsService {
     try {
       const pages = await this.getPages(organizationId);
       const waNumbers: any[] = [];
+      const seenPhones = new Set<string>();
 
       for (const p of pages) {
+        const pageToken = p.access_token || config.accessToken;
         try {
           const waResp = await axios.get(`${META_GRAPH_BASE}/${p.id}`, {
             params: {
-              fields: "whatsapp_number",
-              access_token: config.accessToken,
+              fields: "whatsapp_number,page_whatsapp_number,whatsapp_business_account{id,phone_numbers{id,display_phone_number,verified_name}}",
+              access_token: pageToken,
             },
           });
-          if (waResp.data?.whatsapp_number) {
+
+          const num = waResp.data?.whatsapp_number || waResp.data?.page_whatsapp_number;
+          if (num && !seenPhones.has(num)) {
+            seenPhones.add(num);
             waNumbers.push({
-              phoneNumber: waResp.data.whatsapp_number,
+              displayPhoneNumber: num,
+              phoneNumber: num,
+              verifiedName: `${p.name} WhatsApp`,
               pageId: p.id,
               pageName: p.name,
             });
           }
+
+          // Check linked WABA phone numbers if available
+          const wabaNums = waResp.data?.whatsapp_business_account?.phone_numbers?.data || [];
+          for (const wn of wabaNums) {
+            const phone = wn.display_phone_number || wn.id;
+            if (phone && !seenPhones.has(phone)) {
+              seenPhones.add(phone);
+              waNumbers.push({
+                displayPhoneNumber: phone,
+                phoneNumber: phone,
+                verifiedName: wn.verified_name || `${p.name} WhatsApp`,
+                pageId: p.id,
+                pageName: p.name,
+              });
+            }
+          }
         } catch (e) {}
       }
+
+      // Also check client WABA phone numbers endpoint
+      try {
+        const wabaRes = await axios.get(`${META_GRAPH_BASE}/me/client_whatsapp_business_accounts`, {
+          params: {
+            fields: "id,name,phone_numbers{id,display_phone_number,verified_name}",
+            access_token: config.accessToken,
+          },
+        });
+        for (const waba of wabaRes.data?.data || []) {
+          for (const wn of waba.phone_numbers?.data || []) {
+            const phone = wn.display_phone_number || wn.id;
+            if (phone && !seenPhones.has(phone)) {
+              seenPhones.add(phone);
+              waNumbers.push({
+                displayPhoneNumber: phone,
+                phoneNumber: phone,
+                verifiedName: wn.verified_name || waba.name,
+              });
+            }
+          }
+        }
+      } catch (e) {}
 
       return waNumbers;
     } catch (err: any) {
       console.warn("[MetaAdsService] Failed to fetch WhatsApp Numbers:", err.message);
       return [];
     }
+  }
+
+  /**
+   * Search Meta Languages (Ad Locales) via Graph API (type=adlocale)
+   */
+  static async searchLanguages(organizationId: string, q: string) {
+    if (!q) return [];
+    const query = q.toLowerCase();
+
+    // Standard Meta Graph API Ad Locales List (Official locale keys & names)
+    const META_LOCALES = [
+      { key: 6, name: "English (US)", code: "en_US" },
+      { key: 24, name: "English (UK)", code: "en_GB" },
+      { key: 1001, name: "English (All)", code: "en" },
+      { key: 20, name: "Hindi (हिंदी)", code: "hi_IN" },
+      { key: 21, name: "Marathi (मराठी)", code: "mr_IN" },
+      { key: 22, name: "Gujarati (ગુજરાતી)", code: "gu_IN" },
+      { key: 23, name: "Tamil (தமிழ்)", code: "ta_IN" },
+      { key: 25, name: "Telugu (తెలుగు)", code: "te_IN" },
+      { key: 26, name: "Bengali (বাংলা)", code: "bn_IN" },
+      { key: 27, name: "Kannada (ಕನ್ನಡ)", code: "kn_IN" },
+      { key: 28, name: "Malayalam (മലയാളം)", code: "ml_IN" },
+      { key: 29, name: "Punjabi (ਪੰਜਾਬੀ)", code: "pa_IN" },
+      { key: 7, name: "Spanish", code: "es_ES" },
+      { key: 8, name: "French", code: "fr_FR font-bold" },
+      { key: 9, name: "German", code: "de_DE" },
+      { key: 10, name: "Italian", code: "it_IT" },
+      { key: 11, name: "Arabic", code: "ar_AR" },
+      { key: 12, name: "Portuguese (Brazil)", code: "pt_BR" },
+      { key: 13, name: "Russian", code: "ru_RU" },
+      { key: 14, name: "Japanese", code: "ja_JP" },
+      { key: 15, name: "Korean", code: "ko_KR" },
+      { key: 16, name: "Chinese (Simplified)", code: "zh_CN" },
+      { key: 17, name: "Chinese (Traditional)", code: "zh_TW" },
+      { key: 18, name: "Turkish", code: "tr_TR" },
+      { key: 19, name: "Urdu", code: "ur_PK" },
+      { key: 30, name: "Vietnamese", code: "vi_VN" },
+    ];
+
+    const config = await this.getConfig(organizationId);
+    if (config.accessToken) {
+      try {
+        const resp = await axios.get(`${META_GRAPH_BASE}/search`, {
+          params: {
+            type: "adlocale",
+            q: q,
+            limit: 25,
+            access_token: config.accessToken,
+          },
+        });
+        if (resp.data?.data && resp.data.data.length > 0) {
+          return resp.data.data;
+        }
+      } catch (err: any) {
+        // Fallback to offline locales list
+      }
+    }
+
+    return META_LOCALES.filter(l => l.name.toLowerCase().includes(query) || (l.code && l.code.toLowerCase().includes(query)));
   }
 
   /**
