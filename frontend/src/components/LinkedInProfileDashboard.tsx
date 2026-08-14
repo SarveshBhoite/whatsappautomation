@@ -120,7 +120,7 @@ export function LinkedInProfileDashboard({
   const syncLogs = config.syncLogs || [];
   const defaultTimeline = [
     { id: "tl-1", event: "Profile Sync", status: "SUCCESS", detail: "Synchronized LinkedIn Profile & Security Tokens", time: "Just Now", type: "sync" },
-    { id: "tl-2", event: "AI Generation", status: "SUCCESS", detail: "Generated post using Groq llama-3.3-70b-versatile", time: "10 mins ago", type: "ai" },
+    { id: "tl-2", event: "AI Generation", status: "SUCCESS", detail: "Generated post using Groq openai/gpt-oss-120b", time: "10 mins ago", type: "ai" },
     { id: "tl-3", event: "Post Published", status: "SUCCESS", detail: "Published post to LinkedIn Personal Feed", time: "2 hours ago", type: "publish" },
     { id: "tl-4", event: "Post Scheduled", status: "SUCCESS", detail: "Queued post for automated execution", time: "1 day ago", type: "schedule" },
     { id: "tl-5", event: "Draft Saved", status: "SUCCESS", detail: "Saved post draft to local repository", time: "2 days ago", type: "draft" }

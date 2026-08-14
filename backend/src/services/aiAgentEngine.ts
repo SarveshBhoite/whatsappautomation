@@ -205,7 +205,7 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }

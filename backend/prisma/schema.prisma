@@ -205,8 +205,8 @@ model AIContentHistory {
   generatedText    String?
   mode             String       @default("Post Generator")
   tone             String?
-  model            String       @default("Groq-llama-3.3-70b-versatile")
-  modelName        String?      @default("Groq-llama-3.3-70b-versatile")
+  model            String       @default("Groq-openai/gpt-oss-120b")
+  modelName        String?      @default("Groq-openai/gpt-oss-120b")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @default(now()) @updatedAt
 

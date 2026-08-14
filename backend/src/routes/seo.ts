@@ -396,7 +396,7 @@ router.post("/audit", async (req: Request, res: Response) => {
         const aiRes = await axios.post(
           "https://api.groq.com/openai/v1/chat/completions",
           {
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
               { role: "system", content: "You are a senior SEO consultant providing direct actionable website optimization recommendations." },
               { role: "user", content: prompt }

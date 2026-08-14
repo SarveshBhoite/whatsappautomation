@@ -940,7 +940,7 @@ router.post("/ai/cta", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/linkedin/ai/chat - Universal CRM AI Assistant (Intent-Driven Groq llama-3.3-70b-versatile)
+// POST /api/linkedin/ai/chat - Universal CRM AI Assistant
 router.post("/ai/chat", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
@@ -1002,7 +1002,7 @@ router.post("/ai/history", async (req: Request, res: Response) => {
       generatedContent,
       mode: mode || "Post Generator",
       tone: tone || "Professional",
-      model: model || "Groq-llama-3.3-70b-versatile"
+      model: model || "Groq-openai/gpt-oss-120b"
     });
 
     return res.status(201).json({ success: true, item: record });
