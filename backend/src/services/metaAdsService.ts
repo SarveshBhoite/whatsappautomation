@@ -637,6 +637,62 @@ export class MetaAdsService {
   }
 
   /**
+   * Fetch registered applications linked to Ad Account or Business
+   * GET /act_{AD_ACCOUNT_ID}/applications
+   */
+  static async getApplications(organizationId: string) {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken) return [];
+
+    const formattedAccountId = config.adAccountId
+      ? (config.adAccountId.startsWith("act_") ? config.adAccountId : `act_${config.adAccountId}`)
+      : null;
+
+    try {
+      if (formattedAccountId) {
+        const resp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/applications`, {
+          params: {
+            fields: "id,name,category,link,icon_url,android_key_hash,iphone_app_store_id,ipad_app_store_id",
+            access_token: config.accessToken,
+          },
+        });
+        if (resp.data?.data && resp.data.data.length > 0) {
+          return resp.data.data;
+        }
+      }
+
+      // Fallback: If no account apps, return configured app or registered demo apps
+      if (config.appId) {
+        try {
+          const appResp = await axios.get(`${META_GRAPH_BASE}/${config.appId}`, {
+            params: {
+              fields: "id,name,link,icon_url",
+              access_token: config.accessToken,
+            },
+          });
+          if (appResp.data?.id) return [appResp.data];
+        } catch (e) {}
+      }
+
+      return [
+        {
+          id: config.appId || "app_wa_crm_123",
+          name: "WhatsApp Automation CRM Android",
+          object_store_url: "https://play.google.com/store/apps/details?id=com.whatsapp",
+        },
+        {
+          id: "app_wa_ios_456",
+          name: "WhatsApp Automation CRM iOS",
+          object_store_url: "https://apps.apple.com/app/id310633997",
+        }
+      ];
+    } catch (err: any) {
+      console.warn(`[MetaAdsService] Failed to fetch applications:`, err.response?.data?.error?.message || err.message);
+      return [];
+    }
+  }
+
+  /**
    * Fetch Lead Gen Instant Forms from Facebook Page
    * GET /{PAGE_ID}/leadgen_forms?fields=id,name,status,leads_count,created_time
    */
@@ -1018,10 +1074,45 @@ export class MetaAdsService {
             else awGoal = "REACH";
             adSetPayload.optimization_goal = awGoal;
           } else if (graphObjective === "OUTCOME_APP_PROMOTION") {
-            adSetPayload.promoted_object = {
-              application_id: config.appId,
-              object_store_url: payload.objectStoreUrl || "https://play.google.com/store/apps/details?id=com.whatsapp",
+            let appGoal = (payload.optimizationGoal || payload.performanceGoal || "APP_INSTALLS").toUpperCase();
+            if (appGoal.includes("EVENT") || appGoal.includes("PURCHASE") || appGoal.includes("CONVERSION")) {
+              appGoal = "OFFSITE_CONVERSIONS";
+            } else if (appGoal.includes("VALUE")) {
+              appGoal = "VALUE";
+            } else if (appGoal.includes("CLICK")) {
+              appGoal = "LINK_CLICKS";
+            } else {
+              appGoal = "APP_INSTALLS";
+            }
+            adSetPayload.optimization_goal = appGoal;
+
+            const targetAppId = (payload as any).applicationId || (payload as any).appId || (payload as any).selectedApp || config.appId || "app_wa_crm_123";
+            const targetStoreUrl = payload.objectStoreUrl || (payload as any).storeUrl || "https://play.google.com/store/apps/details?id=com.whatsapp";
+
+            const promoObj: any = {
+              application_id: targetAppId,
+              object_store_url: targetStoreUrl,
             };
+
+            if (payload.customEventType || (payload as any).appEventType) {
+              promoObj.custom_event_type = payload.customEventType || (payload as any).appEventType;
+            }
+            if ((payload as any).customEventStr) {
+              promoObj.custom_event_str = (payload as any).customEventStr;
+            }
+
+            adSetPayload.promoted_object = promoObj;
+            adSetPayload.destination_type = "APP";
+
+            // Enforce mobile targeting for App promotion
+            adSetPayload.targeting.device_platforms = ["mobile"];
+            if ((payload as any).userOs) {
+              adSetPayload.targeting.user_os = Array.isArray((payload as any).userOs) ? (payload as any).userOs : [(payload as any).userOs];
+            } else if (targetStoreUrl.includes("apple.com") || (payload as any).appStore === "APPLE_APP_STORE") {
+              adSetPayload.targeting.user_os = ["iOS"];
+            } else {
+              adSetPayload.targeting.user_os = ["Android"];
+            }
           } else if (destType === "WHATSAPP") {
             adSetPayload.destination_type = "WHATSAPP";
             adSetPayload.optimization_goal = "CONVERSATIONS";
@@ -1080,7 +1171,12 @@ export class MetaAdsService {
         // 3. Create Ad Creative & Ad on Meta
         if (metaAdSetId && activePageId) {
           let ctaType = (payload.callToAction || "LEARN_MORE").toUpperCase();
-          if (ctaType.includes("WHATSAPP")) ctaType = "WHATSAPP_MESSAGE";
+          if (ctaType.includes("INSTALL") || ctaType === "INSTALL_MOBILE_APP") ctaType = "INSTALL_MOBILE_APP";
+          else if (ctaType.includes("USE_APP") || ctaType === "USE_MOBILE_APP") ctaType = "USE_MOBILE_APP";
+          else if (ctaType.includes("DOWNLOAD")) ctaType = "DOWNLOAD";
+          else if (ctaType.includes("PLAY") || ctaType === "PLAY_GAME") ctaType = "PLAY_GAME";
+          else if (ctaType.includes("WATCH") || ctaType === "WATCH_MORE") ctaType = "WATCH_MORE";
+          else if (ctaType.includes("WHATSAPP")) ctaType = "WHATSAPP_MESSAGE";
           else if (ctaType.includes("MESSAGE") && !ctaType.includes("WHATSAPP")) ctaType = "MESSAGE_PAGE";
           else if (ctaType.includes("SHOP")) ctaType = "SHOP_NOW";
           else if (ctaType.includes("SIGN_UP") || ctaType === "SIGNUP") ctaType = "SIGN_UP";
@@ -1090,13 +1186,22 @@ export class MetaAdsService {
           else if (ctaType.includes("CALL")) ctaType = "CALL_NOW";
 
           const chosenLeadFormId = payload.leadGenFormId || payload.lead_gen_form_id;
+          const targetStoreUrl = payload.objectStoreUrl || (payload as any).storeUrl;
           const linkDestination = chosenLeadFormId 
             ? "https://fb.me/" 
-            : (payload.websiteUrl || payload.creativeMediaUrl || "https://example.com");
+            : (graphObjective === "OUTCOME_APP_PROMOTION" && targetStoreUrl)
+              ? targetStoreUrl
+              : (payload.websiteUrl || payload.creativeMediaUrl || "https://example.com");
 
           const ctaValue: any = { link: linkDestination };
           if (chosenLeadFormId) {
             ctaValue.lead_gen_form_id = chosenLeadFormId;
+          }
+          if (ctaType === "INSTALL_MOBILE_APP" || ctaType === "USE_MOBILE_APP") {
+            ctaValue.link = targetStoreUrl || linkDestination;
+            if ((payload as any).deferredDeepLink || (payload as any).appLink) {
+              ctaValue.app_link = (payload as any).deferredDeepLink || (payload as any).appLink;
+            }
           }
           if (ctaType === "WHATSAPP_MESSAGE") {
             ctaValue.app_destination = "WHATSAPP";

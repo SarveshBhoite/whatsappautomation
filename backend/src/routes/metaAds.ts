@@ -199,6 +199,21 @@ router.get("/whatsapp-numbers", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/applications
+ * Fetch registered Apps connected to Ad Account / Business
+ */
+router.get("/applications", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const applications = await MetaAdsService.getApplications(orgId);
+    res.json({ success: true, applications });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching applications:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/meta-ads/lead-forms
  * Fetch Lead Gen Instant Forms from connected Facebook Page
  */
@@ -413,6 +428,24 @@ router.post("/campaigns/leads", async (req: Request, res: Response) => {
     res.json({ success: true, campaign });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error creating leads campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/campaigns/app-promotion
+ * Specialized endpoint to Create & Publish OUTCOME_APP_PROMOTION campaign
+ */
+router.post("/campaigns/app-promotion", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const campaign = await MetaAdsService.createCampaign(orgId, {
+      ...req.body,
+      objective: "OUTCOME_APP_PROMOTION",
+    });
+    res.json({ success: true, campaign });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating app promotion campaign:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
