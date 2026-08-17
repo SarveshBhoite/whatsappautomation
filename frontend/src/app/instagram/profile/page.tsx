@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Sparkles
 } from "lucide-react";
+import ConnectInstagramButton from "@/components/meta/ConnectInstagramButton";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
@@ -96,6 +97,11 @@ export default function InstagramProfilePage() {
 
       {/* Main Page Layout */}
       <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-5xl mx-auto w-full space-y-6 scrollbar-thin scrollbar-none">
+        {/* Meta Business Login for Instagram */}
+        <div className="flex justify-center">
+          <ConnectInstagramButton />
+        </div>
+
         {/* Profile Card Banner */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">

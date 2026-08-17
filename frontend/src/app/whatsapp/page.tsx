@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
+import ConnectWhatsAppButton from "@/components/meta/ConnectWhatsAppButton";
+import ConnectInstagramButton from "@/components/meta/ConnectInstagramButton";
 import ReactFlow, { 
   MiniMap, 
   Controls, 
@@ -377,6 +379,43 @@ export default function Dashboard() {
   const socketRef = useRef<Socket | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Meta Embedded Status & Multi-Phone Number State
+  const [metaStatus, setMetaStatus] = useState<{
+    whatsapp: {
+      connected: boolean;
+      wabaId?: string;
+      phoneNumberId?: string;
+      phoneNumber?: string;
+      verifiedName?: string;
+      phoneNumbers?: Array<{
+        id: string;
+        display_phone_number: string;
+        verified_name?: string;
+        quality_rating?: string;
+        code_verification_status?: string;
+        is_primary?: boolean;
+      }>;
+    };
+    instagram: {
+      connected: boolean;
+      username?: string;
+      instagramAccountId?: string;
+      name?: string;
+    };
+  }>({
+    whatsapp: {
+      connected: false,
+      phoneNumberId: "",
+      phoneNumber: "",
+      phoneNumbers: [],
+    },
+    instagram: {
+      connected: false,
+      username: "",
+    },
+  });
+  const [activeSenderNumberId, setActiveSenderNumberId] = useState<string>("");
 
   // Instagram Config
   const [igConfig, setIgConfig] = useState<InstagramConfig>({
@@ -756,6 +795,7 @@ export default function Dashboard() {
     // Initial Fetch
     fetchConversations();
     fetchConfig();
+    fetchMetaStatus();
     fetchInstagramConfig();
     fetchGoogleConfig();
     fetchActiveFlow("whatsapp");
@@ -789,6 +829,67 @@ export default function Dashboard() {
   }, [selectedPlatform, activeTab]);
 
   // 2. HTTP API Calls
+  const fetchMetaStatus = async () => {
+    try {
+      const res = await fetch("/api/auth/meta/status");
+      const data = await res.json();
+      if (data.success && data.data) {
+        setMetaStatus(data.data);
+        const primaryId = data.data.whatsapp?.phoneNumberId || config.phoneNumberId || "";
+        setActiveSenderNumberId((prev) => prev || primaryId);
+      }
+    } catch (err) {
+      console.error("Error loading Meta status in WhatsApp Inbox:", err);
+    }
+  };
+
+  const handleSwitchActiveSenderNumber = async (newPhoneId: string) => {
+    try {
+      setActiveSenderNumberId(newPhoneId);
+      await fetch("/api/auth/meta/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform: "whatsapp", phoneNumberId: newPhoneId }),
+      });
+
+      // Update backend config phone number ID
+      setConfig((prev) => ({
+        ...prev,
+        phoneNumberId: newPhoneId,
+      }));
+
+      // Update local metaStatus
+      setMetaStatus((prev) => {
+        const updatedNumbers = prev.whatsapp?.phoneNumbers?.map((p) => ({
+          ...p,
+          is_primary: p.id === newPhoneId,
+        }));
+        const selected = updatedNumbers?.find((p) => p.id === newPhoneId);
+        return {
+          ...prev,
+          whatsapp: {
+            ...prev.whatsapp,
+            phoneNumberId: newPhoneId,
+            phoneNumber: selected?.display_phone_number || prev.whatsapp.phoneNumber,
+            verifiedName: selected?.verified_name || prev.whatsapp.verifiedName,
+            phoneNumbers: updatedNumbers || prev.whatsapp.phoneNumbers,
+          },
+        };
+      });
+
+      // Deselect active conversation if it was bound to a different number
+      if (activeConv) {
+        const convPhoneId = (activeConv as any).flowState?.phoneNumberId;
+        if (convPhoneId && convPhoneId !== newPhoneId) {
+          setActiveConv(null);
+          setMessages([]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to switch active WhatsApp number:", err);
+    }
+  };
+
   const fetchConversations = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
@@ -1249,41 +1350,209 @@ export default function Dashboard() {
         
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
-          const currentPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
+          const isInstagramTab = activeTab === "chats_instagram";
+
+          // If WhatsApp tab and WhatsApp is disconnected/logged out, render dedicated Logged-out state
+          if (!isInstagramTab && !metaStatus.whatsapp.connected && (!config.phoneNumberId || !config.accessToken)) {
+            return (
+              <div className="flex h-full w-full items-center justify-center p-6 bg-slate-950/80">
+                <div className="max-w-md w-full p-8 rounded-3xl bg-slate-900/95 border border-slate-800 text-center space-y-5 shadow-2xl backdrop-blur-xl animate-fadeIn">
+                  <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto shadow-inner">
+                    <WhatsApp className="w-8 h-8 fill-current" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="text-xl font-extrabold text-white tracking-tight">WhatsApp is Disconnected</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Your WhatsApp Business account is currently disconnected. Connect via Meta Embedded Signup or enter credentials in Settings to start receiving and sending messages.
+                    </p>
+                  </div>
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <Link
+                      href="/settings?tab=settings&subtab=whatsapp"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold text-xs transition-all shadow-lg shadow-emerald-600/20 text-center"
+                    >
+                      Connect WhatsApp in Settings
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchMetaStatus();
+                        fetchConfig();
+                        fetchConversations();
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                    >
+                      Refresh Status
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // If Instagram tab and Instagram is disconnected/logged out, render dedicated Logged-out state
+          if (isInstagramTab && !metaStatus.instagram.connected && !igConfig.pageAccessToken) {
+            return (
+              <div className="flex h-full w-full items-center justify-center p-6 bg-slate-950/80">
+                <div className="max-w-md w-full p-8 rounded-3xl bg-slate-900/95 border border-slate-800 text-center space-y-5 shadow-2xl backdrop-blur-xl animate-fadeIn">
+                  <div className="w-16 h-16 rounded-3xl bg-pink-500/10 text-pink-400 border border-pink-500/20 flex items-center justify-center mx-auto shadow-inner">
+                    <Instagram className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="text-xl font-extrabold text-white tracking-tight">Instagram is Disconnected</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Your Instagram Business account is currently disconnected. Connect your Instagram account in Settings to view direct messages and comments.
+                    </p>
+                  </div>
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <Link
+                      href="/settings?tab=settings&subtab=instagram"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-extrabold text-xs transition-all shadow-lg shadow-pink-500/20 text-center"
+                    >
+                      Connect Instagram in Settings
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchMetaStatus();
+                        fetchInstagramConfig();
+                        fetchConversations();
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                    >
+                      Refresh Status
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Available real phone numbers under WABA
+          const availableNumbers = metaStatus.whatsapp.phoneNumbers && metaStatus.whatsapp.phoneNumbers.length > 0
+            ? metaStatus.whatsapp.phoneNumbers
+            : (metaStatus.whatsapp.phoneNumberId || config.phoneNumberId
+                ? [{
+                    id: metaStatus.whatsapp.phoneNumberId || config.phoneNumberId,
+                    display_phone_number: metaStatus.whatsapp.phoneNumber || config.phoneNumberId,
+                    verified_name: metaStatus.whatsapp.verifiedName || "WhatsApp Business Number",
+                    quality_rating: (metaStatus.whatsapp as any).qualityRating || "UNKNOWN",
+                    code_verification_status: (metaStatus.whatsapp as any).codeVerificationStatus || "UNKNOWN",
+                    is_primary: true,
+                  }]
+                : []);
+
+          const currentActiveSenderId = activeSenderNumberId || metaStatus.whatsapp.phoneNumberId || config.phoneNumberId || availableNumbers[0]?.id || "";
+          const currentActiveNumberObj = availableNumbers.find(p => p.id === currentActiveSenderId) || availableNumbers[0] || {
+            id: currentActiveSenderId,
+            display_phone_number: metaStatus.whatsapp.phoneNumber || currentActiveSenderId || "WhatsApp Number",
+            verified_name: metaStatus.whatsapp.verifiedName || "WhatsApp Business",
+          };
+
+          // Filter conversations specifically to the chosen primary sender number
           const filteredConversations = conversations
-            .filter(c => (c.platform || "whatsapp") === currentPlatform)
+            .filter(c => {
+              if (isInstagramTab) {
+                return (c.platform || "whatsapp") === "instagram";
+              }
+              if ((c.platform || "whatsapp") !== "whatsapp") return false;
+
+              // If conversation has explicit phoneNumberId stored in flowState, match it
+              const convPhoneId = (c as any).flowState?.phoneNumberId || (c as any).phoneNumberId;
+              if (convPhoneId && currentActiveSenderId) {
+                return convPhoneId === currentActiveSenderId;
+              }
+
+              return true;
+            })
             .sort((a, b) => {
               const timeA = a.messages?.[0]?.createdAt ? new Date(a.messages[0].createdAt).getTime() : new Date(a.updatedAt).getTime();
               const timeB = b.messages?.[0]?.createdAt ? new Date(b.messages[0].createdAt).getTime() : new Date(b.updatedAt).getTime();
               return timeB - timeA;
             });
-          const isInstagramTab = activeTab === "chats_instagram";
 
           return (
             <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar ΓÇö full screen on mobile when no chat open, fixed width on desktop */}
+              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
               <div className={`${
                 mobileChatOpen ? "hidden" : "flex"
               } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                  <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
-                    {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
-                      {filteredConversations.length} active
-                    </span>
-                  </h2>
+                <div className="p-4 border-b border-slate-800 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
+                      {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                        {filteredConversations.length} active
+                      </span>
+                    </h2>
+                  </div>
+
+                  {/* WhatsApp Active Primary Number Switcher */}
+                  {!isInstagramTab && (
+                    availableNumbers.length > 0 ? (
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-1.5 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Primary Sender Filter
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 font-medium">
+                            ID: {currentActiveSenderId}
+                          </span>
+                        </div>
+
+                        {availableNumbers.length === 1 ? (
+                          <div className="bg-slate-950 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold flex items-center justify-between">
+                            <span className="truncate">{availableNumbers[0].display_phone_number}</span>
+                            <span className="text-[10px] text-emerald-400 font-bold ml-1 shrink-0">★ Active Primary</span>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <select
+                              value={currentActiveSenderId}
+                              onChange={(e) => handleSwitchActiveSenderNumber(e.target.value)}
+                              className="w-full bg-slate-950 border border-emerald-500/30 hover:border-emerald-500/60 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer appearance-none pr-7 transition-all"
+                            >
+                              {availableNumbers.map((num) => (
+                                <option key={num.id} value={num.id} className="bg-slate-900 text-slate-200">
+                                  {num.display_phone_number} — {num.verified_name || "WhatsApp Business"} {num.id === currentActiveSenderId ? "★ (Active)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 px-0.5">
+                          <span className="truncate">{currentActiveNumberObj.verified_name || "Connected WABA"}</span>
+                          <span className="text-emerald-400 font-medium shrink-0">Filtered by this ID</span>
+                        </div>
+                      </div>
+                    ) : null
+                  )}
                 </div>
                 
                 {/* Conversation items list */}
                 <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
                   {filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-3">
                       {isInstagramTab ? (
                         <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
                       ) : (
                         <WhatsApp className="h-8 w-8 text-emerald-400/60" />
                       )}
-                      <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-300">
+                          No chats for {isInstagramTab ? "Instagram" : currentActiveNumberObj.display_phone_number}
+                        </p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          Only conversations sent to or received by Phone ID <span className="font-mono text-emerald-400">{currentActiveSenderId}</span> are shown here.
+                        </p>
+                      </div>
                     </div>
                   ) : (
                     filteredConversations.map((conv) => {
@@ -2232,6 +2501,22 @@ export default function Dashboard() {
               <div className="md:col-span-2 space-y-6">
                 {settingsSubTab === "whatsapp" ? (
                   <>
+                    {/* Meta Embedded Signup v4 (WhatsApp) */}
+                    <div className="mb-6">
+                      <ConnectWhatsAppButton
+                        onSuccess={(data) => {
+                          if (data.phoneNumberId || data.wabaId || data.accessToken) {
+                            setConfig((prev) => ({
+                              ...prev,
+                              phoneNumberId: data.phoneNumberId || prev.phoneNumberId,
+                              wabaId: data.wabaId || prev.wabaId,
+                              accessToken: data.accessToken || prev.accessToken,
+                            }));
+                          }
+                        }}
+                      />
+                    </div>
+
                     {/* WhatsApp Credentials Form */}
                     <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
                       <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
@@ -2319,6 +2604,11 @@ export default function Dashboard() {
                   </>
                 ) : settingsSubTab === "instagram" ? (
                   <>
+                    {/* Meta Business Login for Instagram */}
+                    <div className="mb-6">
+                      <ConnectInstagramButton />
+                    </div>
+
                     {/* Instagram Credentials Form */}
                     <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
                       <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">

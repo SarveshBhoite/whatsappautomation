@@ -463,14 +463,34 @@ export const handleWebhook = async (req: Request, res: Response) => {
               customerPhone,
               customerName: contactName,
               isBotPaused: false,
+              flowState: {
+                phoneNumberId,
+                displayPhoneNumber: metadata?.display_phone_number,
+              },
             },
           });
-        } else if (conversation.customerName !== contactName && contactName !== "WhatsApp User") {
-          // Keep customer name updated with WhatsApp Profile Name
-          conversation = await prisma.conversation.update({
-            where: { id: conversation.id },
-            data: { customerName: contactName },
-          });
+        } else {
+          const existingFlowState = (conversation.flowState as Record<string, any>) || {};
+          const updateData: any = {};
+
+          if (conversation.customerName !== contactName && contactName !== "WhatsApp User") {
+            updateData.customerName = contactName;
+          }
+
+          if (phoneNumberId && existingFlowState.phoneNumberId !== phoneNumberId) {
+            updateData.flowState = {
+              ...existingFlowState,
+              phoneNumberId,
+              displayPhoneNumber: metadata?.display_phone_number || existingFlowState.displayPhoneNumber,
+            };
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            conversation = await prisma.conversation.update({
+              where: { id: conversation.id },
+              data: updateData,
+            });
+          }
         }
 
         // Resolve quotedMessageId from Database if the message is a reply

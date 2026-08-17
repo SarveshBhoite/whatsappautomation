@@ -518,11 +518,10 @@ router.post("/posts/create", async (req, res) => {
     // ── Scheduled post: save to DB for background publisher ──────────────────
     const isScheduled = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
     if (isScheduled) {
-      const post = await prisma.googlePost.create({
+      const post = await (prisma.googlePost as any).create({
         data: {
           organizationId: orgId,
           gmbPostId: null,
-          title: title || "",
           summary,
           mediaUrl: mediaUrl || null,
           callToActionType: callToActionType || "NONE",
@@ -575,7 +574,6 @@ router.post("/posts/create", async (req, res) => {
       data: {
         organizationId: orgId,
         gmbPostId: gmbPostId,
-        title: title || "",
         summary: summary,
         mediaUrl: mediaUrl || null,
         callToActionType: callToActionType || "NONE",

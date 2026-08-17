@@ -16,9 +16,15 @@ const getOrgId = (req: Request): string => {
 router.get("/conversations", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const { phoneNumberId, platform } = req.query;
 
-    const conversations = await prisma.conversation.findMany({
-      where: { organizationId },
+    const whereClause: any = { organizationId };
+    if (platform && typeof platform === "string") {
+      whereClause.platform = platform;
+    }
+
+    let conversations = await prisma.conversation.findMany({
+      where: whereClause,
       include: {
         messages: {
           orderBy: { createdAt: "desc" },
@@ -27,6 +33,17 @@ router.get("/conversations", async (req: Request, res: Response) => {
       },
       orderBy: { updatedAt: "desc" },
     });
+
+    if (phoneNumberId && typeof phoneNumberId === "string") {
+      conversations = conversations.filter((c) => {
+        if (c.platform !== "whatsapp") return true;
+        const fs = (c.flowState as Record<string, any>) || {};
+        if (fs.phoneNumberId) {
+          return fs.phoneNumberId === phoneNumberId;
+        }
+        return true;
+      });
+    }
 
     return res.status(200).json(conversations);
   } catch (error: any) {
@@ -388,7 +405,7 @@ router.post("/flows/generate", async (req: Request, res: Response) => {
   }
 });
 
-// GET: Fetch WhatsApp Config credentials
+// GET: Fetch WhatsApp Config credentials & live phone numbers from Meta
 router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
@@ -398,7 +415,6 @@ router.get("/config", async (req: Request, res: Response) => {
     });
 
     if (!config) {
-      // Create empty config if not existing
       config = await prisma.whatsAppConfig.create({
         data: {
           organizationId,
@@ -409,10 +425,167 @@ router.get("/config", async (req: Request, res: Response) => {
       });
     }
 
+    // If WABA ID and Access Token are available, fetch real phone numbers from Meta Graph API
+    if (config.wabaId && config.accessToken) {
+      try {
+        const graphVersion = process.env.META_GRAPH_VERSION || "v20.0";
+        let livePhones: any[] = [];
+        let fetchedBusinessName = config.businessName || "";
+
+        // 1. Query dedicated /phone_numbers endpoint
+        const listRes = await fetch(
+          `https://graph.facebook.com/${graphVersion}/${config.wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type&access_token=${config.accessToken}`
+        );
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          if (listData.data && Array.isArray(listData.data)) {
+            livePhones.push(...listData.data);
+          }
+        }
+
+        // 2. Query WABA node for name and embedded numbers
+        const wabaRes = await fetch(
+          `https://graph.facebook.com/${graphVersion}/${config.wabaId}?fields=id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}&access_token=${config.accessToken}`
+        );
+        if (wabaRes.ok) {
+          const wabaData = await wabaRes.json();
+          if (wabaData.name) fetchedBusinessName = wabaData.name;
+          if (wabaData.phone_numbers?.data && Array.isArray(wabaData.phone_numbers.data)) {
+            livePhones.push(...wabaData.phone_numbers.data);
+          }
+        }
+
+        // 3. Query specific phone node if configured and not yet in live list
+        if (livePhones.length === 0 && config.phoneNumberId) {
+          try {
+            const phoneRes = await fetch(
+              `https://graph.facebook.com/${graphVersion}/${config.phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type&access_token=${config.accessToken}`
+            );
+            if (phoneRes.ok) {
+              const phoneData = await phoneRes.json();
+              if (phoneData.id) {
+                livePhones.push(phoneData);
+              }
+            }
+          } catch (phoneErr) {
+            console.warn("Direct phone fetch warning:", phoneErr);
+          }
+        }
+
+        // Deduplicate numbers by ID
+        const phoneMap = new Map();
+        livePhones.forEach((p: any) => {
+          if (p.id && !phoneMap.has(p.id)) {
+            phoneMap.set(p.id, {
+              id: p.id,
+              display_phone_number: p.display_phone_number || p.id,
+              verified_name: p.verified_name || fetchedBusinessName,
+              quality_rating: p.quality_rating || "UNKNOWN",
+              code_verification_status: p.code_verification_status || "UNKNOWN",
+              platform_type: p.platform_type || "CLOUD_API",
+              is_primary: config?.phoneNumberId ? p.id === config.phoneNumberId : false,
+            });
+          }
+        });
+
+        const deduplicatedList = Array.from(phoneMap.values());
+
+        if (deduplicatedList.length > 0) {
+          // If no active primary, mark first as primary
+          if (!deduplicatedList.some((p: any) => p.is_primary)) {
+            deduplicatedList[0].is_primary = true;
+          }
+
+          config = await prisma.whatsAppConfig.update({
+            where: { organizationId },
+            data: {
+              ...(config.phoneNumberId ? {} : { phoneNumberId: deduplicatedList[0].id }),
+            },
+          });
+        }
+      } catch (graphErr) {
+        console.warn("Could not fetch live WhatsApp numbers from Meta:", graphErr);
+      }
+    }
+
     return res.status(200).json(config);
   } catch (error: any) {
     console.error("Error fetching config:", error);
     return res.status(500).json({ error: "Failed to fetch config", details: error.message });
+  }
+});
+
+// GET: Dedicated endpoint to fetch all phone numbers under a WABA
+router.get("/whatsapp/phone-numbers", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { wabaId, accessToken, phoneNumberId } = req.query;
+
+    let targetWabaId = (wabaId as string) || "";
+    let targetToken = (accessToken as string) || "";
+    let targetPhoneId = (phoneNumberId as string) || "";
+
+    if (!targetWabaId || !targetToken) {
+      const config = await prisma.whatsAppConfig.findUnique({ where: { organizationId } });
+      if (config) {
+        targetWabaId = targetWabaId || config.wabaId;
+        targetToken = targetToken || config.accessToken;
+        targetPhoneId = targetPhoneId || config.phoneNumberId;
+      }
+    }
+
+    if (!targetWabaId || !targetToken) {
+      return res.status(400).json({ error: "Missing required parameters: wabaId and accessToken" });
+    }
+
+    const graphVersion = process.env.META_GRAPH_VERSION || "v20.0";
+    let rawPhones: any[] = [];
+
+    const phoneListRes = await fetch(
+      `https://graph.facebook.com/${graphVersion}/${targetWabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type&access_token=${targetToken}`
+    );
+
+    if (phoneListRes.ok) {
+      const data = await phoneListRes.json();
+      if (data.data && Array.isArray(data.data)) {
+        rawPhones.push(...data.data);
+      }
+    }
+
+    // Fallback to phone node if list was empty and phone number ID provided
+    if (rawPhones.length === 0 && targetPhoneId) {
+      try {
+        const singleRes = await fetch(
+          `https://graph.facebook.com/${graphVersion}/${targetPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type&access_token=${targetToken}`
+        );
+        if (singleRes.ok) {
+          const singleData = await singleRes.json();
+          if (singleData.id) {
+            rawPhones.push(singleData);
+          }
+        }
+      } catch (err) {
+        console.warn("Direct phone node fetch error:", err);
+      }
+    }
+
+    const phoneNumbers = rawPhones.map((p: any) => ({
+      id: p.id,
+      display_phone_number: p.display_phone_number || p.id,
+      verified_name: p.verified_name,
+      quality_rating: p.quality_rating,
+      code_verification_status: p.code_verification_status,
+      platform_type: p.platform_type || "CLOUD_API",
+    }));
+
+    return res.status(200).json({
+      success: true,
+      wabaId: targetWabaId,
+      phoneNumbers,
+    });
+  } catch (error: any) {
+    console.error("Error fetching WABA phone numbers:", error);
+    return res.status(500).json({ error: "Failed to fetch phone numbers", details: error.message });
   }
 });
 
@@ -425,9 +598,9 @@ router.post("/config", async (req: Request, res: Response) => {
     const config = await prisma.whatsAppConfig.upsert({
       where: { organizationId },
       update: {
-        phoneNumberId,
-        wabaId,
-        accessToken,
+        ...(phoneNumberId !== undefined ? { phoneNumberId } : {}),
+        ...(wabaId !== undefined ? { wabaId } : {}),
+        ...(accessToken !== undefined ? { accessToken } : {}),
       },
       create: {
         organizationId,
@@ -449,65 +622,104 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
 
-    let config = await prisma.instagramConfig.findUnique({
+    const config = await prisma.instagramConfig.findUnique({
       where: { organizationId },
     });
 
-    const REAL_PAGE_TOKEN = "EAIJktYxgU04BSOfT3jG94ZCiHYt8trzFEW0yKmhaCp1xlRZBup9O27QNmWILSp8WHC4fkMfQMPfBaFWqBFV3EeDP3ekz8udJVku5nPWe4ixZAzlNXD3TVUrED3mp8hl51h2zzRIlg7GyV8d4dmZCz3AiAL08qdHR99x0EvuXzqTZCxeFuvbZAufpdEAqZCQbC9D79rLG5TZBZBTM9T39PaHjO14s0yPmQtlrHipsXxmACY7jTYDBRoSlRv7phocgZD";
-    const REAL_ACCOUNT_ID = "17841479044967079";
-    const REAL_PAGE_ID = "1062234726963242";
+    let liveProfile: {
+      id?: string;
+      username?: string;
+      name?: string;
+      profile_picture_url?: string;
+      account_type?: string;
+      followers_count?: number;
+      follows_count?: number;
+      media_count?: number;
+      biography?: string;
+      website?: string;
+    } | null = null;
 
-    // Update ALL Instagram configs in database with active Page Access Token
-    await prisma.instagramConfig.updateMany({
-      data: {
-        pageId: REAL_PAGE_ID,
-        instagramAccountId: REAL_ACCOUNT_ID,
-        pageAccessToken: REAL_PAGE_TOKEN,
-      }
-    });
-
-    config = await prisma.instagramConfig.upsert({
-      where: { organizationId },
-      update: {
-        pageId: REAL_PAGE_ID,
-        instagramAccountId: REAL_ACCOUNT_ID,
-        pageAccessToken: REAL_PAGE_TOKEN,
-      },
-      create: {
-        organizationId,
-        pageId: REAL_PAGE_ID,
-        instagramAccountId: REAL_ACCOUNT_ID,
-        pageAccessToken: REAL_PAGE_TOKEN,
-      },
-    });
-
-    let liveProfile: { followers_count?: number; media_count?: number; username?: string; name?: string } | null = null;
-
-    // If Meta Access Token and IG Account ID are available, fetch live profile stats from Meta Graph API
-    if (config.pageAccessToken && config.instagramAccountId) {
+    // If Meta Access Token and IG Account ID are available in database, fetch real live profile stats from Meta Graph API
+    if (config && config.pageAccessToken && config.instagramAccountId) {
       try {
+        // Attempt 1: Fetch via graph.facebook.com/v20.0/{instagramAccountId}
         const metaRes = await fetch(
-          `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=business_discovery.username(jisnu_digitalsolution_pvt_ltd){followers_count,media_count,username,name}&access_token=${config.pageAccessToken}`
+          `https://graph.facebook.com/v20.0/${config.instagramAccountId}?fields=id,username,name,profile_picture_url,account_type,biography,website,followers_count,follows_count,media_count&access_token=${config.pageAccessToken}`
         );
         if (metaRes.ok) {
           const metaData = await metaRes.json();
-          if (metaData.business_discovery) {
-            liveProfile = metaData.business_discovery;
+          if (metaData && (metaData.username || metaData.id)) {
+            liveProfile = {
+              id: metaData.id || config.instagramAccountId,
+              username: metaData.username,
+              name: metaData.name,
+              profile_picture_url: metaData.profile_picture_url,
+              account_type: metaData.account_type || "Professional Account (Business)",
+              followers_count: metaData.followers_count,
+              follows_count: metaData.follows_count,
+              media_count: metaData.media_count,
+              biography: metaData.biography,
+              website: metaData.website,
+            };
+          }
+        } else {
+          // Attempt 2: Fallback to graph.instagram.com/me
+          const igMeRes = await fetch(
+            `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url,account_type,followers_count,media_count&access_token=${config.pageAccessToken}`
+          );
+          if (igMeRes.ok) {
+            const igMeData = await igMeRes.json();
+            if (igMeData && (igMeData.username || igMeData.id)) {
+              liveProfile = {
+                id: igMeData.id || config.instagramAccountId,
+                username: igMeData.username,
+                name: igMeData.name,
+                profile_picture_url: igMeData.profile_picture_url,
+                account_type: igMeData.account_type || "Professional Account (Business)",
+                followers_count: igMeData.followers_count,
+                media_count: igMeData.media_count,
+              };
+            }
           }
         }
+
+        // If fresh live data was fetched, persist it into the database
+        if (liveProfile && (liveProfile.username || liveProfile.profile_picture_url)) {
+          await prisma.instagramConfig.update({
+            where: { organizationId },
+            data: {
+              ...(liveProfile.username ? { username: liveProfile.username } : {}),
+              ...(liveProfile.name ? { name: liveProfile.name } : {}),
+              ...(liveProfile.profile_picture_url ? { profilePictureUrl: liveProfile.profile_picture_url } : {}),
+              ...(liveProfile.account_type ? { accountType: liveProfile.account_type } : {}),
+              ...(liveProfile.followers_count !== undefined ? { followersCount: liveProfile.followers_count } : {}),
+              ...(liveProfile.media_count !== undefined ? { mediaCount: liveProfile.media_count } : {}),
+            },
+          });
+        }
       } catch (e) {
-        console.warn("Could not fetch live Graph API stats:", e);
+        console.warn("Could not fetch live Graph API profile stats:", e);
       }
     }
 
+    const resolvedProfilePic = liveProfile?.profile_picture_url || config?.profilePictureUrl || undefined;
+    const resolvedUsername = liveProfile?.username || config?.username || undefined;
+    const resolvedName = liveProfile?.name || config?.name || undefined;
+    const resolvedAccountType = liveProfile?.account_type || config?.accountType || "Professional Account (Business)";
+    const resolvedFollowers = liveProfile?.followers_count ?? config?.followersCount ?? undefined;
+    const resolvedMedia = liveProfile?.media_count ?? config?.mediaCount ?? undefined;
+
     return res.status(200).json({
       config,
-      liveProfile: liveProfile || {
-        followers_count: 569,
-        media_count: 100,
-        username: "jisnu_digitalsolution_pvt_ltd",
-        name: "Jisnu Digital Solution Pvt Ltd"
-      }
+      liveProfile: liveProfile || (config ? {
+        id: config.instagramAccountId,
+        username: resolvedUsername,
+        name: resolvedName,
+        profile_picture_url: resolvedProfilePic,
+        account_type: resolvedAccountType,
+        followers_count: resolvedFollowers,
+        media_count: resolvedMedia,
+      } : null)
     });
   } catch (error: any) {
     console.error("Error fetching Instagram config:", error);
@@ -515,25 +727,59 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
   }
 });
 
-// POST: Update Instagram Config credentials
+// POST: Update Instagram Config credentials & profile metadata
 router.post("/instagram/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { instagramAccountId, pageId, pageAccessToken } = req.body;
+    const {
+      instagramAccountId,
+      pageId,
+      pageAccessToken,
+      username,
+      name,
+      profilePictureUrl,
+      profile_picture_url,
+      accountType,
+      account_type,
+      followersCount,
+      followers_count,
+      mediaCount,
+      media_count
+    } = req.body;
+
+    const picUrl = profilePictureUrl || profile_picture_url || undefined;
+    const accType = accountType || account_type || undefined;
+    const followers = followersCount !== undefined ? Number(followersCount) : followers_count !== undefined ? Number(followers_count) : undefined;
+    const media = mediaCount !== undefined ? Number(mediaCount) : media_count !== undefined ? Number(media_count) : undefined;
+
+    const updateData: any = {};
+    if (instagramAccountId !== undefined) updateData.instagramAccountId = instagramAccountId;
+    if (pageId !== undefined) updateData.pageId = pageId;
+    if (pageAccessToken !== undefined) updateData.pageAccessToken = pageAccessToken;
+    if (username !== undefined) updateData.username = username;
+    if (name !== undefined) updateData.name = name;
+    if (picUrl !== undefined) updateData.profilePictureUrl = picUrl;
+    if (accType !== undefined) updateData.accountType = accType;
+    if (followers !== undefined) updateData.followersCount = followers;
+    if (media !== undefined) updateData.mediaCount = media;
+
+    const createData: any = {
+      organizationId,
+      instagramAccountId: instagramAccountId || "",
+      pageId: pageId || "",
+      pageAccessToken: pageAccessToken || "",
+      username: username || "jisnu_digitalsolution_pvt_ltd",
+      name: name || "JISNU Digital Solutions Pvt.Ltd",
+      profilePictureUrl: picUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80",
+      accountType: accType || "Professional Account (Business)",
+      followersCount: followers ?? 569,
+      mediaCount: media ?? 100,
+    };
 
     const config = await prisma.instagramConfig.upsert({
       where: { organizationId },
-      update: {
-        instagramAccountId,
-        pageId,
-        pageAccessToken,
-      },
-      create: {
-        organizationId,
-        instagramAccountId: instagramAccountId || "",
-        pageId: pageId || "",
-        pageAccessToken: pageAccessToken || "",
-      },
+      update: updateData,
+      create: createData,
     });
 
     return res.status(200).json({ message: "Instagram configuration updated successfully", data: config });

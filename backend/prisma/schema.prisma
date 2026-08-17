@@ -56,6 +56,8 @@ model WhatsAppConfig {
   phoneNumberId      String
   wabaId             String
   accessToken        String
+  businessName       String?
+  phoneNumbers       Json?
   webhookVerifyToken String       @default(uuid())
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
@@ -68,6 +70,12 @@ model InstagramConfig {
   pageId             String
   instagramAccountId String
   pageAccessToken    String
+  username           String?
+  name               String?
+  profilePictureUrl  String?
+  accountType        String?
+  followersCount     Int?
+  mediaCount         Int?
   webhookVerifyToken String       @default(uuid())
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
