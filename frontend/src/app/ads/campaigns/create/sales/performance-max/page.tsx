@@ -18,6 +18,7 @@ export default function SalesPerformanceMaxPage() {
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
 
   // Step 1: Bidding State
+  const [isBiddingOpen, setIsBiddingOpen] = useState(false);
   const [biddingFocus, setBiddingFocus] = useState<"Maximize conversions" | "Target CPA" | "Maximize conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Maximize conversions");
   const [setTargetCpa, setSetTargetCpa] = useState<boolean>(false);
   const [targetCpaValue, setTargetCpaValue] = useState<string>("166.11");
@@ -30,6 +31,9 @@ export default function SalesPerformanceMaxPage() {
   const [adjustLapsedCustomers, setAdjustLapsedCustomers] = useState<boolean>(false);
 
   // Step 2: Campaign Settings State
+  const [isLocationsOpen, setIsLocationsOpen] = useState(false);
+  const [isLanguagesOpen, setIsLanguagesOpen] = useState(false);
+  const [isEUPoliticalAdsOpen, setIsEUPoliticalAdsOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
@@ -230,6 +234,12 @@ export default function SalesPerformanceMaxPage() {
   const [turnOnGenderExclusions, setTurnOnGenderExclusions] = useState<boolean>(false);
 
   // Step 3: Asset Group State
+  const [isAssetGroupInfoOpen, setIsAssetGroupInfoOpen] = useState(false);
+  const [isBrandGuidelinesMainOpen, setIsBrandGuidelinesMainOpen] = useState(false);
+  const [isAssetsSectionOpen, setIsAssetsSectionOpen] = useState(false);
+  const [isMoreOptionsCardOpen, setIsMoreOptionsCardOpen] = useState(false);
+  const [isAssetOptimizationCardOpen, setIsAssetOptimizationCardOpen] = useState(false);
+  const [isSignalsOpen, setIsSignalsOpen] = useState(false);
   const [assetGroupName, setAssetGroupName] = useState<string>("Asset Group 1");
   const [finalUrl, setFinalUrl] = useState<string>("");
   const [businessName, setBusinessName] = useState<string>("");
@@ -640,9 +650,19 @@ export default function SalesPerformanceMaxPage() {
               <h1 className="text-2xl font-semibold text-white tracking-tight">Bidding</h1>
 
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Bidding</h2>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsBiddingOpen(!isBiddingOpen)}
+                >
+                  <h2 className="text-sm font-semibold text-white">Bidding</h2>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isBiddingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
                 
-                <div className="space-y-3">
+                {isBiddingOpen && (
+                  <>
+                <div className="space-y-3 pt-2">
                   <label className="block text-slate-300 font-semibold">What do you want to focus on?</label>
                   <select
                     value={biddingFocus}
@@ -836,6 +856,8 @@ export default function SalesPerformanceMaxPage() {
                     <p className="text-slate-400 pt-1">By default, your campaign does not adjust bidding to re-engage lapsed customers. However, you can configure your customer acquisition settings to optimize for winning back lapsed customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a></p>
                   </div>
                 </div>
+                </>
+                )}
               </div>
             </div>
           )}
@@ -848,8 +870,19 @@ export default function SalesPerformanceMaxPage() {
 
               {/* Locations */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-slate-100">Locations</h2>
-                <p className="text-slate-400">Select locations for this campaign</p>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsLocationsOpen(!isLocationsOpen)}
+                >
+                  <h2 className="text-sm font-semibold text-white">Locations</h2>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isLocationsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
+                
+                {isLocationsOpen && (
+                  <div className="space-y-4 pt-2">
+                    <p className="text-slate-400">Select locations for this campaign</p>
                 <div className="space-y-2">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input type="radio" name="salesPmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
@@ -906,12 +939,25 @@ export default function SalesPerformanceMaxPage() {
                     </div>
                   )}
                 </div>
+                  </div>
+                )}
               </div>
 
               {/* Languages */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-slate-100">Languages</h2>
-                <p className="text-slate-400">Select the languages your customers speak.</p>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsLanguagesOpen(!isLanguagesOpen)}
+                >
+                  <h2 className="text-sm font-semibold text-white">Languages</h2>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isLanguagesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
+                
+                {isLanguagesOpen && (
+                  <div className="space-y-4 pt-2">
+                    <p className="text-slate-400">Select the languages your customers speak.</p>
 
                 <div className="relative max-w-md">
                   <input
@@ -959,15 +1005,28 @@ export default function SalesPerformanceMaxPage() {
                     </span>
                   ))}
                 </div>
+                  </div>
+                )}
               </div>
 
               {/* EU political ads */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-slate-100">EU political ads</h2>
-                  <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsEUPoliticalAdsOpen(!isEUPoliticalAdsOpen)}
+                >
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-white">EU political ads</h2>
+                    <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
+                  </div>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isEUPoliticalAdsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                 </div>
-                <p className="text-slate-300">Does your campaign have European Union political ads?</p>
+                
+                {isEUPoliticalAdsOpen && (
+                  <div className="space-y-3 pt-2">
+                    <p className="text-slate-300">Does your campaign have European Union political ads?</p>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="radio" name="euPolSales" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
                   <span>Yes, this campaign has EU political ads</span>
@@ -977,15 +1036,26 @@ export default function SalesPerformanceMaxPage() {
                   <span>No, this campaign doesn't have EU political ads</span>
                 </label>
                 <p className="text-[11px] text-slate-500 pt-1">EU regulation requires Google to ask this question. Learn how an EU political ad is defined</p>
+                  </div>
+                )}
               </div>
 
                        {/* More settings Section */}
               <div className="mt-8 space-y-4">
-                <div className="flex items-center gap-2 px-1">
-                  <Settings className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-slate-200">More settings</span>
+                <div 
+                  className="flex items-center justify-between px-1 cursor-pointer group"
+                  onClick={() => setShowMoreCampaignSettings(!showMoreCampaignSettings)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-primary" />
+                    <span className="font-bold text-slate-200 group-hover:text-primary transition-colors">More settings</span>
+                  </div>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-colors">
+                    {showMoreCampaignSettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                 </div>
 
+                {showMoreCampaignSettings && (
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/40 divide-y divide-slate-800 overflow-hidden shadow-xl">
                   
                   {/* Ad Schedule Row */}
@@ -1445,6 +1515,7 @@ export default function SalesPerformanceMaxPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             </div>
           )}
@@ -1457,24 +1528,48 @@ export default function SalesPerformanceMaxPage() {
 
               {/* Asset Group Name & Final URL */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div>
-                  <label className="block font-semibold text-slate-300">Asset group name</label>
-                  <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-medium" />
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsAssetGroupInfoOpen(!isAssetGroupInfoOpen)}
+                >
+                  <h2 className="text-sm font-semibold text-white">Asset group name & Final URL</h2>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isAssetGroupInfoOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-300">Final URL</label>
-                  <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-mono" />
-                </div>
+                
+                {isAssetGroupInfoOpen && (
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <label className="block font-semibold text-slate-300">Asset group name</label>
+                      <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-medium" />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-300">Final URL</label>
+                      <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-mono" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Brand Guidelines */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="border-b border-slate-800 pb-3">
-                  <h3 className="text-sm font-semibold text-white">Brand guidelines</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about brand guidelines</a></p>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsBrandGuidelinesMainOpen(!isBrandGuidelinesMainOpen)}
+                >
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-semibold text-white">Brand guidelines</h3>
+                    <p className="text-[11px] text-slate-400">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about brand guidelines</a></p>
+                  </div>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isBrandGuidelinesMainOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                 </div>
 
-                {!showBrandGuidelinesDetails ? (
+                {isBrandGuidelinesMainOpen && (
+                  <div className="pt-2">
+                    {!showBrandGuidelinesDetails ? (
                   /* Basic Brand Guidelines View */
                   <div className="space-y-4">
                     <div className="space-y-1">
@@ -1782,14 +1877,27 @@ export default function SalesPerformanceMaxPage() {
                     </div>
                   </div>
                 )}
+                  </div>
+                )}
               </div>
 
               {/* Assets Section */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Assets</h2>
-                <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-300 text-[11px]">
-                  Google AI isn't able to generate assets for your final url. You can still add assets yourself. Let's start adding ad assets
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsAssetsSectionOpen(!isAssetsSectionOpen)}
+                >
+                  <h2 className="text-sm font-semibold text-white">Assets</h2>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isAssetsSectionOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                 </div>
+                
+                {isAssetsSectionOpen && (
+                  <div className="space-y-4 pt-2">
+                    <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-300 text-[11px]">
+                      Google AI isn't able to generate assets for your final url. You can still add assets yourself. Let's start adding ad assets
+                    </div>
 
                 <div className="flex items-center justify-between pt-2">
                   <span className="font-semibold text-slate-300">Ad strength</span>
@@ -2108,16 +2216,28 @@ export default function SalesPerformanceMaxPage() {
                     )}
                   </div>
                 </div>
+                  </div>
+                )}
               </div>
 
               {/* More Options Card */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">More options</h2>
-                  <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-semibold">Optional</span>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsMoreOptionsCardOpen(!isMoreOptionsCardOpen)}
+                >
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-white">More options</h2>
+                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-semibold">Optional</span>
+                  </div>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isMoreOptionsCardOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                 </div>
                 
-                {/* Display path */}
+                {isMoreOptionsCardOpen && (
+                  <div className="space-y-4 pt-2">
+                    {/* Display path */}
                 <div className="space-y-2">
                   <h3 className="font-semibold text-slate-200 text-xs">Display path</h3>
                   <p className="text-[11px] text-slate-400">Add paths to your display URL to show people where your ad will take them.</p>
@@ -2321,17 +2441,30 @@ export default function SalesPerformanceMaxPage() {
                     </div>
                   )}
                 </div>
+                  </div>
+                )}
               </div>
 
               {/* Asset optimization Card */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Asset optimization</h2>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
-                  To show more relevant ads, Google AI can enhance or generate assets using the information you’ve provided. This can help improve performance by increasing asset variety and improving matches to customer intents.{" "}
-                  <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about asset optimization</a>
-                </p>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsAssetOptimizationCardOpen(!isAssetOptimizationCardOpen)}
+                >
+                  <h2 className="text-sm font-semibold text-white">Asset optimization</h2>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isAssetOptimizationCardOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
+                
+                {isAssetOptimizationCardOpen && (
+                  <div className="space-y-4 pt-2">
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      To show more relevant ads, Google AI can enhance or generate assets using the information you’ve provided. This can help improve performance by increasing asset variety and improving matches to customer intents.{" "}
+                      <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about asset optimization</a>
+                    </p>
 
-                {/* Text section */}
+                    {/* Text section */}
                 <div className="space-y-3 pt-2">
                   <h3 className="font-bold text-white border-b border-slate-800/40 pb-1 uppercase tracking-wider text-[10px] text-slate-400">Text</h3>
                   
@@ -2469,12 +2602,25 @@ export default function SalesPerformanceMaxPage() {
                   Ads using image or video assets optimized by these features will be labeled as created or edited with AI when shown in the European Union (EU), India, and New York state, in the US. Text assets on matters of public interest will also be labeled when shown in the EU.{" "}
                   <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about AI labeling requirements</a>
                 </p>
+                  </div>
+                )}
               </div>
 
               {/* Signals Card */}
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Signals</h2>
-                <p className="text-slate-400 text-xs">Signals provide valuable information about the people you want to reach.</p>
+                <div 
+                  className="flex justify-between items-center cursor-pointer border-b border-slate-800 pb-2"
+                  onClick={() => setIsSignalsOpen(!isSignalsOpen)}
+                >
+                  <h2 className="text-sm font-semibold text-white">Signals</h2>
+                  <button className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800">
+                    {isSignalsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
+                
+                {isSignalsOpen && (
+                  <div className="space-y-4 pt-2">
+                    <p className="text-slate-400 text-xs">Signals provide valuable information about the people you want to reach.</p>
                 
                 <div className="space-y-4 pt-2">
                   <div className="space-y-2">
@@ -2525,6 +2671,8 @@ export default function SalesPerformanceMaxPage() {
                     )}
                   </div>
                 </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

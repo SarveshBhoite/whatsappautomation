@@ -34,7 +34,7 @@ export default function LeadsPerformanceMaxPage() {
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
-  
+
   // Language Selection State with API simulation
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
@@ -64,6 +64,7 @@ export default function LeadsPerformanceMaxPage() {
   }, [languageSearchInput, selectedLanguages]);
 
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
+  const [openCampaignSettings, setOpenCampaignSettings] = useState<boolean>(false);
   const [showMoreCampaignSettings, setShowMoreCampaignSettings] = useState<boolean>(false);
   const [activeEditSetting, setActiveEditSetting] = useState<string | null>(null);
 
@@ -366,7 +367,7 @@ export default function LeadsPerformanceMaxPage() {
   const [lfLeadScoringQuestion, setLfLeadScoringQuestion] = useState<string>("");
   const [lfPrivacyPolicyUrl, setLfPrivacyPolicyUrl] = useState<string>("");
   const [lfBackgroundImage, setLfBackgroundImage] = useState<string>("");
-  
+
   // Submission Message
   const [lfSubHeadline, setLfSubHeadline] = useState<string>("Thank you.");
   const [lfSubDescription, setLfSubDescription] = useState<string>("We'll contact you soon.");
@@ -515,7 +516,7 @@ export default function LeadsPerformanceMaxPage() {
 
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
-        
+
         {/* Left Sidebar Navigation */}
         <aside className="w-72 border-r border-slate-800 p-4 space-y-4 shrink-0 bg-slate-950/80 hidden md:flex flex-col justify-between overflow-y-auto">
           <div className="space-y-4">
@@ -529,11 +530,10 @@ export default function LeadsPerformanceMaxPage() {
               <div className="space-y-1">
                 <div
                   onClick={() => setWizardStep("BIDDING")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
-                    wizardStep === "BIDDING"
+                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "BIDDING"
                       ? "bg-primary/10 text-primary border border-primary/30 font-bold"
                       : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-                  }`}
+                    }`}
                 >
                   <span>1. Bidding</span>
                 </div>
@@ -550,33 +550,39 @@ export default function LeadsPerformanceMaxPage() {
               <div className="space-y-1">
                 <div
                   onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
-                    wizardStep === "CAMPAIGN_SETTINGS"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-                  }`}
+                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "CAMPAIGN_SETTINGS" ? "bg-primary/10 text-primary border border-primary/30 font-bold" : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"}`}
                 >
                   <span>2. Campaign settings</span>
                 </div>
                 {wizardStep === "CAMPAIGN_SETTINGS" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
-                    <p className="hover:text-slate-200">Locations</p>
-                    <p className="hover:text-slate-200">Languages</p>
-                    <p className="hover:text-slate-200">EU political ads</p>
-                    <div className="pt-1">
-                      <p className="text-slate-300 font-semibold">more settings</p>
-                      <div className="ml-2 space-y-0.5 text-[10px] text-slate-400">
-                        <p>Ad Schedule</p>
-                        <p>Start and end dates</p>
-                        <p>Campaign URL options</p>
-                        <p>Page Feeds</p>
-                        <p>Devices</p>
-                        <p>Brand exclusions</p>
-                        <p>Demographic exclusions</p>
-                        <p>Audience exclusions</p>
-                      </div>
+                  <>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30 cursor-pointer" onClick={() => setOpenCampaignSettings(!openCampaignSettings)}>
+                      <span className="font-medium text-slate-200">Campaign settings</span>
+                      {openCampaignSettings ? <ChevronUp className="h-4 w-4 text-slate-200" /> : <ChevronDown className="h-4 w-4 text-slate-200" />}
                     </div>
-                  </div>
+                    {openCampaignSettings && (
+                      <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                        <p className="hover:text-slate-200 cursor-pointer">Locations</p>
+                        <p className="hover:text-slate-200 cursor-pointer">Languages</p>
+                        <p className="hover:text-slate-200 cursor-pointer">EU political ads</p>
+                        <button onClick={() => setShowMoreCampaignSettings(!showMoreCampaignSettings)} className="mt-1 text-xs text-primary underline">
+                          more settings
+                        </button>
+                        {showMoreCampaignSettings && (
+                          <div className="ml-2 space-y-0.5 text-[10px] text-slate-400">
+                            <p>Ad Schedule</p>
+                            <p>Start and end dates</p>
+                            <p>Campaign URL options</p>
+                            <p>Page Feeds</p>
+                            <p>Devices</p>
+                            <p>Brand exclusions</p>
+                            <p>Demographic exclusions</p>
+                            <p>Audience exclusions</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -584,11 +590,10 @@ export default function LeadsPerformanceMaxPage() {
               <div className="space-y-1">
                 <div
                   onClick={() => setWizardStep("ASSET_GROUP")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
-                    wizardStep === "ASSET_GROUP"
+                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${wizardStep === "ASSET_GROUP"
                       ? "bg-primary/10 text-primary border border-primary/30 font-bold"
                       : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-                  }`}
+                    }`}
                 >
                   <span>3. Asset group</span>
                 </div>
@@ -607,11 +612,10 @@ export default function LeadsPerformanceMaxPage() {
               {/* 4. Budget */}
               <div
                 onClick={() => setWizardStep("BUDGET")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
-                  wizardStep === "BUDGET"
+                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${wizardStep === "BUDGET"
                     ? "bg-primary/10 text-primary border border-primary/30 font-bold"
                     : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-                }`}
+                  }`}
               >
                 <span>4. Budget</span>
               </div>
@@ -619,11 +623,10 @@ export default function LeadsPerformanceMaxPage() {
               {/* 5. Summary */}
               <div
                 onClick={() => setWizardStep("SUMMARY")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
-                  wizardStep === "SUMMARY"
+                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${wizardStep === "SUMMARY"
                     ? "bg-primary/10 text-primary border border-primary/30 font-bold"
                     : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-                }`}
+                  }`}
               >
                 <span>5. Summary</span>
               </div>
@@ -633,7 +636,7 @@ export default function LeadsPerformanceMaxPage() {
 
         {/* Main Content Area */}
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-6 max-w-4xl mx-auto">
-          
+
           {/* STEP 1: BIDDING */}
           {wizardStep === "BIDDING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
@@ -641,7 +644,7 @@ export default function LeadsPerformanceMaxPage() {
 
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
                 <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Bidding</h2>
-                
+
                 <div className="space-y-3">
                   <label className="block text-slate-300 font-semibold">What do you want to focus on?</label>
                   <select
@@ -713,7 +716,7 @@ export default function LeadsPerformanceMaxPage() {
                         />
                         <span className="text-xs text-slate-300 font-medium">Set a maximum cost per click bid limit</span>
                       </label>
-                      
+
                       {limitMaxCpc && (
                         <div className="space-y-1 ml-6 animate-in slide-in-from-left-2 duration-150">
                           <label className="block text-[11px] text-slate-400">Maximum CPC bid limit</label>
@@ -729,7 +732,7 @@ export default function LeadsPerformanceMaxPage() {
                           </div>
                         </div>
                       )}
-                      
+
                       <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
                         Alternative bid strategies like portfolios are available in settings after you create your campaign
                       </p>
@@ -979,7 +982,7 @@ export default function LeadsPerformanceMaxPage() {
                 <p className="text-[11px] text-slate-500 pt-1">EU regulation requires Google to ask this question. Learn how an EU political ad is defined</p>
               </div>
 
-                       {/* More settings Section */}
+              {/* More settings Section */}
               <div className="mt-8 space-y-4">
                 <div className="flex items-center gap-2 px-1">
                   <Settings className="h-4 w-4 text-primary" />
@@ -987,7 +990,7 @@ export default function LeadsPerformanceMaxPage() {
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/40 divide-y divide-slate-800 overflow-hidden shadow-xl">
-                  
+
                   {/* Ad Schedule Row */}
                   {activeEditSetting === "SCHEDULE" ? (
                     <div className="p-6 bg-slate-900/90 space-y-4 animate-in fade-in duration-150 text-xs">
@@ -1333,28 +1336,26 @@ export default function LeadsPerformanceMaxPage() {
                         <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-800 hover:bg-slate-750 text-primary font-bold rounded-lg">Save</button>
                       </div>
                       <p className="text-[11px] text-slate-400">Exclude your data segments from this campaign.</p>
-                      
+
                       <div className="border border-slate-800 bg-slate-955 rounded-2xl p-4 space-y-3">
                         <div className="flex border-b border-slate-800">
                           <button
                             type="button"
                             onClick={() => setDataExclusionsTab("SEARCH")}
-                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${
-                              dataExclusionsTab === "SEARCH"
+                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${dataExclusionsTab === "SEARCH"
                                 ? "border-primary text-primary font-bold"
                                 : "border-transparent text-slate-400 hover:text-slate-200"
-                            }`}
+                              }`}
                           >
                             Search
                           </button>
                           <button
                             type="button"
                             onClick={() => setDataExclusionsTab("BROWSE")}
-                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${
-                              dataExclusionsTab === "BROWSE"
+                            className={`px-4 py-2 text-xs font-semibold border-b-2 cursor-pointer transition-all ${dataExclusionsTab === "BROWSE"
                                 ? "border-primary text-primary font-bold"
                                 : "border-transparent text-slate-400 hover:text-slate-200"
-                            }`}
+                              }`}
                           >
                             Browse
                           </button>
@@ -1557,7 +1558,7 @@ export default function LeadsPerformanceMaxPage() {
                     {/* Brand Identity */}
                     <div className="space-y-3">
                       <h4 className="font-semibold text-slate-300 text-xs">Brand identity</h4>
-                      
+
                       <div className="space-y-1">
                         <div className="flex items-center gap-1">
                           <label className="block text-slate-300 font-semibold">Business name</label>
@@ -1749,8 +1750,8 @@ export default function LeadsPerformanceMaxPage() {
                                   idx === 0
                                     ? "Example: Don't mention competitor names, such as Acme Corp or Plants 4 You"
                                     : idx === 1
-                                    ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
-                                    : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
+                                      ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
+                                      : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
                                 }
                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
                               />
@@ -1798,7 +1799,7 @@ export default function LeadsPerformanceMaxPage() {
 
                 {/* Asset Input Rows */}
                 <div className="space-y-4 pt-3 border-t border-slate-800">
-                  
+
                   {/* 1) Calls Section at Top */}
                   <div className="space-y-3 p-3.5 rounded-xl border border-slate-800 bg-slate-950">
                     <div className="flex items-center justify-between">
@@ -2116,7 +2117,7 @@ export default function LeadsPerformanceMaxPage() {
                   <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">More options</h2>
                   <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-semibold">Optional</span>
                 </div>
-                
+
                 {/* Display path */}
                 <div className="space-y-2">
                   <h3 className="font-semibold text-slate-200 text-xs">Display path</h3>
@@ -2171,7 +2172,7 @@ export default function LeadsPerformanceMaxPage() {
                 {/* Asset group URL options */}
                 <div className="space-y-3 border-t border-slate-800/60 pt-3">
                   <h3 className="font-semibold text-slate-200 text-xs">Asset group URL options</h3>
-                  
+
                   <div className="space-y-1">
                     <label className="text-[11px] text-slate-400 block font-medium">Tracking template</label>
                     <input
@@ -2261,11 +2262,11 @@ export default function LeadsPerformanceMaxPage() {
                         Use URL rules to show your ads based on specific pages or groups of pages on your website. Turning final URL expansion on is the best way to drive performance for your campaign, so only use URL rules when necessary.{" "}
                         <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>Learn more about URL rules</a>
                       </p>
-                      
+
                       <div className="space-y-2 pt-1">
                         <span className="font-semibold text-slate-300 block text-xs">Create URL rules</span>
                         <p className="text-[11px] text-slate-500 font-medium">Specify pages with URLs that contain a certain piece of text</p>
-                        
+
                         <div className="flex gap-2 max-w-md">
                           <input
                             type="text"
@@ -2334,7 +2335,7 @@ export default function LeadsPerformanceMaxPage() {
                 {/* Text section */}
                 <div className="space-y-3 pt-2">
                   <h3 className="font-bold text-white border-b border-slate-800/40 pb-1 uppercase tracking-wider text-[10px] text-slate-400">Text</h3>
-                  
+
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -2350,7 +2351,7 @@ export default function LeadsPerformanceMaxPage() {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start gap-3 border-t border-slate-800/60 pt-2.5 ml-6">
                     <input
                       type="checkbox"
@@ -2377,7 +2378,7 @@ export default function LeadsPerformanceMaxPage() {
                 {/* Image section */}
                 <div className="space-y-3 border-t border-slate-800/60 pt-3">
                   <h3 className="font-bold text-white border-b border-slate-800/40 pb-1 uppercase tracking-wider text-[10px] text-slate-400">Image</h3>
-                  
+
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -2434,7 +2435,7 @@ export default function LeadsPerformanceMaxPage() {
                 {/* Video section */}
                 <div className="space-y-3 border-t border-slate-800/60 pt-3">
                   <h3 className="font-bold text-white border-b border-slate-800/40 pb-1 uppercase tracking-wider text-[10px] text-slate-400">Video</h3>
-                  
+
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -2475,7 +2476,7 @@ export default function LeadsPerformanceMaxPage() {
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
                 <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Signals</h2>
                 <p className="text-slate-400 text-xs">Signals provide valuable information about the people you want to reach.</p>
-                
+
                 <div className="space-y-4 pt-2">
                   <div className="space-y-2">
                     <h3 className="font-semibold text-slate-300">Search themes</h3>
@@ -2542,7 +2543,7 @@ export default function LeadsPerformanceMaxPage() {
                 {/* Select Budget Type */}
                 <div className="space-y-3 pt-2">
                   <label className="block font-semibold text-slate-300">Select budget type</label>
-                  
+
                   <div className="space-y-3">
                     {/* Daily Budget Option */}
                     <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${budgetType === "DAILY" ? "bg-primary/10 border-primary" : "bg-slate-950 border-slate-800 hover:border-slate-700"}`}>
@@ -2972,7 +2973,7 @@ export default function LeadsPerformanceMaxPage() {
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}}
+                          onChange={() => { }}
                           className="rounded text-primary h-4 w-4 pointer-events-none"
                         />
                       </div>
@@ -3996,11 +3997,10 @@ export default function LeadsPerformanceMaxPage() {
                       key={p.key}
                       type="button"
                       onClick={() => setMsgPlatform(p.key as any)}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                        msgPlatform === p.key
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${msgPlatform === p.key
                           ? "border-primary bg-primary/10 text-primary font-bold shadow-md shadow-primary/10"
                           : "border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                      }`}
+                        }`}
                     >
                       <span className="text-base">{p.icon}</span>
                       <span className="text-xs">{p.label}</span>
@@ -4230,7 +4230,7 @@ export default function LeadsPerformanceMaxPage() {
               {/* Create your lead form */}
               <div className="space-y-3">
                 <h4 className="font-bold text-slate-200 border-b border-slate-800/60 pb-1 text-xs">Create your lead form</h4>
-                
+
                 <div className="space-y-1">
                   <label className="block text-slate-300 font-semibold">Headline</label>
                   <input
@@ -4601,7 +4601,7 @@ export default function LeadsPerformanceMaxPage() {
               {/* Form Submission Message */}
               <div className="space-y-3 pt-3 border-t border-slate-800">
                 <h4 className="font-bold text-slate-200 text-xs">Create form submission message</h4>
-                
+
                 <div className="space-y-1">
                   <label className="block text-slate-300 font-semibold">Headline</label>
                   <input
@@ -4813,7 +4813,7 @@ export default function LeadsPerformanceMaxPage() {
               </div>
               <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
-            
+
             <div className="space-y-4">
               {/* Callout Text Input Section */}
               <div className="space-y-2">
@@ -4992,11 +4992,11 @@ export default function LeadsPerformanceMaxPage() {
                   if (newCalloutInput.trim()) {
                     finalCallouts.push(newCalloutInput.trim());
                   }
-                  
+
                   if (finalCallouts.length > 0) {
                     setSavedCallouts(prev => [...prev, ...finalCallouts]);
                   }
-                  
+
                   // Reset temporary modal states
                   setModalCalloutTexts([]);
                   setNewCalloutInput("");
@@ -5020,7 +5020,7 @@ export default function LeadsPerformanceMaxPage() {
       {activeModal === "AUDIENCE_SIGNAL" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
@@ -5204,7 +5204,7 @@ export default function LeadsPerformanceMaxPage() {
             {subModal === "GA4_LINK_1" && (
               <div className="space-y-4 animate-in slide-in-from-right-3 duration-200">
                 <span className="font-semibold text-slate-300 block text-xs">Select Google Analytics properties</span>
-                
+
                 <div className="space-y-2">
                   <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-950 cursor-pointer transition-all">
                     <input
@@ -5244,7 +5244,7 @@ export default function LeadsPerformanceMaxPage() {
             {subModal === "GA4_LINK_2" && (
               <div className="space-y-4 animate-in slide-in-from-right-3 duration-200">
                 <span className="font-semibold text-slate-300 block text-xs">Configure settings and submit</span>
-                
+
                 <div className="p-4 bg-slate-950/50 rounded-xl border border-slate-800 space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-orange-500/20 border border-orange-500/30 flex items-center justify-center font-bold text-orange-400">GA4</div>
@@ -5257,7 +5257,7 @@ export default function LeadsPerformanceMaxPage() {
 
                 <div className="space-y-3">
                   <span className="font-semibold text-slate-300 block text-xs uppercase tracking-wider">Data sharing settings</span>
-                  
+
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -5331,13 +5331,13 @@ export default function LeadsPerformanceMaxPage() {
             {/* Sub-Modal: AVAILABLE SEGMENT TYPES */}
             {subModal === "NEW_SEGMENT" && (
               <div className="space-y-4 animate-in slide-in-from-right-3 duration-200">
-                
+
                 <div className="space-y-3">
                   <div className="flex items-center gap-1">
                     <span className="font-semibold text-slate-200 text-xs">Available segment types</span>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-400" />
                   </div>
-                  
+
                   {/* Interactive Top 2 Segments */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <button
@@ -5372,7 +5372,7 @@ export default function LeadsPerformanceMaxPage() {
                   <span className="text-[11px] text-slate-400">
                     Create other segment types in <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Audience manager</a>
                   </span>
-                  
+
                   {/* Display-Only Bottom 4 Segments */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="p-4 text-left bg-slate-950/20 border border-slate-850 rounded-xl space-y-2 select-none">
@@ -5424,7 +5424,7 @@ export default function LeadsPerformanceMaxPage() {
             {/* Main Modal Content: AUDIENCE SIGNAL BUILDER */}
             {subModal === null && (
               <div className="space-y-4 animate-in fade-in duration-200">
-                
+
                 {/* Your data segment selector */}
                 <div className="space-y-3">
                   <div>
@@ -5529,7 +5529,7 @@ export default function LeadsPerformanceMaxPage() {
                     <span className="font-bold text-slate-200 block text-xs">Demographics</span>
                     <p className="text-[11px] text-slate-400">People with the following demographics</p>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4 bg-slate-950/20 p-4 rounded-xl border border-slate-800/60">
                     {/* Gender */}
                     <div className="space-y-1.5">
