@@ -62,6 +62,7 @@ interface CapturedLead {
   email?: string | null;
   topicDiscussed?: string | null;
   notes?: string | null;
+  remark?: string | null;
   status: "NEW" | "CONTACTED" | "CLOSED";
   createdAt: string;
 }
@@ -342,6 +343,10 @@ export default function AiAgentStudioPage() {
     }
   };
 
+  // Remarks state for editing
+  const [editingRemarks, setEditingRemarks] = useState<Record<string, string>>({});
+  const [savingRemarkId, setSavingRemarkId] = useState<string | null>(null);
+
   const updateLeadStatus = async (id: string, status: "NEW" | "CONTACTED" | "CLOSED") => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/leads/${id}`, {
@@ -354,6 +359,25 @@ export default function AiAgentStudioPage() {
       }
     } catch (err) {
       console.error("Failed to update lead status:", err);
+    }
+  };
+
+  const updateLeadRemark = async (id: string) => {
+    const remarkText = editingRemarks[id];
+    setSavingRemarkId(id);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ai-agent/leads/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remark: remarkText })
+      });
+      if (res.ok) {
+        fetchLeads();
+      }
+    } catch (err) {
+      console.error("Failed to save lead remark:", err);
+    } finally {
+      setSavingRemarkId(null);
     }
   };
 
@@ -948,6 +972,7 @@ export default function AiAgentStudioPage() {
                         <th className="p-3.5">Phone / Contact</th>
                         <th className="p-3.5">Topic Discussed</th>
                         <th className="p-3.5">Captured Notes</th>
+                        <th className="p-3.5">Sales Team Remarks</th>
                         <th className="p-3.5">Status</th>
                         <th className="p-3.5">Date</th>
                       </tr>
@@ -962,6 +987,28 @@ export default function AiAgentStudioPage() {
                           </td>
                           <td className="p-3.5 text-slate-300">{lead.topicDiscussed || "General Inquiry"}</td>
                           <td className="p-3.5 text-slate-400 max-w-xs truncate">{lead.notes || "AI captured contact"}</td>
+                          <td className="p-3.5 min-w-[240px]">
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={editingRemarks[lead.id] !== undefined ? editingRemarks[lead.id] : (lead.remark || "")}
+                                onChange={(e) => setEditingRemarks({ ...editingRemarks, [lead.id]: e.target.value })}
+                                onKeyDown={(e) => e.key === "Enter" && updateLeadRemark(lead.id)}
+                                placeholder="Add sales remark for context..."
+                                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary"
+                              />
+                              {(editingRemarks[lead.id] !== undefined && editingRemarks[lead.id] !== (lead.remark || "")) && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateLeadRemark(lead.id)}
+                                  disabled={savingRemarkId === lead.id}
+                                  className="px-2.5 py-1.5 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 rounded-lg text-[11px] font-bold shrink-0 transition-all flex items-center gap-1"
+                                >
+                                  {savingRemarkId === lead.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Save"}
+                                </button>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-3.5">
                             <select
                               value={lead.status}

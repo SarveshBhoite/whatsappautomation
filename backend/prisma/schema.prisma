@@ -667,6 +667,7 @@ model AiCapturedLead {
   email          String?
   topicDiscussed String?
   notes          String?
+  remark         String?
   status         String       @default("NEW")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

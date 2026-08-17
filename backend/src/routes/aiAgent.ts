@@ -326,18 +326,20 @@ router.get("/leads", async (req: Request, res: Response) => {
   }
 });
 
-// PATCH: Update lead status ("NEW" | "CONTACTED" | "CLOSED")
+// PATCH: Update lead status ("NEW" | "CONTACTED" | "CLOSED"), notes, and remarks
 router.patch("/leads/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { status, notes } = req.body;
+    const { status, notes, remark } = req.body;
 
-    const lead = await prisma.aiCapturedLead.update({
+    const updateData: any = {};
+    if (status !== undefined) updateData.status = status;
+    if (notes !== undefined) updateData.notes = notes;
+    if (remark !== undefined) updateData.remark = remark;
+
+    const lead = await (prisma.aiCapturedLead as any).update({
       where: { id },
-      data: {
-        status: status || undefined,
-        notes: notes !== undefined ? notes : undefined,
-      },
+      data: updateData,
     });
 
     return res.status(200).json({ success: true, lead });
