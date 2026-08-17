@@ -104,7 +104,7 @@ export default function AppPromotionWizard() {
   const customerId = searchParams.get("customerId") || "1234567890";
 
   // Active step (1 to 6)
-  const [step, setStep] = useState<number>(1);
+  const [step, setStep] = useState<number>(3);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Unified State Object (Single source of truth)
@@ -388,12 +388,10 @@ export default function AppPromotionWizard() {
             {/* Timeline Stepper */}
             <nav className="space-y-2 relative before:absolute before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-800">
               {[
-                { num: 1, title: "Objective", desc: "Select campaign goal" },
-                { num: 2, title: "Campaign Setup", desc: `Type, name & ${formData.platform} app` },
-                { num: 3, title: "Campaign Settings", desc: "Locations, languages & EU" },
-                { num: 4, title: "Ad Group & Assets", desc: "Headlines, copy & previews" },
-                { num: 5, title: "Bidding & Budget", desc: "Target CPA & daily budget" },
-                { num: 6, title: "Review & Publish", desc: "Audit and launch" }
+                { num: 3, displayNum: 1, title: "Campaign Settings", desc: "Locations, languages & EU" },
+                { num: 4, displayNum: 2, title: "Ad Group & Assets", desc: "Headlines, copy & previews" },
+                { num: 5, displayNum: 3, title: "Bidding & Budget", desc: "Target CPA & daily budget" },
+                { num: 6, displayNum: 4, title: "Review & Publish", desc: "Audit and launch" }
               ].map((s) => {
                 const isCompleted = step > s.num;
                 const isActive = step === s.num;
@@ -420,7 +418,7 @@ export default function AppPromotionWizard() {
                           : "bg-slate-800 text-slate-400 border border-slate-700"
                       }`}
                     >
-                      {isCompleted ? <Check className="h-4 w-4 stroke-[3]" /> : s.num}
+                      {isCompleted ? <Check className="h-4 w-4 stroke-[3]" /> : s.displayNum}
                     </div>
                     <div className="space-y-0.5 min-w-0">
                       <div className="flex items-center gap-1.5 text-xs font-semibold leading-tight">
@@ -1630,7 +1628,7 @@ export default function AppPromotionWizard() {
       <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-6 flex items-center justify-between z-40 shadow-2xl">
         <button
           onClick={() => {
-            if (step === 1) {
+            if (step === 3) {
               router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
             } else {
               setStep(step - 1);
@@ -1638,7 +1636,7 @@ export default function AppPromotionWizard() {
           }}
           className="px-5 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all"
         >
-          {step === 1 ? "Cancel" : "Back"}
+          {step === 3 ? "Cancel" : "Back"}
         </button>
 
         <div className="flex items-center gap-3">

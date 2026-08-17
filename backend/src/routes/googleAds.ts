@@ -465,7 +465,7 @@ router.post("/campaigns/create-app-promotion", async (req, res) => {
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     // Also store Ad Group & Ad locally
@@ -579,7 +579,7 @@ router.post("/campaigns/create-youtube-campaign", async (req, res) => {
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -699,7 +699,7 @@ router.post("/campaigns/create-local-pmax-campaign", async (req, res) => {
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -821,7 +821,7 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -945,7 +945,7 @@ router.post("/campaigns/create-noguidance-search-campaign", async (req, res) => 
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -1065,7 +1065,7 @@ router.post("/campaigns/create-noguidance-demandgen-campaign", async (req, res) 
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -1187,7 +1187,7 @@ router.post("/campaigns/create-noguidance-display-campaign", async (req, res) =>
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -1304,7 +1304,7 @@ router.post("/campaigns/create-noguidance-video-campaign", async (req, res) => {
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -1423,7 +1423,7 @@ router.post("/campaigns/create-noguidance-app-campaign", async (req, res) => {
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
@@ -1536,7 +1536,7 @@ router.post("/campaigns/create-noguidance-shopping-campaign", async (req, res) =
         costMicros: BigInt(0),
         impressions: BigInt(0),
         clicks: BigInt(0)
-      }
+      } as any
     });
 
     const adGroup = await prisma.googleAdGroup.create({
