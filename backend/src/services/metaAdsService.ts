@@ -1067,12 +1067,40 @@ export class MetaAdsService {
           }
 
           if (graphObjective === "OUTCOME_AWARENESS") {
-            let awGoal = (payload.optimizationGoal || "REACH").toUpperCase();
-            if (awGoal.includes("IMPRESSION")) awGoal = "IMPRESSIONS";
-            else if (awGoal.includes("RECALL")) awGoal = "AD_RECALL_LIFT";
-            else if (awGoal.includes("CLICK")) awGoal = "LINK_CLICKS";
-            else awGoal = "REACH";
+            let awGoal = (payload.optimizationGoal || (payload as any).performanceGoal || "REACH").toUpperCase();
+            if (awGoal.includes("IMPRESSION")) {
+              awGoal = "IMPRESSIONS";
+              adSetPayload.billing_event = "IMPRESSIONS";
+            } else if (awGoal.includes("RECALL")) {
+              awGoal = "AD_RECALL_LIFT";
+              adSetPayload.billing_event = "IMPRESSIONS";
+            } else if (awGoal.includes("THRUPLAY")) {
+              awGoal = "THRUPLAY";
+              adSetPayload.billing_event = "IMPRESSIONS";
+            } else if (awGoal.includes("2SEC") || awGoal.includes("CONTINUOUS") || awGoal.includes("TWO_SECOND")) {
+              awGoal = "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS";
+              adSetPayload.billing_event = "IMPRESSIONS";
+            } else if (awGoal.includes("CLICK")) {
+              awGoal = "LINK_CLICKS";
+              adSetPayload.billing_event = "LINK_CLICKS";
+            } else {
+              awGoal = "REACH";
+              adSetPayload.billing_event = "IMPRESSIONS";
+            }
             adSetPayload.optimization_goal = awGoal;
+
+            // Frequency Control Specs mapping
+            if ((payload as any).frequencyControl) {
+              const capCount = Number((payload as any).frequencyCapCount) || 2;
+              const capDays = Number((payload as any).frequencyCapDays) || 7;
+              adSetPayload.frequency_control_specs = [
+                {
+                  event: "IMPRESSIONS",
+                  interval_days: capDays,
+                  max_frequency: capCount,
+                }
+              ];
+            }
           } else if (graphObjective === "OUTCOME_APP_PROMOTION") {
             let appGoal = (payload.optimizationGoal || payload.performanceGoal || "APP_INSTALLS").toUpperCase();
             if (appGoal.includes("EVENT") || appGoal.includes("PURCHASE") || appGoal.includes("CONVERSION")) {

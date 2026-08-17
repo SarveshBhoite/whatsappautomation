@@ -433,6 +433,24 @@ router.post("/campaigns/leads", async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/meta-ads/campaigns/awareness
+ * Specialized endpoint to Create & Publish OUTCOME_AWARENESS campaign
+ */
+router.post("/campaigns/awareness", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const campaign = await MetaAdsService.createCampaign(orgId, {
+      ...req.body,
+      objective: "OUTCOME_AWARENESS",
+    });
+    res.json({ success: true, campaign });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating awareness campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/meta-ads/campaigns/app-promotion
  * Specialized endpoint to Create & Publish OUTCOME_APP_PROMOTION campaign
  */
