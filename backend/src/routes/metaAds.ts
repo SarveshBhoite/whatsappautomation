@@ -199,6 +199,57 @@ router.get("/whatsapp-numbers", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/lead-forms
+ * Fetch Lead Gen Instant Forms from connected Facebook Page
+ */
+router.get("/lead-forms", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const pageId = req.query.pageId as string | undefined;
+    const forms = await MetaAdsService.getLeadForms(orgId, pageId);
+    res.json({ success: true, forms });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching lead forms:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/lead-forms
+ * Create a new Instant Lead Form on Facebook Page
+ */
+router.post("/lead-forms", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const { pageId, ...formData } = req.body;
+    if (!pageId) {
+      return res.status(400).json({ success: false, error: "Facebook pageId is required to create a Lead Form." });
+    }
+    const result = await MetaAdsService.createLeadForm(orgId, pageId, formData);
+    res.json({ success: true, form: result });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating lead form:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/lead-forms/:id/leads
+ * Pull submitted leads from an Instant Form
+ */
+router.get("/lead-forms/:id/leads", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const formId = req.params.id as string;
+    const leads = await MetaAdsService.getFormLeads(orgId, formId);
+    res.json({ success: true, leads });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching form leads:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/meta-ads/search/targeting
  * Search live Meta Graph API targeting specs (interests, behaviors, job titles, demographics)
  */
@@ -337,11 +388,31 @@ router.post("/campaigns", async (req: Request, res: Response) => {
       utmParameters,
       objectStoreUrl: req.body.objectStoreUrl,
       appStore: req.body.appStore,
+      leadGenFormId: req.body.leadGenFormId || req.body.lead_gen_form_id,
+      customEventType: req.body.customEventType || "LEAD",
     });
 
     res.json({ success: true, campaign });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error creating campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/campaigns/leads
+ * Specialized endpoint to Create & Publish OUTCOME_LEADS campaign
+ */
+router.post("/campaigns/leads", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const campaign = await MetaAdsService.createCampaign(orgId, {
+      ...req.body,
+      objective: "OUTCOME_LEADS",
+    });
+    res.json({ success: true, campaign });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating leads campaign:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

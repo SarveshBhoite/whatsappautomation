@@ -118,6 +118,8 @@ export interface CreateMetaCampaignPayload {
   appStore?: string;
   chatGreeting?: string;
   pageId?: string;
+  leadGenFormId?: string;
+  lead_gen_form_id?: string;
 }
 
 export class MetaAdsService {
@@ -635,6 +637,107 @@ export class MetaAdsService {
   }
 
   /**
+   * Fetch Lead Gen Instant Forms from Facebook Page
+   * GET /{PAGE_ID}/leadgen_forms?fields=id,name,status,leads_count,created_time
+   */
+  static async getLeadForms(organizationId: string, pageId?: string) {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken) return [];
+
+    try {
+      let targetPageId = pageId || config.pageId;
+      if (!targetPageId) {
+        const pages = await this.getPages(organizationId);
+        if (pages.length > 0) targetPageId = pages[0].id;
+      }
+      if (!targetPageId) return [];
+
+      // Find specific Page Access Token if available
+      const pages = await this.getPages(organizationId);
+      const targetPage = pages.find((p: any) => p.id === targetPageId);
+      const accessToken = targetPage?.access_token || config.accessToken;
+
+      const resp = await axios.get(`${META_GRAPH_BASE}/${targetPageId}/leadgen_forms`, {
+        params: {
+          fields: "id,name,status,leads_count,created_time,privacy_policy,thank_you_page,questions",
+          access_token: accessToken,
+        },
+      });
+
+      return resp.data?.data || [];
+    } catch (err: any) {
+      console.warn(`[MetaAdsService] Failed to fetch leadgen forms:`, err.response?.data?.error?.message || err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Create a new Lead Gen Instant Form on Facebook Page
+   * POST /{PAGE_ID}/leadgen_forms
+   */
+  static async createLeadForm(organizationId: string, pageId: string, formData: any) {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken) throw new Error("Meta Ads access token not configured.");
+
+    const pages = await this.getPages(organizationId);
+    const targetPage = pages.find((p: any) => p.id === pageId) || pages[0];
+    const targetPageId = targetPage?.id || pageId;
+    const accessToken = targetPage?.access_token || config.accessToken;
+
+    const payload: any = {
+      name: formData.name || `Instant Lead Form - ${new Date().toLocaleDateString()}`,
+      questions: formData.questions || [
+        { type: "FULL_NAME" },
+        { type: "EMAIL" },
+        { type: "PHONE" }
+      ],
+      privacy_policy: {
+        url: formData.privacyPolicyUrl || "https://example.com/privacy",
+        link_text: formData.privacyPolicyText || "Privacy Policy"
+      },
+      thank_you_page: {
+        title: formData.thankYouTitle || "Thanks!",
+        body: formData.thankYouBody || "We will contact you soon.",
+        button_type: formData.thankYouButtonType || "VIEW_WEBSITE",
+        website_url: formData.thankYouWebsiteUrl || "https://example.com"
+      },
+      should_enforce_work_email: Boolean(formData.shouldEnforceWorkEmail),
+      block_display_for_non_targeted_viewer: Boolean(formData.blockNonTargeted),
+      access_token: accessToken,
+    };
+
+    try {
+      const resp = await axios.post(`${META_GRAPH_BASE}/${targetPageId}/leadgen_forms`, payload);
+      return resp.data;
+    } catch (err: any) {
+      const msg = err.response?.data?.error?.message || err.message;
+      throw new Error(`Failed to create Meta Instant Form: ${msg}`);
+    }
+  }
+
+  /**
+   * Pull Leads from a Lead Gen Instant Form
+   * GET /{LEAD_GEN_FORM_ID}/leads
+   */
+  static async getFormLeads(organizationId: string, formId: string) {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken) return [];
+
+    try {
+      const resp = await axios.get(`${META_GRAPH_BASE}/${formId}/leads`, {
+        params: {
+          fields: "id,created_time,field_data,ad_id,ad_name,adset_id,campaign_id",
+          access_token: config.accessToken,
+        },
+      });
+      return resp.data?.data || [];
+    } catch (err: any) {
+      console.warn(`[MetaAdsService] Failed to pull form leads for form ${formId}:`, err.response?.data?.error?.message || err.message);
+      return [];
+    }
+  }
+
+  /**
    * Search Meta Languages (Ad Locales) via Graph API (type=adlocale)
    */
   static async searchLanguages(organizationId: string, q: string) {
@@ -978,10 +1081,27 @@ export class MetaAdsService {
         if (metaAdSetId && activePageId) {
           let ctaType = (payload.callToAction || "LEARN_MORE").toUpperCase();
           if (ctaType.includes("WHATSAPP")) ctaType = "WHATSAPP_MESSAGE";
-          if (ctaType.includes("MESSAGE") && !ctaType.includes("WHATSAPP")) ctaType = "MESSAGE_PAGE";
-          if (ctaType.includes("SHOP")) ctaType = "SHOP_NOW";
+          else if (ctaType.includes("MESSAGE") && !ctaType.includes("WHATSAPP")) ctaType = "MESSAGE_PAGE";
+          else if (ctaType.includes("SHOP")) ctaType = "SHOP_NOW";
+          else if (ctaType.includes("SIGN_UP") || ctaType === "SIGNUP") ctaType = "SIGN_UP";
+          else if (ctaType.includes("APPLY")) ctaType = "APPLY_NOW";
+          else if (ctaType.includes("QUOTE")) ctaType = "GET_QUOTE";
+          else if (ctaType.includes("CONTACT")) ctaType = "CONTACT_US";
+          else if (ctaType.includes("CALL")) ctaType = "CALL_NOW";
 
-          const linkDestination = payload.websiteUrl || payload.creativeMediaUrl || "https://example.com";
+          const chosenLeadFormId = payload.leadGenFormId || payload.lead_gen_form_id;
+          const linkDestination = chosenLeadFormId 
+            ? "https://fb.me/" 
+            : (payload.websiteUrl || payload.creativeMediaUrl || "https://example.com");
+
+          const ctaValue: any = { link: linkDestination };
+          if (chosenLeadFormId) {
+            ctaValue.lead_gen_form_id = chosenLeadFormId;
+          }
+          if (ctaType === "WHATSAPP_MESSAGE") {
+            ctaValue.app_destination = "WHATSAPP";
+            ctaValue.link = "https://api.whatsapp.com/send";
+          }
 
           const creativePostPayload: any = {
             name: `${payload.adName || payload.name} Creative`,
@@ -995,7 +1115,7 @@ export class MetaAdsService {
                 picture: payload.creativeMediaUrl || undefined,
                 call_to_action: {
                   type: ctaType,
-                  value: { link: linkDestination }
+                  value: ctaValue,
                 },
               },
             },
