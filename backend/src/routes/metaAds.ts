@@ -1,8 +1,12 @@
 import { Router, Request, Response } from "express";
 import { MetaAdsService } from "../services/metaAdsService";
+import metaAdsSubRouter from "./meta-ads";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
+
+// Mount modular campaign routes (/campaigns/traffic, /campaigns/awareness, etc.)
+router.use(metaAdsSubRouter);
 
 /**
  * GET /api/meta-ads/config
@@ -29,7 +33,7 @@ router.get("/oauth/connect", async (req: Request, res: Response) => {
     const redirect = (req.query.redirect as string) || "/ads";
     const appId = process.env.META_APP_ID || "36702477879366478";
     const redirectUri = process.env.META_REDIRECT_URI || "https://crmapi.jisnudigital.com/api/meta/callback";
-    const scopes = "ads_management,ads_read,business_management,pages_read_engagement,pages_show_list";
+    const scopes = "ads_management,ads_read,business_management,pages_read_engagement,pages_show_list,instagram_basic,whatsapp_business_management";
     const statePayload = Buffer.from(JSON.stringify({ orgId, redirect })).toString("base64");
 
     const authUrl = `https://www.facebook.com/v26.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(statePayload)}`;
@@ -195,6 +199,122 @@ router.get("/whatsapp-numbers", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/meta-ads/applications
+ * Fetch registered Apps connected to Ad Account / Business
+ */
+router.get("/applications", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const applications = await MetaAdsService.getApplications(orgId);
+    res.json({ success: true, applications });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching applications:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/lead-forms
+ * Fetch Lead Gen Instant Forms from connected Facebook Page
+ */
+router.get("/lead-forms", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const pageId = req.query.pageId as string | undefined;
+    const forms = await MetaAdsService.getLeadForms(orgId, pageId);
+    res.json({ success: true, forms });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching lead forms:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/lead-forms
+ * Create a new Instant Lead Form on Facebook Page
+ */
+router.post("/lead-forms", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const { pageId, ...formData } = req.body;
+    if (!pageId) {
+      return res.status(400).json({ success: false, error: "Facebook pageId is required to create a Lead Form." });
+    }
+    const result = await MetaAdsService.createLeadForm(orgId, pageId, formData);
+    res.json({ success: true, form: result });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating lead form:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/lead-forms/:id/leads
+ * Pull submitted leads from an Instant Form
+ */
+router.get("/lead-forms/:id/leads", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const formId = req.params.id as string;
+    const leads = await MetaAdsService.getFormLeads(orgId, formId);
+    res.json({ success: true, leads });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching form leads:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/search/targeting
+ * Search live Meta Graph API targeting specs (interests, behaviors, job titles, demographics)
+ */
+router.get("/search/targeting", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const q = (req.query.q as string) || "";
+    const type = (req.query.type as string) || "adinterest";
+    const results = await MetaAdsService.searchTargeting(orgId, q, type);
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error searching targeting:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/search/locations
+ * Search live Meta Graph API geo locations (countries, regions, cities, zips)
+ */
+router.get("/search/locations", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const q = (req.query.q as string) || "";
+    const locationTypes = (req.query.locationTypes as string) || "country,region,city,zip";
+    const results = await MetaAdsService.searchLocations(orgId, q, locationTypes);
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error searching locations:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/search/languages
+ * Search live Meta Graph API languages / ad locales
+ */
+router.get("/search/languages", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const q = (req.query.q as string) || "";
+    const results = await MetaAdsService.searchLanguages(orgId, q);
+    res.json({ success: true, results });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error searching languages:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/meta-ads/campaigns
  * Get Meta campaigns
  */
@@ -283,11 +403,67 @@ router.post("/campaigns", async (req: Request, res: Response) => {
       utmParameters,
       objectStoreUrl: req.body.objectStoreUrl,
       appStore: req.body.appStore,
+      leadGenFormId: req.body.leadGenFormId || req.body.lead_gen_form_id,
+      customEventType: req.body.customEventType || "LEAD",
     });
 
     res.json({ success: true, campaign });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error creating campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/campaigns/leads
+ * Specialized endpoint to Create & Publish OUTCOME_LEADS campaign
+ */
+router.post("/campaigns/leads", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const campaign = await MetaAdsService.createCampaign(orgId, {
+      ...req.body,
+      objective: "OUTCOME_LEADS",
+    });
+    res.json({ success: true, campaign });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating leads campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/campaigns/awareness
+ * Specialized endpoint to Create & Publish OUTCOME_AWARENESS campaign
+ */
+router.post("/campaigns/awareness", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const campaign = await MetaAdsService.createCampaign(orgId, {
+      ...req.body,
+      objective: "OUTCOME_AWARENESS",
+    });
+    res.json({ success: true, campaign });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating awareness campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/campaigns/app-promotion
+ * Specialized endpoint to Create & Publish OUTCOME_APP_PROMOTION campaign
+ */
+router.post("/campaigns/app-promotion", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const campaign = await MetaAdsService.createCampaign(orgId, {
+      ...req.body,
+      objective: "OUTCOME_APP_PROMOTION",
+    });
+    res.json({ success: true, campaign });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error creating app promotion campaign:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -322,12 +498,8 @@ router.get("/campaigns/:id", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
     const campaignId = req.params.id as string;
-    const result = await MetaAdsService.getCampaignById(orgId, campaignId);
-    if (result && typeof result === "object" && "campaign" in result) {
-      res.json({ success: true, campaign: result.campaign, liveMeta: result.liveMeta });
-    } else {
-      res.json({ success: true, campaign: result });
-    }
+    const campaign = await MetaAdsService.getCampaignById(orgId, campaignId);
+    res.json({ success: true, campaign });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching campaign:", error.message);
     res.status(500).json({ success: false, error: error.message });

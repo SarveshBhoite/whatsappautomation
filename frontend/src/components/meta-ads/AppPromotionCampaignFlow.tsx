@@ -72,6 +72,118 @@ export default function AppPromotionCampaignFlow({
   const [primaryText, setPrimaryText] = useState("Boost your business messaging efficiency by 10x with automated replies and bulk broadcasts.");
   const [testimonialText, setTestimonialText] = useState("");
 
+  // Dynamic Meta Registered Applications from Graph API
+  const [registeredApps, setRegisteredApps] = useState<any[]>([]);
+  const [loadingApps, setLoadingApps] = useState(false);
+  const [objectStoreUrl, setObjectStoreUrl] = useState("https://play.google.com/store/apps/details?id=com.whatsapp");
+  const [customEventType, setCustomEventType] = useState("PURCHASE");
+  const [customEventStr, setCustomEventStr] = useState("");
+  const [callToAction, setCallToAction] = useState("INSTALL_MOBILE_APP");
+
+  // Dynamic Meta Graph API search states for Geo Locations, Targeting Specs & Languages
+  const [locQuery, setLocQuery] = useState("");
+  const [locResults, setLocResults] = useState<any[]>([]);
+  const [searchingLoc, setSearchingLoc] = useState(false);
+  const [showLocDropdown, setShowLocDropdown] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(["India"]);
+
+  const [targetingQuery, setTargetingQuery] = useState("");
+  const [targetingResults, setTargetingResults] = useState<any[]>([]);
+  const [searchingTargeting, setSearchingTargeting] = useState(false);
+  const [showTargetingDropdown, setShowTargetingDropdown] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState<any[]>([]);
+
+  const [langQuery, setLangQuery] = useState("");
+  const [langResults, setLangResults] = useState<any[]>([]);
+  const [searchingLang, setSearchingLang] = useState(false);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["ALL"]);
+
+  // Search Meta Geo Locations via Graph API
+  const handleSearchLocations = async (q: string) => {
+    setLocQuery(q);
+    if (!q.trim()) {
+      setLocResults([]);
+      setShowLocDropdown(false);
+      return;
+    }
+    setSearchingLoc(true);
+    setShowLocDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/locations?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setLocResults(data.results);
+    } catch (e) {
+      console.warn("Location search error:", e);
+    } finally {
+      setSearchingLoc(false);
+    }
+  };
+
+  // Search Meta Detailed Targeting via Graph API
+  const handleSearchTargeting = async (q: string) => {
+    setTargetingQuery(q);
+    if (!q.trim()) {
+      setTargetingResults([]);
+      setShowTargetingDropdown(false);
+      return;
+    }
+    setSearchingTargeting(true);
+    setShowTargetingDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/targeting?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setTargetingResults(data.results);
+    } catch (e) {
+      console.warn("Targeting search error:", e);
+    } finally {
+      setSearchingTargeting(false);
+    }
+  };
+
+  // Search Meta Languages via Graph API
+  const handleSearchLanguages = async (q: string) => {
+    setLangQuery(q);
+    if (!q.trim()) {
+      setLangResults([]);
+      setShowLangDropdown(false);
+      return;
+    }
+    setSearchingLang(true);
+    setShowLangDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/languages?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setLangResults(data.results);
+    } catch (e) {
+      console.warn("Language search error:", e);
+    } finally {
+      setSearchingLang(false);
+    }
+  };
+
+  // Fetch registered Meta Apps
+  const fetchApplications = async () => {
+    setLoadingApps(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/applications?organizationId=${orgId}`);
+      const data = await res.json();
+      if (data.applications) {
+        setRegisteredApps(data.applications);
+        if (data.applications.length > 0 && !selectedApp) {
+          setSelectedApp(data.applications[0].id);
+          if (data.applications[0].object_store_url) {
+            setObjectStoreUrl(data.applications[0].object_store_url);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Error fetching apps:", e);
+    } finally {
+      setLoadingApps(false);
+    }
+  };
+
   // Languages & Tracking
   const [appPromoLanguagesEnabled, setAppPromoLanguagesEnabled] = useState(false);
   const [additionalLanguages, setAdditionalLanguages] = useState<string[]>([]);
@@ -96,7 +208,7 @@ export default function AppPromotionCampaignFlow({
 
     setPublishing(true);
     try {
-      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns`, {
+      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns/app-promotion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -115,15 +227,29 @@ export default function AppPromotionCampaignFlow({
           bidStrategy,
           specialAdCategory,
           adSetName,
+          applicationId: selectedApp,
+          objectStoreUrl,
           appStore,
           appSearchQuery,
           performanceGoal,
+          customEventType: performanceGoal === "MAXIMIZE_APP_EVENTS" ? customEventType : undefined,
+          customEventStr: (performanceGoal === "MAXIMIZE_APP_EVENTS" && customEventType === "OTHER") ? customEventStr : undefined,
           attributionModel,
           appCountry,
           ageMin,
           ageMax,
           gender,
-          detailedTargeting,
+          targeting: {
+            locations: selectedLocations,
+            ageMin,
+            ageMax,
+            gender,
+            languages: selectedLanguages,
+            interests: selectedInterests.map(i => i.name),
+            detailedTargeting: detailedTargeting || selectedInterests.map(i => i.name).join(", "),
+            user_os: appStore === "APPLE_APP_STORE" ? ["iOS"] : ["Android"],
+            device_platforms: ["mobile"],
+          },
           costPerResult,
           securitiesDeclared,
           advantagePlacements,
@@ -134,6 +260,7 @@ export default function AppPromotionCampaignFlow({
           creativeHeadline: headline,
           creativeBody: primaryText,
           creativeMediaUrl: mediaUrl,
+          callToAction,
           aiMedia,
           testimonialText,
           appPromoLanguagesEnabled,
@@ -369,17 +496,49 @@ export default function AppPromotionCampaignFlow({
               </div>
 
               {/* 5. App Selection */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <h4 className="font-bold text-slate-200 text-xs">App</h4>
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-200 text-xs">Registered App (Application ID) *</h4>
+                  <button
+                    type="button"
+                    onClick={fetchApplications}
+                    className="text-[11px] text-pink-400 hover:text-pink-300 font-semibold flex items-center gap-1"
+                  >
+                    {loadingApps ? <Loader2 className="h-3 w-3 animate-spin" /> : "↻ Load Meta Apps"}
+                  </button>
+                </div>
+                
                 <select
                   value={selectedApp}
-                  onChange={(e) => setSelectedApp(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedApp(e.target.value);
+                    const matched = registeredApps.find(a => a.id === e.target.value);
+                    if (matched?.object_store_url) setObjectStoreUrl(matched.object_store_url);
+                  }}
                   className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                 >
-                  <option value="whatsapp_automation_app">📱 WhatsApp Automation Pro (org.jisnu.wa)</option>
-                  <option value="jisnu_crm_app">💼 JISNU CRM Mobile (org.jisnu.crm)</option>
-                  <option value="custom_app">+ Add new mobile app ID</option>
+                  {registeredApps.length > 0 ? (
+                    registeredApps.map((a: any) => (
+                      <option key={a.id} value={a.id}>📱 {a.name} ({a.id})</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="whatsapp_automation_app">📱 WhatsApp Automation Pro (org.jisnu.wa)</option>
+                      <option value="jisnu_crm_app">💼 JISNU CRM Mobile (org.jisnu.crm)</option>
+                    </>
+                  )}
                 </select>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Object Store URL (Play Store / App Store link) *</label>
+                  <input
+                    type="text"
+                    value={objectStoreUrl}
+                    onChange={(e) => setObjectStoreUrl(e.target.value)}
+                    placeholder="https://play.google.com/store/apps/details?id=com.example.app"
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+                  />
+                </div>
               </div>
 
               {/* 6. Budget (Advantage+ toggle & strategy) */}
@@ -563,7 +722,7 @@ export default function AppPromotionCampaignFlow({
 
               {/* 3. Performance goal & Attribution */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Performance goal &amp; Attribution</h4>
+                <h4 className="font-bold text-slate-200 text-xs">Performance goal &amp; In-App Events</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1">Performance goal</label>
@@ -572,9 +731,10 @@ export default function AppPromotionCampaignFlow({
                       onChange={(e: any) => setPerformanceGoal(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                     >
-                      <option value="MAXIMIZE_INSTALLS">Maximise number of app installs</option>
-                      <option value="MAXIMIZE_APP_EVENTS">Maximise number of in-app events</option>
-                      <option value="MAXIMIZE_VALUE">Maximise value of conversions</option>
+                      <option value="MAXIMIZE_INSTALLS">APP_INSTALLS — Maximise app installs</option>
+                      <option value="MAXIMIZE_APP_EVENTS">OFFSITE_CONVERSIONS — In-app events (Purchase, etc.)</option>
+                      <option value="MAXIMIZE_VALUE">VALUE — Maximise conversion value</option>
+                      <option value="LINK_CLICKS">LINK_CLICKS — Store traffic</option>
                     </select>
                   </div>
 
@@ -592,24 +752,114 @@ export default function AppPromotionCampaignFlow({
                     </select>
                   </div>
                 </div>
+
+                {performanceGoal === "MAXIMIZE_APP_EVENTS" && (
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-3 pt-2">
+                    <h5 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                      <Zap className="h-3.5 w-3.5 text-pink-400" /> In-App Custom Event Type
+                    </h5>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Event Type (custom_event_type)</label>
+                        <select
+                          value={customEventType}
+                          onChange={(e) => setCustomEventType(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
+                        >
+                          <option value="PURCHASE">PURCHASE</option>
+                          <option value="ADD_TO_CART">ADD_TO_CART</option>
+                          <option value="COMPLETE_REGISTRATION">COMPLETE_REGISTRATION</option>
+                          <option value="INITIATED_CHECKOUT">INITIATED_CHECKOUT</option>
+                          <option value="ADD_PAYMENT_INFO">ADD_PAYMENT_INFO</option>
+                          <option value="LEAD">LEAD</option>
+                          <option value="SUBSCRIBE">SUBSCRIBE</option>
+                          <option value="START_TRIAL">START_TRIAL</option>
+                          <option value="LEVEL_ACHIEVED">LEVEL_ACHIEVED</option>
+                          <option value="ACHIEVEMENT_UNLOCKED">ACHIEVEMENT_UNLOCKED</option>
+                          <option value="SPENT_CREDITS">SPENT_CREDITS</option>
+                          <option value="CONTENT_VIEW">CONTENT_VIEW</option>
+                          <option value="SEARCH">SEARCH</option>
+                          <option value="TUTORIAL_COMPLETION">TUTORIAL_COMPLETION</option>
+                          <option value="RATE">RATE</option>
+                          <option value="D2_RETENTION">D2_RETENTION</option>
+                          <option value="D7_RETENTION">D7_RETENTION</option>
+                          <option value="OTHER">OTHER (Custom Event String)</option>
+                        </select>
+                      </div>
+
+                      {customEventType === "OTHER" && (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Custom Event String (custom_event_str)</label>
+                          <input
+                            type="text"
+                            value={customEventStr}
+                            onChange={(e) => setCustomEventStr(e.target.value)}
+                            placeholder="e.g. booked_consultation"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* 4. Audience definition */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Audience definition</h4>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Target Country / Region</label>
-                  <select
-                    value={appCountry}
-                    onChange={(e) => setAppCountry(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
-                  >
-                    <option value="IN">🇮🇳 India (IN)</option>
-                    <option value="US">🇺🇸 United States (US)</option>
-                    <option value="GB">🇬🇧 United Kingdom (GB)</option>
-                    <option value="CA">🇨🇦 Canada (CA)</option>
-                    <option value="AU">🇦🇺 Australia (AU)</option>
-                  </select>
+              {/* 4. Audience Controls */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                <h4 className="font-bold text-slate-200 text-xs">Audience Controls</h4>
+
+                {/* Dynamic Geo Location Autocomplete from Graph API */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Locations (Inclusion)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedLocations.map((loc, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pink-500/10 text-pink-300 border border-pink-500/30 text-xs font-semibold">
+                        📍 {loc}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLocations(selectedLocations.filter((_, i) => i !== idx))}
+                          className="hover:text-red-400 ml-1 text-slate-400"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={locQuery}
+                      onChange={(e) => handleSearchLocations(e.target.value)}
+                      onFocus={() => locQuery && setShowLocDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                      placeholder="Search Meta Geo Locations (e.g. India, Mumbai)..."
+                    />
+                    {searchingLoc && <Loader2 className="h-3.5 w-3.5 text-pink-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Location Autocomplete Dropdown */}
+                  {showLocDropdown && locResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {locResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            const displayName = item.name + (item.country_name ? `, ${item.country_name}` : "");
+                            if (!selectedLocations.includes(displayName)) {
+                              setSelectedLocations([...selectedLocations, displayName]);
+                            }
+                            setLocQuery("");
+                            setShowLocDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{item.type} {item.country_name ? `• ${item.country_name}` : ""}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded">Add Location</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -619,7 +869,7 @@ export default function AppPromotionCampaignFlow({
                       type="number"
                       value={ageMin}
                       onChange={(e) => setAgeMin(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
                     />
                   </div>
                   <div>
@@ -628,7 +878,7 @@ export default function AppPromotionCampaignFlow({
                       type="number"
                       value={ageMax}
                       onChange={(e) => setAgeMax(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
                     />
                   </div>
                   <div>
@@ -636,7 +886,7 @@ export default function AppPromotionCampaignFlow({
                     <select
                       value={gender}
                       onChange={(e) => setGender(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                     >
                       <option value="ALL">All Genders</option>
                       <option value="MEN">Men</option>
@@ -645,15 +895,123 @@ export default function AppPromotionCampaignFlow({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Cost per result goal</label>
-                  <input
-                    type="text"
-                    value={costPerResult}
-                    onChange={(e) => setCostPerResult(e.target.value)}
-                    placeholder="None"
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                  />
+                {/* Dynamic Language (adlocale) Autocomplete */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Languages (Locales)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedLanguages.map((lang, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-semibold">
+                        🗣️ {lang === "ALL" ? "All Languages" : lang}
+                        {lang !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = selectedLanguages.filter((_, i) => i !== idx);
+                              setSelectedLanguages(next.length === 0 ? ["ALL"] : next);
+                            }}
+                            className="hover:text-red-400 ml-1 text-slate-400"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={langQuery}
+                      onChange={(e) => handleSearchLanguages(e.target.value)}
+                      onFocus={() => langQuery && setShowLangDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                      placeholder="Search Meta languages (e.g. English, Hindi)..."
+                    />
+                    {searchingLang && <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Languages Autocomplete Dropdown */}
+                  {showLangDropdown && langResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {langResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            const lName = item.name || item.key;
+                            const cleaned = selectedLanguages.filter(l => l !== "ALL");
+                            if (!cleaned.includes(lName)) {
+                              setSelectedLanguages([...cleaned, lName]);
+                            }
+                            setLangQuery("");
+                            setShowLangDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400">Meta Locale Key: {item.key}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Add Language</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dynamic Detailed Targeting Autocomplete */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Detailed Targeting (Interests, Behaviors)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedInterests.map((interest, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
+                        🏷️ {interest.name}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = selectedInterests.filter((_, i) => i !== idx);
+                            setSelectedInterests(next);
+                            setDetailedTargeting(next.map(n => n.name).join(", "));
+                          }}
+                          className="hover:text-red-400 ml-1 text-slate-400"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={targetingQuery}
+                      onChange={(e) => handleSearchTargeting(e.target.value)}
+                      onFocus={() => targetingQuery && setShowTargetingDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[160px]"
+                      placeholder="Search Meta App Interests (e.g. Mobile Gaming, SaaS)..."
+                    />
+                    {searchingTargeting && <Loader2 className="h-3.5 w-3.5 text-emerald-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Detailed Targeting Autocomplete Dropdown */}
+                  {showTargetingDropdown && targetingResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {targetingResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            if (!selectedInterests.some(s => s.id === item.id)) {
+                              const next = [...selectedInterests, item];
+                              setSelectedInterests(next);
+                              setDetailedTargeting(next.map(n => n.name).join(", "));
+                            }
+                            setTargetingQuery("");
+                            setShowTargetingDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{item.topic || item.type || "Interest"} {item.audience_size ? `• ~${(item.audience_size / 1000000).toFixed(1)}M size` : ""}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Add Spec</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -802,6 +1160,26 @@ export default function AppPromotionCampaignFlow({
                       Fetch Meta Library
                     </button>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Call to Action (CTA) *</label>
+                  <select
+                    value={callToAction}
+                    onChange={(e) => setCallToAction(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
+                  >
+                    <option value="INSTALL_MOBILE_APP">INSTALL_MOBILE_APP — Install Now</option>
+                    <option value="USE_MOBILE_APP">USE_MOBILE_APP — Use App</option>
+                    <option value="USE_APP">USE_APP — Open App</option>
+                    <option value="DOWNLOAD">DOWNLOAD — Download App</option>
+                    <option value="LEARN_MORE">LEARN_MORE — Learn More</option>
+                    <option value="SHOP_NOW">SHOP_NOW — Shop Now</option>
+                    <option value="SIGN_UP">SIGN_UP — Sign Up</option>
+                    <option value="PLAY_GAME">PLAY_GAME — Play Game</option>
+                    <option value="WATCH_MORE">WATCH_MORE — Watch More</option>
+                    <option value="BOOK_TRAVEL">BOOK_TRAVEL — Book Travel</option>
+                  </select>
                 </div>
 
                 <div>

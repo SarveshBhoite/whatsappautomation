@@ -100,10 +100,92 @@ export default function TrafficCampaignFlow({
   const [q3, setQ3] = useState("Where are you located?");
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
-  // Tracking
-  const [pixelId, setPixelId] = useState("189283719283");
-  const [urlParams, setUrlParams] = useState("utm_source=facebook&utm_medium=cpc&utm_campaign=traffic");
+  // Tracking & UTM Builder State
+  const [pixelId, setPixelId] = useState("");
+  const [urlParams, setUrlParams] = useState("utm_source=facebook&utm_medium=cpc_traffic&utm_campaign=traffic");
   const [showUtmModal, setShowUtmModal] = useState(false);
+
+  // Dynamic Meta Graph API search states for Geo Locations, Targeting Specs & Languages
+  const [locQuery, setLocQuery] = useState("");
+  const [locResults, setLocResults] = useState<any[]>([]);
+  const [searchingLoc, setSearchingLoc] = useState(false);
+  const [showLocDropdown, setShowLocDropdown] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(["India"]);
+
+  const [targetingQuery, setTargetingQuery] = useState("");
+  const [targetingResults, setTargetingResults] = useState<any[]>([]);
+  const [searchingTargeting, setSearchingTargeting] = useState(false);
+  const [showTargetingDropdown, setShowTargetingDropdown] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState<any[]>([]);
+
+  const [langQuery, setLangQuery] = useState("");
+  const [langResults, setLangResults] = useState<any[]>([]);
+  const [searchingLang, setSearchingLang] = useState(false);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["ALL"]);
+
+  // Search Meta Geo Locations via Graph API
+  const handleSearchLocations = async (q: string) => {
+    setLocQuery(q);
+    if (!q.trim()) {
+      setLocResults([]);
+      setShowLocDropdown(false);
+      return;
+    }
+    setSearchingLoc(true);
+    setShowLocDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/locations?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setLocResults(data.results);
+    } catch (e) {
+      console.warn("Location search error:", e);
+    } finally {
+      setSearchingLoc(false);
+    }
+  };
+
+  // Search Meta Detailed Targeting (Interests, Demographics, Behaviors) via Graph API
+  const handleSearchTargeting = async (q: string) => {
+    setTargetingQuery(q);
+    if (!q.trim()) {
+      setTargetingResults([]);
+      setShowTargetingDropdown(false);
+      return;
+    }
+    setSearchingTargeting(true);
+    setShowTargetingDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/targeting?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setTargetingResults(data.results);
+    } catch (e) {
+      console.warn("Targeting search error:", e);
+    } finally {
+      setSearchingTargeting(false);
+    }
+  };
+
+  // Search Meta Languages (Ad Locales) via Graph API
+  const handleSearchLanguages = async (q: string) => {
+    setLangQuery(q);
+    if (!q.trim()) {
+      setLangResults([]);
+      setShowLangDropdown(false);
+      return;
+    }
+    setSearchingLang(true);
+    setShowLangDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/languages?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setLangResults(data.results);
+    } catch (e) {
+      console.warn("Language search error:", e);
+    } finally {
+      setSearchingLang(false);
+    }
+  };
 
   const [publishing, setPublishing] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -121,7 +203,7 @@ export default function TrafficCampaignFlow({
 
     setPublishing(true);
     try {
-      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns`, {
+      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns/traffic`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -148,7 +230,15 @@ export default function TrafficCampaignFlow({
           ageMin,
           ageMax,
           gender,
-          detailedTargeting,
+          targeting: {
+            locations: selectedLocations,
+            ageMin,
+            ageMax,
+            gender,
+            languages: selectedLanguages,
+            interests: selectedInterests.map(i => i.name),
+            detailedTargeting: detailedTargeting || selectedInterests.map(i => i.name).join(", "),
+          },
           advantagePlacements,
           brandSuitability,
           adName,
@@ -814,18 +904,63 @@ export default function TrafficCampaignFlow({
               </div>
 
               {/* Audience Controls */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
                 <h4 className="font-bold text-slate-200 text-xs">Audience Controls</h4>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Locations (Search city or country e.g. Mumbai, Delhi, United States)</label>
-                  <input
-                    type="text"
-                    value={locationInclusion}
-                    onChange={(e) => setLocationInclusion(e.target.value)}
-                    placeholder="Search city or country..."
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                  />
+
+                {/* Dynamic Geo Location Autocomplete from Graph API */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Locations (Inclusion)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedLocations.map((loc, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-300 border border-sky-500/30 text-xs font-semibold">
+                        📍 {loc}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLocations(selectedLocations.filter((_, i) => i !== idx))}
+                          className="hover:text-red-400 ml-1 text-slate-400"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={locQuery}
+                      onChange={(e) => handleSearchLocations(e.target.value)}
+                      onFocus={() => locQuery && setShowLocDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                      placeholder="Search Meta Geo Locations (e.g. India, Mumbai, Wakad)..."
+                    />
+                    {searchingLoc && <Loader2 className="h-3.5 w-3.5 text-sky-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Location Autocomplete Dropdown */}
+                  {showLocDropdown && locResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {locResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            const displayName = item.name + (item.country_name ? `, ${item.country_name}` : "");
+                            if (!selectedLocations.includes(displayName)) {
+                              setSelectedLocations([...selectedLocations, displayName]);
+                            }
+                            setLocQuery("");
+                            setShowLocDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{item.type} {item.country_name ? `• ${item.country_name}` : ""}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded">Add Location</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1">Min Age</label>
@@ -833,7 +968,7 @@ export default function TrafficCampaignFlow({
                       type="number"
                       value={ageMin}
                       onChange={(e) => setAgeMin(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
                     />
                   </div>
                   <div>
@@ -842,7 +977,7 @@ export default function TrafficCampaignFlow({
                       type="number"
                       value={ageMax}
                       onChange={(e) => setAgeMax(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
                     />
                   </div>
                   <div>
@@ -850,24 +985,132 @@ export default function TrafficCampaignFlow({
                     <select
                       value={gender}
                       onChange={(e) => setGender(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                     >
                       <option value="ALL">All Genders</option>
-                      <option value="MEN">Men</option>
-                      <option value="WOMEN">Women</option>
+                      <option value="MEN">Men (1)</option>
+                      <option value="WOMEN">Women (2)</option>
                     </select>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Detailed Targeting (Demographics, Interests, Behaviours)</label>
-                  <input
-                    type="text"
-                    value={detailedTargeting}
-                    onChange={(e) => setDetailedTargeting(e.target.value)}
-                    placeholder="e.g. Technology, Online Shopping..."
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                  />
+                {/* Dynamic Language (adlocale) Autocomplete */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Languages (Locales)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedLanguages.map((lang, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-semibold">
+                        🗣️ {lang === "ALL" ? "All Languages" : lang}
+                        {lang !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = selectedLanguages.filter((_, i) => i !== idx);
+                              setSelectedLanguages(next.length === 0 ? ["ALL"] : next);
+                            }}
+                            className="hover:text-red-400 ml-1 text-slate-400"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={langQuery}
+                      onChange={(e) => handleSearchLanguages(e.target.value)}
+                      onFocus={() => langQuery && setShowLangDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                      placeholder="Search Meta languages (e.g. English, Hindi, Marathi)..."
+                    />
+                    {searchingLang && <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Languages Autocomplete Dropdown */}
+                  {showLangDropdown && langResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {langResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            const lName = item.name || item.key;
+                            const cleaned = selectedLanguages.filter(l => l !== "ALL");
+                            if (!cleaned.includes(lName)) {
+                              setSelectedLanguages([...cleaned, lName]);
+                            }
+                            setLangQuery("");
+                            setShowLangDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400">Meta Locale Key: {item.key}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Add Language</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dynamic Detailed Targeting Autocomplete */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Detailed Targeting (Demographics, Interests, Behaviors)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedInterests.map((interest, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
+                        🏷️ {interest.name}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = selectedInterests.filter((_, i) => i !== idx);
+                            setSelectedInterests(next);
+                            setDetailedTargeting(next.map(n => n.name).join(", "));
+                          }}
+                          className="hover:text-red-400 ml-1 text-slate-400"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={targetingQuery}
+                      onChange={(e) => handleSearchTargeting(e.target.value)}
+                      onFocus={() => targetingQuery && setShowTargetingDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[160px]"
+                      placeholder="Search Meta Interests, Demographics (e.g. Digital Marketing)..."
+                    />
+                    {searchingTargeting && <Loader2 className="h-3.5 w-3.5 text-emerald-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Detailed Targeting Autocomplete Dropdown */}
+                  {showTargetingDropdown && targetingResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {targetingResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            if (!selectedInterests.some(s => s.id === item.id)) {
+                              const next = [...selectedInterests, item];
+                              setSelectedInterests(next);
+                              setDetailedTargeting(next.map(n => n.name).join(", "));
+                            }
+                            setTargetingQuery("");
+                            setShowTargetingDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{item.topic || item.type || "Interest"} {item.audience_size ? `• ~${(item.audience_size / 1000000).toFixed(1)}M size` : ""}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Add Spec</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -1474,14 +1474,38 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
     }
   }, [orgId]);
 
+  const handleSelectAccount = async (newAccountId: string) => {
+    setSelectedAccountId(newAccountId);
+    setFormAdAccountId(newAccountId);
+    try {
+      await fetch(`${BACKEND}/api/meta-ads/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: orgId, adAccountId: newAccountId }),
+      });
+      const selectedAcc = accounts.find(a => (a.adAccountId || a.id) === newAccountId);
+      const accName = selectedAcc?.name || selectedAcc?.businessName || newAccountId;
+      showToast(`Connected Ad Account set to: ${accName} ✓`);
+      handleSyncLive();
+    } catch (e: any) {
+      console.warn("Failed to persist selected ad account:", e);
+    }
+  };
+
   const fetchAccounts = useCallback(async () => {
     try {
       const res = await fetch(`${BACKEND}/api/meta-ads/accounts?organizationId=${orgId}`);
       const data = await res.json();
       if (data.accounts) {
-        setAccounts(data.accounts);
-        if (data.accounts.length > 0 && !selectedAccountId) {
-          setSelectedAccountId(data.accounts[0].adAccountId);
+        const normalized = data.accounts.map((a: any) => ({
+          ...a,
+          adAccountId: a.adAccountId || a.id || "",
+          name: a.name || a.businessName || a.adAccountId || a.id || "Meta Ad Account",
+        }));
+
+        setAccounts(normalized);
+        if (normalized.length > 0 && !selectedAccountId) {
+          setSelectedAccountId(normalized[0].adAccountId);
         }
       }
     } catch (e: any) {
@@ -1960,18 +1984,25 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
           {/* Account Selector */}
           <div className="relative">
             <select
-              value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value)}
+              value={selectedAccountId || ""}
+              onChange={(e) => handleSelectAccount(e.target.value)}
               className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700/50 text-xs text-slate-100 focus:outline-none focus:border-slate-600 transition-all min-w-[210px]"
             >
-              {accounts.length === 0 && (
-                <option value="act_1454270479625110">JISNU Digital Solution's Marketing Agency (act_1454270479625110)</option>
-              )}
-              {accounts.map(acc => (
-                <option key={acc.adAccountId} value={acc.adAccountId}>
-                  {acc.name || acc.businessName || "Meta Ad Account"} ({acc.adAccountId})
+              {accounts.length === 0 ? (
+                <option value="" disabled className="bg-slate-900 text-slate-400">
+                  No Ad Accounts Found (Click Meta Credentials)
                 </option>
-              ))}
+              ) : (
+                accounts.map((acc, index) => {
+                  const accId = acc.adAccountId || acc.id || `acc_${index}`;
+                  const accName = acc.name || acc.businessName || "Meta Ad Account";
+                  return (
+                    <option key={accId} value={accId} className="bg-slate-900 text-slate-100">
+                      {accName} ({accId})
+                    </option>
+                  );
+                })
+              )}
             </select>
           </div>
 

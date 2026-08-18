@@ -97,6 +97,162 @@ export default function LeadsCampaignFlow({
   const [q3, setQ3] = useState("Schedule a live demo");
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
+  // Dynamic Instant Lead Forms from Facebook Page
+  const [leadForms, setLeadForms] = useState<any[]>([]);
+  const [selectedLeadFormId, setSelectedLeadFormId] = useState<string>("");
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [showCreateFormModal, setShowCreateFormModal] = useState(false);
+
+  // New Lead Form Creator State
+  const [newFormName, setNewFormName] = useState("");
+  const [newFormPrivacyUrl, setNewFormPrivacyUrl] = useState("https://jisnudigital.com/privacy");
+  const [newFormThankYouTitle, setNewFormThankYouTitle] = useState("Thank you! We received your details.");
+  const [newFormThankYouBody, setNewFormThankYouBody] = useState("Our team will reach out to you within 24 hours.");
+  const [newFormThankYouBtn, setNewFormThankYouBtn] = useState("VIEW_WEBSITE");
+  const [newFormThankYouWebsite, setNewFormThankYouWebsite] = useState("https://jisnudigital.com");
+  const [creatingForm, setCreatingForm] = useState(false);
+
+  // Dynamic Meta Graph API search states for Geo Locations, Targeting Specs & Languages
+  const [locQuery, setLocQuery] = useState("");
+  const [locResults, setLocResults] = useState<any[]>([]);
+  const [searchingLoc, setSearchingLoc] = useState(false);
+  const [showLocDropdown, setShowLocDropdown] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(["India"]);
+
+  const [targetingQuery, setTargetingQuery] = useState("");
+  const [targetingResults, setTargetingResults] = useState<any[]>([]);
+  const [searchingTargeting, setSearchingTargeting] = useState(false);
+  const [showTargetingDropdown, setShowTargetingDropdown] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState<any[]>([]);
+
+  const [langQuery, setLangQuery] = useState("");
+  const [langResults, setLangResults] = useState<any[]>([]);
+  const [searchingLang, setSearchingLang] = useState(false);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["ALL"]);
+
+  // Search Meta Geo Locations via Graph API
+  const handleSearchLocations = async (q: string) => {
+    setLocQuery(q);
+    if (!q.trim()) {
+      setLocResults([]);
+      setShowLocDropdown(false);
+      return;
+    }
+    setSearchingLoc(true);
+    setShowLocDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/locations?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setLocResults(data.results);
+    } catch (e) {
+      console.warn("Location search error:", e);
+    } finally {
+      setSearchingLoc(false);
+    }
+  };
+
+  // Search Meta Detailed Targeting via Graph API
+  const handleSearchTargeting = async (q: string) => {
+    setTargetingQuery(q);
+    if (!q.trim()) {
+      setTargetingResults([]);
+      setShowTargetingDropdown(false);
+      return;
+    }
+    setSearchingTargeting(true);
+    setShowTargetingDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/targeting?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setTargetingResults(data.results);
+    } catch (e) {
+      console.warn("Targeting search error:", e);
+    } finally {
+      setSearchingTargeting(false);
+    }
+  };
+
+  // Search Meta Languages (Ad Locales) via Graph API
+  const handleSearchLanguages = async (q: string) => {
+    setLangQuery(q);
+    if (!q.trim()) {
+      setLangResults([]);
+      setShowLangDropdown(false);
+      return;
+    }
+    setSearchingLang(true);
+    setShowLangDropdown(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/search/languages?organizationId=${orgId}&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.results) setLangResults(data.results);
+    } catch (e) {
+      console.warn("Language search error:", e);
+    } finally {
+      setSearchingLang(false);
+    }
+  };
+
+  // Fetch Page Instant Forms dynamically
+  const fetchLeadForms = async (pageId?: string) => {
+    const targetPageId = pageId || facebookPageId;
+    if (!targetPageId) return;
+    setLoadingForms(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/lead-forms?organizationId=${orgId}&pageId=${targetPageId}`);
+      const data = await res.json();
+      if (data.forms) {
+        setLeadForms(data.forms);
+        if (data.forms.length > 0 && !selectedLeadFormId) {
+          setSelectedLeadFormId(data.forms[0].id);
+        }
+      }
+    } catch (e) {
+      console.warn("Error loading lead forms:", e);
+    } finally {
+      setLoadingForms(false);
+    }
+  };
+
+  // Create New Instant Lead Form on Facebook Page
+  const handleCreateLeadForm = async () => {
+    if (!newFormName.trim()) {
+      showToast("Please enter a Lead Form Name.");
+      return;
+    }
+    setCreatingForm(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/meta-ads/lead-forms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: orgId,
+          pageId: facebookPageId,
+          name: newFormName,
+          privacyPolicyUrl: newFormPrivacyUrl,
+          thankYouTitle: newFormThankYouTitle,
+          thankYouBody: newFormThankYouBody,
+          thankYouButtonType: newFormThankYouBtn,
+          thankYouWebsiteUrl: newFormThankYouWebsite,
+          shouldEnforceWorkEmail: requireWorkEmail,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create Instant Form.");
+      showToast("New Instant Lead Form Created on Facebook! 🎉");
+      setShowCreateFormModal(false);
+      await fetchLeadForms(facebookPageId);
+      if (data.form?.id) {
+        setSelectedLeadFormId(data.form.id);
+      }
+    } catch (err: any) {
+      showToast(`Error creating Form: ${err.message}`);
+    } finally {
+      setCreatingForm(false);
+    }
+  };
+
   // Tracking
   const [pixelId, setPixelId] = useState("189283719283");
   const [urlParams, setUrlParams] = useState("utm_source=facebook&utm_medium=cpc&utm_campaign=leads");
@@ -120,7 +276,7 @@ export default function LeadsCampaignFlow({
 
     setPublishing(true);
     try {
-      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns`, {
+      const res = await fetch(`${backendUrl}/api/meta-ads/campaigns/leads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -147,7 +303,15 @@ export default function LeadsCampaignFlow({
           ageMin,
           ageMax,
           gender,
-          detailedTargeting,
+          targeting: {
+            locations: selectedLocations,
+            ageMin,
+            ageMax,
+            gender,
+            languages: selectedLanguages,
+            interests: selectedInterests.map(i => i.name),
+            detailedTargeting: detailedTargeting || selectedInterests.map(i => i.name).join(", "),
+          },
           advantagePlacements,
           adName,
           partnershipAd,
@@ -164,6 +328,7 @@ export default function LeadsCampaignFlow({
           creativeMediaUrl: mediaUrl,
           aiMedia,
           callToAction,
+          leadGenFormId: selectedLeadFormId,
           formTesting,
           requireWorkEmail,
           adDestinationRadio,
@@ -684,18 +849,62 @@ export default function LeadsCampaignFlow({
                 </div>
               </div>
 
-              {/* Audience Definition */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Audience definition</h4>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Locations (Inclusion)</label>
-                  <input
-                    type="text"
-                    value={locationInclusion}
-                    onChange={(e) => setLocationInclusion(e.target.value)}
-                    placeholder="India..."
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
-                  />
+              {/* Audience Controls */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+                <h4 className="font-bold text-slate-200 text-xs">Audience Controls</h4>
+
+                {/* Dynamic Geo Location Autocomplete from Graph API */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Locations (Inclusion)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedLocations.map((loc, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-300 border border-sky-500/30 text-xs font-semibold">
+                        📍 {loc}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLocations(selectedLocations.filter((_, i) => i !== idx))}
+                          className="hover:text-red-400 ml-1 text-slate-400"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={locQuery}
+                      onChange={(e) => handleSearchLocations(e.target.value)}
+                      onFocus={() => locQuery && setShowLocDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                      placeholder="Search Meta Geo Locations (e.g. India, Pune, Maharashtra)..."
+                    />
+                    {searchingLoc && <Loader2 className="h-3.5 w-3.5 text-sky-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Location Autocomplete Dropdown */}
+                  {showLocDropdown && locResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {locResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            const displayName = item.name + (item.country_name ? `, ${item.country_name}` : "");
+                            if (!selectedLocations.includes(displayName)) {
+                              setSelectedLocations([...selectedLocations, displayName]);
+                            }
+                            setLocQuery("");
+                            setShowLocDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{item.type} {item.country_name ? `• ${item.country_name}` : ""}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded">Add Location</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -705,7 +914,7 @@ export default function LeadsCampaignFlow({
                       type="number"
                       value={ageMin}
                       onChange={(e) => setAgeMin(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
                     />
                   </div>
                   <div>
@@ -714,7 +923,7 @@ export default function LeadsCampaignFlow({
                       type="number"
                       value={ageMax}
                       onChange={(e) => setAgeMax(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
                     />
                   </div>
                   <div>
@@ -722,16 +931,133 @@ export default function LeadsCampaignFlow({
                     <select
                       value={gender}
                       onChange={(e) => setGender(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
                     >
                       <option value="ALL">All Genders</option>
-                      <option value="MEN">Men</option>
-                      <option value="WOMEN">Women</option>
+                      <option value="MEN">Men (1)</option>
+                      <option value="WOMEN">Women (2)</option>
                     </select>
                   </div>
                 </div>
 
-                <p className="text-[10px] text-slate-400 italic">Estimates note: Estimates don't include Advantage+ audience expansion.</p>
+                {/* Dynamic Language (adlocale) Autocomplete */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Languages (Locales)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedLanguages.map((lang, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-semibold">
+                        🗣️ {lang === "ALL" ? "All Languages" : lang}
+                        {lang !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = selectedLanguages.filter((_, i) => i !== idx);
+                              setSelectedLanguages(next.length === 0 ? ["ALL"] : next);
+                            }}
+                            className="hover:text-red-400 ml-1 text-slate-400"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={langQuery}
+                      onChange={(e) => handleSearchLanguages(e.target.value)}
+                      onFocus={() => langQuery && setShowLangDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                      placeholder="Search Meta languages (e.g. English, Hindi, Marathi)..."
+                    />
+                    {searchingLang && <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Languages Autocomplete Dropdown */}
+                  {showLangDropdown && langResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {langResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            const lName = item.name || item.key;
+                            const cleaned = selectedLanguages.filter(l => l !== "ALL");
+                            if (!cleaned.includes(lName)) {
+                              setSelectedLanguages([...cleaned, lName]);
+                            }
+                            setLangQuery("");
+                            setShowLangDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400">Meta Locale Key: {item.key}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Add Language</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Dynamic Detailed Targeting Autocomplete */}
+                <div className="space-y-1.5 relative">
+                  <label className="block text-[11px] font-semibold text-slate-300">Detailed Targeting (Demographics, Interests, Behaviors)</label>
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-900 border border-slate-700/60 min-h-[40px]">
+                    {selectedInterests.map((interest, idx) => (
+                      <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
+                        🏷️ {interest.name}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = selectedInterests.filter((_, i) => i !== idx);
+                            setSelectedInterests(next);
+                            setDetailedTargeting(next.map(n => n.name).join(", "));
+                          }}
+                          className="hover:text-red-400 ml-1 text-slate-400"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={targetingQuery}
+                      onChange={(e) => handleSearchTargeting(e.target.value)}
+                      onFocus={() => targetingQuery && setShowTargetingDropdown(true)}
+                      className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[160px]"
+                      placeholder="Search Meta Interests, Demographics (e.g. Real Estate, Software)..."
+                    />
+                    {searchingTargeting && <Loader2 className="h-3.5 w-3.5 text-emerald-400 animate-spin shrink-0" />}
+                  </div>
+
+                  {/* Detailed Targeting Autocomplete Dropdown */}
+                  {showTargetingDropdown && targetingResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                      {targetingResults.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={() => {
+                            if (!selectedInterests.some(s => s.id === item.id)) {
+                              const next = [...selectedInterests, item];
+                              setSelectedInterests(next);
+                              setDetailedTargeting(next.map(n => n.name).join(", "));
+                            }
+                            setTargetingQuery("");
+                            setShowTargetingDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-slate-800/80 cursor-pointer flex items-center justify-between transition-all"
+                        >
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{item.name}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{item.topic || item.type || "Interest"} {item.audience_size ? `• ~${(item.audience_size / 1000000).toFixed(1)}M size` : ""}</p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Add Spec</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Placements */}
@@ -1020,40 +1346,73 @@ export default function LeadsCampaignFlow({
                   </div>
                 </div>
 
-                {/* Form Search & Tabs */}
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                      <input
-                        type="text"
-                        value={searchFormsQuery}
-                        onChange={(e) => setSearchFormsQuery(e.target.value)}
-                        placeholder="Search your forms..."
-                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100"
-                      />
+                {/* Live Form Selection & Creation */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-bold text-xs text-slate-200">Select Instant Lead Form</h5>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fetchLeadForms(facebookPageId)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 flex items-center gap-1"
+                      >
+                        {loadingForms ? <Loader2 className="h-3 w-3 animate-spin" /> : "↻ Refresh Forms"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateFormModal(true)}
+                        className="px-3 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold flex items-center gap-1 shadow"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Create Form
+                      </button>
                     </div>
-                    <button type="button" className="px-3 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-200">
-                      Search
-                    </button>
                   </div>
 
-                  <div className="flex gap-2 pt-1 border-b border-slate-800 pb-2">
-                    <button
-                      type="button"
-                      onClick={() => setFormTab("ACTIVE")}
-                      className={`text-xs font-bold px-3 py-1 rounded-lg ${formTab === "ACTIVE" ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}
-                    >
-                      Active Forms
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormTab("ARCHIVED")}
-                      className={`text-xs font-bold px-3 py-1 rounded-lg ${formTab === "ARCHIVED" ? "bg-sky-500/20 text-sky-400" : "text-slate-400"}`}
-                    >
-                      Archived
-                    </button>
-                  </div>
+                  {loadingForms ? (
+                    <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
+                      <span>Fetching Instant Forms from Facebook Page...</span>
+                    </div>
+                  ) : leadForms.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center space-y-2">
+                      <p className="text-xs text-slate-400">No Instant Forms found on this Page yet.</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateFormModal(true)}
+                        className="px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/30 text-xs font-bold"
+                      >
+                        + Create Your First Lead Form
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {leadForms
+                        .filter(f => !searchFormsQuery || f.name?.toLowerCase().includes(searchFormsQuery.toLowerCase()))
+                        .map((f: any) => (
+                          <div
+                            key={f.id}
+                            onClick={() => setSelectedLeadFormId(f.id)}
+                            className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
+                              selectedLeadFormId === f.id
+                                ? "bg-sky-500/10 border-sky-500/60 text-slate-100"
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+                            }`}
+                          >
+                            <div>
+                              <p className="text-xs font-bold text-slate-200">{f.name}</p>
+                              <p className="text-[10px] text-slate-400">ID: {f.id} • Status: {f.status || "ACTIVE"} • Leads: {f.leads_count || 0}</p>
+                            </div>
+                            <input
+                              type="radio"
+                              name="lead_form"
+                              checked={selectedLeadFormId === f.id}
+                              onChange={() => setSelectedLeadFormId(f.id)}
+                              className="accent-sky-500 h-4 w-4"
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Form Testing Toggle */}
@@ -1257,6 +1616,119 @@ export default function LeadsCampaignFlow({
             <div className="flex justify-end">
               <button onClick={() => setShowUtmModal(false)} className="px-4 py-2 rounded-xl bg-sky-500 text-slate-950 font-bold text-xs">
                 Apply URL Parameters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Lead Form Modal */}
+      {showCreateFormModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+                <Plus className="h-4 w-4 text-sky-400" /> Create Instant Lead Form
+              </h3>
+              <button onClick={() => setShowCreateFormModal(false)} className="text-slate-400 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Form Name *</label>
+                <input
+                  type="text"
+                  value={newFormName}
+                  onChange={(e) => setNewFormName(e.target.value)}
+                  placeholder="e.g. Free Consultation Lead Form"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Default Captured Questions</label>
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1 text-[11px] text-slate-400">
+                  <p>✓ Full Name (FULL_NAME)</p>
+                  <p>✓ Email Address (EMAIL)</p>
+                  <p>✓ Phone Number (PHONE)</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Privacy Policy URL *</label>
+                <input
+                  type="text"
+                  value={newFormPrivacyUrl}
+                  onChange={(e) => setNewFormPrivacyUrl(e.target.value)}
+                  placeholder="https://yoursite.com/privacy"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                <h4 className="font-bold text-slate-200">Thank You / Completion Screen</h4>
+                <div>
+                  <label className="block text-slate-400 text-[11px] mb-1">Thank You Title</label>
+                  <input
+                    type="text"
+                    value={newFormThankYouTitle}
+                    onChange={(e) => setNewFormThankYouTitle(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 text-[11px] mb-1">Thank You Message</label>
+                  <input
+                    type="text"
+                    value={newFormThankYouBody}
+                    onChange={(e) => setNewFormThankYouBody(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-slate-400 text-[11px] mb-1">Button Action</label>
+                    <select
+                      value={newFormThankYouBtn}
+                      onChange={(e) => setNewFormThankYouBtn(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100"
+                    >
+                      <option value="VIEW_WEBSITE">View Website</option>
+                      <option value="CALL_BUSINESS">Call Business</option>
+                      <option value="MESSAGE_BUSINESS">Message Business</option>
+                      <option value="DOWNLOAD">Download Document</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 text-[11px] mb-1">Website URL</label>
+                    <input
+                      type="text"
+                      value={newFormThankYouWebsite}
+                      onChange={(e) => setNewFormThankYouWebsite(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono text-[11px]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowCreateFormModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateLeadForm}
+                disabled={creatingForm}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow"
+              >
+                {creatingForm ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & Create Form"}
               </button>
             </div>
           </div>
