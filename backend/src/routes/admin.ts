@@ -1144,7 +1144,7 @@ router.get("/organizations", async (req: Request, res: Response) => {
 // POST: Create a new organization and default Client Admin user
 router.post("/organizations", async (req: Request, res: Response) => {
   try {
-    const { name, adminEmail, adminName, enabledModules } = req.body;
+    const { name, adminEmail, adminName, adminPassword, enabledModules } = req.body;
 
     if (!name || !adminEmail) {
       return res.status(400).json({ error: "Organization name and admin email are required" });
@@ -1158,16 +1158,18 @@ router.post("/organizations", async (req: Request, res: Response) => {
       data: {
         name,
         enabledModules: defaultModules,
+        status: "ACTIVE",
         users: {
           create: {
-            email: adminEmail,
+            email: adminEmail.trim().toLowerCase(),
             name: adminName || "Client Admin",
+            password: adminPassword || "admin123",
             role: "admin"
           }
         }
       },
       include: {
-        users: true
+        users: { select: { id: true, email: true, name: true, role: true, password: true } }
       }
     });
 
@@ -1178,7 +1180,32 @@ router.post("/organizations", async (req: Request, res: Response) => {
   }
 });
 
-// PUT: Update organization enabled modules
+// PUT: Update organization details and enabled modules
+router.put("/organizations/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, enabledModules, status } = req.body;
+
+    const updatedOrg = await (prisma.organization as any).update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(enabledModules && { enabledModules }),
+        ...(typeof status === "string" && { status })
+      },
+      include: {
+        users: { select: { id: true, email: true, name: true, role: true } }
+      }
+    });
+
+    return res.status(200).json({ success: true, organization: updatedOrg });
+  } catch (error: any) {
+    console.error("Error updating organization:", error);
+    return res.status(500).json({ error: "Failed to update organization", details: error.message });
+  }
+});
+
+// PUT: Update organization enabled modules (compatibility endpoint)
 router.put("/organizations/:id/modules", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -1196,6 +1223,28 @@ router.put("/organizations/:id/modules", async (req: Request, res: Response) => 
   } catch (error: any) {
     console.error("Error updating organization modules:", error);
     return res.status(500).json({ error: "Failed to update organization modules", details: error.message });
+  }
+});
+
+// DELETE: Delete an organization
+router.delete("/organizations/:id", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+
+    // Delete related configs/users first if not cascaded
+    await prisma.user.deleteMany({ where: { organizationId: orgId } });
+    await prisma.whatsAppConfig.deleteMany({ where: { organizationId: orgId } });
+    await prisma.instagramConfig.deleteMany({ where: { organizationId: orgId } });
+    await prisma.googleBusinessConfig.deleteMany({ where: { organizationId: orgId } });
+    await prisma.gmailConfig.deleteMany({ where: { organizationId: orgId } });
+    await prisma.linkedInConfig.deleteMany({ where: { organizationId: orgId } });
+    
+    await prisma.organization.delete({ where: { id: orgId } });
+
+    return res.status(200).json({ success: true, message: "Organization deleted successfully" });
+  } catch (error: any) {
+    console.error("Error deleting organization:", error);
+    return res.status(500).json({ error: "Failed to delete organization", details: error.message });
   }
 });
 

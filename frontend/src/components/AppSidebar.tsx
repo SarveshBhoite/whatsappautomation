@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
-  MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText, Bot, Shield
+  MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText, Bot, Shield, LogOut
 } from "lucide-react";
 
 // WhatsApp SVG icon
@@ -67,34 +67,90 @@ const navItems: NavItem[] = [
   { href: "/tools",     icon: <Wrench className="h-5 w-5" />,      label: "Tools Suite",      match: "/tools",     moduleKey: "tools" },
 ];
 
-// ─── Component ───────────────────────────────────────────────────────────────
 export default function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setUserRole(localStorage.getItem("user_role"));
+    if (typeof window === "undefined") return;
+
+    const role = localStorage.getItem("user_role");
+    const orgId = localStorage.getItem("organization_id") || "demo-org-123";
+    setUserRole(role);
+
+    // If Super Admin, allow all modules
+    if (role === "super_admin") {
+      setEnabledModules(navItems.map(item => item.moduleKey).filter(Boolean) as string[]);
+      setIsLoaded(true);
+      return;
     }
-  }, []);
+
+    // Fetch exact enabled modules for this organization
+    const fetchOrgModules = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/admin/organization/my-modules", {
+          headers: {
+            "x-organization-id": orgId,
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.enabledModules)) {
+            setEnabledModules(data.enabledModules);
+            localStorage.setItem("enabled_modules", JSON.stringify(data.enabledModules));
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch org modules, falling back to local storage:", err);
+        const cached = localStorage.getItem("enabled_modules");
+        if (cached) {
+          try {
+            setEnabledModules(JSON.parse(cached));
+          } catch {}
+        }
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    fetchOrgModules();
+  }, [pathname]);
+
+  const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("user_role");
+      localStorage.removeItem("organization_id");
+      localStorage.removeItem("user_name");
+      localStorage.removeItem("enabled_modules");
+    }
+    router.push("/login");
+  };
 
   const isActive = (match: string | string[]) => {
     const matches = Array.isArray(match) ? match : [match];
     return matches.some(m => pathname === m || pathname.startsWith(m + "/"));
   };
 
+  // Strictly filter navigation items based on enabled modules
+  const visibleNavItems = userRole === "super_admin"
+    ? navItems
+    : navItems.filter(item => !item.moduleKey || enabledModules.includes(item.moduleKey));
+
   return (
     <>
       {/* ── Desktop sidebar ────────────────────────────────────────────── */}
       <aside className="hidden sm:flex w-16 flex-col items-center py-4 border-r border-slate-800 bg-slate-950 justify-between shrink-0 z-40">
         
-        {/* Logo */}
-        <div className="flex flex-col items-center w-full gap-2">
+        {/* Logo & Nav items */}
+        <div className="flex flex-col items-center w-full gap-2 overflow-y-auto no-scrollbar">
           <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-800 mb-3 shrink-0 shadow-lg shadow-primary/10">
             <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
           </div>
 
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isActive(item.match);
 
             return (
@@ -116,7 +172,7 @@ export default function AppSidebar() {
                   {item.icon}
                 </Link>
 
-                {/* Clean Tooltip on Hover */}
+                {/* Tooltip on Hover */}
                 <span className="
                   absolute left-full ml-3 px-2.5 py-1.5
                   bg-slate-900 border border-slate-700/60
@@ -133,27 +189,29 @@ export default function AppSidebar() {
           })}
         </div>
 
-        {/* Admin & Settings at bottom */}
-        <div className="flex flex-col gap-2 shrink-0">
+        {/* Bottom Actions: Super Admin, Settings, Logout */}
+        <div className="flex flex-col gap-2 shrink-0 pt-2 border-t border-slate-800/60 w-full items-center">
           {userRole === "super_admin" && (
-            <Link
-              href="/admin"
-              className={`
-                w-10 h-10 rounded-xl flex items-center justify-center relative group shrink-0
-                transition-all duration-200
-                ${isActive("/admin")
-                  ? "bg-primary/15 text-primary"
-                  : "text-amber-500/80 hover:text-amber-400 hover:bg-slate-800/60"}
-              `}
-            >
-              {isActive("/admin") && (
-                <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
-              )}
-              <Shield className="h-5 w-5" />
+            <div className="relative group shrink-0">
+              <Link
+                href="/admin"
+                className={`
+                  w-10 h-10 rounded-xl flex items-center justify-center relative
+                  transition-all duration-200
+                  ${isActive("/admin")
+                    ? "bg-amber-500/15 text-amber-400"
+                    : "text-amber-500/80 hover:text-amber-400 hover:bg-slate-800/60"}
+                `}
+              >
+                {isActive("/admin") && (
+                  <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-amber-400 rounded-r-full" />
+                )}
+                <Shield className="h-5 w-5" />
+              </Link>
               <span className="
                 absolute left-full ml-3 px-2.5 py-1.5
                 bg-slate-900 border border-slate-700/60
-                text-xs text-slate-200 font-medium rounded-lg
+                text-xs text-amber-300 font-medium rounded-lg
                 whitespace-nowrap shadow-xl
                 scale-0 opacity-0 origin-left
                 group-hover:scale-100 group-hover:opacity-100
@@ -161,53 +219,63 @@ export default function AppSidebar() {
               ">
                 Super Admin Console
               </span>
-            </Link>
+            </div>
           )}
 
-          <Link
-            href="/settings"
-            className={`
-              w-10 h-10 rounded-xl flex items-center justify-center relative group shrink-0
-              transition-all duration-200
-              ${isActive("/settings")
-                ? "bg-primary/15 text-primary"
-                : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
-            `}
-          >
-          {isActive("/settings") && (
-            <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
-          )}
-          <Settings className="h-5 w-5" />
-          <span className="
-            absolute left-full ml-3 px-2.5 py-1.5
-            bg-slate-900 border border-slate-700/60
-            text-xs text-slate-200 font-medium rounded-lg
-            whitespace-nowrap shadow-xl
-            scale-0 opacity-0 origin-left
-            group-hover:scale-100 group-hover:opacity-100
-            transition-all duration-150 z-50 pointer-events-none
-          ">
-            Settings
-          </span>
-        </Link>
-      </div>
-    </aside>
+          <div className="relative group shrink-0">
+            <Link
+              href="/settings"
+              className={`
+                w-10 h-10 rounded-xl flex items-center justify-center relative
+                transition-all duration-200
+                ${isActive("/settings")
+                  ? "bg-primary/15 text-primary"
+                  : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
+              `}
+            >
+              {isActive("/settings") && (
+                <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
+              )}
+              <Settings className="h-5 w-5" />
+            </Link>
+            <span className="
+              absolute left-full ml-3 px-2.5 py-1.5
+              bg-slate-900 border border-slate-700/60
+              text-xs text-slate-200 font-medium rounded-lg
+              whitespace-nowrap shadow-xl
+              scale-0 opacity-0 origin-left
+              group-hover:scale-100 group-hover:opacity-100
+              transition-all duration-150 z-50 pointer-events-none
+            ">
+              Settings
+            </span>
+          </div>
+
+          <div className="relative group shrink-0">
+            <button
+              onClick={handleLogout}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+            <span className="
+              absolute left-full ml-3 px-2.5 py-1.5
+              bg-slate-900 border border-slate-700/60
+              text-xs text-red-400 font-medium rounded-lg
+              whitespace-nowrap shadow-xl
+              scale-0 opacity-0 origin-left
+              group-hover:scale-100 group-hover:opacity-100
+              transition-all duration-150 z-50 pointer-events-none
+            ">
+              Log Out
+            </span>
+          </div>
+        </div>
+      </aside>
 
       {/* ── Mobile bottom bar ───────────────────────────────────────────── */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2 py-1.5 gap-1.5 shadow-2xl safe-bottom">
-        {[
-          { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,  label: "WhatsApp" },
-          { href: "/instagram", icon: <Instagram className="h-5 w-5" />, label: "Instagram" },
-          { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,   label: "YouTube" },
-          { href: "/gmail",     icon: <Mail className="h-5 w-5" />,      label: "Gmail" },
-          { href: "/linkedin",  icon: <LinkedIn className="h-5 w-5" />,  label: "LinkedIn" },
-          { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,  label: "Flows" },
-          { href: "/reviews",   icon: <Star className="h-5 w-5" />,      label: "Reviews" },
-          { href: "/gmb",       icon: <Store className="h-5 w-5" />,     label: "Listing" },
-          { href: "/ads",       icon: <Megaphone className="h-5 w-5" />, label: "Ads" },
-          { href: "/tools",     icon: <Wrench className="h-5 w-5" />,    label: "Tools" },
-          { href: "/settings",  icon: <Settings className="h-5 w-5" />,  label: "Settings" },
-        ].map(item => {
+        {visibleNavItems.map(item => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
@@ -225,6 +293,13 @@ export default function AppSidebar() {
             </Link>
           );
         })}
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 shrink-0 rounded-xl text-red-400 hover:bg-red-500/10 min-w-[68px]"
+        >
+          <LogOut className="h-5 w-5" />
+          <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">Logout</span>
+        </button>
       </nav>
     </>
   );
