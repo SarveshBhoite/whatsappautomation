@@ -2,7 +2,7 @@
 import { usePathname } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 
-const FULLSCREEN_ROUTES = ["/", "/privacy", "/terms", "/ads/campaigns/create"];
+const FULLSCREEN_ROUTES = ["/", "/login", "/admin", "/privacy", "/terms", "/ads/campaigns/create"];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

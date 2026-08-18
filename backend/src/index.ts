@@ -21,6 +21,7 @@ import contentInspectorRouter from "./routes/contentInspector";
 import aiAgentRouter from "./routes/aiAgent";
 import metaAdsRouter from "./routes/metaAds";
 import reportsRouter from "./routes/reports";
+import whatsappEmbeddedRouter from "./routes/whatsappEmbedded";
 
 const app = express();
 const server = http.createServer(app);
@@ -57,6 +58,9 @@ app.use("/api/messages", messagesRouter);
 
 // Admin / Client Portal Router
 app.use("/api/admin", adminRouter);
+
+// WhatsApp Multi-Tenant Embedded Signup Router
+app.use("/api/whatsapp", whatsappEmbeddedRouter);
 
 // GMB/Google Business Profile Review Router
 app.use("/api/gmb", gmbRouter);

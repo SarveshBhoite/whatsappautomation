@@ -123,12 +123,20 @@ export default function LandingPage() {
             Jisnu CRM
           </span>
         </div>
-        <Link
-          href="/whatsapp"
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-secondary text-background text-sm font-bold transition-all shadow-lg shadow-primary/20"
-        >
-          Go to Dashboard <ArrowRight className="h-4 w-4" />
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/login"
+            className="px-4 py-2 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-300 text-sm font-semibold transition-all"
+          >
+            Log In
+          </Link>
+          <Link
+            href="/login"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-bold transition-all shadow-lg shadow-primary/20"
+          >
+            Go to Dashboard <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 flex flex-col items-center gap-0">
@@ -155,8 +163,8 @@ export default function LandingPage() {
 
           <div className="flex flex-wrap items-center justify-center gap-4 mt-4">
             <Link
-              href="/whatsapp"
-              className="px-7 py-3.5 rounded-xl bg-primary hover:bg-secondary text-background font-bold transition-all shadow-lg shadow-primary/25 flex items-center gap-2"
+              href="/login"
+              className="px-7 py-3.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold transition-all shadow-lg shadow-primary/25 flex items-center gap-2"
             >
               Get Started <ArrowRight className="h-4 w-4" />
             </Link>

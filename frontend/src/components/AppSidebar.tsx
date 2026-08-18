@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
-  MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText, Bot
+  MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText, Bot, Shield
 } from "lucide-react";
 
 // WhatsApp SVG icon
@@ -11,7 +12,6 @@ const WhatsApp = ({ className }: { className?: string }) => (
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
   </svg>
 );
-
 
 // Instagram SVG icon
 const Instagram = ({ className }: { className?: string }) => (
@@ -49,26 +49,34 @@ interface NavItem {
   icon: React.ReactNode;
   label: string;
   match: string | string[];
+  moduleKey?: string;
 }
 
 const navItems: NavItem[] = [
-  { href: "/ai-agent",  icon: <Bot className="h-5 w-5" />,         label: "AI Agent Studio",  match: "/ai-agent" },
-  { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,    label: "WhatsApp Chats",   match: "/whatsapp" },
-  { href: "/instagram", icon: <Instagram className="h-5 w-5" />,   label: "Instagram Chats",  match: "/instagram" },
-  { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,     label: "YouTube Comments", match: "/youtube" },
-  { href: "/gmail",     icon: <Mail className="h-5 w-5" />,        label: "Gmail Auto-Reply", match: "/gmail" },
-  { href: "/linkedin",  icon: <LinkedIn className="h-5 w-5" />,    label: "LinkedIn Posts",   match: "/linkedin" },
-  { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,    label: "Flows",            match: "/flows" },
-  { href: "/reviews",   icon: <Star className="h-5 w-5" />,        label: "Google Reviews",   match: "/reviews" },
-  { href: "/gmb",       icon: <Store className="h-5 w-5" />,       label: "Google Listing",   match: "/gmb" },
-  { href: "/ads",       icon: <Megaphone className="h-5 w-5" />,   label: "Google Ads",       match: "/ads" },
-  { href: "/meta-ads",  icon: <Meta className="h-5 w-5" />,        label: "Meta Ads Manager", match: "/meta-ads" },
-  { href: "/tools",     icon: <Wrench className="h-5 w-5" />,      label: "Tools Suite",      match: "/tools" },
+  { href: "/ai-agent",  icon: <Bot className="h-5 w-5" />,         label: "AI Agent Studio",  match: "/ai-agent",  moduleKey: "ai_agent" },
+  { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,    label: "WhatsApp Chats",   match: "/whatsapp",  moduleKey: "whatsapp" },
+  { href: "/instagram", icon: <Instagram className="h-5 w-5" />,   label: "Instagram Chats",  match: "/instagram", moduleKey: "instagram" },
+  { href: "/youtube",   icon: <Youtube className="h-5 w-5" />,     label: "YouTube Comments", match: "/youtube",   moduleKey: "youtube" },
+  { href: "/gmail",     icon: <Mail className="h-5 w-5" />,        label: "Gmail Auto-Reply", match: "/gmail",     moduleKey: "gmail" },
+  { href: "/linkedin",  icon: <LinkedIn className="h-5 w-5" />,    label: "LinkedIn Posts",   match: "/linkedin",  moduleKey: "linkedin" },
+  { href: "/flows",     icon: <GitMerge className="h-5 w-5" />,    label: "Flows",            match: "/flows",     moduleKey: "whatsapp" },
+  { href: "/reviews",   icon: <Star className="h-5 w-5" />,        label: "Google Reviews",   match: "/reviews",   moduleKey: "reviews" },
+  { href: "/gmb",       icon: <Store className="h-5 w-5" />,       label: "Google Listing",   match: "/gmb",       moduleKey: "gmb" },
+  { href: "/ads",       icon: <Megaphone className="h-5 w-5" />,   label: "Google Ads",       match: "/ads",       moduleKey: "google_ads" },
+  { href: "/meta-ads",  icon: <Meta className="h-5 w-5" />,        label: "Meta Ads Manager", match: "/meta-ads",  moduleKey: "meta_ads" },
+  { href: "/tools",     icon: <Wrench className="h-5 w-5" />,      label: "Tools Suite",      match: "/tools",     moduleKey: "tools" },
 ];
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function AppSidebar() {
   const pathname = usePathname();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setUserRole(localStorage.getItem("user_role"));
+    }
+  }, []);
 
   const isActive = (match: string | string[]) => {
     const matches = Array.isArray(match) ? match : [match];
@@ -125,17 +133,47 @@ export default function AppSidebar() {
           })}
         </div>
 
-        {/* Settings at bottom */}
-        <Link
-          href="/settings"
-          className={`
-            w-10 h-10 rounded-xl flex items-center justify-center relative group shrink-0
-            transition-all duration-200
-            ${isActive("/settings")
-              ? "bg-primary/15 text-primary"
-              : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
-          `}
-        >
+        {/* Admin & Settings at bottom */}
+        <div className="flex flex-col gap-2 shrink-0">
+          {userRole === "super_admin" && (
+            <Link
+              href="/admin"
+              className={`
+                w-10 h-10 rounded-xl flex items-center justify-center relative group shrink-0
+                transition-all duration-200
+                ${isActive("/admin")
+                  ? "bg-primary/15 text-primary"
+                  : "text-amber-500/80 hover:text-amber-400 hover:bg-slate-800/60"}
+              `}
+            >
+              {isActive("/admin") && (
+                <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
+              )}
+              <Shield className="h-5 w-5" />
+              <span className="
+                absolute left-full ml-3 px-2.5 py-1.5
+                bg-slate-900 border border-slate-700/60
+                text-xs text-slate-200 font-medium rounded-lg
+                whitespace-nowrap shadow-xl
+                scale-0 opacity-0 origin-left
+                group-hover:scale-100 group-hover:opacity-100
+                transition-all duration-150 z-50 pointer-events-none
+              ">
+                Super Admin Console
+              </span>
+            </Link>
+          )}
+
+          <Link
+            href="/settings"
+            className={`
+              w-10 h-10 rounded-xl flex items-center justify-center relative group shrink-0
+              transition-all duration-200
+              ${isActive("/settings")
+                ? "bg-primary/15 text-primary"
+                : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
+            `}
+          >
           {isActive("/settings") && (
             <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
           )}
@@ -152,7 +190,8 @@ export default function AppSidebar() {
             Settings
           </span>
         </Link>
-      </aside>
+      </div>
+    </aside>
 
       {/* ── Mobile bottom bar ───────────────────────────────────────────── */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2 py-1.5 gap-1.5 shadow-2xl safe-bottom">

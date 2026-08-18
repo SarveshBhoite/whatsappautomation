@@ -12,6 +12,79 @@ const getOrgId = (req: Request): string => {
   return (req.headers["x-organization-id"] as string) || "demo-org-123";
 };
 
+// POST: Authenticate user credentials against PostgreSQL database
+router.post("/login", async (req: Request, res: Response) => {
+  try {
+    const { email, password, loginType, orgId } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    // 1. Find user in database by email
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      include: { organization: true }
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email address or password" });
+    }
+
+    // 2. Validate password
+    if (user.password && user.password !== password) {
+      return res.status(401).json({ error: "Invalid email address or password" });
+    }
+
+    // 3. Super Admin Login Validation
+    if (loginType === "super_admin") {
+      if (user.role !== "super_admin") {
+        return res.status(403).json({ error: "Access denied. User account is not a Super Admin." });
+      }
+
+      return res.status(200).json({
+        success: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+          enabledModules: (user.organization as any)?.enabledModules || []
+        }
+      });
+    }
+
+    // 4. Client Admin Login Validation
+    if (!orgId) {
+      return res.status(400).json({ error: "Organization ID is required for Client Portal login" });
+    }
+
+    if (user.organizationId !== orgId.trim()) {
+      return res.status(401).json({ error: "Organization ID does not match account credentials" });
+    }
+
+    if (user.organization && (user.organization as any).status === "SUSPENDED") {
+      return res.status(403).json({ error: "Organization account has been suspended" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        organizationId: user.organizationId,
+        enabledModules: (user.organization as any)?.enabledModules || []
+      }
+    });
+  } catch (error: any) {
+    console.error("Error during authentication:", error);
+    return res.status(500).json({ error: "Authentication failed", details: error.message });
+  }
+});
+
 // GET: List all conversations for the organization
 router.get("/conversations", async (req: Request, res: Response) => {
   try {
@@ -1024,6 +1097,105 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error executing bulk WhatsApp broadcast:", error);
     return res.status(500).json({ error: "Failed to execute bulk broadcast", details: error.message });
+  }
+});
+
+// GET: Fetch current organization's enabled modules
+router.get("/organization/my-modules", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const org = await (prisma.organization as any).findUnique({
+      where: { id: organizationId },
+      select: { id: true, name: true, enabledModules: true, status: true }
+    });
+
+    if (!org) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    return res.status(200).json(org);
+  } catch (error: any) {
+    console.error("Error fetching organization modules:", error);
+    return res.status(500).json({ error: "Failed to fetch organization modules", details: error.message });
+  }
+});
+
+// GET: List all organizations (Super Admin)
+router.get("/organizations", async (req: Request, res: Response) => {
+  try {
+    const organizations = await prisma.organization.findMany({
+      include: {
+        users: { select: { id: true, email: true, name: true, role: true } },
+        waConfig: { select: { phoneNumberId: true, wabaId: true } },
+        gmbConfig: { select: { locationId: true, accountId: true } },
+        gmailConfig: { select: { emailAddress: true } },
+        linkedInConfig: { select: { memberName: true, companyName: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return res.status(200).json(organizations);
+  } catch (error: any) {
+    console.error("Error listing organizations:", error);
+    return res.status(500).json({ error: "Failed to list organizations", details: error.message });
+  }
+});
+
+// POST: Create a new organization and default Client Admin user
+router.post("/organizations", async (req: Request, res: Response) => {
+  try {
+    const { name, adminEmail, adminName, enabledModules } = req.body;
+
+    if (!name || !adminEmail) {
+      return res.status(400).json({ error: "Organization name and admin email are required" });
+    }
+
+    const defaultModules = enabledModules || [
+      "whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"
+    ];
+
+    const organization = await (prisma.organization as any).create({
+      data: {
+        name,
+        enabledModules: defaultModules,
+        users: {
+          create: {
+            email: adminEmail,
+            name: adminName || "Client Admin",
+            role: "admin"
+          }
+        }
+      },
+      include: {
+        users: true
+      }
+    });
+
+    return res.status(201).json({ success: true, organization });
+  } catch (error: any) {
+    console.error("Error creating organization:", error);
+    return res.status(500).json({ error: "Failed to create organization", details: error.message });
+  }
+});
+
+// PUT: Update organization enabled modules
+router.put("/organizations/:id/modules", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { enabledModules, status } = req.body;
+
+    const updatedOrg = await (prisma.organization as any).update({
+      where: { id },
+      data: {
+        ...(enabledModules && { enabledModules }),
+        ...(typeof status === "string" && { status })
+      }
+    });
+
+    return res.status(200).json({ success: true, organization: updatedOrg });
+  } catch (error: any) {
+    console.error("Error updating organization modules:", error);
+    return res.status(500).json({ error: "Failed to update organization modules", details: error.message });
   }
 });
 

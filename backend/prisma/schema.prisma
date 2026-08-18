@@ -11,6 +11,8 @@ datasource db {
 model Organization {
   id                  String                 @id @default(uuid())
   name                String
+  enabledModules      String[]               @default(["whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"])
+  status              String                 @default("ACTIVE")
   createdAt           DateTime               @default(now())
   users               User[]
   waConfig            WhatsAppConfig?
@@ -42,6 +44,7 @@ model User {
   id             String       @id @default(uuid())
   email          String       @unique
   name           String?
+  password       String?      @default("admin123")
   role           String       @default("agent")
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
