@@ -540,6 +540,117 @@ export default function Dashboard() {
   });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
 
+  // Meta Embedded Signup States
+  const [capturedWabaId, setCapturedWabaId] = useState<string | null>(null);
+  const [capturedPhoneId, setCapturedPhoneId] = useState<string | null>(null);
+  const [embeddedConnecting, setEmbeddedConnecting] = useState(false);
+  const [embeddedSuccess, setEmbeddedSuccess] = useState(false);
+
+  // Initialize Meta FB SDK and listen for WA_EMBEDDED_SIGNUP postMessage events
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      // Initialize FB SDK if already present
+      if ((window as any).FB) {
+        try {
+          (window as any).FB.init({
+            appId: "36702477879366478",
+            cookie: true,
+            xfbml: true,
+            version: "v21.0"
+          });
+        } catch (e) {
+          console.warn("FB init warning:", e);
+        }
+      }
+
+      // Listen for Meta Embedded Signup completion postMessage events
+      const sessionMessageListener = (event: MessageEvent) => {
+        if (event.origin !== "https://www.facebook.com") return;
+        try {
+          const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+          if (data.type === "WA_EMBEDDED_SIGNUP" || data.event === "FINISH") {
+            console.log("[META EMBEDDED SIGNUP SESSION EVENT]:", data);
+            if (data.data) {
+              const { waba_id, phone_number_id } = data.data;
+              if (waba_id) setCapturedWabaId(waba_id);
+              if (phone_number_id) setCapturedPhoneId(phone_number_id);
+            }
+          }
+        } catch {
+          // ignore non-JSON messages
+        }
+      };
+
+      window.addEventListener("message", sessionMessageListener);
+      return () => window.removeEventListener("message", sessionMessageListener);
+    }
+  }, []);
+
+  const launchWhatsAppSignup = () => {
+    if (typeof window === "undefined") return;
+    const FB = (window as any).FB;
+    if (!FB) {
+      alert("Meta SDK is initializing. Please try clicking again in a moment.");
+      return;
+    }
+
+    setEmbeddedConnecting(true);
+
+    FB.login(
+      async (response: any) => {
+        console.log("[META FB LOGIN RESPONSE]:", response);
+        if (response.authResponse && response.authResponse.code) {
+          const code = response.authResponse.code;
+          try {
+            const orgId = localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+            const res = await fetch(`${BACKEND_URL}/api/whatsapp/embedded-signup/callback`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-organization-id": orgId,
+              },
+              body: JSON.stringify({
+                code,
+                wabaId: capturedWabaId || undefined,
+                phoneNumberId: capturedPhoneId || undefined,
+              }),
+            });
+
+            const resData = await res.json();
+            if (!res.ok) throw new Error(resData.error || "Failed to exchange token with Meta");
+
+            setEmbeddedSuccess(true);
+            if (resData.config) {
+              setConfig(prev => ({
+                ...prev,
+                wabaId: resData.config.wabaId || prev.wabaId,
+                phoneNumberId: resData.config.phoneNumberId || prev.phoneNumberId,
+              }));
+            }
+            alert("✓ WhatsApp Business Account connected successfully via Meta!");
+            fetchConfig();
+          } catch (err: any) {
+            console.error("Token exchange failed:", err);
+            alert(`Connection Error: ${err.message}`);
+          } finally {
+            setEmbeddedConnecting(false);
+          }
+        } else {
+          setEmbeddedConnecting(false);
+        }
+      },
+      {
+        config_id: "1057598330310757",
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          version: "v4",
+          sessionInfoVersion: "3",
+        },
+      }
+    );
+  };
+
   // Quoted reply state
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
 
@@ -2159,10 +2270,55 @@ export default function Dashboard() {
               <div className="md:col-span-2 space-y-6">
                 {settingsSubTab === "whatsapp" ? (
                   <>
-                    {/* WhatsApp Credentials Form */}
+                    {/* Meta Official Embedded Signup (Recommended for Tech Provider) */}
+                    <div className="bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-hidden animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                            <WhatsApp className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-base text-white">Meta WhatsApp Embedded Signup</h3>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                OFFICIAL TECH PROVIDER
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              Connect your existing company WhatsApp number or create a new WABA instantly with Meta login.
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={launchWhatsAppSignup}
+                          disabled={embeddedConnecting}
+                          className="flex items-center gap-2.5 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer shrink-0"
+                        >
+                          <WhatsApp className="h-4 w-4" />
+                          <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
+                        </button>
+                      </div>
+
+                      {config.wabaId && (
+                        <div className="bg-slate-950/70 border border-emerald-500/20 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                            <Check className="h-4 w-4" />
+                            <span>Status: Connected to Meta Cloud API</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-slate-400 font-mono text-[11px]">
+                            <span>WABA ID: {config.wabaId}</span>
+                            <span>Phone ID: {config.phoneNumberId || "Auto"}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* WhatsApp Manual Credentials Form */}
                     <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
                       <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Key className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp API Credentials
+                        <Key className="h-4.5 w-4.5 text-emerald-400" /> Manual API Credentials (Advanced)
                       </h3>
 
                       <div className="flex flex-col gap-1">
@@ -2230,7 +2386,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
+                        <span className="text-xs text-slate-200 font-mono truncate">my_secure_verify_token_123</span>
                       </div>
 
                       <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 flex gap-3">

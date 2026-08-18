@@ -39,6 +39,8 @@ export const metadata: Metadata = {
   },
 };
 
+import Script from "next/script";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -50,6 +52,10 @@ export default function RootLayout({
       className={`${sora.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
+        <Script
+          src="https://connect.facebook.net/en_US/sdk.js"
+          strategy="afterInteractive"
+        />
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>

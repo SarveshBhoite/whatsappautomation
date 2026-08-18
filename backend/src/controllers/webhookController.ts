@@ -11,18 +11,32 @@ const processedComments = new Set<string>();
 export const verifyWebhook = async (req: Request, res: Response) => {
   try {
     const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
+    const token = req.query["hub.verify_token"] as string;
     const challenge = req.query["hub.challenge"];
 
-    const verifyToken = process.env.WEBHOOK_VERIFY_TOKEN || "my_secure_verify_token_123";
+    const envVerifyToken = process.env.WEBHOOK_VERIFY_TOKEN || "my_secure_verify_token_123";
 
-    if (mode === "subscribe" && token === verifyToken) {
-      console.log("Meta Webhook verified successfully.");
-      return res.status(200).send(challenge);
-    } else {
-      console.warn("Meta Webhook verification failed. Tokens mismatch.");
+    if (mode === "subscribe") {
+      if (token === envVerifyToken) {
+        console.log("[WEBHOOK VERIFY] Meta Webhook verified successfully via ENV token.");
+        return res.status(200).send(challenge);
+      }
+
+      // Check if token matches any organization WhatsAppConfig or InstagramConfig
+      const matchingWaConfig = await prisma.whatsAppConfig.findFirst({
+        where: { webhookVerifyToken: token }
+      });
+
+      if (matchingWaConfig) {
+        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for Org: ${matchingWaConfig.organizationId}`);
+        return res.status(200).send(challenge);
+      }
+
+      console.warn(`[WEBHOOK VERIFY] Meta Webhook verification failed. Token received: "${token}" did not match.`);
       return res.sendStatus(403);
     }
+
+    return res.sendStatus(400);
   } catch (error) {
     console.error("Error in webhook verification:", error);
     return res.sendStatus(500);
