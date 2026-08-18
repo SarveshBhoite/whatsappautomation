@@ -2,15 +2,14 @@
 import { usePathname } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 
-/** Routes that should render without the app shell (sidebar etc.) */
-const PUBLIC_ROUTES = ["/", "/privacy", "/terms"];
+const FULLSCREEN_ROUTES = ["/", "/privacy", "/terms", "/ads/campaigns/create"];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublic = PUBLIC_ROUTES.includes(pathname);
+  const isFullScreen = FULLSCREEN_ROUTES.some(r => pathname === r || pathname.startsWith("/ads/campaigns/create"));
 
-  if (isPublic) {
-    // Public marketing / legal pages — render children directly, no sidebar
+  if (isFullScreen) {
+    // Render full screen without app sidebar
     return <>{children}</>;
   }
 
