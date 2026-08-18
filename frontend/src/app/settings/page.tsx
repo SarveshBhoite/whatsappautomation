@@ -586,69 +586,91 @@ export default function Dashboard() {
     }
   }, []);
 
+  const processEmbeddedCode = async (code: string, wabaId?: string | null, phoneId?: string | null) => {
+    try {
+      setEmbeddedConnecting(true);
+      const orgId = localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+      const res = await fetch(`${BACKEND_URL}/api/whatsapp/embedded-signup/callback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId,
+        },
+        body: JSON.stringify({
+          code,
+          wabaId: wabaId || capturedWabaId || undefined,
+          phoneNumberId: phoneId || capturedPhoneId || undefined,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || "Failed to exchange token with Meta");
+
+      setEmbeddedSuccess(true);
+      if (resData.config) {
+        setConfig(prev => ({
+          ...prev,
+          wabaId: resData.config.wabaId || prev.wabaId,
+          phoneNumberId: resData.config.phoneNumberId || prev.phoneNumberId,
+        }));
+      }
+      alert("✓ WhatsApp Business Account connected successfully via Meta!");
+      fetchConfig();
+    } catch (err: any) {
+      console.error("Token exchange failed:", err);
+      alert(`Connection Error: ${err.message}`);
+    } finally {
+      setEmbeddedConnecting(false);
+    }
+  };
+
   const launchWhatsAppSignup = () => {
     if (typeof window === "undefined") return;
-    const FB = (window as any).FB;
-    if (!FB) {
-      alert("Meta SDK is initializing. Please try clicking again in a moment.");
+
+    // Official Meta-hosted Embedded Signup Landing URI
+    const metaHostedUrl = "https://business.facebook.com/messaging/whatsapp/onboard/?app_id=36702477879366478&config_id=1057598330310757&extras=%7B%22sessionInfoVersion%22%3A%223%22%2C%22version%22%3A%22v4%22%7D";
+
+    const width = 600;
+    const height = 750;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      metaHostedUrl,
+      "MetaWhatsAppSignup",
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`
+    );
+
+    if (!popup) {
+      alert("Popup blocked! Please allow popups for this site in your browser.");
       return;
     }
 
     setEmbeddedConnecting(true);
 
-    FB.login(
-      async (response: any) => {
-        console.log("[META FB LOGIN RESPONSE]:", response);
-        if (response.authResponse && response.authResponse.code) {
-          const code = response.authResponse.code;
-          try {
-            const orgId = localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
-            const res = await fetch(`${BACKEND_URL}/api/whatsapp/embedded-signup/callback`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-organization-id": orgId,
-              },
-              body: JSON.stringify({
-                code,
-                wabaId: capturedWabaId || undefined,
-                phoneNumberId: capturedPhoneId || undefined,
-              }),
-            });
-
-            const resData = await res.json();
-            if (!res.ok) throw new Error(resData.error || "Failed to exchange token with Meta");
-
-            setEmbeddedSuccess(true);
-            if (resData.config) {
-              setConfig(prev => ({
-                ...prev,
-                wabaId: resData.config.wabaId || prev.wabaId,
-                phoneNumberId: resData.config.phoneNumberId || prev.phoneNumberId,
-              }));
-            }
-            alert("✓ WhatsApp Business Account connected successfully via Meta!");
-            fetchConfig();
-          } catch (err: any) {
-            console.error("Token exchange failed:", err);
-            alert(`Connection Error: ${err.message}`);
-          } finally {
-            setEmbeddedConnecting(false);
-          }
-        } else {
+    // Poll popup window in case of code redirect or closure
+    const pollTimer = setInterval(() => {
+      try {
+        if (!popup || popup.closed) {
+          clearInterval(pollTimer);
           setEmbeddedConnecting(false);
+          return;
         }
-      },
-      {
-        config_id: "1057598330310757",
-        response_type: "code",
-        override_default_response_type: true,
-        extras: {
-          version: "v4",
-          sessionInfoVersion: "3",
-        },
+
+        const currentUrl = popup.location.href;
+        if (currentUrl && (currentUrl.includes("code=") || currentUrl.includes("login_success.html"))) {
+          const urlObj = new URL(currentUrl);
+          const code = urlObj.searchParams.get("code");
+          if (code) {
+            clearInterval(pollTimer);
+            popup.close();
+            processEmbeddedCode(code);
+          }
+        }
+      } catch {
+        // Cross-origin security before redirect is normal, ignore
       }
-    );
+    }, 500);
   };
 
   // Quoted reply state
