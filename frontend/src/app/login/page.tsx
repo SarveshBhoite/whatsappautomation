@@ -2,14 +2,13 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, Building2, Lock, Mail, ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import { Shield, Building2, Lock, Mail, ArrowRight, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [loginType, setLoginType] = useState<"admin" | "super_admin">("admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [orgId, setOrgId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,10 +18,6 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      if (loginType === "admin" && !orgId.trim()) {
-        throw new Error("Organization ID is required for Client Portal login");
-      }
-
       const res = await fetch("http://localhost:5000/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -30,7 +25,6 @@ export default function LoginPage() {
           email: email.trim(),
           password,
           loginType,
-          orgId: orgId.trim(),
         }),
       });
 
@@ -44,6 +38,9 @@ export default function LoginPage() {
       localStorage.setItem("user_role", user.role);
       localStorage.setItem("organization_id", user.organizationId);
       localStorage.setItem("user_name", user.name || user.email);
+      if (user.enabledModules) {
+        localStorage.setItem("enabled_modules", JSON.stringify(user.enabledModules));
+      }
 
       if (user.role === "super_admin") {
         router.push("/admin");
@@ -85,7 +82,10 @@ export default function LoginPage() {
           <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-semibold">
             <button
               type="button"
-              onClick={() => setLoginType("admin")}
+              onClick={() => {
+                setLoginType("admin");
+                setError(null);
+              }}
               className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all ${
                 loginType === "admin"
                   ? "bg-slate-800 text-white shadow-md border border-slate-700"
@@ -98,7 +98,10 @@ export default function LoginPage() {
 
             <button
               type="button"
-              onClick={() => setLoginType("super_admin")}
+              onClick={() => {
+                setLoginType("super_admin");
+                setError(null);
+              }}
               className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all ${
                 loginType === "super_admin"
                   ? "bg-slate-800 text-white shadow-md border border-slate-700"
@@ -147,25 +150,6 @@ export default function LoginPage() {
                 />
               </div>
             </div>
-
-            {loginType === "admin" && (
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Organization ID <span className="text-primary font-normal">*</span>
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. demo-org-123 or client UUID"
-                    value={orgId}
-                    onChange={(e) => setOrgId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-primary text-white text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none transition-colors"
-                  />
-                </div>
-              </div>
-            )}
 
             <button
               type="submit"

@@ -15,7 +15,7 @@ const getOrgId = (req: Request): string => {
 // POST: Authenticate user credentials against PostgreSQL database
 router.post("/login", async (req: Request, res: Response) => {
   try {
-    const { email, password, loginType, orgId } = req.body;
+    const { email, password, loginType } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required" });
@@ -55,17 +55,9 @@ router.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    // 4. Client Admin Login Validation
-    if (!orgId) {
-      return res.status(400).json({ error: "Organization ID is required for Client Portal login" });
-    }
-
-    if (user.organizationId !== orgId.trim()) {
-      return res.status(401).json({ error: "Organization ID does not match account credentials" });
-    }
-
+    // 4. Client Portal Login (Organization automatically linked from DB)
     if (user.organization && (user.organization as any).status === "SUSPENDED") {
-      return res.status(403).json({ error: "Organization account has been suspended" });
+      return res.status(403).json({ error: "Organization account has been suspended. Please contact support." });
     }
 
     return res.status(200).json({
@@ -76,6 +68,7 @@ router.post("/login", async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
         organizationId: user.organizationId,
+        organizationName: user.organization?.name || "Client Workspace",
         enabledModules: (user.organization as any)?.enabledModules || []
       }
     });
