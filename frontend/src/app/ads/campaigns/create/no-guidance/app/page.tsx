@@ -8,7 +8,7 @@ import {
   Sparkles, Layers, Target, Search as SearchIcon, Video as VideoIcon, LayoutGrid, ShoppingBag,
   Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3,
   Image as ImageIcon, Play, Upload, ExternalLink, ShieldCheck, DollarSign, RefreshCw, Apple,
-  Wand2, Filter, Eye, SlidersHorizontal, Tag, PhoneCall, Phone, Wrench, ChevronLeft, ChevronRight, FileText
+  Wand2, Filter, Eye, SlidersHorizontal, Tag, PhoneCall, Phone, Wrench, ChevronLeft, ChevronRight, FileText, Code
 } from "lucide-react";
 
 interface AppOption {
@@ -343,8 +343,40 @@ export default function  NoGuidanceAppPage()  {
   const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
-  const [headlines, setHeadlines] = useState<string[]>(["Automation Software", "Lead Gen Tool", "WhatsApp Marketing", "", "", "", ""]);
-  const [descriptions, setDescriptions] = useState<string[]>(["Automate your business communication with WhatsApp.", "Boost conversions with instant messaging."]);
+  const [headlines, setHeadlines] = useState<string[]>([""]);
+  const [descriptions, setDescriptions] = useState<string[]>([""]);
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
+  const [uploadedHtml5, setUploadedHtml5] = useState<File[]>([]);
+  
+  const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
+  const [promotionEvent, setPromotionEvent] = useState("None");
+  const [promotionLanguage, setPromotionLanguage] = useState("Hindi");
+  const [promotionCurrency, setPromotionCurrency] = useState("INR");
+  const [promotionType, setPromotionType] = useState("Monetary discount");
+  const [promotionTypeAmount, setPromotionTypeAmount] = useState("");
+  const [promotionItem, setPromotionItem] = useState("");
+  const [promotionFinalUrl, setPromotionFinalUrl] = useState("");
+  const [promotionDetailsType, setPromotionDetailsType] = useState("None");
+  const [promotionDetailsAmount, setPromotionDetailsAmount] = useState("");
+  const [promotionStartDateOption, setPromotionStartDateOption] = useState("NONE");
+  const [promotionStartDate, setPromotionStartDate] = useState("");
+  const [promotionEndDateOption, setPromotionEndDateOption] = useState("NONE");
+  const [promotionEndDate, setPromotionEndDate] = useState("");
+
+  const [isUrlOptionsOpen, setIsUrlOptionsOpen] = useState(false);
+  const [adGroupTrackingTemplate, setAdGroupTrackingTemplate] = useState("");
+  const [adGroupFinalUrlSuffix, setAdGroupFinalUrlSuffix] = useState("");
+  const [adGroupCustomParams, setAdGroupCustomParams] = useState([{ name: "", value: "" }]);
+  const [differentMobileUrl, setDifferentMobileUrl] = useState(false);
+
+  const [isAdvancedOptionsOpen, setIsAdvancedOptionsOpen] = useState(false);
+  const [assetScheduleStartDateOption, setAssetScheduleStartDateOption] = useState("NONE");
+  const [assetScheduleStartDate, setAssetScheduleStartDate] = useState("");
+  const [assetScheduleEndDateOption, setAssetScheduleEndDateOption] = useState("NONE");
+  const [assetScheduleEndDate, setAssetScheduleEndDate] = useState("");
+  const [assetScheduleDays, setAssetScheduleDays] = useState("All days");
+
   const [businessName, setBusinessName] = useState<string>("JISNU DIGITAL SOLUTIONS PRIVATE LIMITED");
   const [businessLogo, setBusinessLogo] = useState<string>("");
   const [businessLogos, setBusinessLogos] = useState<string[]>([]);
@@ -1726,12 +1758,8 @@ export default function  NoGuidanceAppPage()  {
                 </div>
                 <div className="space-y-4 text-xs">
                   <p className="text-slate-400">
-                    Use product groups to define which products from your linked data feed are eligible to appear in your ads.
+                    Manage your product feed in the Product feeds setting. When you have attached a product feed to this campaign, you will be able to choose specific products or product groups.
                   </p>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" checked className="text-primary h-4 w-4 bg-slate-950 border-slate-700" readOnly />
-                    <span className="text-slate-200 font-semibold">All products in the linked feed</span>
-                  </label>
                 </div>
               </div>
 
@@ -1750,8 +1778,31 @@ export default function  NoGuidanceAppPage()  {
                   <div className="space-y-2">
                     <label className="block text-slate-300 font-semibold">Headlines <span className="text-slate-500 font-normal ml-1">Up to 5</span></label>
                     <div className="space-y-2">
-                      <input type="text" placeholder="Add headline" className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" />
-                      <input type="text" placeholder="Add headline" className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                      {headlines.map((headline, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Add headline" 
+                            value={headline}
+                            onChange={(e) => {
+                              const newH = [...headlines];
+                              newH[idx] = e.target.value;
+                              setHeadlines(newH);
+                            }}
+                            className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" 
+                          />
+                          {headlines.length > 1 && (
+                            <button onClick={() => setHeadlines(headlines.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-2">
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {headlines.length < 5 && (
+                        <button onClick={() => setHeadlines([...headlines, ""])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                          <Plus className="h-3 w-3" /> Add headline
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1759,22 +1810,293 @@ export default function  NoGuidanceAppPage()  {
                   <div className="space-y-2">
                     <label className="block text-slate-300 font-semibold">Descriptions <span className="text-slate-500 font-normal ml-1">Up to 5</span></label>
                     <div className="space-y-2">
-                      <input type="text" placeholder="Add description" className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                      {descriptions.map((desc, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Add description" 
+                            value={desc}
+                            onChange={(e) => {
+                              const newD = [...descriptions];
+                              newD[idx] = e.target.value;
+                              setDescriptions(newD);
+                            }}
+                            className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" 
+                          />
+                          {descriptions.length > 1 && (
+                            <button onClick={() => setDescriptions(descriptions.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-2">
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {descriptions.length < 5 && (
+                        <button onClick={() => setDescriptions([...descriptions, ""])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                          <Plus className="h-3 w-3" /> Add description
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Images & Videos */}
-                  <div className="grid grid-cols-2 gap-4 max-w-xl pt-2">
-                    <button className="flex flex-col items-center justify-center p-6 rounded-xl border border-dashed border-slate-700 bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer gap-2">
-                      <ImageIcon className="h-6 w-6 text-slate-400" />
-                      <span className="font-semibold text-slate-200">Images</span>
-                      <span className="text-[10px] text-slate-500">Up to 20</span>
-                    </button>
-                    <button className="flex flex-col items-center justify-center p-6 rounded-xl border border-dashed border-slate-700 bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer gap-2">
-                      <VideoIcon className="h-6 w-6 text-slate-400" />
-                      <span className="font-semibold text-slate-200">Videos</span>
-                      <span className="text-[10px] text-slate-500">Up to 20</span>
-                    </button>
+                  {/* Images, Videos & HTML5 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl pt-2">
+                    {/* Images */}
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            const files = Array.from(e.target.files).slice(0, 20);
+                            setUploadedImages(files);
+                            console.log("Mock ImageKit upload started for", files.length, "images");
+                          }
+                        }}
+                      />
+                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedImages.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-700 bg-slate-900'} hover:bg-slate-800 transition-colors pointer-events-none gap-2`}>
+                        <ImageIcon className={`h-6 w-6 ${uploadedImages.length > 0 ? 'text-primary' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-200">Images</span>
+                        <span className="text-[10px] text-slate-500">{uploadedImages.length > 0 ? `${uploadedImages.length}/20 uploaded` : 'Up to 20'}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Videos */}
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="video/*" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            const files = Array.from(e.target.files).slice(0, 20);
+                            setUploadedVideos(files);
+                            console.log("Mock ImageKit upload started for", files.length, "videos");
+                          }
+                        }}
+                      />
+                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedVideos.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-700 bg-slate-900'} hover:bg-slate-800 transition-colors pointer-events-none gap-2`}>
+                        <VideoIcon className={`h-6 w-6 ${uploadedVideos.length > 0 ? 'text-primary' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-200">Videos</span>
+                        <span className="text-[10px] text-slate-500">{uploadedVideos.length > 0 ? `${uploadedVideos.length}/20 uploaded` : 'Up to 20'}</span>
+                      </div>
+                    </div>
+
+                    {/* HTML5 */}
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept=".html,.zip" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            const files = Array.from(e.target.files).slice(0, 20);
+                            setUploadedHtml5(files);
+                            console.log("Mock ImageKit upload started for", files.length, "html5 files");
+                          }
+                        }}
+                      />
+                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedHtml5.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-700 bg-slate-900'} hover:bg-slate-800 transition-colors pointer-events-none gap-2`}>
+                        <Code className={`h-6 w-6 ${uploadedHtml5.length > 0 ? 'text-primary' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-200">HTML5</span>
+                        <span className="text-[10px] text-slate-500">{uploadedHtml5.length > 0 ? `${uploadedHtml5.length}/20 uploaded` : 'Up to 20'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Promotions */}
+                  <div className="pt-4 border-t border-slate-800/40">
+                    <div 
+                      className="flex items-center justify-between cursor-pointer group"
+                      onClick={() => setIsPromotionsOpen(!isPromotionsOpen)}
+                    >
+                      <h3 className="font-semibold text-slate-200 text-sm group-hover:text-primary transition-colors">Add promotions to your ad group</h3>
+                      {isPromotionsOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                    </div>
+                    {isPromotionsOpen && (
+                      <div className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400 font-semibold">Add new promotion</label>
+                            <select value={promotionEvent} onChange={(e) => setPromotionEvent(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary">
+                              {["None", "Back to school", "Black Friday", "Boxing Day", "Carnival", "Chinese New Year", "Christmas", "Cyber Monday", "Diwali", "Easter", "Eid al-Adha", "Eid al-Fitr", "End of Season", "Epiphany", "Fall Sale", "Father's Day", "Halloween", "Hanukkah", "Holi", "Independence Day", "Labor Day", "Mother's Day", "National Day", "Navratri", "New Year's", "Parent's Day", "Passover", "Ramadan", "Rosh Hashanah", "Singles Day", "Spring Sale", "St. Nicholas Day", "Summer Sale", "Valentine's Day", "Winter Sale", "Women's Day"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400 font-semibold">Language</label>
+                            <select value={promotionLanguage} onChange={(e) => setPromotionLanguage(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary">
+                              {["Hindi", "Arabic", "Bulgarian", "Catalan", "Chinese (Hong Kong)", "Chinese (Simplified)", "Chinese (Traditional)", "Croatian", "Czech", "Danish", "Dutch", "English", "English (Australia)", "English (United Kingdom)", "Estonian", "Filipino", "Finnish", "French", "German", "Greek", "Hebrew", "Hungarian", "Indonesian", "Italian", "Japanese", "Korean", "Latvian", "Lithuanian", "Malay", "Norwegian", "Polish", "Portuguese (Brazil)", "Portuguese (Portugal)", "Romanian", "Russian", "Serbian", "Slovak", "Slovenian", "Spanish (Latin America)", "Spanish (Spain)", "Swedish", "Thai", "Turkish", "Ukrainian", "Vietnamese"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400 font-semibold">Currency</label>
+                            <select value={promotionCurrency} onChange={(e) => setPromotionCurrency(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary">
+                              {["INR", "AED", "ARS", "AUD", "BGN", "BND", "BOB", "BRL", "CAD", "CHF", "CLP", "CNY", "COP", "CZK", "DKK", "EGP", "EUR", "FJD", "GBP", "HKD", "HRK", "HUF", "IDR", "ILS", "JPY", "KES", "KRW", "MAD", "MXN", "MYR", "NOK", "NZD", "PEN", "PHP", "PKR", "PLN", "RON", "RSD", "RUB", "SAR", "SEK", "SGD", "THB", "TRY", "TWD", "UAH", "USD", "VND", "ZAR"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400 font-semibold">Promotion type</label>
+                            <div className="flex items-center gap-2">
+                              <select value={promotionType} onChange={(e) => setPromotionType(e.target.value)} className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary">
+                                {["Monetary discount", "Percent discount", "Up to monetary discount", "Up to percent discount"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                              </select>
+                              <input type="text" placeholder="Amount" value={promotionTypeAmount} onChange={(e) => setPromotionTypeAmount(e.target.value)} className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Item</label>
+                          <input type="text" value={promotionItem} onChange={(e) => setPromotionItem(e.target.value)} className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Final URL</label>
+                          <input type="text" value={promotionFinalUrl} onChange={(e) => setPromotionFinalUrl(e.target.value)} className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                          <p className="text-[10px] text-slate-500 pt-1 leading-relaxed max-w-xl">
+                            The final URL is the URL that people reach after clicking your ad. It should match what your ad promotes. If you use a cross-domain redirect, enter it in a tracking template. This field will not apply to App Campaigns (pre-populated with your Play Store or App Store link). If you plan to use it with other campaigns, replace it with a final URL.
+                          </p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Promotion details</label>
+                          <div className="flex items-center gap-2 max-w-xl">
+                            <select value={promotionDetailsType} onChange={(e) => setPromotionDetailsType(e.target.value)} className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary">
+                              {["None", "On orders over", "Promo code"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                            {promotionDetailsType !== "None" && (
+                              <input type="text" placeholder={promotionDetailsType === "Promo code" ? "Code" : "Amount"} value={promotionDetailsAmount} onChange={(e) => setPromotionDetailsAmount(e.target.value)} className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 pt-2">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Displayed promotion dates</label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-slate-500">Start date</span>
+                              <div className="flex gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300"><input type="radio" checked={promotionStartDateOption === "NONE"} onChange={() => { setPromotionStartDateOption("NONE"); setPromotionStartDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300"><input type="radio" checked={promotionStartDateOption === "SELECT"} onChange={() => setPromotionStartDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
+                              </div>
+                              {promotionStartDateOption === "SELECT" && <input type="date" value={promotionStartDate} onChange={(e) => setPromotionStartDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer" />}
+                            </div>
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-slate-500">End date</span>
+                              <div className="flex gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300"><input type="radio" checked={promotionEndDateOption === "NONE"} onChange={() => { setPromotionEndDateOption("NONE"); setPromotionEndDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300"><input type="radio" checked={promotionEndDateOption === "SELECT"} onChange={() => setPromotionEndDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
+                              </div>
+                              {promotionEndDateOption === "SELECT" && <input type="date" value={promotionEndDate} min={promotionStartDate || undefined} onChange={(e) => setPromotionEndDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer" />}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* URL Options */}
+                  <div className="pt-4 border-t border-slate-800/40">
+                    <div 
+                      className="flex items-center justify-between cursor-pointer group"
+                      onClick={() => setIsUrlOptionsOpen(!isUrlOptionsOpen)}
+                    >
+                      <h3 className="font-semibold text-slate-200 text-sm group-hover:text-primary transition-colors">URL options</h3>
+                      {isUrlOptionsOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                    </div>
+                    {isUrlOptionsOpen && (
+                      <div className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-4 max-w-xl">
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Tracking template</label>
+                          <input type="text" placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5" value={adGroupTrackingTemplate} onChange={(e) => setAdGroupTrackingTemplate(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Final URL suffix</label>
+                          <input type="text" placeholder="Example: param1=value1&param2=value2" value={adGroupFinalUrlSuffix} onChange={(e) => setAdGroupFinalUrlSuffix(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary" />
+                        </div>
+                        <div className="space-y-2 pt-2">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Custom parameters</label>
+                          {adGroupCustomParams.map((param, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-slate-500 font-mono">{`{_`}</span>
+                              <input type="text" placeholder="Name" value={param.name} onChange={(e) => { const updated = [...adGroupCustomParams]; updated[idx].name = e.target.value; setAdGroupCustomParams(updated); }} className="w-1/3 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary" />
+                              <span className="text-slate-500 font-mono">{`}`} =</span>
+                              <input type="text" placeholder="Value" value={param.value} onChange={(e) => { const updated = [...adGroupCustomParams]; updated[idx].value = e.target.value; setAdGroupCustomParams(updated); }} className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary" />
+                              {adGroupCustomParams.length > 1 && (
+                                <button onClick={() => setAdGroupCustomParams(adGroupCustomParams.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-1">
+                                  <X className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button onClick={() => setAdGroupCustomParams([...adGroupCustomParams, {name: "", value: ""}])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                            <Plus className="h-3 w-3" /> Add custom parameter
+                          </button>
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer mt-4">
+                          <input type="checkbox" checked={differentMobileUrl} onChange={(e) => setDifferentMobileUrl(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                          <span className="font-semibold text-slate-200 text-xs">Use a different final URL for mobile</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Advanced Options */}
+                  <div className="pt-4 border-t border-slate-800/40">
+                    <div 
+                      className="flex items-center justify-between cursor-pointer group"
+                      onClick={() => setIsAdvancedOptionsOpen(!isAdvancedOptionsOpen)}
+                    >
+                      <h3 className="font-semibold text-slate-200 text-sm group-hover:text-primary transition-colors">Advanced options</h3>
+                      {isAdvancedOptionsOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                    </div>
+                    {isAdvancedOptionsOpen && (
+                      <div className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-4 max-w-xl text-xs">
+                        <div className="space-y-1">
+                          <h4 className="font-semibold text-slate-200">Asset scheduling</h4>
+                          <p className="text-[11px] text-slate-400">Select when your assets will be eligible to show</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <span className="text-[11px] text-slate-400 font-semibold block">Start date</span>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer text-slate-300"><input type="radio" checked={assetScheduleStartDateOption === "NONE"} onChange={() => { setAssetScheduleStartDateOption("NONE"); setAssetScheduleStartDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
+                              <label className="flex items-center gap-2 cursor-pointer text-slate-300"><input type="radio" checked={assetScheduleStartDateOption === "SELECT"} onChange={() => setAssetScheduleStartDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
+                            </div>
+                            {assetScheduleStartDateOption === "SELECT" && <input type="date" value={assetScheduleStartDate} onChange={(e) => setAssetScheduleStartDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer mt-2" />}
+                          </div>
+                          <div className="space-y-2">
+                            <span className="text-[11px] text-slate-400 font-semibold block">End date</span>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer text-slate-300"><input type="radio" checked={assetScheduleEndDateOption === "NONE"} onChange={() => { setAssetScheduleEndDateOption("NONE"); setAssetScheduleEndDate(""); }} className="text-primary focus:ring-primary h-3.5 w-3.5" /> None</label>
+                              <label className="flex items-center gap-2 cursor-pointer text-slate-300"><input type="radio" checked={assetScheduleEndDateOption === "SELECT"} onChange={() => setAssetScheduleEndDateOption("SELECT")} className="text-primary focus:ring-primary h-3.5 w-3.5" /> Select a date</label>
+                            </div>
+                            {assetScheduleEndDateOption === "SELECT" && <input type="date" value={assetScheduleEndDate} min={assetScheduleStartDate || undefined} onChange={(e) => setAssetScheduleEndDate(e.target.value)} onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer mt-2" />}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 pt-2">
+                          <label className="block text-[11px] text-slate-400 font-semibold">Days and hours</label>
+                          <select value={assetScheduleDays} onChange={(e) => setAssetScheduleDays(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary">
+                            {["All days", "Mondays - Fridays", "Saturdays - Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"].map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                        </div>
+                        
+                        <div className="pt-2">
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more</a><br/>
+                            <span className="mt-1 block">Based on account time zone: (GMT+05:30) India Standard Time</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
