@@ -138,6 +138,7 @@ export default function AppPromotionWizard()  {
   });
   const [viewThroughConversion, setViewThroughConversion] = useState<boolean>(true);
   const [useDataFeed, setUseDataFeed] = useState<boolean>(false);
+  const [dataFeedType, setDataFeedType] = useState<string>("Dynamic ad feed");
   
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
@@ -328,6 +329,7 @@ export default function AppPromotionWizard()  {
   ]);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [endDate, setEndDate] = useState<string>("");
+  const [endDateOption, setEndDateOption] = useState<"NONE" | "SELECT">("NONE");
 
   // Step 5: Keywords and Ads State
   const [adGroupName, setAdGroupName] = useState<string>("Ad Group 1");
@@ -341,8 +343,40 @@ export default function AppPromotionWizard()  {
   const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
-  const [headlines, setHeadlines] = useState<string[]>(["Automation Software", "Lead Gen Tool", "WhatsApp Marketing", "", "", "", ""]);
-  const [descriptions, setDescriptions] = useState<string[]>(["Automate your business communication with WhatsApp.", "Boost conversions with instant messaging."]);
+  const [headlines, setHeadlines] = useState<string[]>([""]);
+  const [descriptions, setDescriptions] = useState<string[]>([""]);
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
+  const [uploadedHtml5, setUploadedHtml5] = useState<File[]>([]);
+  
+  const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
+  const [promotionEvent, setPromotionEvent] = useState("None");
+  const [promotionLanguage, setPromotionLanguage] = useState("Hindi");
+  const [promotionCurrency, setPromotionCurrency] = useState("INR");
+  const [promotionType, setPromotionType] = useState("Monetary discount");
+  const [promotionTypeAmount, setPromotionTypeAmount] = useState("");
+  const [promotionItem, setPromotionItem] = useState("");
+  const [promotionFinalUrl, setPromotionFinalUrl] = useState("");
+  const [promotionDetailsType, setPromotionDetailsType] = useState("None");
+  const [promotionDetailsAmount, setPromotionDetailsAmount] = useState("");
+  const [promotionStartDateOption, setPromotionStartDateOption] = useState("NONE");
+  const [promotionStartDate, setPromotionStartDate] = useState("");
+  const [promotionEndDateOption, setPromotionEndDateOption] = useState("NONE");
+  const [promotionEndDate, setPromotionEndDate] = useState("");
+
+  const [isUrlOptionsOpen, setIsUrlOptionsOpen] = useState(false);
+  const [adGroupTrackingTemplate, setAdGroupTrackingTemplate] = useState("");
+  const [adGroupFinalUrlSuffix, setAdGroupFinalUrlSuffix] = useState("");
+  const [adGroupCustomParams, setAdGroupCustomParams] = useState([{ name: "", value: "" }]);
+  const [differentMobileUrl, setDifferentMobileUrl] = useState(false);
+
+  const [isAdvancedOptionsOpen, setIsAdvancedOptionsOpen] = useState(false);
+  const [assetScheduleStartDateOption, setAssetScheduleStartDateOption] = useState("NONE");
+  const [assetScheduleStartDate, setAssetScheduleStartDate] = useState("");
+  const [assetScheduleEndDateOption, setAssetScheduleEndDateOption] = useState("NONE");
+  const [assetScheduleEndDate, setAssetScheduleEndDate] = useState("");
+  const [assetScheduleDays, setAssetScheduleDays] = useState("All days");
+
   const [businessName, setBusinessName] = useState<string>("JISNU DIGITAL SOLUTIONS PRIVATE LIMITED");
   const [businessLogo, setBusinessLogo] = useState<string>("");
   const [businessLogos, setBusinessLogos] = useState<string[]>([]);
@@ -1100,7 +1134,7 @@ export default function AppPromotionWizard()  {
                             <div className="space-y-0.5">
                               <h3 className="font-semibold text-slate-200 text-sm">Start and end dates</h3>
                               <p className="text-[11px] text-slate-400">
-                                Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
+                                Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDateOption === "NONE" ? "None" : (endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set")}
                               </p>
                             </div>
                             <Edit3 className="h-4 w-4 text-primary" />
@@ -1112,20 +1146,55 @@ export default function AppPromotionWizard()  {
                               <input
                                 type="date"
                                 value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
+                                min={new Date().toISOString().split("T")[0]}
+                                onChange={(e) => {
+                                  const newDate = e.target.value;
+                                  setStartDate(newDate);
+                                  if (endDate && newDate > endDate) {
+                                    setEndDate(newDate);
+                                  }
+                                }}
                                 onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
                               />
                             </div>
                             <div className="space-y-1">
                               <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
-                              <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
-                              />
+                              <div className="flex items-center gap-4 mb-2 mt-1">
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="endDateOption" 
+                                    checked={endDateOption === "NONE"} 
+                                    onChange={() => {
+                                      setEndDateOption("NONE");
+                                      setEndDate("");
+                                    }} 
+                                    className="text-primary focus:ring-primary h-3.5 w-3.5"
+                                  />
+                                  None
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="endDateOption" 
+                                    checked={endDateOption === "SELECT"} 
+                                    onChange={() => setEndDateOption("SELECT")} 
+                                    className="text-primary focus:ring-primary h-3.5 w-3.5"
+                                  />
+                                  Select a date
+                                </label>
+                              </div>
+                              {endDateOption === "SELECT" && (
+                                <input
+                                  type="date"
+                                  value={endDate}
+                                  min={startDate || new Date().toISOString().split("T")[0]}
+                                  onChange={(e) => setEndDate(e.target.value)}
+                                  onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                                />
+                              )}
                             </div>
                           </div>
                           <p className="text-[11px] text-slate-400">Your ads will continue to run unless you specify an end date.</p>
@@ -1140,7 +1209,7 @@ export default function AppPromotionWizard()  {
                               <h3 className="font-semibold text-slate-200 text-sm">Start and end dates</h3>
                             </div>
                             <div className="text-[11px] text-slate-400">
-                              Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
+                              Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDateOption === "NONE" ? "None" : (endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set")}
                             </div>
                           </div>
                           <Edit3 className="h-4 w-4 text-slate-400" />
@@ -1177,6 +1246,41 @@ export default function AppPromotionWizard()  {
                                 </span>
                               </div>
                             </label>
+                            
+                            {useDataFeed && (
+                              <div className="ml-7 space-y-3 pt-2">
+                                <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="dataFeedType" 
+                                    checked={dataFeedType === "Dynamic ad feed"} 
+                                    onChange={() => setDataFeedType("Dynamic ad feed")} 
+                                    className="text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  Dynamic ad feed
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="dataFeedType" 
+                                    checked={dataFeedType === "Google Merchant Center feed"} 
+                                    onChange={() => setDataFeedType("Google Merchant Center feed")} 
+                                    className="text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  Google Merchant Center feed
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="dataFeedType" 
+                                    checked={dataFeedType === "Hotel Center feed"} 
+                                    onChange={() => setDataFeedType("Hotel Center feed")} 
+                                    className="text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  Hotel Center feed
+                                </label>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : (
@@ -1654,12 +1758,8 @@ export default function AppPromotionWizard()  {
                 </div>
                 <div className="space-y-4 text-xs">
                   <p className="text-slate-400">
-                    Use product groups to define which products from your linked data feed are eligible to appear in your ads.
+                    Manage your product feed in the Product feeds setting. When you have attached a product feed to this campaign, you will be able to choose specific products or product groups.
                   </p>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" checked className="text-primary h-4 w-4 bg-slate-950 border-slate-700" readOnly />
-                    <span className="text-slate-200 font-semibold">All products in the linked feed</span>
-                  </label>
                 </div>
               </div>
 
@@ -1678,8 +1778,31 @@ export default function AppPromotionWizard()  {
                   <div className="space-y-2">
                     <label className="block text-slate-300 font-semibold">Headlines <span className="text-slate-500 font-normal ml-1">Up to 5</span></label>
                     <div className="space-y-2">
-                      <input type="text" placeholder="Add headline" className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" />
-                      <input type="text" placeholder="Add headline" className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                      {headlines.map((headline, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Add headline" 
+                            value={headline}
+                            onChange={(e) => {
+                              const newH = [...headlines];
+                              newH[idx] = e.target.value;
+                              setHeadlines(newH);
+                            }}
+                            className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" 
+                          />
+                          {headlines.length > 1 && (
+                            <button onClick={() => setHeadlines(headlines.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-2">
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {headlines.length < 5 && (
+                        <button onClick={() => setHeadlines([...headlines, ""])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                          <Plus className="h-3 w-3" /> Add headline
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1687,23 +1810,105 @@ export default function AppPromotionWizard()  {
                   <div className="space-y-2">
                     <label className="block text-slate-300 font-semibold">Descriptions <span className="text-slate-500 font-normal ml-1">Up to 5</span></label>
                     <div className="space-y-2">
-                      <input type="text" placeholder="Add description" className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" />
+                      {descriptions.map((desc, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Add description" 
+                            value={desc}
+                            onChange={(e) => {
+                              const newD = [...descriptions];
+                              newD[idx] = e.target.value;
+                              setDescriptions(newD);
+                            }}
+                            className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary" 
+                          />
+                          {descriptions.length > 1 && (
+                            <button onClick={() => setDescriptions(descriptions.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400 p-2">
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {descriptions.length < 5 && (
+                        <button onClick={() => setDescriptions([...descriptions, ""])} className="text-primary hover:text-secondary text-xs font-semibold flex items-center gap-1 mt-1">
+                          <Plus className="h-3 w-3" /> Add description
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Images & Videos */}
-                  <div className="grid grid-cols-2 gap-4 max-w-xl pt-2">
-                    <button className="flex flex-col items-center justify-center p-6 rounded-xl border border-dashed border-slate-700 bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer gap-2">
-                      <ImageIcon className="h-6 w-6 text-slate-400" />
-                      <span className="font-semibold text-slate-200">Images</span>
-                      <span className="text-[10px] text-slate-500">Up to 20</span>
-                    </button>
-                    <button className="flex flex-col items-center justify-center p-6 rounded-xl border border-dashed border-slate-700 bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer gap-2">
-                      <VideoIcon className="h-6 w-6 text-slate-400" />
-                      <span className="font-semibold text-slate-200">Videos</span>
-                      <span className="text-[10px] text-slate-500">Up to 20</span>
-                    </button>
+                  {/* Images, Videos & HTML5 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl pt-2">
+                    {/* Images */}
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            const files = Array.from(e.target.files).slice(0, 20);
+                            setUploadedImages(files);
+                            console.log("Mock ImageKit upload started for", files.length, "images");
+                          }
+                        }}
+                      />
+                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedImages.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-700 bg-slate-900'} hover:bg-slate-800 transition-colors pointer-events-none gap-2`}>
+                        <ImageIcon className={`h-6 w-6 ${uploadedImages.length > 0 ? 'text-primary' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-200">Images</span>
+                        <span className="text-[10px] text-slate-500">{uploadedImages.length > 0 ? `${uploadedImages.length}/20 uploaded` : 'Up to 20'}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Videos */}
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="video/*" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            const files = Array.from(e.target.files).slice(0, 20);
+                            setUploadedVideos(files);
+                            console.log("Mock ImageKit upload started for", files.length, "videos");
+                          }
+                        }}
+                      />
+                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedVideos.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-700 bg-slate-900'} hover:bg-slate-800 transition-colors pointer-events-none gap-2`}>
+                        <VideoIcon className={`h-6 w-6 ${uploadedVideos.length > 0 ? 'text-primary' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-200">Videos</span>
+                        <span className="text-[10px] text-slate-500">{uploadedVideos.length > 0 ? `${uploadedVideos.length}/20 uploaded` : 'Up to 20'}</span>
+                      </div>
+                    </div>
+
+                    {/* HTML5 */}
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept=".html,.zip" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.files) {
+                            const files = Array.from(e.target.files).slice(0, 20);
+                            setUploadedHtml5(files);
+                            console.log("Mock ImageKit upload started for", files.length, "html5 files");
+                          }
+                        }}
+                      />
+                      <div className={`flex flex-col items-center justify-center p-6 rounded-xl border border-dashed ${uploadedHtml5.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-700 bg-slate-900'} hover:bg-slate-800 transition-colors pointer-events-none gap-2`}>
+                        <Code className={`h-6 w-6 ${uploadedHtml5.length > 0 ? 'text-primary' : 'text-slate-400'}`} />
+                        <span className="font-semibold text-slate-200">HTML5</span>
+                        <span className="text-[10px] text-slate-500">{uploadedHtml5.length > 0 ? `${uploadedHtml5.length}/20 uploaded` : 'Up to 20'}</span>
+                      </div>
+                    </div>
                   </div>
+                  
+                  {/* PROMOTIONS, URL OPTIONS, ADVANCED OPTIONS GO HERE */}
+                  
                 </div>
               </div>
 

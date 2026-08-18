@@ -97,8 +97,10 @@ export default function SalesPerformanceMaxPage() {
   ];
 
   // Start and End Dates State
-  const [startDate, setStartDate] = useState<string>("2026-08-10");
+  const todayDateString = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState<string>(todayDateString);
   const [endDate, setEndDate] = useState<string>("");
+  const [endDateOption, setEndDateOption] = useState<"NONE" | "SELECT">("NONE");
 
   // Campaign URL options & Custom Parameters
   const [trackingTemplate, setTrackingTemplate] = useState<string>("");
@@ -231,7 +233,9 @@ export default function SalesPerformanceMaxPage() {
     tv: true
   });
   const [turnOnAgeExclusions, setTurnOnAgeExclusions] = useState<boolean>(false);
+  const [excludedAges, setExcludedAges] = useState<string[]>([]);
   const [turnOnGenderExclusions, setTurnOnGenderExclusions] = useState<boolean>(false);
+  const [excludedGenders, setExcludedGenders] = useState<string[]>([]);
 
   // Step 3: Asset Group State
   const [isAssetGroupInfoOpen, setIsAssetGroupInfoOpen] = useState(false);
@@ -1158,18 +1162,53 @@ export default function SalesPerformanceMaxPage() {
                           <input
                             type="date"
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
+                            min={todayDateString}
+                            onChange={(e) => {
+                              const newDate = e.target.value;
+                              setStartDate(newDate);
+                              if (endDate && newDate > endDate) {
+                                setEndDate(newDate);
+                              }
+                            }}
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
                           />
                         </div>
                         <div className="space-y-1">
                           <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
-                          <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
-                          />
+                          <div className="flex items-center gap-4 mb-2">
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                              <input 
+                                type="radio" 
+                                name="endDateOption" 
+                                checked={endDateOption === "NONE"} 
+                                onChange={() => {
+                                  setEndDateOption("NONE");
+                                  setEndDate("");
+                                }} 
+                                className="text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              None
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                              <input 
+                                type="radio" 
+                                name="endDateOption" 
+                                checked={endDateOption === "SELECT"} 
+                                onChange={() => setEndDateOption("SELECT")} 
+                                className="text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              Select a date
+                            </label>
+                          </div>
+                          {endDateOption === "SELECT" && (
+                            <input
+                              type="date"
+                              value={endDate}
+                              min={startDate || todayDateString}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1177,7 +1216,7 @@ export default function SalesPerformanceMaxPage() {
                     <div onClick={() => setActiveEditSetting("DATES")} className="p-4 hover:bg-slate-900/60 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
                       <div className="w-1/3 text-slate-400 font-semibold">Start and end dates</div>
                       <div className="w-2/3 text-slate-200 font-bold pr-8">
-                        Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}  End date: {endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}
+                        Start date: {startDate ? new Date(startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set"}  End date: {endDateOption === "NONE" ? "None" : (endDate ? new Date(endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not set")}
                       </div>
                       <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
                     </div>
@@ -1374,15 +1413,62 @@ export default function SalesPerformanceMaxPage() {
                         <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-800 hover:bg-slate-750 text-primary font-bold rounded-lg">Save</button>
                       </div>
                       <p className="text-[11px] text-slate-400">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
-                      <div className="space-y-2 pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={turnOnAgeExclusions} onChange={(e) => setTurnOnAgeExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
-                          <span>Turn on age exclusions</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={turnOnGenderExclusions} onChange={(e) => setTurnOnGenderExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
-                          <span>Turn on gender exclusions</span>
-                        </label>
+                      <div className="space-y-4 pt-1">
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={turnOnAgeExclusions} onChange={(e) => setTurnOnAgeExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                            <span className="font-semibold text-slate-200">Turn on age exclusions</span>
+                          </label>
+                          {turnOnAgeExclusions && (
+                            <div className="ml-6 space-y-2 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                              <p className="text-[11px] text-slate-400 mb-3">Select age ranges to exclude from the campaign. Unselected ages will be included.</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => (
+                                  <label key={age} className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={excludedAges.includes(age)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setExcludedAges(prev => [...prev, age]);
+                                        else setExcludedAges(prev => prev.filter(a => a !== age));
+                                      }}
+                                      className="rounded text-primary h-4 w-4" 
+                                    />
+                                    <span className="text-slate-300 text-[11px]">{age}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={turnOnGenderExclusions} onChange={(e) => setTurnOnGenderExclusions(e.target.checked)} className="rounded text-primary h-4 w-4" />
+                            <span className="font-semibold text-slate-200">Turn on gender exclusions</span>
+                          </label>
+                          {turnOnGenderExclusions && (
+                            <div className="ml-6 space-y-2 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                              <p className="text-[11px] text-slate-400 mb-3">Select genders to exclude from the campaign. Unselected genders will be included.</p>
+                              <div className="flex flex-wrap gap-4">
+                                {["Female", "Male", "Unknown"].map((gender) => (
+                                  <label key={gender} className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={excludedGenders.includes(gender)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setExcludedGenders(prev => [...prev, gender]);
+                                        else setExcludedGenders(prev => prev.filter(g => g !== gender));
+                                      }}
+                                      className="rounded text-primary h-4 w-4" 
+                                    />
+                                    <span className="text-slate-300 text-[11px]">{gender}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (

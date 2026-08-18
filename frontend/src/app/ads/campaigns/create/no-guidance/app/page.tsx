@@ -138,6 +138,7 @@ export default function  NoGuidanceAppPage()  {
   });
   const [viewThroughConversion, setViewThroughConversion] = useState<boolean>(true);
   const [useDataFeed, setUseDataFeed] = useState<boolean>(false);
+  const [dataFeedType, setDataFeedType] = useState<string>("Dynamic ad feed");
   
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
@@ -328,6 +329,7 @@ export default function  NoGuidanceAppPage()  {
   ]);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [endDate, setEndDate] = useState<string>("");
+  const [endDateOption, setEndDateOption] = useState<"NONE" | "SELECT">("NONE");
 
   // Step 5: Keywords and Ads State
   const [adGroupName, setAdGroupName] = useState<string>("Ad Group 1");
@@ -1100,7 +1102,7 @@ export default function  NoGuidanceAppPage()  {
                             <div className="space-y-0.5">
                               <h3 className="font-semibold text-slate-200 text-sm">Start and end dates</h3>
                               <p className="text-[11px] text-slate-400">
-                                Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
+                                Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDateOption === "NONE" ? "None" : (endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set")}
                               </p>
                             </div>
                             <Edit3 className="h-4 w-4 text-primary" />
@@ -1112,20 +1114,55 @@ export default function  NoGuidanceAppPage()  {
                               <input
                                 type="date"
                                 value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
+                                min={new Date().toISOString().split("T")[0]}
+                                onChange={(e) => {
+                                  const newDate = e.target.value;
+                                  setStartDate(newDate);
+                                  if (endDate && newDate > endDate) {
+                                    setEndDate(newDate);
+                                  }
+                                }}
                                 onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
                               />
                             </div>
                             <div className="space-y-1">
                               <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
-                              <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
-                              />
+                              <div className="flex items-center gap-4 mb-2 mt-1">
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="endDateOption" 
+                                    checked={endDateOption === "NONE"} 
+                                    onChange={() => {
+                                      setEndDateOption("NONE");
+                                      setEndDate("");
+                                    }} 
+                                    className="text-primary focus:ring-primary h-3.5 w-3.5"
+                                  />
+                                  None
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="endDateOption" 
+                                    checked={endDateOption === "SELECT"} 
+                                    onChange={() => setEndDateOption("SELECT")} 
+                                    className="text-primary focus:ring-primary h-3.5 w-3.5"
+                                  />
+                                  Select a date
+                                </label>
+                              </div>
+                              {endDateOption === "SELECT" && (
+                                <input
+                                  type="date"
+                                  value={endDate}
+                                  min={startDate || new Date().toISOString().split("T")[0]}
+                                  onChange={(e) => setEndDate(e.target.value)}
+                                  onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                                />
+                              )}
                             </div>
                           </div>
                           <p className="text-[11px] text-slate-400">Your ads will continue to run unless you specify an end date.</p>
@@ -1140,7 +1177,7 @@ export default function  NoGuidanceAppPage()  {
                               <h3 className="font-semibold text-slate-200 text-sm">Start and end dates</h3>
                             </div>
                             <div className="text-[11px] text-slate-400">
-                              Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
+                              Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDateOption === "NONE" ? "None" : (endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set")}
                             </div>
                           </div>
                           <Edit3 className="h-4 w-4 text-slate-400" />
@@ -1177,6 +1214,41 @@ export default function  NoGuidanceAppPage()  {
                                 </span>
                               </div>
                             </label>
+                            
+                            {useDataFeed && (
+                              <div className="ml-7 space-y-3 pt-2">
+                                <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="dataFeedType" 
+                                    checked={dataFeedType === "Dynamic ad feed"} 
+                                    onChange={() => setDataFeedType("Dynamic ad feed")} 
+                                    className="text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  Dynamic ad feed
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="dataFeedType" 
+                                    checked={dataFeedType === "Google Merchant Center feed"} 
+                                    onChange={() => setDataFeedType("Google Merchant Center feed")} 
+                                    className="text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  Google Merchant Center feed
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                                  <input 
+                                    type="radio" 
+                                    name="dataFeedType" 
+                                    checked={dataFeedType === "Hotel Center feed"} 
+                                    onChange={() => setDataFeedType("Hotel Center feed")} 
+                                    className="text-primary focus:ring-primary h-4 w-4"
+                                  />
+                                  Hotel Center feed
+                                </label>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : (
