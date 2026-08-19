@@ -142,7 +142,7 @@ export default function LandingPage() {
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 flex flex-col items-center gap-0">
 
         {/* ── Hero Section ───────────────────────────────────────── */}
-        <section className="py-20 flex flex-col items-center text-center gap-6 w-full">
+        <section className="pt-16 pb-12 flex flex-col items-center text-center gap-6 w-full">
           <div className="px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold uppercase tracking-wider">
             ⚡ All-in-One Marketing Automation Platform
           </div>
@@ -152,16 +152,19 @@ export default function LandingPage() {
             Jisnu CRM
           </h1>
 
-          <p className="text-muted-foreground text-lg md:text-xl max-w-2xl leading-relaxed">
-            Jisnu CRM is a complete customer relationship management and marketing
-            automation platform. Connect your <strong className="text-slate-200">WhatsApp Business API</strong>,{" "}
-            <strong className="text-slate-200">Google Ads</strong>, and{" "}
-            <strong className="text-slate-200">Google Business Profile</strong> to
-            manage campaigns, automate replies, sync reviews, and grow your business
-            — all from one secure dashboard.
-          </p>
+          {/* ── What is Jisnu CRM? (Above the fold / immediate prominent explanation for OAuth verification) ── */}
+          <div className="rounded-2xl bg-card/60 border border-primary/25 px-8 py-8 text-center max-w-3xl mx-auto shadow-2xl backdrop-blur-md space-y-4 my-2">
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-100 flex items-center justify-center gap-2">
+              <Globe className="h-6 w-6 text-primary" /> What is Jisnu CRM?
+            </h2>
+            <p className="text-slate-300 text-base md:text-lg leading-relaxed font-normal">
+              Jisnu CRM is a complete customer relationship management and marketing automation platform designed for businesses. 
+              It allows users to connect their Google accounts (Google Ads and Google Business Profile) securely through OAuth to manage advertising campaigns, automate customer replies, sync reviews, and grow their business — all from one secure dashboard. 
+              The platform also integrates with the WhatsApp Business API for seamless communication.
+            </p>
+          </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-4">
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-2">
             <Link
               href="/login"
               className="px-7 py-3.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold transition-all shadow-lg shadow-primary/25 flex items-center gap-2"
@@ -174,22 +177,6 @@ export default function LandingPage() {
             >
               Learn More
             </a>
-          </div>
-        </section>
-
-        {/* ── What is Jisnu CRM? ─────────────────────────────────── */}
-        <section className="w-full py-10 border-t border-border">
-          <div className="rounded-2xl bg-primary/5 border border-primary/20 px-8 py-8 text-center max-w-3xl mx-auto">
-            <Globe className="h-8 w-8 text-primary mx-auto mb-3" />
-            <h2 className="text-2xl font-bold text-slate-100 mb-3">What is Jisnu CRM?</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              Jisnu CRM is a SaaS platform built for businesses and marketing agencies
-              to manage their entire digital marketing workflow from a single place.
-              The application connects to <strong className="text-slate-200">Google&apos;s APIs</strong> via
-              the official OAuth 2.0 flow to request only the permissions required to
-              display and manage your ad campaigns, business reviews, and account data.
-              No passwords are stored. Access can be revoked at any time.
-            </p>
           </div>
         </section>
 
