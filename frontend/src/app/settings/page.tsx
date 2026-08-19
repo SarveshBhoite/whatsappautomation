@@ -283,6 +283,13 @@ const MediaNodeComponent = ({ data }: any) => {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+  }
+  return DEFAULT_ORG_ID;
+};
+
 // TS Interfaces
 interface Message {
   id: string;
@@ -896,7 +903,7 @@ export default function Dashboard() {
     socket.on("connect", () => {
       console.log("Connected to Real-time WebSocket Server");
       // Join Organization Room
-      socket.emit("join-org", DEFAULT_ORG_ID);
+      socket.emit("join-org", getOrgId());
     });
 
     // Handle Inbound/Outbound Messages
@@ -992,7 +999,7 @@ export default function Dashboard() {
   const fetchConversations = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -1018,7 +1025,7 @@ export default function Dashboard() {
   const fetchConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (data) {
@@ -1037,7 +1044,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(config)
       });
@@ -1055,7 +1062,7 @@ export default function Dashboard() {
   const fetchInstagramConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (data) {
@@ -1074,7 +1081,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(igConfig)
       });
@@ -1092,7 +1099,7 @@ export default function Dashboard() {
   const fetchYoutubeConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (data) {
@@ -1111,7 +1118,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(ytConfig)
       });
@@ -1128,12 +1135,12 @@ export default function Dashboard() {
 
   const handleYoutubeOAuthConnect = () => {
     setYtOauthStatus("connecting");
-    window.location.href = `${BACKEND_URL}/api/youtube/oauth/connect?orgId=${DEFAULT_ORG_ID}&redirect=${window.location.pathname}`;
+    window.location.href = `${BACKEND_URL}/api/youtube/oauth/connect?orgId=${getOrgId()}&redirect=${window.location.pathname}`;
   };
 
   const fetchGoogleConfig = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
       if (res.ok) {
         const data = await res.json();
         setGoogleConfig(data);
@@ -1174,10 +1181,10 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ 
-          orgId: DEFAULT_ORG_ID, 
+          orgId: getOrgId(), 
           ...googleConfig,
           googleLocationId: finalLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId
@@ -1213,14 +1220,14 @@ export default function Dashboard() {
   const handleGoogleOAuthConnect = () => {
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${DEFAULT_ORG_ID}`;
+      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}`;
     }
   };
 
   const fetchActiveFlow = async (platform: "whatsapp" | "instagram" | "youtube" = "whatsapp") => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/flows?platform=${platform}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {

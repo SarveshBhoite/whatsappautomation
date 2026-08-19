@@ -78,6 +78,54 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+// GET: Fetch organization's WhatsApp Configuration
+router.get("/config", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const config = await prisma.whatsAppConfig.findUnique({
+      where: { organizationId },
+    });
+    return res.status(200).json(config || {
+      phoneNumberId: "",
+      wabaId: "",
+      accessToken: "",
+      webhookVerifyToken: `verify_${organizationId.slice(0, 8)}`,
+    });
+  } catch (error: any) {
+    console.error("Error fetching WhatsApp config:", error);
+    return res.status(500).json({ error: "Failed to fetch WhatsApp config", details: error.message });
+  }
+});
+
+// POST: Save/Update organization's WhatsApp Configuration
+router.post("/config", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { phoneNumberId, wabaId, accessToken } = req.body;
+
+    const config = await prisma.whatsAppConfig.upsert({
+      where: { organizationId },
+      update: {
+        ...(phoneNumberId !== undefined && { phoneNumberId }),
+        ...(wabaId !== undefined && { wabaId }),
+        ...(accessToken !== undefined && { accessToken }),
+      },
+      create: {
+        organizationId,
+        phoneNumberId: phoneNumberId || "",
+        wabaId: wabaId || "",
+        accessToken: accessToken || "",
+        webhookVerifyToken: `verify_${organizationId.slice(0, 8)}`,
+      },
+    });
+
+    return res.status(200).json(config);
+  } catch (error: any) {
+    console.error("Error saving WhatsApp config:", error);
+    return res.status(500).json({ error: "Failed to save WhatsApp config", details: error.message });
+  }
+});
+
 // GET: List all conversations for the organization
 router.get("/conversations", async (req: Request, res: Response) => {
   try {
