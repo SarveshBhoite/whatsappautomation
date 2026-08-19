@@ -665,6 +665,32 @@ export default function Dashboard() {
     }
   };
 
+  const handleDisconnectWhatsApp = async () => {
+    if (!confirm("Are you sure you want to disconnect this WhatsApp Business Account? Incoming messages will no longer route to this CRM.")) return;
+    try {
+      setEmbeddedConnecting(true);
+      const res = await fetch(`${BACKEND_URL}/api/whatsapp/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId(),
+        },
+      });
+      if (res.ok) {
+        alert("✓ WhatsApp account disconnected successfully.");
+        setConfig(prev => ({ ...prev, phoneNumberId: "", wabaId: "", accessToken: "" }));
+        fetchConfig();
+      } else {
+        alert("Failed to disconnect WhatsApp account.");
+      }
+    } catch (err: any) {
+      console.error("Disconnect failed:", err);
+      alert(`Disconnect Error: ${err.message}`);
+    } finally {
+      setEmbeddedConnecting(false);
+    }
+  };
+
   const launchWhatsAppSignup = () => {
     if (typeof window === "undefined") return;
 
@@ -2393,51 +2419,42 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={launchWhatsAppSignup}
-                          disabled={embeddedConnecting}
-                          className="flex items-center gap-2.5 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer shrink-0"
-                        >
-                          <WhatsApp className="h-4 w-4" />
-                          <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
-                        </button>
-                      </div>
+                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={launchWhatsAppSignup}
+                            disabled={embeddedConnecting}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                          >
+                            <WhatsApp className="h-4 w-4" />
+                            <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
+                          </button>
 
-                      {/* 1-Click Code Paste Fallback */}
-                      <div className="pt-2 border-t border-slate-800/80">
-                        <button
-                          type="button"
-                          onClick={() => setShowManualCodeInput(!showManualCodeInput)}
-                          className="text-[11px] text-slate-400 hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>{showManualCodeInput ? "▼ Hide Code Paste" : "▶ Have an authorization code from Meta popup? Paste it here"}</span>
-                        </button>
-
-                        {showManualCodeInput && (
-                          <div className="mt-2 flex flex-col sm:flex-row gap-2">
-                            <input
-                              type="text"
-                              value={manualAuthCode}
-                              onChange={(e) => setManualAuthCode(e.target.value)}
-                              placeholder="Paste 'code' parameter from Meta success URL (AQ...)"
-                              className="flex-1 bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 outline-none font-mono"
-                            />
+                          {(config.wabaId || config.phoneNumberId) && (
                             <button
                               type="button"
-                              onClick={() => {
-                                if (manualAuthCode.trim()) {
-                                  processEmbeddedCode(manualAuthCode.trim());
-                                }
-                              }}
-                              disabled={embeddedConnecting || !manualAuthCode.trim()}
-                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer shrink-0"
+                              onClick={handleDisconnectWhatsApp}
+                              disabled={embeddedConnecting}
+                              className="px-4 py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
                             >
-                              {embeddedConnecting ? "Activating..." : "Exchange & Activate"}
+                              Disconnect
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
+
+                      {(config.wabaId || config.phoneNumberId) && (
+                        <div className="bg-slate-950/80 border border-emerald-500/30 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
+                          <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                            <Check className="h-4.5 w-4.5" />
+                            <span>Status: Connected to Meta Cloud API</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-slate-300 font-mono text-[11px]">
+                            <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">WABA ID: <strong className="text-white">{config.wabaId || "Connected"}</strong></span>
+                            <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">Phone ID: <strong className="text-white">{config.phoneNumberId || "Connected"}</strong></span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* WhatsApp Manual Credentials Form */}

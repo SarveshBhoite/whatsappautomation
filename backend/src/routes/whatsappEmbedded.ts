@@ -198,4 +198,46 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
   }
 });
 
+// POST: Cleanly Disconnect WhatsApp Account
+router.post("/disconnect", async (req: Request, res: Response) => {
+  try {
+    const organizationId = (req.headers["x-organization-id"] as string) || req.body.organizationId;
+    if (!organizationId) {
+      return res.status(400).json({ error: "Missing x-organization-id header" });
+    }
+
+    const config = await prisma.whatsAppConfig.findUnique({
+      where: { organizationId }
+    });
+
+    if (config) {
+      // Unsubscribe app from WABA webhooks if token and WABA ID are present
+      if (config.wabaId && config.accessToken) {
+        try {
+          await axios.delete(
+            `https://graph.facebook.com/v21.0/${config.wabaId}/subscribed_apps`,
+            { headers: { Authorization: `Bearer ${config.accessToken}` } }
+          );
+          console.log(`[WHATSAPP DISCONNECT] Unsubscribed app from WABA: ${config.wabaId}`);
+        } catch (unsubErr: any) {
+          console.warn("[WHATSAPP DISCONNECT] Warning during unsubscribe:", unsubErr?.response?.data || unsubErr.message);
+        }
+      }
+
+      // Clear WhatsApp config from database
+      await prisma.whatsAppConfig.delete({
+        where: { organizationId }
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "WhatsApp Business Account disconnected successfully.",
+    });
+  } catch (error: any) {
+    console.error("Error disconnecting WhatsApp:", error);
+    return res.status(500).json({ error: "Failed to disconnect WhatsApp account", details: error.message });
+  }
+});
+
 export default router;
