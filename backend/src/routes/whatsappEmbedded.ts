@@ -55,20 +55,33 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
     const appId = process.env.META_APP_ID || "36702477879366478";
     const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
 
-    const redirectUri = req.body.redirectUri || "https://crm.jisnudigital.com/settings";
+    let accessToken = "";
 
     // 1. Exchange temporary code for access token from Meta Graph API
     console.log(`[EMBEDDED SIGNUP] Exchanging code for token with Meta Graph API for Org: ${organizationId}...`);
-    const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
-      params: {
-        client_id: appId,
-        client_secret: appSecret,
-        code: code,
-        redirect_uri: redirectUri,
-      },
-    });
-
-    const accessToken = tokenResponse.data.access_token;
+    try {
+      // Primary: FB.login SDK code exchange (Meta expects no redirect_uri parameter)
+      const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+        params: {
+          client_id: appId,
+          client_secret: appSecret,
+          code: code,
+        },
+      });
+      accessToken = tokenResponse.data.access_token;
+    } catch (err1: any) {
+      console.warn("[EMBEDDED SIGNUP] SDK exchange fallback, trying with redirect_uri...", err1?.response?.data?.error?.message);
+      // Fallback: If dialog redirect was used
+      const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+        params: {
+          client_id: appId,
+          client_secret: appSecret,
+          code: code,
+          redirect_uri: req.body.redirectUri || "https://crm.jisnudigital.com/settings",
+        },
+      });
+      accessToken = tokenResponse.data.access_token;
+    }
 
     if (!accessToken) {
       return res.status(400).json({ error: "Failed to obtain access token from Meta API" });
