@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { FileText, CheckCircle, RefreshCw } from "lucide-react";
+import React, { useState } from "react";
+import { FileText, CheckCircle, RefreshCw, Trash2, Loader2 } from "lucide-react";
 import { MediaPreview } from "./MediaPreview";
 
 export interface PostItem {
@@ -20,14 +20,33 @@ interface RecentPostsProps {
   loading?: boolean;
   onRefresh?: () => void;
   onOpenComposer?: () => void;
+  onDeletePost?: (postId: string) => Promise<void> | void;
 }
 
 export function RecentPosts({
   posts,
   loading = false,
   onRefresh,
-  onOpenComposer
+  onOpenComposer,
+  onDeletePost
 }: RecentPostsProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (postId: string) => {
+    if (!confirm("Are you sure you want to delete this post? This will delete the post from your live LinkedIn feed as well as from the CRM database.")) {
+      return;
+    }
+
+    try {
+      setDeletingId(postId);
+      if (onDeletePost) {
+        await onDeletePost(postId);
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 font-sans">
       <div className="flex items-center justify-between border-b border-slate-850 pb-3">
@@ -52,9 +71,26 @@ export function RecentPosts({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-blue-400">{post.author}</span>
-                  <span className="text-[10px] text-slate-500 font-mono">
-                    {new Date(post.publishedAt).toLocaleString()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {new Date(post.publishedAt).toLocaleString()}
+                    </span>
+                    {onDeletePost && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(post.id)}
+                        disabled={deletingId === post.id}
+                        title="Delete from LinkedIn & CRM"
+                        className="p-1 rounded-lg bg-red-950/60 hover:bg-red-900/60 text-red-400 border border-red-800/80 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {deletingId === post.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">{post.summary}</p>

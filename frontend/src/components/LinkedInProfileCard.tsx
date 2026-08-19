@@ -57,7 +57,7 @@ export function LinkedInProfileCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6"
+      className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6 text-slate-100"
     >
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
         <div className="flex items-center gap-5 min-w-0">
@@ -66,43 +66,43 @@ export function LinkedInProfileCard({
             <img
               src={memberPicture}
               alt={memberName}
-              className="h-20 w-20 rounded-2xl object-cover border-2 border-blue-100 shadow-sm shrink-0"
+              className="h-20 w-20 rounded-2xl object-cover border-2 border-slate-700 shadow-sm shrink-0"
             />
           ) : (
-            <div className="h-20 w-20 rounded-2xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center text-[#0A66C2] shrink-0">
+            <div className="h-20 w-20 rounded-2xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-blue-400 shrink-0">
               <User className="h-10 w-10" />
             </div>
           )}
 
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-3">
-              <h3 className="text-lg font-bold text-slate-900 truncate">{memberName}</h3>
+              <h3 className="text-lg font-bold text-slate-100 truncate">{memberName}</h3>
               <span
                 className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full border ${
                   connectionStatus === "Connected"
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    ? "bg-emerald-950/80 text-emerald-300 border-emerald-800"
                     : connectionStatus === "Expired"
-                    ? "bg-amber-50 text-amber-800 border-amber-200"
-                    : "bg-slate-100 text-slate-600 border-slate-200"
+                    ? "bg-amber-950/80 text-amber-300 border-amber-800"
+                    : "bg-slate-800 text-slate-400 border-slate-700"
                 }`}
               >
                 <span
                   className={`h-2 w-2 rounded-full ${
                     connectionStatus === "Connected"
-                      ? "bg-emerald-500 animate-pulse"
+                      ? "bg-emerald-400 animate-pulse"
                       : connectionStatus === "Expired"
-                      ? "bg-amber-500"
-                      : "bg-slate-400"
+                      ? "bg-amber-400"
+                      : "bg-slate-500"
                   }`}
                 />
                 {connectionStatus}
               </span>
             </div>
-            <p className="text-xs text-slate-600 font-medium truncate">📧 {memberEmail}</p>
-            <p className="text-xs text-slate-500 font-normal truncate">
-              🆔 Member ID: <code className="font-mono text-[#0A66C2] font-bold">{memberId}</code>
+            <p className="text-xs text-slate-300 font-medium truncate">📧 {memberEmail}</p>
+            <p className="text-xs text-slate-400 font-normal truncate">
+              🆔 Member ID: <code className="font-mono text-blue-400 font-bold">{memberId}</code>
             </p>
-            <p className="text-xs text-slate-500 font-normal truncate">💼 {headline}</p>
+            <p className="text-xs text-slate-400 font-normal truncate">💼 {headline}</p>
           </div>
         </div>
 
@@ -116,18 +116,18 @@ export function LinkedInProfileCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-3 border-t border-slate-200">
-        <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-0.5">
-          <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Connection Date</span>
-          <p className="text-slate-800 font-bold">{connectedDate}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-3 border-t border-slate-800">
+        <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-0.5">
+          <span className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">Connection Date</span>
+          <p className="text-slate-100 font-bold">{connectedDate}</p>
         </div>
-        <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-0.5">
-          <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">OAuth Token Expiration</span>
-          <p className={`font-bold ${isExpired ? "text-amber-700" : "text-slate-800"}`}>{tokenExpiry}</p>
+        <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-0.5">
+          <span className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">OAuth Token Expiration</span>
+          <p className={`font-bold ${isExpired ? "text-amber-400" : "text-slate-100"}`}>{tokenExpiry}</p>
         </div>
-        <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-0.5">
-          <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Authorized Scopes</span>
-          <p className="text-emerald-700 font-mono font-bold text-[11px]">openid profile email w_member_social</p>
+        <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-0.5">
+          <span className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">Authorized Scopes</span>
+          <p className="text-emerald-400 font-mono font-bold text-[11px]">openid profile email w_member_social</p>
         </div>
       </div>
     </motion.div>

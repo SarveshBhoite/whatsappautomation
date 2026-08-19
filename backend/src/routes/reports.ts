@@ -5,6 +5,12 @@ import ExcelJS from "exceljs";
 import { Parser as CsvParser } from "json2csv";
 
 const router = Router();
+const DEFAULT_ORG_ID = "demo-org-123";
+
+// Helper: Extract organizationId from header or query
+function getOrgId(req: Request): string {
+  return (req.headers["x-organization-id"] as string) || (req.query.orgId as string) || DEFAULT_ORG_ID;
+}
 
 // Helper: Format Date YYYY-MM-DD
 function getFormattedDate(d = new Date()): string {
@@ -19,17 +25,24 @@ function getFormattedMonth(d = new Date()): string {
 // ─── 1. GET /api/reports/weekly/csv ──────────────────────────────────────────
 router.get("/weekly/csv", async (req: Request, res: Response) => {
   try {
+    const organizationId = getOrgId(req);
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    const posts = await prisma.linkedInPost.findMany({
-      where: { publishedAt: { gte: oneWeekAgo } },
+    let posts = await prisma.linkedInPost.findMany({
+      where: { organizationId, publishedAt: { gte: oneWeekAgo } },
       orderBy: { publishedAt: "desc" }
     });
 
-    const allPosts = posts.length > 0 ? posts : await prisma.linkedInPost.findMany({ take: 50, orderBy: { publishedAt: "desc" } });
+    if (posts.length === 0) {
+      posts = await prisma.linkedInPost.findMany({
+        where: { organizationId },
+        take: 50,
+        orderBy: { publishedAt: "desc" }
+      });
+    }
 
-    const csvData = allPosts.map(p => {
+    const csvData = posts.map(p => {
       const likes = p.likesCount || 0;
       const comments = p.commentsCount || 0;
       const shares = Math.floor((likes + comments) * 0.25);
@@ -57,7 +70,7 @@ router.get("/weekly/csv", async (req: Request, res: Response) => {
     const csvContent = json2csvParser.parse(csvData.length > 0 ? csvData : [{
       "Post ID": "NO_DATA",
       "Author": "N/A",
-      "Content Summary": "No posts recorded for this timeframe",
+      "Content Summary": "No posts recorded for this organization account",
       "Created Date": getFormattedDate(),
       "Published Date": "N/A",
       "Status": "NONE",
@@ -81,14 +94,16 @@ router.get("/weekly/csv", async (req: Request, res: Response) => {
 // ─── 2. GET /api/reports/weekly/pdf ──────────────────────────────────────────
 router.get("/weekly/pdf", async (req: Request, res: Response) => {
   try {
+    const organizationId = getOrgId(req);
     const posts = await prisma.linkedInPost.findMany({
+      where: { organizationId },
       orderBy: { publishedAt: "desc" },
       take: 20
     });
 
-    const totalPosts = await prisma.linkedInPost.count();
-    const publishedPosts = await prisma.linkedInPost.count({ where: { lifecycleState: "PUBLISHED" } });
-    const scheduledPosts = await prisma.linkedInSchedule.count();
+    const totalPosts = await prisma.linkedInPost.count({ where: { organizationId } });
+    const publishedPosts = await prisma.linkedInPost.count({ where: { organizationId, lifecycleState: "PUBLISHED" } });
+    const scheduledPosts = await prisma.linkedInSchedule.count({ where: { organizationId } });
 
     const doc = new PDFDocument({ margin: 40, size: "A4" });
     const filename = `weekly_report_${getFormattedDate()}.pdf`;
@@ -98,7 +113,6 @@ router.get("/weekly/pdf", async (req: Request, res: Response) => {
 
     doc.pipe(res);
 
-    // Header & Brand Styling
     // Header & Brand Styling
     doc.rect(0, 0, doc.page.width, 70).fill("#0f172a");
     doc.fillColor("#38bdf8").fontSize(18).font("Helvetica-Bold").text("JDS AUTOMATION CRM", 40, 16);
@@ -124,7 +138,7 @@ router.get("/weekly/pdf", async (req: Request, res: Response) => {
       { label: "Total Posts", val: `${totalPosts}` },
       { label: "Published", val: `${publishedPosts}` },
       { label: "Scheduled", val: `${scheduledPosts}` },
-      { label: "Avg Engagement", val: "4.85%" }
+      { label: "Avg Engagement", val: totalPosts > 0 ? "4.85%" : "0.00%" }
     ];
 
     kpis.forEach((kpi, idx) => {
@@ -193,12 +207,13 @@ router.get("/weekly/pdf", async (req: Request, res: Response) => {
 // ─── 3. GET /api/reports/monthly/excel ───────────────────────────────────────
 router.get("/monthly/excel", async (req: Request, res: Response) => {
   try {
+    const organizationId = getOrgId(req);
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "JDS Automation CRM";
     workbook.created = new Date();
 
-    const posts = await prisma.linkedInPost.findMany({ orderBy: { publishedAt: "desc" } });
-    const schedules = await prisma.linkedInSchedule.findMany({ orderBy: { createdAt: "desc" } });
+    const posts = await prisma.linkedInPost.findMany({ where: { organizationId }, orderBy: { publishedAt: "desc" } });
+    const schedules = await prisma.linkedInSchedule.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } });
 
     // Styles
     const headerFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "1E3A8A" } };
@@ -214,12 +229,12 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
     ];
     ws1.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
     ws1.addRows([
-      { category: "Total Campaigns", value: 12, growth: "+15.4%", status: "Active" },
+      { category: "Total Campaigns", value: posts.length > 0 ? 12 : 0, growth: "+15.4%", status: "Active" },
       { category: "Total Published Posts", value: posts.length, growth: "+24.0%", status: "Live" },
       { category: "Scheduled Pipeline", value: schedules.length, growth: "+8.2%", status: "Queued" },
-      { category: "Total Impressions", value: posts.length * 480 + 1250, growth: "+31.2%", status: "Verified" },
-      { category: "Total Reach", value: posts.length * 310 + 820, growth: "+28.5%", status: "Verified" },
-      { category: "Average Engagement Rate", value: "5.42%", growth: "+1.2%", status: "High" }
+      { category: "Total Impressions", value: posts.length * 480, growth: "+31.2%", status: "Verified" },
+      { category: "Total Reach", value: posts.length * 310, growth: "+28.5%", status: "Verified" },
+      { category: "Average Engagement Rate", value: posts.length > 0 ? "5.42%" : "0.00%", growth: "+1.2%", status: "High" }
     ]);
 
     // Sheet 2: Published Posts
@@ -276,9 +291,9 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
       d.setDate(d.getDate() - i);
       ws4.addRow({
         date: getFormattedDate(d),
-        created: Math.floor(Math.random() * 5) + 1,
-        impressions: Math.floor(Math.random() * 800) + 200,
-        clicks: Math.floor(Math.random() * 120) + 15
+        created: posts.length > 0 ? Math.floor(Math.random() * 5) + 1 : 0,
+        impressions: posts.length > 0 ? Math.floor(Math.random() * 800) + 200 : 0,
+        clicks: posts.length > 0 ? Math.floor(Math.random() * 120) + 15 : 0
       });
     }
 
@@ -309,10 +324,10 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
     ];
     ws6.getRow(1).eachCell(cell => { cell.fill = headerFill; cell.font = headerFont; });
     [
-      { tag: "#Automation", count: posts.length, avgLikes: 24 },
-      { tag: "#LinkedInGrowth", count: Math.max(1, posts.length - 1), avgLikes: 18 },
-      { tag: "#AI", count: Math.max(1, posts.length - 2), avgLikes: 32 },
-      { tag: "#Tech", count: Math.max(1, posts.length - 3), avgLikes: 15 }
+      { tag: "#Automation", count: posts.length, avgLikes: posts.length > 0 ? 24 : 0 },
+      { tag: "#LinkedInGrowth", count: posts.length, avgLikes: posts.length > 0 ? 18 : 0 },
+      { tag: "#AI", count: posts.length, avgLikes: posts.length > 0 ? 32 : 0 },
+      { tag: "#Tech", count: posts.length, avgLikes: posts.length > 0 ? 15 : 0 }
     ].forEach(h => ws6.addRow(h));
 
     const filename = `monthly_report_${getFormattedMonth()}.xlsx`;
@@ -330,8 +345,8 @@ router.get("/monthly/excel", async (req: Request, res: Response) => {
 // ─── 4. GET /api/reports/monthly/pdf ─────────────────────────────────────────
 router.get("/monthly/pdf", async (req: Request, res: Response) => {
   try {
-    const totalPosts = await prisma.linkedInPost.count();
-    const publishedPosts = await prisma.linkedInPost.count({ where: { lifecycleState: "PUBLISHED" } });
+    const organizationId = getOrgId(req);
+    const totalPosts = await prisma.linkedInPost.count({ where: { organizationId } });
 
     const doc = new PDFDocument({ margin: 40, size: "A4" });
     const filename = `monthly_report_${getFormattedMonth()}.pdf`;
@@ -354,14 +369,14 @@ router.get("/monthly/pdf", async (req: Request, res: Response) => {
     doc.fillColor("#0f172a").fontSize(13).font("Helvetica-Bold").text("Executive Monthly KPIs & Growth Metrics", 40, 95);
 
     const kpis = [
-      { name: "Total Campaigns", val: "12", growth: "+15.4%" },
+      { name: "Total Campaigns", val: totalPosts > 0 ? "12" : "0", growth: "+15.4%" },
       { name: "Total Posts", val: `${totalPosts}`, growth: "+24.0%" },
-      { name: "Total Reach", val: `${totalPosts * 310 + 820}`, growth: "+28.5%" },
-      { name: "Impressions", val: `${totalPosts * 480 + 1250}`, growth: "+31.2%" },
-      { name: "Total Likes", val: `${totalPosts * 14 + 45}`, growth: "+18.2%" },
-      { name: "Comments", val: `${totalPosts * 6 + 18}`, growth: "+12.1%" },
-      { name: "Shares", val: `${totalPosts * 4 + 10}`, growth: "+14.8%" },
-      { name: "Click CTR", val: "3.84%", growth: "+0.8%" }
+      { name: "Total Reach", val: `${totalPosts * 310}`, growth: "+28.5%" },
+      { name: "Impressions", val: `${totalPosts * 480}`, growth: "+31.2%" },
+      { name: "Total Likes", val: `${totalPosts * 14}`, growth: "+18.2%" },
+      { name: "Comments", val: `${totalPosts * 6}`, growth: "+12.1%" },
+      { name: "Shares", val: `${totalPosts * 4}`, growth: "+14.8%" },
+      { name: "Click CTR", val: totalPosts > 0 ? "3.84%" : "0.00%", growth: "+0.8%" }
     ];
 
     const cardW = 120;
@@ -395,7 +410,7 @@ router.get("/monthly/pdf", async (req: Request, res: Response) => {
     // Draw Simulated Bar Chart Graphics
     const barX = 70;
     const barY = sectionY + 165;
-    const heights = [40, 65, 50, 85, 70, 95, 110];
+    const heights = totalPosts > 0 ? [40, 65, 50, 85, 70, 95, 110] : [0, 0, 0, 0, 0, 0, 0];
     const months = ["W1", "W2", "W3", "W4", "W5", "W6", "W7"];
 
     heights.forEach((h, i) => {
@@ -428,7 +443,9 @@ router.get("/monthly/pdf", async (req: Request, res: Response) => {
 // ─── 5. GET /api/reports/audit/csv ───────────────────────────────────────────
 router.get("/audit/csv", async (req: Request, res: Response) => {
   try {
+    const organizationId = getOrgId(req);
     const logs = await prisma.linkedInSyncLog.findMany({
+      where: { organizationId },
       orderBy: { timestamp: "desc" },
       take: 100
     });
@@ -456,7 +473,7 @@ router.get("/audit/csv", async (req: Request, res: Response) => {
       User: "System Admin",
       Action: "AUDIT_CHECK",
       Entity: "CRM",
-      "Entity ID": "SYS-001",
+      "Entity ID": organizationId,
       "IP Address": "127.0.0.1",
       Browser: "Chrome",
       OS: "Windows",

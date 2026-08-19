@@ -235,6 +235,47 @@ router.post("/share", async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/linkedin/posts/:id - Delete post from LinkedIn live feed and CRM database
+router.delete("/posts/:id", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postId = String(req.params.id);
+
+    if (!postId) {
+      return res.status(400).json({ error: "Post ID parameter is required." });
+    }
+
+    const result = await LinkedInService.deletePublishedPost(organizationId, postId);
+
+    // Socket notification for real-time synchronization across clients
+    try {
+      const { io } = require("../index");
+      if (io) {
+        io.to(organizationId).emit("linkedin-post-deleted", { organizationId, postId });
+        io.to(organizationId).emit("linkedin-sync-completed", { organizationId });
+      }
+    } catch (socketErr: any) {
+      console.warn("[LINKEDIN] Socket notification notice:", socketErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Post deleted successfully from LinkedIn live feed and CRM database.",
+      result
+    });
+  } catch (error: any) {
+    const status = error.response?.status || error.status || 500;
+    const errorDetails = error.response?.data || error.message;
+    console.error(`[LINKEDIN] API Error [HTTP ${status}] - Post deletion failed:`, errorDetails);
+    await LinkedInSyncService.logSyncEvent(getOrgId(req), "API Error", "FAILED", `Post deletion failed: ${errorDetails}`);
+
+    return res.status(status).json({
+      success: false,
+      error: error.message || "Failed to delete post from LinkedIn."
+    });
+  }
+});
+
 // 5. GET /api/linkedin/activity - Fetch Activity Log events
 router.get("/activity", async (req: Request, res: Response) => {
   try {
