@@ -1066,6 +1066,10 @@ export class LinkedInService {
         isPersonalPostTable = true;
         post = {
           id: personalPost.id,
+          postId: personalPost.id,
+          authorUrn: personalPost.authorUrn || "",
+          commentary: personalPost.text || "",
+          mediaType: personalPost.mediaUrl ? "IMAGE" : "NONE",
           organizationId: personalPost.organizationId,
           linkedinPostId: personalPost.linkedinPostId,
           author: personalPost.author,

@@ -263,10 +263,10 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     const isLinkedIn = conversation.platform === "linkedin";
 
     const customerPhone = conversation.customerPhone;
-    const waConfig = conversation.organization.waConfig;
-    const igConfig = conversation.organization.igConfig;
-    const ytConfig = conversation.organization.ytConfig;
-    const linkedInConfig = conversation.organization.linkedInConfig;
+    const waConfig = conversation.organization?.waConfig;
+    const igConfig = conversation.organization?.igConfig;
+    const ytConfig = conversation.organization?.ytConfig;
+    const linkedInConfig = conversation.organization?.linkedInConfig;
 
     // Dispatch Text Message
     let outWaId: string | null = null;

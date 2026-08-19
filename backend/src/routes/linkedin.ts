@@ -158,6 +158,10 @@ router.get("/posts", async (req: Request, res: Response) => {
       });
       posts = personalPosts.map(p => ({
         id: p.id,
+        postId: p.id,
+        authorUrn: p.authorUrn || "",
+        commentary: p.text || "",
+        mediaType: p.mediaUrl ? "IMAGE" : "NONE",
         organizationId: p.organizationId,
         linkedinPostId: p.linkedinPostId,
         author: p.author,
