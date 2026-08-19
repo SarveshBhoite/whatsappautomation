@@ -545,6 +545,8 @@ export default function Dashboard() {
   const [capturedPhoneId, setCapturedPhoneId] = useState<string | null>(null);
   const [embeddedConnecting, setEmbeddedConnecting] = useState(false);
   const [embeddedSuccess, setEmbeddedSuccess] = useState(false);
+  const [manualAuthCode, setManualAuthCode] = useState("");
+  const [showManualCodeInput, setShowManualCodeInput] = useState(false);
 
   // Initialize Meta FB SDK and listen for WA_EMBEDDED_SIGNUP postMessage events
   useEffect(() => {
@@ -565,15 +567,25 @@ export default function Dashboard() {
 
       // Listen for Meta Embedded Signup completion postMessage events
       const sessionMessageListener = (event: MessageEvent) => {
-        if (event.origin !== "https://www.facebook.com") return;
         try {
           const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+          console.log("[EMBEDDED SIGNUP SESSION EVENT]:", data);
+
+          if (data.type === "WA_EMBEDDED_CODE" && data.code) {
+            processEmbeddedCode(data.code);
+            return;
+          }
+
           if (data.type === "WA_EMBEDDED_SIGNUP" || data.event === "FINISH") {
-            console.log("[META EMBEDDED SIGNUP SESSION EVENT]:", data);
-            if (data.data) {
-              const { waba_id, phone_number_id } = data.data;
-              if (waba_id) setCapturedWabaId(waba_id);
-              if (phone_number_id) setCapturedPhoneId(phone_number_id);
+            const waba_id = data.data?.waba_id;
+            const phone_number_id = data.data?.phone_number_id;
+            const code = data.data?.code || data.code;
+
+            if (waba_id) setCapturedWabaId(waba_id);
+            if (phone_number_id) setCapturedPhoneId(phone_number_id);
+
+            if (code) {
+              processEmbeddedCode(code, waba_id, phone_number_id);
             }
           }
         } catch {
@@ -582,6 +594,23 @@ export default function Dashboard() {
       };
 
       window.addEventListener("message", sessionMessageListener);
+
+      // Check if current window was loaded with OAuth callback code
+      const urlParams = new URLSearchParams(window.location.search);
+      const incomingCode = urlParams.get("code");
+      if (incomingCode) {
+        if (window.opener) {
+          try {
+            window.opener.postMessage({ type: "WA_EMBEDDED_CODE", code: incomingCode }, "*");
+            window.close();
+            return;
+          } catch (e) {
+            console.error("Failed to post message to opener:", e);
+          }
+        }
+        processEmbeddedCode(incomingCode);
+      }
+
       return () => window.removeEventListener("message", sessionMessageListener);
     }
   }, []);
@@ -590,6 +619,10 @@ export default function Dashboard() {
     try {
       setEmbeddedConnecting(true);
       const orgId = localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+      const targetOrigin = window.location.origin.startsWith("https://")
+        ? window.location.origin
+        : "https://crm.jisnudigital.com";
+
       const res = await fetch(`${BACKEND_URL}/api/whatsapp/embedded-signup/callback`, {
         method: "POST",
         headers: {
@@ -598,6 +631,7 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           code,
+          redirectUri: `${targetOrigin}/settings`,
           wabaId: wabaId || capturedWabaId || undefined,
           phoneNumberId: phoneId || capturedPhoneId || undefined,
         }),
@@ -627,8 +661,49 @@ export default function Dashboard() {
   const launchWhatsAppSignup = () => {
     if (typeof window === "undefined") return;
 
-    // Official Meta-hosted Embedded Signup Landing URI
-    const metaHostedUrl = "https://business.facebook.com/messaging/whatsapp/onboard/?app_id=36702477879366478&config_id=1057598330310757&extras=%7B%22sessionInfoVersion%22%3A%223%22%2C%22version%22%3A%22v4%22%7D";
+    setEmbeddedConnecting(true);
+    const FB = (window as any).FB;
+
+    // 1. Primary Automated Flow: Native Facebook JS SDK (Used on Production / HTTPS)
+    if (FB && window.location.protocol === "https:") {
+      try {
+        FB.login(
+          (response: any) => {
+            console.log("[META FB.LOGIN RESPONSE]:", response);
+            if (response.authResponse && response.authResponse.code) {
+              processEmbeddedCode(response.authResponse.code);
+            } else {
+              setEmbeddedConnecting(false);
+            }
+          },
+          {
+            config_id: "1057598330310757",
+            response_type: "code",
+            override_default_response_type: true,
+            extras: {
+              version: "v4",
+              sessionInfoVersion: "3",
+            },
+          }
+        );
+        return;
+      } catch (err) {
+        console.warn("FB.login fallback triggered:", err);
+      }
+    }
+
+    // 2. Secondary Automated Flow: OAuth Popup Dialog with auto-polling
+    const appId = "36702477879366478";
+    const configId = "1057598330310757";
+
+    const targetOrigin = window.location.origin.startsWith("https://")
+      ? window.location.origin
+      : "https://crm.jisnudigital.com";
+
+    const redirectUri = encodeURIComponent(`${targetOrigin}/settings`);
+    const extras = encodeURIComponent(JSON.stringify({ version: "v4", sessionInfoVersion: "3" }));
+    
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&config_id=${configId}&redirect_uri=${redirectUri}&response_type=code&override_default_response_type=true&extras=${extras}`;
 
     const width = 600;
     const height = 750;
@@ -636,19 +711,18 @@ export default function Dashboard() {
     const top = window.screenY + (window.outerHeight - height) / 2;
 
     const popup = window.open(
-      metaHostedUrl,
+      oauthUrl,
       "MetaWhatsAppSignup",
       `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`
     );
 
     if (!popup) {
       alert("Popup blocked! Please allow popups for this site in your browser.");
+      setEmbeddedConnecting(false);
       return;
     }
 
-    setEmbeddedConnecting(true);
-
-    // Poll popup window in case of code redirect or closure
+    // Automatically poll and capture authorization code without user copy-pasting
     const pollTimer = setInterval(() => {
       try {
         if (!popup || popup.closed) {
@@ -658,7 +732,7 @@ export default function Dashboard() {
         }
 
         const currentUrl = popup.location.href;
-        if (currentUrl && (currentUrl.includes("code=") || currentUrl.includes("login_success.html"))) {
+        if (currentUrl && currentUrl.includes("code=")) {
           const urlObj = new URL(currentUrl);
           const code = urlObj.searchParams.get("code");
           if (code) {
@@ -668,7 +742,7 @@ export default function Dashboard() {
           }
         }
       } catch {
-        // Cross-origin security before redirect is normal, ignore
+        // Cross-origin before redirect is normal
       }
     }, 500);
   };
@@ -2323,18 +2397,40 @@ export default function Dashboard() {
                         </button>
                       </div>
 
-                      {config.wabaId && (
-                        <div className="bg-slate-950/70 border border-emerald-500/20 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                          <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-                            <Check className="h-4 w-4" />
-                            <span>Status: Connected to Meta Cloud API</span>
+                      {/* 1-Click Code Paste Fallback */}
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <button
+                          type="button"
+                          onClick={() => setShowManualCodeInput(!showManualCodeInput)}
+                          className="text-[11px] text-slate-400 hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>{showManualCodeInput ? "▼ Hide Code Paste" : "▶ Have an authorization code from Meta popup? Paste it here"}</span>
+                        </button>
+
+                        {showManualCodeInput && (
+                          <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                            <input
+                              type="text"
+                              value={manualAuthCode}
+                              onChange={(e) => setManualAuthCode(e.target.value)}
+                              placeholder="Paste 'code' parameter from Meta success URL (AQ...)"
+                              className="flex-1 bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (manualAuthCode.trim()) {
+                                  processEmbeddedCode(manualAuthCode.trim());
+                                }
+                              }}
+                              disabled={embeddedConnecting || !manualAuthCode.trim()}
+                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer shrink-0"
+                            >
+                              {embeddedConnecting ? "Activating..." : "Exchange & Activate"}
+                            </button>
                           </div>
-                          <div className="flex items-center gap-4 text-slate-400 font-mono text-[11px]">
-                            <span>WABA ID: {config.wabaId}</span>
-                            <span>Phone ID: {config.phoneNumberId || "Auto"}</span>
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
                     {/* WhatsApp Manual Credentials Form */}

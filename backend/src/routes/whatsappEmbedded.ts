@@ -55,6 +55,8 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
     const appId = process.env.META_APP_ID || "36702477879366478";
     const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
 
+    const redirectUri = req.body.redirectUri || "https://crm.jisnudigital.com/settings";
+
     // 1. Exchange temporary code for access token from Meta Graph API
     console.log(`[EMBEDDED SIGNUP] Exchanging code for token with Meta Graph API for Org: ${organizationId}...`);
     const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
@@ -62,6 +64,7 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
         client_id: appId,
         client_secret: appSecret,
         code: code,
+        redirect_uri: redirectUri,
       },
     });
 
@@ -74,7 +77,27 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
     let finalWabaId = wabaId || "";
     let finalPhoneNumberId = phoneNumberId || "";
 
-    // 2. If WABA ID is present, auto-discover phone number if not directly passed
+    // 2. If WABA ID is missing, auto-discover from Meta Graph API
+    if (!finalWabaId) {
+      try {
+        const debugTokenRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
+          params: {
+            input_token: accessToken,
+            access_token: `${appId}|${appSecret}`,
+          },
+        });
+        const granularScopes = debugTokenRes.data?.data?.granular_scopes || [];
+        const waScope = granularScopes.find((s: any) => s.scope === "whatsapp_business_management");
+        if (waScope && waScope.target_ids && waScope.target_ids.length > 0) {
+          finalWabaId = waScope.target_ids[0];
+          console.log(`[EMBEDDED SIGNUP] Auto-discovered WABA ID from token scopes: ${finalWabaId}`);
+        }
+      } catch (debugErr: any) {
+        console.warn("[EMBEDDED SIGNUP] Token debug check failed:", debugErr?.response?.data || debugErr.message);
+      }
+    }
+
+    // 3. If WABA ID is present, auto-discover phone number if not directly passed
     if (finalWabaId && !finalPhoneNumberId) {
       try {
         const phoneNumbersRes = await axios.get(
@@ -91,7 +114,25 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
       }
     }
 
-    // 3. Auto-subscribe app to the WABA for webhooks
+    // 4. Auto-register phone number on Cloud API (Activates status from Pending to Connected)
+    if (finalPhoneNumberId) {
+      try {
+        console.log(`[EMBEDDED SIGNUP] Auto-registering phone number: ${finalPhoneNumberId} with Cloud API...`);
+        await axios.post(
+          `https://graph.facebook.com/v21.0/${finalPhoneNumberId}/register`,
+          {
+            messaging_product: "whatsapp",
+            pin: "123456",
+          },
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        console.log(`[EMBEDDED SIGNUP] Successfully registered phone number ${finalPhoneNumberId} on Cloud API!`);
+      } catch (regErr: any) {
+        console.warn("[EMBEDDED SIGNUP] Phone registration response/notice:", regErr?.response?.data?.error?.message || regErr.message);
+      }
+    }
+
+    // 5. Auto-subscribe app to the WABA for webhooks
     if (finalWabaId) {
       try {
         console.log(`[EMBEDDED SIGNUP] Subscribing app to WABA: ${finalWabaId}...`);
@@ -106,7 +147,7 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
       }
     }
 
-    // 4. Upsert client's WhatsAppConfig in database
+    // 6. Upsert client's WhatsAppConfig in database
     const config = await prisma.whatsAppConfig.upsert({
       where: { organizationId },
       update: {
