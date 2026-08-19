@@ -283,7 +283,7 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Client Organizations</p>
@@ -303,18 +303,6 @@ export default function AdminPage() {
             </div>
             <div className="p-3 bg-emerald-950 border border-emerald-800 rounded-xl text-emerald-400">
               <CheckCircle2 className="h-5 w-5" />
-            </div>
-          </div>
-
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Client Admins & Users</p>
-              <h3 className="text-2xl font-bold text-purple-400 mt-1">
-                {organizations.reduce((acc, o) => acc + o.users.length, 0)}
-              </h3>
-            </div>
-            <div className="p-3 bg-purple-950 border border-purple-800 rounded-xl text-purple-400">
-              <Users className="h-5 w-5" />
             </div>
           </div>
         </div>
