@@ -28,6 +28,13 @@ import {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+  }
+  return DEFAULT_ORG_ID;
+};
+
 interface AiAgentConfig {
   id?: string;
   agentName: string;
@@ -120,7 +127,7 @@ export default function AiAgentStudioPage() {
   const fetchConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -135,7 +142,7 @@ export default function AiAgentStudioPage() {
     setLoadingKnowledge(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/knowledge`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -152,7 +159,7 @@ export default function AiAgentStudioPage() {
     setLoadingLeads(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/leads`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -174,7 +181,7 @@ export default function AiAgentStudioPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(updated)
       });
@@ -239,7 +246,7 @@ export default function AiAgentStudioPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           id: editingItem?.id,
@@ -313,7 +320,7 @@ export default function AiAgentStudioPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           userMessage: userText,
