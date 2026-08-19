@@ -2,7 +2,7 @@ import { LinkedInAIService } from "../services/aiService";
 import assert from "assert";
 
 async function testUniversalAIService() {
-  console.log("=== TESTING UNIVERSAL CRM AI ASSISTANT (Groq llama-3.3-70b-versatile) ===");
+  console.log("=== TESTING UNIVERSAL CRM AI ASSISTANT (Groq openai/gpt-oss-120b) ===");
 
   try {
     // Test 1: LinkedIn Intent

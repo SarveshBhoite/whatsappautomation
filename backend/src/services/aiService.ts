@@ -41,7 +41,7 @@ export interface StructuredAIResponse {
 }
 
 export class LinkedInAIService {
-  private static MODEL_NAME = "llama-3.3-70b-versatile";
+  private static MODEL_NAME = "openai/gpt-oss-120b";
 
   /**
    * Helper to construct CRM & Jisnu Context from recent AI history
@@ -182,7 +182,7 @@ You MUST respond with valid JSON matching EXACTLY this structure:
   }
 
   /**
-   * Core Groq API LLM Dispatcher using exact model: llama-3.3-70b-versatile
+   * Core Groq API LLM Dispatcher using exact model: openai/gpt-oss-120b
    */
   private static async callLLM(
     prompt: string,

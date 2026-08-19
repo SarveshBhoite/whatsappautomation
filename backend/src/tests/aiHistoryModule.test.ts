@@ -18,7 +18,7 @@ async function testAIHistoryModule() {
       generatedContent: testContent,
       mode: "Post Generator",
       tone: "Authoritative",
-      model: "Groq-llama-3.3-70b-versatile"
+      model: "Groq-openai/gpt-oss-120b"
     });
 
     assert.ok(savedRecord && savedRecord.id, "History record should be saved successfully");
