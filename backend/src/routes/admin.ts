@@ -830,16 +830,19 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "WhatsApp WABA ID or Access Token missing in configuration" });
     }
 
+    console.log(`[WABA TEMPLATES] Fetching templates for Org: ${organizationId}, WABA: ${waConfig.wabaId}...`);
     const metaRes = await fetch(
-      `https://graph.facebook.com/v19.0/${waConfig.wabaId}/message_templates?access_token=${waConfig.accessToken}`
+      `https://graph.facebook.com/v21.0/${waConfig.wabaId}/message_templates?limit=250&access_token=${waConfig.accessToken}`
     );
 
     if (!metaRes.ok) {
       const errData = await metaRes.json();
+      console.warn(`[WABA TEMPLATES] Error from Meta API:`, errData);
       return res.status(metaRes.status).json({ error: errData.error?.message || "Failed to fetch Meta templates" });
     }
 
     const data = await metaRes.json();
+    console.log(`[WABA TEMPLATES] Successfully fetched ${data.data?.length || 0} templates from Meta!`);
     return res.status(200).json({ templates: data.data || [] });
   } catch (error: any) {
     console.error("Error fetching WABA templates:", error);

@@ -79,13 +79,14 @@ export default function AiAgentStudioPage() {
   
   // Config state
   const [config, setConfig] = useState<AiAgentConfig>({
-    agentName: "AI Sales & Support Specialist",
-    personalityPrompt: "You are a warm, highly knowledgeable human sales & customer representative. Chat naturally in a friendly, conversational tone. Answer questions based strictly on trained company data, attach relevant portfolio screenshots or PDFs when requested, and collect contact details if they ask to be called back.",
-    greetingMessage: "Hello! How can I assist you with our services today?",
+    agentName: "",
+    personalityPrompt: "",
+    greetingMessage: "",
     activeMode: "AI_AGENT",
     isActive: true,
     autoSendMedia: true,
   });
+  const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingConfig, setSavingConfig] = useState(false);
   const [configToast, setConfigToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -126,15 +127,18 @@ export default function AiAgentStudioPage() {
 
   const fetchConfig = async () => {
     try {
+      setLoadingConfig(true);
       const res = await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
+        if (data) setConfig(data);
       }
     } catch (err) {
       console.error("Failed to fetch AI Agent config:", err);
+    } finally {
+      setLoadingConfig(false);
     }
   };
 
@@ -540,6 +544,9 @@ export default function AiAgentStudioPage() {
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Default Human Greeting</label>
                   <input
                     type="text"
+                    name="ai_greeting_msg_custom"
+                    autoComplete="off"
+                    data-lpignore="true"
                     value={config.greetingMessage}
                     onChange={(e) => setConfig({ ...config, greetingMessage: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-primary"
@@ -551,6 +558,9 @@ export default function AiAgentStudioPage() {
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Human Personality & System Prompt</label>
                   <textarea
                     rows={4}
+                    name="ai_personality_prompt_custom"
+                    autoComplete="off"
+                    data-lpignore="true"
                     value={config.personalityPrompt}
                     onChange={(e) => setConfig({ ...config, personalityPrompt: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-sm text-white focus:outline-none focus:border-primary leading-relaxed"
@@ -573,6 +583,9 @@ export default function AiAgentStudioPage() {
                   <div className="relative">
                     <input
                       type={showApiKey ? "text" : "password"}
+                      name="groq_ai_byok_api_token"
+                      autoComplete="new-password"
+                      data-lpignore="true"
                       value={config.groqApiKey || ""}
                       onChange={(e) => setConfig({ ...config, groqApiKey: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-500 font-mono pr-20"
@@ -581,7 +594,7 @@ export default function AiAgentStudioPage() {
                     <button
                       type="button"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-white bg-slate-800/80 rounded-lg transition-all"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 text-[10px] font-bold text-slate-400 hover:text-white bg-slate-800/80 rounded-lg transition-all cursor-pointer"
                     >
                       {showApiKey ? "Hide Key" : "Show Key"}
                     </button>

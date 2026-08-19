@@ -21,6 +21,13 @@ import Link from "next/link";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+  }
+  return DEFAULT_ORG_ID;
+};
+
 interface MetaTemplate {
   id: string;
   name: string;
@@ -59,7 +66,7 @@ export default function WhatsAppTemplatesPage() {
     try {
       setRefreshing(true);
       const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -97,7 +104,7 @@ export default function WhatsAppTemplatesPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           name: templateName,

@@ -26,6 +26,13 @@ import Link from "next/link";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+  }
+  return DEFAULT_ORG_ID;
+};
+
 export default function WhatsAppBulkBroadcastPage() {
   const [phoneNumbersText, setPhoneNumbersText] = useState<string>("");
   const [sendType, setSendType] = useState<"template" | "custom">("template");
@@ -34,7 +41,7 @@ export default function WhatsAppBulkBroadcastPage() {
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
-      headers: { "x-organization-id": DEFAULT_ORG_ID }
+      headers: { "x-organization-id": getOrgId() }
     })
       .then((r) => r.json())
       .then((d) => {
@@ -94,7 +101,7 @@ export default function WhatsAppBulkBroadcastPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-organization-id": DEFAULT_ORG_ID,
+            "x-organization-id": getOrgId(),
           },
           body: JSON.stringify({
             fileBase64: base64Data,
@@ -157,7 +164,7 @@ export default function WhatsAppBulkBroadcastPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID,
+          "x-organization-id": getOrgId(),
         },
         body: JSON.stringify({
           recipients: parsedRecipients,
