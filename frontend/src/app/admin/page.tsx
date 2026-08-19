@@ -58,6 +58,7 @@ const MODULE_CATEGORIES = [
 ];
 
 const ALL_MODULE_KEYS = MODULE_CATEGORIES.flatMap(c => c.modules.map(m => m.key));
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -105,7 +106,7 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:5000/api/admin/organizations");
+      const res = await fetch(`${BACKEND_URL}/api/admin/organizations`);
       if (!res.ok) throw new Error("Failed to fetch organizations");
       const data = await res.json();
       setOrganizations(data);
@@ -126,7 +127,7 @@ export default function AdminPage() {
 
     setCreating(true);
     try {
-      const res = await fetch("http://localhost:5000/api/admin/organizations", {
+      const res = await fetch(`${BACKEND_URL}/api/admin/organizations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -169,7 +170,7 @@ export default function AdminPage() {
 
     setSavingEdit(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/organizations/${editingOrg.id}`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/organizations/${editingOrg.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -200,7 +201,7 @@ export default function AdminPage() {
     }
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/organizations/${org.id}`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/organizations/${org.id}`, {
         method: "DELETE",
       });
 
