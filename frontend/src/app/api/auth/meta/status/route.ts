@@ -32,8 +32,6 @@ export async function GET(req: NextRequest) {
           // If in-memory state is empty or differs from database WABA ID, sync from Graph API
           if (!status.whatsapp.connected || status.whatsapp.wabaId !== config?.wabaId || !status.whatsapp.phoneNumbers || status.whatsapp.phoneNumbers.length === 0) {
             const graphVersion = process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v20.0';
-            // Env-level known WABA IDs (comma-separated fallback for system-user-only setups)
-            const envWabaIds = (process.env.META_WABA_IDS || '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
             let rawPhones: any[] = [];
             let businessName = '';
@@ -82,11 +80,151 @@ export async function GET(req: NextRequest) {
               console.warn('[Dynamic FB Account Discovery Warning]:', meErr);
             }
 
-            // 2. Query configured WABA ID(s) from DB config + env fallback
-            const configuredWabaIds = Array.from(new Set([
-              ...(config?.wabaId || '').split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean),
-              ...envWabaIds,
-            ]));
+            // 1b. Query Business Portfolios dynamically
+            const discoveredBizList = new Set<string>();
+            try {
+              const bizRes = await fetch(
+                `https://graph.facebook.com/${graphVersion}/me/businesses?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}},client_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}}&access_token=${effectiveToken}`,
+                { cache: 'no-store' }
+              );
+              if (bizRes.ok) {
+                const bizData = await bizRes.json();
+                if (bizData.data) {
+                  bizData.data.forEach((b: any) => {
+                    if (b.id) discoveredBizList.add(b.id);
+                    if (b.name && !businessName) businessName = b.name;
+                    const bizWabas = [
+                      ...(b.owned_whatsapp_business_accounts?.data || []),
+                      ...(b.client_whatsapp_business_accounts?.data || [])
+                    ];
+                    bizWabas.forEach((waba: any) => {
+                      if (waba.phone_numbers?.data) {
+                        waba.phone_numbers.data.forEach((p: any) => {
+                          rawPhones.push({ ...p, waba_id: waba.id, waba_name: waba.name });
+                        });
+                      }
+                    });
+                  });
+                }
+              }
+            } catch (bizErr) {
+              console.warn('[Direct Businesses Discovery Warning]:', bizErr);
+            }
+
+            for (const bId of Array.from(discoveredBizList)) {
+              try {
+                const singleBizRes = await fetch(
+                  `https://graph.facebook.com/${graphVersion}/${bId}?fields=id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}},client_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}}&access_token=${effectiveToken}`,
+                  { cache: 'no-store' }
+                );
+                if (singleBizRes.ok) {
+                  const singleBizData = await singleBizRes.json();
+                  if (singleBizData.name && !businessName) businessName = singleBizData.name;
+                  const bWabas = [
+                    ...(singleBizData.owned_whatsapp_business_accounts?.data || []),
+                    ...(singleBizData.client_whatsapp_business_accounts?.data || []),
+                  ];
+                  bWabas.forEach((waba: any) => {
+                    if (waba.phone_numbers?.data) {
+                      waba.phone_numbers.data.forEach((p: any) => {
+                        rawPhones.push({ ...p, waba_id: waba.id, waba_name: waba.name || singleBizData.name });
+                      });
+                    }
+                  });
+                }
+              } catch (singleErr) {
+                console.warn(`[Single Business Portfolio ${bId} Warning]:`, singleErr);
+              }
+            }
+
+            // 1c. Query WABA direct edge nodes
+            for (const edge of ['client_whatsapp_business_accounts', 'owned_whatsapp_business_accounts', 'assigned_whatsapp_business_accounts']) {
+              try {
+                const edgeRes = await fetch(
+                  `https://graph.facebook.com/${graphVersion}/me/${edge}?fields=id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}&access_token=${effectiveToken}`,
+                  { cache: 'no-store' }
+                );
+                if (edgeRes.ok) {
+                  const edgeData = await edgeRes.json();
+                  if (edgeData.data) {
+                    edgeData.data.forEach((waba: any) => {
+                      if (waba.phone_numbers?.data) {
+                        waba.phone_numbers.data.forEach((p: any) => {
+                          rawPhones.push({ ...p, waba_id: waba.id, waba_name: waba.name });
+                        });
+                      }
+                    });
+                  }
+                }
+              } catch (edgeErr) {
+                console.warn(`[Direct WABA Edge Discovery Warning (${edge})]:`, edgeErr);
+              }
+            }
+
+            // 1d. Dynamic discovery via /me/adaccounts for any linked ad accounts & portfolios
+            try {
+              const adAccRes = await fetch(
+                `https://graph.facebook.com/${graphVersion}/me/adaccounts?fields=id,name,business{id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}},client_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}}}&access_token=${effectiveToken}`,
+                { cache: 'no-store' }
+              );
+              if (adAccRes.ok) {
+                const adAccData = await adAccRes.json();
+                if (adAccData.data) {
+                  adAccData.data.forEach((adAcc: any) => {
+                    if (adAcc.business) {
+                      if (adAcc.business.name && !businessName) businessName = adAcc.business.name;
+                      const bWabas = [
+                        ...(adAcc.business.owned_whatsapp_business_accounts?.data || []),
+                        ...(adAcc.business.client_whatsapp_business_accounts?.data || []),
+                      ];
+                      bWabas.forEach((waba: any) => {
+                        if (waba.phone_numbers?.data) {
+                          waba.phone_numbers.data.forEach((p: any) => {
+                            rawPhones.push({ ...p, waba_id: waba.id, waba_name: waba.name || adAcc.business.name });
+                          });
+                        }
+                      });
+                    }
+                  });
+                }
+              }
+            } catch (adAccErr) {
+              console.warn('[Dynamic Ad Account Discovery Warning]:', adAccErr);
+            }
+
+            // 1e. Fallback: Query Ad Account ID directly if configured in environment
+            const adAccountId = process.env.META_AD_ACCOUNT_ID || process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID;
+            if (adAccountId) {
+              try {
+                const cleanAdId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+                const adRes = await fetch(
+                  `https://graph.facebook.com/${graphVersion}/${cleanAdId}?fields=id,name,business{id,name,owned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}},client_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type}}}&access_token=${effectiveToken}`,
+                  { cache: 'no-store' }
+                );
+                if (adRes.ok) {
+                  const adData = await adRes.json();
+                  if (adData.business) {
+                    if (adData.business.name && !businessName) businessName = adData.business.name;
+                    const adWabas = [
+                      ...(adData.business.owned_whatsapp_business_accounts?.data || []),
+                      ...(adData.business.client_whatsapp_business_accounts?.data || []),
+                    ];
+                    adWabas.forEach((waba: any) => {
+                      if (waba.phone_numbers?.data) {
+                        waba.phone_numbers.data.forEach((p: any) => {
+                          rawPhones.push({ ...p, waba_id: waba.id, waba_name: waba.name || adData.business.name });
+                        });
+                      }
+                    });
+                  }
+                }
+              } catch (adErr) {
+                console.warn('[Ad Account Discovery Warning]:', adErr);
+              }
+            }
+
+            // 2. Query configured WABA ID(s) from DB config
+            const configuredWabaIds = (config?.wabaId || '').split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
             console.log('[Status Route]: Querying WABA IDs:', configuredWabaIds);
             for (const currentWabaId of configuredWabaIds) {
               try {

@@ -780,6 +780,7 @@ export default function Dashboard() {
 
     // Initial Fetch
     fetchConversations();
+    syncInstagramConversations();
     fetchConfig();
     fetchInstagramConfig();
     fetchGoogleConfig();
@@ -807,6 +808,13 @@ export default function Dashboard() {
     }
   }, [activeTab]);
 
+  // Auto-sync real Instagram DMs when user lands on Instagram tab
+  useEffect(() => {
+    if (activeTab === "chats_instagram") {
+      syncInstagramConversations();
+    }
+  }, [activeTab]);
+
   // Refetch flows when selected platform changes
   useEffect(() => {
     if (activeTab === "flows") {
@@ -815,6 +823,31 @@ export default function Dashboard() {
   }, [selectedPlatform, activeTab]);
 
   // 2. HTTP API Calls
+  const [syncingIg, setSyncingIg] = useState(false);
+
+  const syncInstagramConversations = async () => {
+    setSyncingIg(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/conversations/sync`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.conversations)) {
+          setConversations(data.conversations);
+        } else {
+          await fetchConversations();
+        }
+      } else {
+        console.warn("[IG SYNC WARN]: Backend returned non-200 status:", res.status);
+      }
+    } catch (err: any) {
+      console.warn("[IG SYNC ERROR]: Failed to reach backend API:", err?.message || err);
+    } finally {
+      setSyncingIg(false);
+    }
+  };
+
   const fetchConversations = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
@@ -1298,6 +1331,17 @@ export default function Dashboard() {
                       {filteredConversations.length} active
                     </span>
                   </h2>
+                  {isInstagramTab && (
+                    <button
+                      onClick={syncInstagramConversations}
+                      disabled={syncingIg}
+                      className="px-2.5 py-1 bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      title="Sync real Instagram DMs"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${syncingIg ? "animate-spin" : ""}`} />
+                      Sync
+                    </button>
+                  )}
                 </div>
 
                 {/* Conversation items list */}

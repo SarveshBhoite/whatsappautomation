@@ -1457,13 +1457,19 @@ export default function Dashboard() {
               }
               if ((c.platform || "whatsapp") !== "whatsapp") return false;
 
-              // If conversation has explicit phoneNumberId stored in flowState, match it
+              // If conversation has explicit phoneNumberId stored in flowState or on object, require exact match
               const convPhoneId = (c as any).flowState?.phoneNumberId || (c as any).phoneNumberId;
               if (convPhoneId && currentActiveSenderId) {
                 return convPhoneId === currentActiveSenderId;
               }
 
-              return true;
+              // For legacy or unassigned conversations, default them strictly to the main primary WABA number
+              const defaultPrimaryId = metaStatus.whatsapp.phoneNumberId || config.phoneNumberId || availableNumbers[0]?.id;
+              if (!convPhoneId && currentActiveSenderId && defaultPrimaryId) {
+                return currentActiveSenderId === defaultPrimaryId;
+              }
+
+              return false;
             })
             .sort((a, b) => {
               const timeA = a.messages?.[0]?.createdAt ? new Date(a.messages[0].createdAt).getTime() : new Date(a.updatedAt).getTime();

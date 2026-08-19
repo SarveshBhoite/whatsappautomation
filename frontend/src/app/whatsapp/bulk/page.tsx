@@ -117,25 +117,170 @@ export default function WhatsAppBulkBroadcastPage() {
     }
   };
 
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  // Helper to extract phone numbers and optional names from plain text or raw rows
+  const extractNumbersFromRawText = (rawText: string) => {
+    const lines = rawText.split(/[\r\n]+/);
+    const validEntries: string[] = [];
+
+    // Regex to match phone numbers with optional country code, spaces, dashes (minimum 9-15 digits)
+    const phoneRegex = /(\+?\d[\d\s\-()]{7,16}\d)/g;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Case A: Format like "John Doe, +919876543210" or "919876543210, John"
+      if (trimmed.includes(",")) {
+        const parts = trimmed.split(",").map((p) => p.trim());
+        const phonePart = parts.find((p) => p.replace(/[^\d]/g, "").length >= 8);
+        const namePart = parts.find((p) => p !== phonePart && p.length > 0);
+
+        if (phonePart) {
+          const cleanPhone = phonePart.replace(/[^\d+]/g, "");
+          if (cleanPhone.replace(/[^\d]/g, "").length >= 8) {
+            validEntries.push(namePart ? `${namePart}, ${cleanPhone}` : cleanPhone);
+            continue;
+          }
+        }
+      }
+
+      // Case B: General text or line containing phone numbers (e.g. from PDF document text or notes)
+      const matches = trimmed.match(phoneRegex);
+      if (matches && matches.length > 0) {
+        for (const match of matches) {
+          const clean = match.replace(/[^\d+]/g, "");
+          const digitsOnly = clean.replace(/[^\d]/g, "");
+          if (digitsOnly.length >= 8 && digitsOnly.length <= 16) {
+            validEntries.push(clean);
+          }
+        }
+      }
+    }
+
+    // Deduplicate
+    const unique = Array.from(new Set(validEntries));
+    return unique;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        const lines = content
-          .split(/[\r\n]+/)
-          .map((line) => line.split(",")[0].replace(/[^\d+]/g, "").trim())
-          .filter((num) => num.length >= 8);
+    setIsProcessingFile(true);
+    setFileError(null);
 
-        if (lines.length > 0) {
-          setPhoneNumbersText(lines.join("\n"));
+    const fileNameLower = file.name.toLowerCase();
+
+    try {
+      // 1. PDF File Upload & Extraction (Pure Browser-safe PDF text stream parser)
+      if (fileNameLower.endsWith(".pdf")) {
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Fast & reliable browser text extraction from PDF stream objects
+        let fullPdfText = "";
+        try {
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const decoder = new TextDecoder("utf-8", { fatal: false });
+          const rawString = decoder.decode(uint8Array);
+
+          // Extract text within PDF text blocks BT ... ET and parenthesized strings (text) / Tj / TJ
+          const textBlocks: string[] = [];
+          const textBlockRegex = /BT[\s\S]*?ET/g;
+          const matches = rawString.match(textBlockRegex) || [];
+
+          for (const block of matches) {
+            // Find all (string) inside PDF text operators
+            const strRegex = /\(([^)]+)\)/g;
+            let strMatch;
+            while ((strMatch = strRegex.exec(block)) !== null) {
+              textBlocks.push(strMatch[1]);
+            }
+          }
+
+          if (textBlocks.length > 0) {
+            fullPdfText = textBlocks.join(" ");
+          } else {
+            // Fallback to raw decoded text
+            fullPdfText = rawString;
+          }
+        } catch (pdfErr) {
+          console.warn("Direct PDF stream parse fallback:", pdfErr);
+        }
+
+        const extracted = extractNumbersFromRawText(fullPdfText);
+        if (extracted.length > 0) {
+          setPhoneNumbersText((prev) => {
+            const existing = prev.trim();
+            return existing ? `${existing}\n${extracted.join("\n")}` : extracted.join("\n");
+          });
+        } else {
+          setFileError("No phone numbers found in the uploaded PDF. Please make sure the PDF contains text or selectable contact numbers.");
         }
       }
-    };
-    reader.readAsText(file);
+      // 2. Excel File (.xlsx, .xls) Upload & Extraction
+      else if (fileNameLower.endsWith(".xlsx") || fileNameLower.endsWith(".xls")) {
+        const arrayBuffer = await file.arrayBuffer();
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        
+        let allSheetText = "";
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          
+          for (const row of rows) {
+            if (Array.isArray(row)) {
+              allSheetText += "\n" + row.join(", ");
+            }
+          }
+        }
+
+        const extracted = extractNumbersFromRawText(allSheetText);
+        if (extracted.length > 0) {
+          setPhoneNumbersText((prev) => {
+            const existing = prev.trim();
+            return existing ? `${existing}\n${extracted.join("\n")}` : extracted.join("\n");
+          });
+        } else {
+          setFileError("No phone numbers detected in this Excel file.");
+        }
+      }
+      // 3. CSV or TXT File Upload & Extraction
+      else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          if (content) {
+            const extracted = extractNumbersFromRawText(content);
+            if (extracted.length > 0) {
+              setPhoneNumbersText((prev) => {
+                const existing = prev.trim();
+                return existing ? `${existing}\n${extracted.join("\n")}` : extracted.join("\n");
+              });
+            } else {
+              setFileError("No valid numbers found in the file.");
+            }
+          }
+          setIsProcessingFile(false);
+        };
+        reader.onerror = () => {
+          setFileError("Error reading text/csv file.");
+          setIsProcessingFile(false);
+        };
+        reader.readAsText(file);
+        return;
+      }
+    } catch (err: any) {
+      console.error("File extraction error:", err);
+      setFileError("Failed to parse file: " + (err?.message || "Unknown error"));
+    } finally {
+      setIsProcessingFile(false);
+      // Reset input value so user can re-upload same file if needed
+      e.target.value = "";
+    }
   };
 
   const handleSendBroadcast = async (e: React.FormEvent) => {
@@ -267,19 +412,38 @@ export default function WhatsAppBulkBroadcastPage() {
                   <Users className="h-4 w-4 text-emerald-400" /> Recipient Numbers
                 </label>
 
-                <label className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
-                  <FileSpreadsheet className="h-3.5 w-3.5" /> Upload CSV
-                  <input
-                    type="file"
-                    accept=".csv,.txt"
-                    onChange={handleCsvUpload}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex items-center gap-2">
+                  <label className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50">
+                    {isProcessingFile ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Extracting...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-3.5 w-3.5" /> Upload File (PDF / Excel / CSV)
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept=".pdf,.xlsx,.xls,.csv,.txt"
+                      onChange={handleFileUpload}
+                      disabled={isProcessingFile}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
 
-              <p className="text-[11px] text-slate-400 leading-normal">
-                Enter numbers (one per line, e.g. <code className="text-emerald-400 font-mono">919876543210</code> or <code className="text-emerald-400 font-mono">John, 919876543210</code>):
+              {fileError && (
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{fileError}</span>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400 leading-normal flex items-center justify-between">
+                <span>Enter numbers or upload documents (PDF, XLSX, CSV):</span>
+                <span className="text-[10px] text-emerald-400/80 font-mono">.pdf, .xlsx, .csv, .txt</span>
               </p>
 
               <textarea

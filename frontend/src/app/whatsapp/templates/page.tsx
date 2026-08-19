@@ -45,15 +45,21 @@ export default function WhatsAppTemplatesPage() {
   // Form State for New Template Submission
   const [templateName, setTemplateName] = useState<string>("");
   const [category, setCategory] = useState<string>("MARKETING");
-  const [language, setLanguage] = useState<string>("en");
+  const [language, setLanguage] = useState<string>("en_US");
   const [headerType, setHeaderType] = useState<"TEXT" | "IMAGE" | "DOCUMENT" | "VIDEO" | "NONE">("TEXT");
   const [headerText, setHeaderText] = useState<string>("JISNU Digital Solutions");
   const [headerMediaUrl, setHeaderMediaUrl] = useState<string>("");
   const [uploadingHeaderMedia, setUploadingHeaderMedia] = useState<boolean>(false);
-  const [bodyText, setBodyText] = useState<string>("");
+  const [bodyText, setBodyText] = useState<string>("Hi {{1}}, thank you for your interest in JISNU Digital Solutions! Check out our latest offer: {{2}}.");
+  const [sampleVar1, setSampleVar1] = useState<string>("John");
+  const [sampleVar2, setSampleVar2] = useState<string>("20% Off SEO Package");
   const [footerText, setFooterText] = useState<string>("Powered by JISNU CRM");
-  const [buttonText, setButtonText] = useState<string>("Visit website");
+  
+  // Dynamic Button Types supported by Meta
+  const [buttonType, setButtonType] = useState<"URL" | "PHONE_NUMBER" | "QUICK_REPLY" | "NONE">("URL");
+  const [buttonText, setButtonText] = useState<string>("Visit Website");
   const [buttonUrl, setButtonUrl] = useState<string>("https://www.jisnudigital.com/");
+  const [phoneNumber, setPhoneNumber] = useState<string>("+917709936965");
 
   const fetchTemplates = async () => {
     try {
@@ -93,6 +99,9 @@ export default function WhatsAppTemplatesPage() {
     setSubmitting(true);
 
     try {
+      // Build body sample examples if placeholders exist
+      const bodyExamples = [sampleVar1, sampleVar2].filter(Boolean);
+
       const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
         method: "POST",
         headers: {
@@ -107,9 +116,12 @@ export default function WhatsAppTemplatesPage() {
           headerText,
           headerMediaUrl,
           bodyText,
+          bodyExamples: bodyExamples.length > 0 ? bodyExamples : undefined,
           footerText,
-          buttonText,
-          buttonUrl
+          buttonType: buttonType !== "NONE" ? buttonType : undefined,
+          buttonText: buttonType !== "NONE" ? buttonText : undefined,
+          buttonUrl: buttonType === "URL" ? buttonUrl : undefined,
+          phoneNumber: buttonType === "PHONE_NUMBER" ? phoneNumber : undefined
         })
       });
 
@@ -119,7 +131,6 @@ export default function WhatsAppTemplatesPage() {
         alert("🎉 Template submitted to Meta for approval successfully!");
         setShowModal(false);
         setTemplateName("");
-        setBodyText("");
         fetchTemplates();
       } else {
         alert("Meta Template Approval Error: " + (data.error || "Submission failed"));
@@ -139,14 +150,20 @@ export default function WhatsAppTemplatesPage() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64Data = (event.target?.result as string).split(",")[1];
+        if (!base64Data) return;
+
         const res = await fetch(`${BACKEND_URL}/api/admin/upload`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-organization-id": DEFAULT_ORG_ID,
+          },
           body: JSON.stringify({
             fileBase64: base64Data,
-            filename: file.name
-          })
+            filename: file.name,
+          }),
         });
+
         const data = await res.json();
         if (res.ok && data.url) {
           setHeaderMediaUrl(data.url);
@@ -178,7 +195,7 @@ export default function WhatsAppTemplatesPage() {
               </span>
             </h1>
             <p className="text-xs text-slate-400">
-              Submit new marketing templates directly to Meta Cloud API & monitor approval status
+              Submit new marketing & utility templates directly to Meta Cloud API & monitor live approval status
             </p>
           </div>
         </div>
@@ -252,63 +269,56 @@ export default function WhatsAppTemplatesPage() {
                             : "bg-rose-500/10 text-rose-400 border-rose-500/20"
                         }`}
                       >
-                        {tpl.status === "APPROVED" ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3" /> Approved
-                          </>
-                        ) : tpl.status === "PENDING" ? (
-                          <>
-                            <Clock className="h-3 w-3 animate-spin" /> Pending Review
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-3 w-3" /> Rejected
-                          </>
-                        )}
+                        {tpl.status === "APPROVED" && <CheckCircle2 className="h-3 w-3" />}
+                        {tpl.status === "PENDING" && <Clock className="h-3 w-3" />}
+                        {tpl.status === "REJECTED" && <XCircle className="h-3 w-3" />}
+                        {tpl.status}
                       </span>
                     </div>
 
-                    {/* Template Card Content Mock */}
-                    <div className="bg-slate-950/90 border border-slate-850 rounded-2xl p-4 space-y-2 text-xs font-sans">
+                    {/* Template Card Content */}
+                    <div className="bg-slate-950/60 border border-slate-850 rounded-2xl p-3.5 space-y-2 text-xs">
                       {headerComp && (
-                        <div className="font-bold text-slate-200 border-b border-slate-800/60 pb-1.5 text-xs">
-                          {headerComp.text || `[${headerComp.format} HEADER]`}
+                        <div className="font-bold text-slate-300 border-b border-slate-850 pb-1.5 flex items-center gap-1.5">
+                          <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 font-mono">
+                            {headerComp.format || "TEXT"}
+                          </span>
+                          <span className="truncate">{headerComp.text || "Media Attachment"}</span>
                         </div>
                       )}
 
-                      <p className="text-slate-300 leading-relaxed whitespace-pre-wrap text-[11px]">
-                        {bodyComp?.text || "No body text"}
+                      <p className="text-slate-300 text-[11px] leading-relaxed whitespace-pre-wrap">
+                        {bodyComp?.text || "No message body"}
                       </p>
 
-                      {footerComp && (
-                        <div className="text-[10px] text-slate-500 font-medium pt-1">
+                      {footerComp?.text && (
+                        <div className="text-[10px] text-slate-500 border-t border-slate-850/60 pt-1.5">
                           {footerComp.text}
                         </div>
                       )}
-
-                      {buttonComp?.buttons && buttonComp.buttons.length > 0 && (
-                        <div className="pt-2 border-t border-slate-850">
-                          {buttonComp.buttons.map((btn, i) => (
-                            <div
-                              key={i}
-                              className="w-full bg-slate-900 border border-slate-800 text-emerald-400 text-[11px] font-semibold py-1.5 rounded-xl text-center flex items-center justify-center gap-1.5"
-                            >
-                              <Globe className="h-3 w-3" /> {btn.text}
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
+
+                    {/* Buttons Snippet */}
+                    {buttonComp?.buttons && buttonComp.buttons.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {buttonComp.buttons.map((btn, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-slate-850 border border-slate-750 text-slate-300 text-[10px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5 text-purple-400" />
+                            {btn.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400">
-                    <span className="font-mono">ID: {tpl.id}</span>
-                    <Link
-                      href="/whatsapp/bulk"
-                      className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 hover:underline"
-                    >
-                      Use in Bulk <Send className="h-3 w-3" />
-                    </Link>
+                  <div className="pt-2 border-t border-slate-850/60 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                    <span>ID: {tpl.id ? tpl.id.substring(0, 10) + "..." : "Local"}</span>
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3" /> Meta Cloud API
+                    </span>
                   </div>
                 </div>
               );
@@ -320,7 +330,7 @@ export default function WhatsAppTemplatesPage() {
       {/* Submission Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -328,7 +338,7 @@ export default function WhatsAppTemplatesPage() {
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-slate-100">Submit Template for Approval</h2>
-                  <p className="text-[11px] text-slate-400">Meta auto-evaluates & approves in 1-2 minutes</p>
+                  <p className="text-[11px] text-slate-400">Follows official Meta Graph API specifications (auto-evaluates in minutes)</p>
                 </div>
               </div>
               <button
@@ -340,14 +350,14 @@ export default function WhatsAppTemplatesPage() {
             </div>
 
             <form onSubmit={handleSubmitTemplate} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300">Template Name (Lowercase, no spaces)</label>
+                  <label className="text-xs font-bold text-slate-300">Template Name</label>
                   <input
                     type="text"
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
-                    placeholder="e.g. promo_discount_offer"
+                    placeholder="e.g. promo_offer_2026"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
                     required
                   />
@@ -362,6 +372,23 @@ export default function WhatsAppTemplatesPage() {
                   >
                     <option value="MARKETING">MARKETING</option>
                     <option value="UTILITY">UTILITY</option>
+                    <option value="AUTHENTICATION">AUTHENTICATION (OTP)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Language Code</label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 font-semibold"
+                  >
+                    <option value="en_US">English (US) - en_US</option>
+                    <option value="en_GB">English (UK) - en_GB</option>
+                    <option value="en">English - en</option>
+                    <option value="hi">Hindi - hi</option>
+                    <option value="mr">Marathi - mr</option>
+                    <option value="es">Spanish - es</option>
                   </select>
                 </div>
               </div>
@@ -434,51 +461,129 @@ export default function WhatsAppTemplatesPage() {
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Message Body Content</label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300">Message Body Content</label>
+                  <span className="text-[10px] text-emerald-400 font-mono">Use {'{{1}}'}, {'{{2}}'} for variables</span>
+                </div>
                 <textarea
-                  rows={5}
+                  rows={4}
                   value={bodyText}
                   onChange={(e) => setBodyText(e.target.value)}
-                  placeholder="Hello! Welcome to JISNU Digital Solutions..."
+                  placeholder="Hi {{1}}, welcome to JISNU! Check out your special promo: {{2}}."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 resize-none leading-relaxed"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300">Footer Text</label>
-                  <input
-                    type="text"
-                    value={footerText}
-                    onChange={(e) => setFooterText(e.target.value)}
-                    placeholder="e.g. Powered by JISNU CRM"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
-                  />
+              {/* Sample Variables for Meta Approval */}
+              {(bodyText.includes("{{1}}") || bodyText.includes("{{2}}")) && (
+                <div className="p-3.5 bg-slate-950/60 border border-slate-800/80 rounded-2xl space-y-3">
+                  <label className="text-xs font-bold text-slate-200 block">
+                    Sample Variable Values (Required by Meta for Review)
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {bodyText.includes("{{1}}") && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 font-mono">Sample for {'{{1}}'}</span>
+                        <input
+                          type="text"
+                          value={sampleVar1}
+                          onChange={(e) => setSampleVar1(e.target.value)}
+                          placeholder="e.g. John"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+                        />
+                      </div>
+                    )}
+                    {bodyText.includes("{{2}}") && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 font-mono">Sample for {'{{2}}'}</span>
+                        <input
+                          type="text"
+                          value={sampleVar2}
+                          onChange={(e) => setSampleVar2(e.target.value)}
+                          placeholder="e.g. 20% Off"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )}
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300">Button Label</label>
-                  <input
-                    type="text"
-                    value={buttonText}
-                    onChange={(e) => setButtonText(e.target.value)}
-                    placeholder="e.g. Visit website"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
-                  />
-                </div>
+              {/* Footer Text */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300">Footer Text (Optional)</label>
+                <input
+                  type="text"
+                  value={footerText}
+                  onChange={(e) => setFooterText(e.target.value)}
+                  placeholder="e.g. Powered by JISNU CRM"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Button Website URL</label>
-                <input
-                  type="url"
-                  value={buttonUrl}
-                  onChange={(e) => setButtonUrl(e.target.value)}
-                  placeholder="https://www.jisnudigital.com/"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
-                />
+              {/* Interactive Buttons (Call to Action / Quick Reply) */}
+              <div className="space-y-3 bg-slate-950/60 border border-slate-850 rounded-2xl p-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200">
+                    Call To Action Button (Optional)
+                  </label>
+                  <select
+                    value={buttonType}
+                    onChange={(e) => setButtonType(e.target.value as any)}
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 font-semibold"
+                  >
+                    <option value="URL">Website URL</option>
+                    <option value="PHONE_NUMBER">Phone Number (Call Us)</option>
+                    <option value="QUICK_REPLY">Quick Reply</option>
+                    <option value="NONE">None</option>
+                  </select>
+                </div>
+
+                {buttonType !== "NONE" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-300">Button Label</label>
+                      <input
+                        type="text"
+                        value={buttonText}
+                        onChange={(e) => setButtonText(e.target.value)}
+                        placeholder="e.g. Visit Website / Call Us"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+                        required
+                      />
+                    </div>
+
+                    {buttonType === "URL" && (
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Target Website URL</label>
+                        <input
+                          type="url"
+                          value={buttonUrl}
+                          onChange={(e) => setButtonUrl(e.target.value)}
+                          placeholder="https://www.jisnudigital.com/"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-100"
+                          required
+                        />
+                      </div>
+                    )}
+
+                    {buttonType === "PHONE_NUMBER" && (
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Phone Number (with Country Code)</label>
+                        <input
+                          type="text"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="+917709936965"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-100"
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-800">

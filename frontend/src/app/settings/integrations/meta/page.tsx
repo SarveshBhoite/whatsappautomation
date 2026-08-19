@@ -84,9 +84,12 @@ function MetaIntegrationsContent() {
 
   const fetchStatus = () => {
     fetch('/api/auth/meta/status')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        if (data.success && data.data) {
+        if (data && data.success && data.data) {
           setStatus((prev) => ({
             whatsapp: {
               ...data.data.whatsapp,
@@ -100,7 +103,7 @@ function MetaIntegrationsContent() {
           }));
         }
       })
-      .catch((err) => console.error('Error loading Meta status:', err));
+      .catch((err) => console.warn('Meta status load skipped:', err.message || err));
   };
 
   useEffect(() => {

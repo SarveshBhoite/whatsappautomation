@@ -639,45 +639,50 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
       website?: string;
     } | null = null;
 
-    // If Meta Access Token and IG Account ID are available in database, fetch real live profile stats from Meta Graph API
-    if (config && config.pageAccessToken && config.instagramAccountId) {
+    const token = config?.pageAccessToken || process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || "";
+    const igId = config?.instagramAccountId || "17841479044967079";
+
+    // If Meta Access Token and IG Account ID are available, fetch real live profile stats from Meta Graph API
+    if (token) {
       try {
-        // Attempt 1: Fetch via graph.facebook.com/v20.0/{instagramAccountId}
-        const metaRes = await fetch(
-          `https://graph.facebook.com/v20.0/${config.instagramAccountId}?fields=id,username,name,profile_picture_url,account_type,biography,website,followers_count,follows_count,media_count&access_token=${config.pageAccessToken}`
+        // Attempt 1: Fetch via graph.instagram.com/me (User Access Token)
+        const igMeRes = await fetch(
+          `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url,account_type,followers_count,media_count&access_token=${token}`
         );
-        if (metaRes.ok) {
-          const metaData = await metaRes.json();
-          if (metaData && (metaData.username || metaData.id)) {
+        if (igMeRes.ok) {
+          const igMeData = await igMeRes.json();
+          if (igMeData && (igMeData.username || igMeData.id)) {
             liveProfile = {
-              id: metaData.id || config.instagramAccountId,
-              username: metaData.username,
-              name: metaData.name,
-              profile_picture_url: metaData.profile_picture_url,
-              account_type: metaData.account_type || "Professional Account (Business)",
-              followers_count: metaData.followers_count,
-              follows_count: metaData.follows_count,
-              media_count: metaData.media_count,
-              biography: metaData.biography,
-              website: metaData.website,
+              id: igMeData.id || igId,
+              username: igMeData.username,
+              name: igMeData.name,
+              profile_picture_url: igMeData.profile_picture_url,
+              account_type: igMeData.account_type || "Professional Account (Business)",
+              followers_count: igMeData.followers_count,
+              media_count: igMeData.media_count,
             };
           }
-        } else {
-          // Attempt 2: Fallback to graph.instagram.com/me
-          const igMeRes = await fetch(
-            `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url,account_type,followers_count,media_count&access_token=${config.pageAccessToken}`
+        }
+
+        // Attempt 2: Fetch via graph.facebook.com/v20.0/{instagramAccountId} (Page / Business Token)
+        if (!liveProfile && igId) {
+          const metaRes = await fetch(
+            `https://graph.facebook.com/v20.0/${igId}?fields=id,username,name,profile_picture_url,account_type,biography,website,followers_count,follows_count,media_count&access_token=${token}`
           );
-          if (igMeRes.ok) {
-            const igMeData = await igMeRes.json();
-            if (igMeData && (igMeData.username || igMeData.id)) {
+          if (metaRes.ok) {
+            const metaData = await metaRes.json();
+            if (metaData && (metaData.username || metaData.id)) {
               liveProfile = {
-                id: igMeData.id || config.instagramAccountId,
-                username: igMeData.username,
-                name: igMeData.name,
-                profile_picture_url: igMeData.profile_picture_url,
-                account_type: igMeData.account_type || "Professional Account (Business)",
-                followers_count: igMeData.followers_count,
-                media_count: igMeData.media_count,
+                id: metaData.id || igId,
+                username: metaData.username,
+                name: metaData.name,
+                profile_picture_url: metaData.profile_picture_url,
+                account_type: metaData.account_type || "Professional Account (Business)",
+                followers_count: metaData.followers_count,
+                follows_count: metaData.follows_count,
+                media_count: metaData.media_count,
+                biography: metaData.biography,
+                website: metaData.website,
               };
             }
           }
@@ -799,7 +804,258 @@ export const instagramCommentsFeed: Array<{
   autoReplyText: string;
 }> = [];
 
-// GET: Fetch Instagram comments & automation status (fetches live comments from Graph API if available)
+// GET: Sync real Instagram Conversations (DMs) from Meta Graph API & persist in DB
+router.get("/instagram/conversations/sync", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const config = await prisma.instagramConfig.findUnique({
+      where: { organizationId }
+    });
+
+    const token = config?.pageAccessToken || process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || "";
+    if (!token) {
+      return res.status(400).json({ error: "Instagram Access Token is missing in configuration." });
+    }
+    const igAccountId = config?.instagramAccountId || "17841479044967079";
+    const pageId = config?.pageId || "1062234726963242";
+    const graphVersion = process.env.META_GRAPH_VERSION || "v20.0";
+
+    console.log(`[INSTAGRAM DM SYNC] Starting conversation sync for account ID: ${igAccountId || pageId}`);
+
+    let rawConversations: any[] = [];
+    const fieldsParam = "id,participants{id,username,name,profile_pic},updated_time,messages{id,message,created_time,from,to,attachments}";
+
+    // Attempt 1: Fetch using IG Business Account Node (/{ig-user-id}/conversations)
+    if (igAccountId) {
+      try {
+        const url = `https://graph.facebook.com/${graphVersion}/${igAccountId}/conversations?fields=${fieldsParam}&access_token=${token}`;
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.data && Array.isArray(data.data)) {
+            rawConversations = data.data;
+          }
+        } else {
+          const errData = await resp.json();
+          console.warn("[INSTAGRAM DM SYNC] Direct IG Account conversations call note:", errData?.error?.message);
+        }
+      } catch (err: any) {
+        console.warn("[INSTAGRAM DM SYNC] Direct IG Account conversations call failed:", err.message);
+      }
+    }
+
+    // Attempt 2: Fetch using Page Node (/{page-id}/conversations?platform=instagram)
+    if (rawConversations.length === 0 && pageId) {
+      try {
+        const url = `https://graph.facebook.com/${graphVersion}/${pageId}/conversations?platform=instagram&fields=${fieldsParam}&access_token=${token}`;
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.data && Array.isArray(data.data)) {
+            rawConversations = data.data;
+          }
+        } else {
+          const errData = await resp.json();
+          console.warn("[INSTAGRAM DM SYNC] Page node conversations call note:", errData?.error?.message);
+        }
+      } catch (err: any) {
+        console.warn("[INSTAGRAM DM SYNC] Page node conversations call failed:", err.message);
+      }
+    }
+
+    // Attempt 4: Fallback via graph.instagram.com/me/conversations
+    if (rawConversations.length === 0) {
+      try {
+        const url = `https://graph.instagram.com/me/conversations?fields=${fieldsParam}&access_token=${token}`;
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.data && Array.isArray(data.data)) {
+            rawConversations = data.data;
+          }
+        }
+      } catch (err: any) {
+        console.warn("[INSTAGRAM DM SYNC] graph.instagram.com fallback call failed:", err.message);
+      }
+    }
+
+    console.log(`[INSTAGRAM DM SYNC] Retried & fetched ${rawConversations.length} raw conversations from Meta.`);
+
+    let syncedCount = 0;
+    const io = req.app.get("io");
+
+    for (const convItem of rawConversations) {
+      const convMetaId = convItem.id;
+      const participants = convItem.participants?.data || [];
+
+      // Find external participant (customer)
+      const customerParticipant = participants.find((p: any) => p.id !== igAccountId && p.id !== pageId) || participants[0];
+      if (!customerParticipant) continue;
+
+      const customerPhone = customerParticipant.id;
+      let customerName = customerParticipant.name || (customerParticipant.username ? `@${customerParticipant.username}` : "");
+      
+      // If Meta didn't provide name in participant object, attempt profile query
+      if (!customerName && customerPhone) {
+        try {
+          const profileUrl = `https://graph.facebook.com/${graphVersion}/${customerPhone}?fields=name,username,profile_pic&access_token=${token}`;
+          const pResp = await fetch(profileUrl);
+          if (pResp.ok) {
+            const pData = await pResp.json();
+            if (pData.name) customerName = pData.name;
+            else if (pData.username) customerName = `@${pData.username}`;
+          }
+        } catch (_) {}
+      }
+      if (!customerName) {
+        customerName = `Instagram User (${customerPhone.substring(0, 5)}...)`;
+      }
+
+      // 1. Find or create conversation in DB
+      let conversation = await prisma.conversation.findUnique({
+        where: {
+          organizationId_platform_customerPhone: {
+            organizationId,
+            platform: "instagram",
+            customerPhone
+          }
+        }
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            organizationId,
+            platform: "instagram",
+            customerPhone,
+            customerName,
+            isBotPaused: false
+          }
+        });
+      } else if (customerName && conversation.customerName !== customerName) {
+        conversation = await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { customerName }
+        });
+      }
+
+      // 2. Fetch or parse message history inside this conversation (including pagination if message list has next)
+      let convMessages: any[] = convItem.messages?.data || [];
+      
+      // Check message history pagination
+      if (convItem.messages?.paging?.next) {
+        try {
+          let nextUrl = convItem.messages.paging.next;
+          let pageCount = 0;
+          while (nextUrl && pageCount < 5) { // Cap at 5 pages for performance
+            const pageResp = await fetch(nextUrl);
+            if (pageResp.ok) {
+              const pageData = await pageResp.json();
+              if (pageData.data && Array.isArray(pageData.data)) {
+                convMessages.push(...pageData.data);
+              }
+              nextUrl = pageData.paging?.next || null;
+              pageCount++;
+            } else {
+              break;
+            }
+          }
+        } catch (pageErr: any) {
+          console.warn("[INSTAGRAM DM SYNC] Message pagination error:", pageErr.message);
+        }
+      }
+
+      for (const msgItem of convMessages) {
+        const waMessageId = msgItem.id || `ig_msg_${convMetaId}_${Date.now()}`;
+        const senderId = msgItem.from?.id || msgItem.from?.username;
+
+        const isOutbound = senderId === igAccountId || senderId === pageId || msgItem.from?.id === igAccountId;
+        const direction = isOutbound ? "outbound" : "inbound";
+        let content = msgItem.message || "";
+        let messageType = "text";
+
+        if (!content && msgItem.attachments?.data?.length > 0) {
+          const att = msgItem.attachments.data[0];
+          if (att.image_data?.url) {
+            content = att.image_data.url;
+            messageType = "image";
+          } else if (att.video_data?.url) {
+            content = att.video_data.url;
+            messageType = "video";
+          } else if (att.payload?.url) {
+            content = att.payload.url;
+            messageType = "image";
+          } else {
+            content = "[Attachment]";
+          }
+        }
+
+        if (!content) {
+          content = "Instagram Message";
+        }
+
+        const createdAt = msgItem.created_time ? new Date(msgItem.created_time) : new Date();
+
+        // Check if message exists in DB
+        const existingMsg = await prisma.message.findFirst({
+          where: {
+            OR: [
+              { waMessageId },
+              { conversationId: conversation.id, content, createdAt }
+            ]
+          }
+        });
+
+        if (!existingMsg) {
+          const createdMsg = await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction,
+              messageType,
+              content,
+              waMessageId,
+              status: isOutbound ? "sent" : "read",
+              senderName: isOutbound ? "Agent" : customerName,
+              createdAt
+            }
+          });
+
+          if (io) {
+            io.to(organizationId).emit("new-message", {
+              conversationId: conversation.id,
+              message: createdMsg
+            });
+          }
+        }
+      }
+
+      syncedCount++;
+    }
+
+    // Fetch updated conversation list from DB
+    const updatedConversations = await prisma.conversation.findMany({
+      where: { organizationId, platform: "instagram" },
+      include: {
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully synced ${syncedCount} real Instagram conversations.`,
+      conversations: updatedConversations
+    });
+  } catch (error: any) {
+    console.error("[INSTAGRAM DM SYNC ERROR]:", error);
+    return res.status(500).json({ error: "Failed to sync real Instagram conversations", details: error.message });
+  }
+});
+
+// GET: Fetch & Sync real Instagram post comments from Meta Graph API
 router.get("/instagram/comments", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
@@ -809,48 +1065,104 @@ router.get("/instagram/comments", async (req: Request, res: Response) => {
 
     let liveComments = [...instagramCommentsFeed];
 
-    if (config?.pageAccessToken && config?.instagramAccountId) {
-      try {
-        let metaRes = await fetch(
-          `https://graph.facebook.com/v19.0/${config.instagramAccountId}/media?fields=comments{text,username,timestamp}&access_token=${config.pageAccessToken}`
-        );
-        let metaData: any = {};
-        if (metaRes.ok) {
-          metaData = await metaRes.json();
-        } else {
-          // Fallback query via business discovery endpoint
-          metaRes = await fetch(
-            `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=business_discovery.username(jisnu_digitalsolution_pvt_ltd){media{comments{text,username,timestamp}}}&access_token=${config.pageAccessToken}`
-          );
-          if (metaRes.ok) {
-            const discData = await metaRes.json();
-            metaData = { data: discData.business_discovery?.media?.data || [] };
-          }
-        }
+    const token = config?.pageAccessToken || process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || "";
+    const igAccountId = config?.instagramAccountId || "17841479044967079";
 
-        const mediaList = metaData.data || [];
+    if (token) {
+      const graphVersion = process.env.META_GRAPH_VERSION || "v20.0";
+      let mediaItems: any[] = [];
+      const possibleTokens = [
+        token,
+        process.env.INSTAGRAM_ACCESS_TOKEN,
+        process.env.META_SYSTEM_USER_TOKEN
+      ].filter(Boolean);
+
+      for (const t of possibleTokens) {
+        try {
+          const mediaUrl = `https://graph.facebook.com/${graphVersion}/${igAccountId}/media?fields=id,caption,media_url,timestamp,comments_count&limit=30&access_token=${t}`;
+          const mediaRes = await fetch(mediaUrl);
+          if (mediaRes.ok) {
+            const mediaData: any = await mediaRes.json();
+            if (mediaData.data && Array.isArray(mediaData.data) && mediaData.data.length > 0) {
+              mediaItems = mediaData.data;
+              break;
+            }
+          }
+        } catch (mErr: any) {
+          console.warn("[INSTAGRAM MEDIA FETCH WARN]:", mErr.message);
+        }
+      }
+
+      if (mediaItems.length > 0) {
         const fetchedCmts: typeof instagramCommentsFeed = [];
 
-        mediaList.forEach((item: any) => {
-          if (item.comments && item.comments.data) {
-            item.comments.data.forEach((c: any) => {
-              fetchedCmts.push({
-                id: `ig_live_${c.id || Date.now()}`,
-                fromUser: c.username || "instagram_user",
-                commentText: c.text || "",
-                createdAt: c.timestamp || new Date().toISOString(),
-                status: "REPLIED",
-                autoReplyText: `Thank you for your comment @${c.username || 'user'}! We appreciate your support. 🚀`
-              });
-            });
+        // Check posts that actually have comments first
+        const postsWithComments = mediaItems.filter((m: any) => (m.comments_count || 0) > 0);
+        const postsToScan = postsWithComments.length > 0 ? postsWithComments : mediaItems.slice(0, 15);
+
+        let activeToken = token;
+        for (const media of postsToScan) {
+          if (!media.id) continue;
+
+          let cmtUrl: string | null = `https://graph.facebook.com/${graphVersion}/${media.id}/comments?fields=id,text,username,timestamp,from&access_token=${activeToken}`;
+          let cmtPageCount = 0;
+
+          while (cmtUrl && cmtPageCount < 3) {
+            try {
+              let cmtRes: any = await fetch(cmtUrl);
+              if (!cmtRes.ok && possibleTokens.length > 1) {
+                // Retry with secondary token
+                for (const altToken of possibleTokens) {
+                  if (altToken !== activeToken) {
+                    const retryUrl = `https://graph.facebook.com/${graphVersion}/${media.id}/comments?fields=id,text,username,timestamp,from&access_token=${altToken}`;
+                    const retryRes = await fetch(retryUrl);
+                    if (retryRes.ok) {
+                      cmtRes = retryRes;
+                      activeToken = altToken;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (cmtRes.ok) {
+                const cmtData: any = await cmtRes.json();
+                const comments = cmtData.data || [];
+
+                for (const c of comments) {
+                  const fromUser = c.username || c.from?.username || (typeof c.from === "object" && c.from?.name) || "instagram_user";
+                  fetchedCmts.push({
+                    id: c.id || `ig_cmt_${Date.now()}_${Math.random()}`,
+                    fromUser,
+                    commentText: c.text || "",
+                    createdAt: c.timestamp || new Date().toISOString(),
+                    status: "REPLIED",
+                    autoReplyText: `Thank you for your comment @${fromUser}! We appreciate your support. 🚀`
+                  });
+                }
+                cmtUrl = cmtData.paging?.next || null;
+                cmtPageCount++;
+              } else {
+                break;
+              }
+            } catch (cmtErr: any) {
+              console.warn("[INSTAGRAM CMT FETCH WARN]:", cmtErr.message);
+              break;
+            }
           }
-        });
+        }
 
         if (fetchedCmts.length > 0) {
-          liveComments = [...fetchedCmts, ...instagramCommentsFeed];
+          const cmtMap = new Map();
+          fetchedCmts.forEach((item) => {
+            if (item.id && !cmtMap.has(item.id)) {
+              cmtMap.set(item.id, item);
+            }
+          });
+          liveComments = Array.from(cmtMap.values());
         }
-      } catch (err) {
-        console.warn("Could not fetch Graph API comments:", err);
+      } else {
+        console.warn("[INSTAGRAM COMMENTS FETCH WARN]: No media posts returned for connected Instagram account.");
       }
     }
 
@@ -983,7 +1295,23 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
 router.post("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl } = req.body;
+    const {
+      name,
+      category,
+      language,
+      headerType,
+      headerText,
+      headerMediaUrl,
+      headerExample,
+      bodyText,
+      bodyExamples,
+      footerText,
+      buttons,
+      buttonText,
+      buttonUrl,
+      buttonType,
+      phoneNumber
+    } = req.body;
 
     if (!name || !bodyText) {
       return res.status(400).json({ error: "Template name and body text are required" });
@@ -1001,15 +1329,21 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
 
     const components: any[] = [];
 
-    // Header component handling (TEXT, IMAGE, DOCUMENT, VIDEO, or NONE)
+    // 1. Header component handling (TEXT, IMAGE, DOCUMENT, VIDEO, or NONE)
     const selectedHeaderType = headerType ? headerType.toUpperCase() : (headerText ? "TEXT" : "NONE");
 
     if (selectedHeaderType === "TEXT" && headerText && headerText.trim()) {
-      components.push({
+      const headerObj: any = {
         type: "HEADER",
         format: "TEXT",
         text: headerText.trim()
-      });
+      };
+      if (headerExample && Array.isArray(headerExample) && headerExample.length > 0) {
+        headerObj.example = {
+          header_text: headerExample
+        };
+      }
+      components.push(headerObj);
     } else if (["IMAGE", "DOCUMENT", "VIDEO"].includes(selectedHeaderType)) {
       const headerObj: any = {
         type: "HEADER",
@@ -1023,13 +1357,29 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
       components.push(headerObj);
     }
 
-    // Body component
-    components.push({
+    // 2. Body component handling (with {{1}}, {{2}} variable sample values required by Meta)
+    const bodyObj: any = {
       type: "BODY",
       text: bodyText.trim()
-    });
+    };
 
-    // Footer component
+    if (bodyExamples && Array.isArray(bodyExamples) && bodyExamples.length > 0) {
+      bodyObj.example = {
+        body_text: [bodyExamples]
+      };
+    } else {
+      // Auto-extract {{1}}, {{2}} placeholders and generate fallback sample text if not supplied
+      const variableMatches = bodyText.match(/\{\{(\d+)\}\}/g);
+      if (variableMatches && variableMatches.length > 0) {
+        const sampleValues = variableMatches.map((_, idx) => `Sample_${idx + 1}`);
+        bodyObj.example = {
+          body_text: [sampleValues]
+        };
+      }
+    }
+    components.push(bodyObj);
+
+    // 3. Footer component handling
     if (footerText && footerText.trim()) {
       components.push({
         type: "FOOTER",
@@ -1037,24 +1387,71 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
       });
     }
 
-    // Button component
-    if (buttonText && buttonText.trim()) {
+    // 4. Buttons component handling (URL, PHONE_NUMBER, QUICK_REPLY, or array of buttons)
+    if (Array.isArray(buttons) && buttons.length > 0) {
       components.push({
         type: "BUTTONS",
-        buttons: [
-          {
-            type: "URL",
-            text: buttonText.trim(),
-            url: buttonUrl && buttonUrl.trim() ? buttonUrl.trim() : "https://www.jisnudigital.com/"
+        buttons: buttons.map((btn: any) => {
+          if (btn.type === "PHONE_NUMBER") {
+            return {
+              type: "PHONE_NUMBER",
+              text: btn.text || "Call Us",
+              phone_number: btn.phone_number || btn.phoneNumber || "+917709936965"
+            };
           }
-        ]
+          if (btn.type === "QUICK_REPLY") {
+            return {
+              type: "QUICK_REPLY",
+              text: btn.text || "Quick Reply"
+            };
+          }
+          return {
+            type: "URL",
+            text: btn.text || "Visit Website",
+            url: btn.url || "https://www.jisnudigital.com/"
+          };
+        })
       });
+    } else if (buttonText && buttonText.trim()) {
+      if (buttonType === "PHONE_NUMBER") {
+        components.push({
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "PHONE_NUMBER",
+              text: buttonText.trim(),
+              phone_number: phoneNumber && phoneNumber.trim() ? phoneNumber.trim() : "+917709936965"
+            }
+          ]
+        });
+      } else if (buttonType === "QUICK_REPLY") {
+        components.push({
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "QUICK_REPLY",
+              text: buttonText.trim()
+            }
+          ]
+        });
+      } else {
+        components.push({
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "URL",
+              text: buttonText.trim(),
+              url: buttonUrl && buttonUrl.trim() ? buttonUrl.trim() : "https://www.jisnudigital.com/"
+            }
+          ]
+        });
+      }
     }
 
     const payload = {
       name: cleanName,
       category: category || "MARKETING",
-      language: language || "en",
+      language: language || "en_US",
       components
     };
 

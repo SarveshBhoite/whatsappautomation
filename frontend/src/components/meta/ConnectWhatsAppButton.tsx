@@ -70,45 +70,13 @@ export default function ConnectWhatsAppButton({
           return;
         }
 
-        if (data.code || (data.waba_id && data.phone_number_id)) {
-          setStatusMessage('Synchronizing Business Account (WABA) & Registering Phone Number with Meta...');
-          setIsLoading(true);
-          addLog(`Exchanging Meta authorization code (WABA ID: ${data.waba_id || 'Auto-Discover'})...`, 'info');
+        const authCode = data.code || data.access_token || '';
+        const wabaId = data.waba_id || '';
+        const phoneId = data.phone_number_id || '';
+        const businessId = data.business_id || '';
 
-          try {
-            const response = await fetch('/api/auth/whatsapp/exchange', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                code: data.code,
-                waba_id: data.waba_id,
-                phone_number_id: data.phone_number_id,
-              }),
-            });
-
-            const result: WhatsAppTokenExchangeResponse = await response.json();
-
-            if (result.success) {
-              setSignupResult(result);
-              setStatusMessage('WhatsApp Business connected successfully via Meta Tech Provider!');
-              addLog(`WhatsApp Business connected! Discovered ${result.phoneNumbers?.length || 1} phone number(s).`, 'success');
-              if (onSuccess) onSuccess(result);
-            } else {
-              const errMsg = result.error || 'Failed to exchange authorization token with Meta.';
-              setErrorDetails(errMsg);
-              addLog(`Token exchange failed: ${errMsg}`, 'error');
-              if (onError) onError(errMsg);
-            }
-          } catch (err: any) {
-            const errMsg = err.message || 'Network error while contacting backend API.';
-            setErrorDetails(errMsg);
-            addLog(`Network exception: ${errMsg}`, 'error');
-            if (onError) onError(err.message);
-          } finally {
-            setIsLoading(false);
-          }
+        if (authCode || (wabaId && phoneId)) {
+          processCodeExchange(authCode, wabaId, phoneId, businessId);
         }
       }
     };
@@ -117,25 +85,44 @@ export default function ConnectWhatsAppButton({
     return () => window.removeEventListener('message', handleMessage);
   }, [onSuccess, onError]);
 
-  const processCodeExchange = async (code: string) => {
+  const processCodeExchange = async (
+    code?: string,
+    waba_id?: string,
+    phone_number_id?: string,
+    business_id?: string
+  ) => {
     setIsLoading(true);
     setStatusMessage('Exchanging authorization code with Meta Graph API...');
     setErrorDetails(null);
-    addLog('Exchanging pasted/received authorization code with Meta Graph API...', 'info');
+    addLog(`Exchanging authorization parameters (WABA ID: ${waba_id || 'Auto-Discover'}, Phone ID: ${phone_number_id || 'Auto-Discover'})...`, 'info');
 
     try {
       const response = await fetch('/api/auth/whatsapp/exchange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({
+          code: code || '',
+          waba_id: waba_id || '',
+          phone_number_id: phone_number_id || '',
+          business_id: business_id || '',
+        }),
       });
+
+      if (!response.ok) {
+        let errJson: any = null;
+        try {
+          errJson = await response.json();
+        } catch {}
+        const errMsg = errJson?.error || `Server returned HTTP ${response.status}`;
+        throw new Error(errMsg);
+      }
 
       const result: WhatsAppTokenExchangeResponse = await response.json();
 
       if (result.success) {
         setSignupResult(result);
         setStatusMessage('WhatsApp Business connected successfully!');
-        addLog(`Connected successfully! Discovered WABA ID: ${result.wabaId || 'Synced'}`, 'success');
+        addLog(`Connected successfully! Discovered WABA ID: ${result.wabaId || 'Synced'} (${result.phoneNumbers?.length || 1} number(s))`, 'success');
         if (onSuccess) onSuccess(result);
       } else {
         const errMsg = result.error || 'Failed to exchange code';
@@ -159,12 +146,29 @@ export default function ConnectWhatsAppButton({
     e.preventDefault();
     if (!manualInput.trim()) return;
 
-    let extractedCode = manualInput.trim();
-    // If user pasted full URL (e.g. https://www.facebook.com/connect/login_success.html#code=AQD...)
-    const match = extractedCode.match(/[?&#]code=([^&]+)/);
+    let rawInput = manualInput.trim();
+
+    // Prevent passing redirect URLs directly when no code is present
+    if (
+      (rawInput.includes('login_success.html') || rawInput.includes('blank.html')) &&
+      !rawInput.includes('code=')
+    ) {
+      setErrorDetails(
+        'The URL pasted does not contain a code parameter (?code=...). Attempting auto-discovery with system user token...'
+      );
+      addLog('URL missing code. Triggering system user token auto-discovery...', 'warn');
+      // Trigger discovery directly using system user token
+      processCodeExchange('');
+      return;
+    }
+
+    let extractedCode = rawInput;
+    // Extract code parameter if user pasted full URL (e.g. https://www.facebook.com/connect/login_success.html#code=AQD...)
+    const match = extractedCode.match(/[?&#]code=([^&#]+)/);
     if (match) {
       extractedCode = decodeURIComponent(match[1]);
     }
+    extractedCode = extractedCode.replace(/#.*$/, '').trim();
 
     processCodeExchange(extractedCode);
   };
@@ -187,6 +191,7 @@ export default function ConnectWhatsAppButton({
       const loginSuccessUri = 'https://www.facebook.com/connect/login_success.html';
       const targetRedirect = encodeURIComponent(loginSuccessUri);
 
+      // Explicitly request code response with redirect_uri to login_success.html so code is present in URL
       let oauthUrl = `https://www.facebook.com/${version}/dialog/oauth?client_id=${appId}&response_type=code&redirect_uri=${targetRedirect}`;
 
       if (configId && configId !== 'your_whatsapp_config_id_here') {
@@ -225,10 +230,11 @@ export default function ConnectWhatsAppButton({
           const currentUrl = popup.location.href;
           if (currentUrl && currentUrl.includes('login_success.html')) {
             const urlObj = new URL(currentUrl);
-            const codeMatch = currentUrl.match(/[?&#]code=([^&]+)/);
-            const code = codeMatch ? decodeURIComponent(codeMatch[1]) : urlObj.searchParams.get('code');
+            const codeMatch = currentUrl.match(/[?&#]code=([^&#]+)/);
+            let code = codeMatch ? decodeURIComponent(codeMatch[1]) : urlObj.searchParams.get('code');
 
             if (code) {
+              code = code.replace(/#.*$/, '').trim();
               popup.close();
               clearInterval(timer);
               processCodeExchange(code);
@@ -240,11 +246,6 @@ export default function ConnectWhatsAppButton({
       }, 500);
     };
 
-    if (!isHttps || !window.FB) {
-      openDirectOAuthFlow();
-      return;
-    }
-
     // Official Meta Tech Provider Embedded Signup v4 Options
     const loginOptions: any = {
       scope: 'whatsapp_business_management, whatsapp_business_messaging, business_management',
@@ -254,7 +255,11 @@ export default function ConnectWhatsAppButton({
         feature: 'whatsapp_embedded_signup',
         version: 2,
         sessionInfoVersion: 2,
-        setup: {},
+        setup: {
+          prefill: {
+            phone_number: '',
+          },
+        },
       },
     };
 
@@ -262,16 +267,23 @@ export default function ConnectWhatsAppButton({
       loginOptions.config_id = configId;
     }
 
-    try {
-      window.FB.login((response) => {
-        if (response.authResponse?.code) {
-          processCodeExchange(response.authResponse.code);
-        } else {
-          setIsLoading(false);
-          setStatusMessage('Complete signup in popup or paste URL below if needed.');
-        }
-      }, loginOptions);
-    } catch {
+    if (isHttps && window.FB) {
+      try {
+        console.log('[Meta Tech Provider SDK]: Triggering window.FB.login with Embedded Signup extras...');
+        window.FB.login((response: any) => {
+          console.log('[Meta FB.login Callback Response]:', response);
+          if (response.authResponse?.code) {
+            processCodeExchange(response.authResponse.code);
+          } else {
+            addLog('Embedded signup popup opened. Complete setup inside popup.', 'info');
+          }
+        }, loginOptions);
+      } catch (fbErr) {
+        console.warn('[Meta FB.login Exception]: Falling back to direct flow', fbErr);
+        openDirectOAuthFlow();
+      }
+    } else {
+      console.log('[Direct Flow Triggered]: http environment or JS SDK not present — launching popup direct flow...');
       openDirectOAuthFlow();
     }
   };

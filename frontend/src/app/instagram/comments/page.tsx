@@ -44,25 +44,33 @@ export default function InstagramCommentsPage() {
     setRefreshing(true);
     try {
       // Fetch live comments
-      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.comments)) {
-          setComments(data.comments);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments`, {
+          headers: { "x-organization-id": DEFAULT_ORG_ID }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.comments)) {
+            setComments(data.comments);
+          }
         }
+      } catch (cErr: any) {
+        console.warn("[IG COMMENTS FETCH WARN]: Backend un-reachable:", cErr?.message);
       }
 
       // Fetch live profile handle from Meta config
-      const profileRes = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
-      });
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        if (profileData.liveProfile?.username) {
-          setProfileHandle(profileData.liveProfile.username);
+      try {
+        const profileRes = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
+          headers: { "x-organization-id": DEFAULT_ORG_ID }
+        });
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData.liveProfile?.username) {
+            setProfileHandle(profileData.liveProfile.username);
+          }
         }
+      } catch (pErr: any) {
+        console.warn("[IG PROFILE FETCH WARN]: Backend un-reachable:", pErr?.message);
       }
     } catch (err) {
       console.error("Failed to fetch IG comments:", err);

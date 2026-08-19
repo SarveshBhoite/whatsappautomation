@@ -44,7 +44,9 @@ export interface WhatsAppPhoneNumber {
 export interface WhatsAppEmbeddedSignupData {
   phone_number_id?: string;
   waba_id?: string;
+  business_id?: string;
   code?: string;
+  access_token?: string;
   current_step?: string;
   event?: 'FINISH' | 'CANCEL' | 'ERROR';
   session_info?: any;

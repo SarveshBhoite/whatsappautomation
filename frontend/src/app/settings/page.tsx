@@ -977,8 +977,12 @@ export default function Dashboard() {
   const fetchMetaStatus = async () => {
     try {
       const res = await fetch("/api/auth/meta/status", { cache: "no-store" });
+      if (!res.ok) {
+        console.warn(`[Meta Status Fetch Warning]: Received status ${res.status}`);
+        return;
+      }
       const data = await res.json();
-      if (data.success && data.data) {
+      if (data && data.success && data.data) {
         setMetaStatus(data.data);
         if (data.data.whatsapp?.phoneNumberId) {
           setConfig((prev) => ({
@@ -989,7 +993,7 @@ export default function Dashboard() {
         }
       }
     } catch (err) {
-      console.error("Error loading Meta status:", err);
+      console.warn("Could not parse Meta status response:", err);
     }
   };
 
