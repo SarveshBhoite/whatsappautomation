@@ -159,22 +159,18 @@ router.get("/posts", async (req: Request, res: Response) => {
       posts = personalPosts.map(p => ({
         id: p.id,
         organizationId: p.organizationId,
-        postId: p.id,
         linkedinPostId: p.linkedinPostId,
-        authorUrn: p.authorUrn || "",
         author: p.author,
-        commentary: p.text || p.summary || "",
         summary: p.summary,
         mediaUrl: p.mediaUrl,
-        mediaType: p.mediaUrl ? "IMAGE" : "NONE",
         visibility: "PUBLIC",
         lifecycleState: "PUBLISHED",
         publishedAt: p.publishedAt,
         likesCount: p.likesCount,
         commentsCount: p.commentsCount,
         createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-      })) as any;
+        updatedAt: p.updatedAt
+      }));
     }
 
     return res.status(200).json({
@@ -235,6 +231,47 @@ router.post("/share", async (req: Request, res: Response) => {
       error: "LinkedIn API Rejected Publication Request",
       details,
       post: error.post || null
+    });
+  }
+});
+
+// DELETE /api/linkedin/posts/:id - Delete post from LinkedIn live feed and CRM database
+router.delete("/posts/:id", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postId = String(req.params.id);
+
+    if (!postId) {
+      return res.status(400).json({ error: "Post ID parameter is required." });
+    }
+
+    const result = await LinkedInService.deletePublishedPost(organizationId, postId);
+
+    // Socket notification for real-time synchronization across clients
+    try {
+      const { io } = require("../index");
+      if (io) {
+        io.to(organizationId).emit("linkedin-post-deleted", { organizationId, postId });
+        io.to(organizationId).emit("linkedin-sync-completed", { organizationId });
+      }
+    } catch (socketErr: any) {
+      console.warn("[LINKEDIN] Socket notification notice:", socketErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Post deleted successfully from LinkedIn live feed and CRM database.",
+      result
+    });
+  } catch (error: any) {
+    const status = error.response?.status || error.status || 500;
+    const errorDetails = error.response?.data || error.message;
+    console.error(`[LINKEDIN] API Error [HTTP ${status}] - Post deletion failed:`, errorDetails);
+    await LinkedInSyncService.logSyncEvent(getOrgId(req), "API Error", "FAILED", `Post deletion failed: ${errorDetails}`);
+
+    return res.status(status).json({
+      success: false,
+      error: error.message || "Failed to delete post from LinkedIn."
     });
   }
 });
@@ -940,7 +977,7 @@ router.post("/ai/cta", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/linkedin/ai/chat - Universal CRM AI Assistant
+// POST /api/linkedin/ai/chat - Universal CRM AI Assistant (Intent-Driven Groq llama-3.3-70b-versatile)
 router.post("/ai/chat", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
@@ -1002,7 +1039,7 @@ router.post("/ai/history", async (req: Request, res: Response) => {
       generatedContent,
       mode: mode || "Post Generator",
       tone: tone || "Professional",
-      model: model || "Groq-openai/gpt-oss-120b"
+      model: model || "Groq-llama-3.3-70b-versatile"
     });
 
     return res.status(201).json({ success: true, item: record });

@@ -557,6 +557,44 @@ export class PersonalProvider implements ILinkedInProvider {
       };
     }
   }
+
+  /**
+   * Delete a post live from LinkedIn via REST Posts API
+   */
+  public async deletePost(accessToken: string, postUrn: string): Promise<{ success: boolean; status: number; message?: string }> {
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      "LinkedIn-Version": "202607",
+      "X-Restli-Protocol-Version": "2.0.0"
+    };
+
+    const encodedUrn = encodeURIComponent(postUrn);
+    const deleteUrl = `https://api.linkedin.com/rest/posts/${encodedUrn}`;
+
+    console.log("=======================================================");
+    console.log(`[LINKEDIN DELETE] Issuing DELETE request to LinkedIn API...`);
+    console.log(`Target URN: ${postUrn}`);
+    console.log(`Endpoint: ${deleteUrl}`);
+    console.log("=======================================================");
+
+    try {
+      const response = await axios.delete(deleteUrl, { headers });
+      console.log(`[LINKEDIN DELETE SUCCESS] HTTP Status: ${response.status}`);
+      return { success: true, status: response.status, message: "Post deleted successfully from LinkedIn live feed." };
+    } catch (err: any) {
+      const status = err?.response?.status || 500;
+      const data = err?.response?.data || {};
+      console.error(`[LINKEDIN DELETE ERROR] HTTP ${status}:`, JSON.stringify(data));
+
+      // HTTP 404 means the post was already deleted directly on LinkedIn.com - treat as success for sync purposes
+      if (status === 404) {
+        console.warn(`[LINKEDIN DELETE] Post ${postUrn} was already deleted directly on LinkedIn.com (404 Not Found). Proceeding to clean up CRM database.`);
+        return { success: true, status: 404, message: "Post already deleted on LinkedIn.com." };
+      }
+
+      throw new Error(data?.message || data?.errorDetailType || err.message || `LinkedIn API post deletion failed with status ${status}`);
+    }
+  }
 }
 
 /**
@@ -1008,6 +1046,92 @@ export class LinkedInService {
     (publishErr as any).post = failedPost;
     (publishErr as any).details = apiErrorDetails;
     throw publishErr;
+  }
+
+  /**
+   * Delete a post: First attempt deleting from LinkedIn live feed, then delete from CRM DB
+   */
+  public static async deletePublishedPost(organizationId: string, postId: string) {
+    // 1. Locate the post in CRM DB
+    let post = await prisma.linkedInPost.findFirst({
+      where: { id: postId, organizationId }
+    });
+
+    let isPersonalPostTable = false;
+    if (!post) {
+      const personalPost = await prisma.linkedInPersonalPost.findFirst({
+        where: { id: postId, organizationId }
+      });
+      if (personalPost) {
+        isPersonalPostTable = true;
+        post = {
+          id: personalPost.id,
+          organizationId: personalPost.organizationId,
+          linkedinPostId: personalPost.linkedinPostId,
+          author: personalPost.author,
+          summary: personalPost.summary,
+          mediaUrl: personalPost.mediaUrl,
+          visibility: "PUBLIC",
+          lifecycleState: "PUBLISHED",
+          publishedAt: personalPost.publishedAt,
+          likesCount: personalPost.likesCount,
+          commentsCount: personalPost.commentsCount,
+          createdAt: personalPost.createdAt,
+          updatedAt: personalPost.updatedAt
+        };
+      }
+    }
+
+    if (!post) {
+      throw new Error(`Post with ID ${postId} not found in CRM database.`);
+    }
+
+    // 2. Fetch LinkedIn OAuth configuration
+    const config = await prisma.linkedInConfig.findUnique({
+      where: { organizationId }
+    });
+
+    if (!config || !config.accessToken) {
+      throw new Error("LinkedIn account is not connected. Re-connect your LinkedIn account to delete posts.");
+    }
+
+    // 3. Delete live from LinkedIn API if linkedinPostId URN is present
+    const linkedinPostId = post.linkedinPostId;
+    if (linkedinPostId && linkedinPostId.startsWith("urn:li:")) {
+      console.log(`[LINKEDIN SERVICE] Deleting post ${linkedinPostId} from LinkedIn live API...`);
+      const personalProvider = LinkedInProviderFactory.getPersonalProvider();
+      await personalProvider.deletePost(config.accessToken, linkedinPostId);
+    } else {
+      console.warn(`[LINKEDIN SERVICE] Post ${postId} does not have a valid LinkedIn URN (${linkedinPostId}). Skipping LinkedIn API delete call.`);
+    }
+
+    // 4. Remove from CRM Database ONLY AFTER LinkedIn deletion succeeds (or 404 handled)
+    if (isPersonalPostTable) {
+      await prisma.linkedInPersonalPost.deleteMany({
+        where: { id: postId, organizationId }
+      });
+    } else {
+      await prisma.linkedInPost.deleteMany({
+        where: { id: postId, organizationId }
+      });
+      // Also clean up secondary personal table if record exists there
+      try {
+        await prisma.linkedInPersonalPost.deleteMany({
+          where: { linkedinPostId: post.linkedinPostId, organizationId }
+        });
+      } catch (err: any) {
+        console.warn("[LINKEDIN] Cleanup secondary table notice:", err.message);
+      }
+    }
+
+    await LinkedInSyncService.logSyncEvent(
+      organizationId,
+      "Post Deleted",
+      "SUCCESS",
+      `Deleted post ${linkedinPostId || postId} from LinkedIn feed and CRM database.`
+    );
+
+    return { success: true, id: postId, linkedinPostId };
   }
 }
 

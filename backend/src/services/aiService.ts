@@ -41,7 +41,7 @@ export interface StructuredAIResponse {
 }
 
 export class LinkedInAIService {
-  private static MODEL_NAME = "openai/gpt-oss-120b";
+  private static MODEL_NAME = "llama-3.3-70b-versatile";
 
   /**
    * Helper to construct CRM & Jisnu Context from recent AI history
@@ -113,27 +113,23 @@ You MUST respond with valid JSON matching EXACTLY this structure:
       return `${systemContext}
 
 ======================================================
-TAB MODE: REWRITE & POLISH (PRIMARY PURPOSE: REWRITE EXISTING CONTENT ONLY)
+TAB MODE: REWRITE & POLISH (PRIMARY PURPOSE: REWRITE & POLISH CONTENT)
 ======================================================
 
 You are the REWRITE & POLISH AI SPECIALIST.
-Your primary responsibility is to rewrite, refine, polish, humanize, adjust tone, shorten, expand, or correct grammar for EXISTING TEXT PROVIDED BY THE USER ONLY.
+Your primary responsibility is to rewrite, refine, polish, humanize, adjust tone, shorten, expand, or format text provided by the user.
 
-STRICT REWRITE GUARDRAIL RULES (MANDATORY):
-1. NEVER GENERATE BRAND-NEW CONTENT FROM SCRATCH.
-2. Only rewrite, improve, or fix text that was explicitly provided/pasted by the user.
-3. Allowed operations: Grammar, Humanize, Professional Tone, Casual Tone, Expand, Shorten, Improve Engagement, Improve Readability, Fix Spelling.
-4. CRITICAL INSTRUCTION CHECK:
-   If the user enters ONLY a creation/generation request (such as "Write an email", "Write LinkedIn post", "Create blog", "Generate marketing copy", "Explain AI", "Generate code") WITHOUT providing original text to rewrite, YOU MUST RESPOND WITH EXACTLY:
-   "Please paste the content you would like me to rewrite, polish, or improve."
-   Do NOT generate a new email, post, article, or code!
+RULES:
+1. If the user provides a topic or phrase (e.g. "AI in mathematics"), create a polished, engaging LinkedIn post specifically about that topic in the requested tone.
+2. If the user provides an existing post or draft, rewrite and polish it to enhance clarity, engagement, and tone while preserving its core meaning.
+3. Return ONLY the generated/polished content without intro conversational fluff.
 
 STRICT OUTPUT FORMAT:
 You MUST respond with valid JSON matching EXACTLY this structure:
 {
   "intent": "linkedin_rewrite",
   "mode": "Rewrite & Polish",
-  "response": "<rewritten_text_or_guardrail_message>",
+  "response": "<polished_or_generated_content>",
   "hashtags": [],
   "cta": "",
   "score": { "grammar": 98, "engagement": 95, "readability": 96 }
@@ -186,7 +182,7 @@ You MUST respond with valid JSON matching EXACTLY this structure:
   }
 
   /**
-   * Core Groq API LLM Dispatcher using exact model: openai/gpt-oss-120b
+   * Core Groq API LLM Dispatcher using exact model: llama-3.3-70b-versatile
    */
   private static async callLLM(
     prompt: string,
@@ -346,23 +342,31 @@ You MUST respond with valid JSON matching EXACTLY this structure:
 
   /**
    * 1. TAB 1: POST GENERATOR
-   * Acts as general AI content generator based on user intent.
+   * Generates LinkedIn post content strictly focused on user's topic and selected tone.
    */
   public static async generatePost(organizationId: string, params: AIGenerateParams) {
-    const prompt = `Generate content for topic: "${params.topic}".
-Industry: ${params.industry || "Technology & Business"}
-Target Audience: ${params.targetAudience || "Founders, Engineers, and Executives"}
-Tone: ${params.tone || "Professional and engaging"}`;
+    const topicText = (params.topic || "").trim();
+    const toneText = (params.tone || "Professional").trim();
+
+    const prompt = `Write a high-engaging, original LinkedIn post specifically about the following topic:
+Topic: "${topicText}"
+Requested Tone: ${toneText}
+
+CRITICAL INSTRUCTION:
+- You MUST create content directly and specifically about "${topicText}". For example, if the topic is "AI in mathematics", discuss how artificial intelligence is applied in mathematics (such as mathematical problem solving, theorem proving, symbolic computation, mathematical modeling, or AI-assisted research).
+- Match the requested tone: ${toneText}.
+- DO NOT return generic marketing copy or unrelated SaaS text.
+- Do NOT include meta-preambles like "Here is your post:".`;
 
     const { structured, model } = await this.callLLM(prompt, organizationId, "generate");
 
     const savedRecord = await this.saveHistory({
       organizationId,
       userId: params.userId,
-      prompt: params.topic,
+      prompt: topicText,
       generatedContent: structured.response,
       mode: "Post Generator",
-      tone: params.tone || "Professional",
+      tone: toneText,
       model
     });
 
@@ -381,38 +385,16 @@ Tone: ${params.tone || "Professional and engaging"}`;
 
   /**
    * 2. TAB 2: REWRITE & POLISH
-   * Only improves text provided by user. Never creates new content from scratch.
+   * Polishes provided text or generates a polished LinkedIn post if a topic/prompt is entered.
    */
   public static async rewritePost(organizationId: string, params: AIRewriteParams) {
     const cleanContent = (params.content || "").trim();
-    const lowerContent = cleanContent.toLowerCase();
+    const modeText = (params.mode || "professional").trim();
 
-    const exactRefusalMessage = "Please paste the content you would like me to rewrite, polish, or improve.";
-
-    // Guardrail: Detect pure creation requests (e.g. Write an email, Write LinkedIn post, Create blog, Generate marketing copy, Explain AI)
-    const pureCreationRegex = /^(write|generate|create|make|draft|explain|build|code)\b(?!\s*this[:\s]+['"])/i;
-    const creationPhrases = [
-      "write an email",
-      "write email",
-      "write linkedin post",
-      "write post",
-      "create blog",
-      "generate marketing copy",
-      "explain ai",
-      "generate code",
-      "write code",
-      "create post"
-    ];
-
-    const isCreationPhrase = creationPhrases.some(phrase => lowerContent.startsWith(phrase) || lowerContent === phrase);
-    const hasOriginalTextMarker = /(rewrite this|improve this|polish this|fix this|here is my text|original text|rewrite the following):/i.test(cleanContent);
-
-    const isInvalidRewritePrompt = (!cleanContent || isCreationPhrase || (pureCreationRegex.test(cleanContent) && !hasOriginalTextMarker && !cleanContent.includes("\n")));
-
-    if (isInvalidRewritePrompt) {
+    if (!cleanContent) {
       return {
         success: true,
-        text: exactRefusalMessage,
+        text: "Please paste the content or enter a topic you would like me to rewrite, polish, or improve.",
         model: `Groq-${this.MODEL_NAME}`,
         intent: "linkedin_rewrite",
         mode: "Rewrite & Polish",
@@ -422,35 +404,37 @@ Tone: ${params.tone || "Professional and engaging"}`;
       };
     }
 
-    const prompt = `Rewrite and polish the following user-provided text (Mode: ${params.mode}). Improve flow, clarity, tone, and grammar without losing original facts:
+    const prompt = `You are an expert LinkedIn editor and copywriter.
+Task: Polish, rewrite, or generate a compelling LinkedIn post based on the following input:
 
-Original Text:
+User Input:
 """
 ${cleanContent}
-"""`;
+"""
+
+Tone / Mode: ${modeText}
+
+INSTRUCTIONS:
+1. If the input is a short topic or brief phrase (e.g. "AI in mathematics"), generate a complete, high-quality LinkedIn post specifically focused on that topic in a ${modeText} tone.
+2. If the input is already a complete post or paragraph, rewrite and polish it to improve clarity, flow, engagement, and grammar while preserving its core meaning.
+3. Return ONLY the final polished post content without any introductory conversational preambles (e.g., do NOT start with "Here is your rewritten post:").`;
 
     const { structured, model } = await this.callLLM(prompt, organizationId, "rewrite");
-
-    // Double check LLM response for guardrail message compliance
-    let textToReturn = structured.response;
-    if (textToReturn.toLowerCase().includes("please paste the content you would like me to rewrite")) {
-      textToReturn = exactRefusalMessage;
-    }
 
     const savedRecord = await this.saveHistory({
       organizationId,
       userId: params.userId,
-      prompt: `Rewrite (${params.mode}): ${cleanContent.slice(0, 150)}...`,
-      generatedContent: textToReturn,
+      prompt: `Rewrite (${modeText}): ${cleanContent.slice(0, 150)}...`,
+      generatedContent: structured.response,
       mode: "Rewrite & Polish",
-      tone: params.mode,
+      tone: modeText,
       model
     });
 
     return {
       success: true,
       id: savedRecord?.id,
-      text: textToReturn,
+      text: structured.response,
       model,
       intent: structured.intent || "linkedin_rewrite",
       mode: "Rewrite & Polish",
