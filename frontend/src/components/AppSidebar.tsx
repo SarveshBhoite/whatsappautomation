@@ -285,32 +285,41 @@ export default function AppSidebar() {
         </div>
       )}
 
-      {/* ── Mobile bottom bar (Clean Light Theme) ───────────────────────── */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2 py-1.5 gap-1.5 shadow-2xl safe-bottom">
+      {/* ── Mobile bottom bar (Icons Only & Scrollable) ───────────────────────── */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-3 py-2 gap-2 shadow-2xl safe-bottom">
+        <Link 
+          href="/" 
+          className="h-10 w-10 rounded-xl overflow-hidden border border-slate-200 shrink-0 shadow-2xs hover:border-brand-blue/60 transition-all flex items-center justify-center"
+          title="Home"
+        >
+          <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
+        </Link>
+
         {visibleNavItems.map(item => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}
               href={item.href}
+              title={item.label}
               className={`
-                flex flex-col items-center justify-center gap-1 py-1.5 px-3 shrink-0 rounded-xl transition-all duration-200 min-w-[68px]
+                h-10 w-10 shrink-0 rounded-xl flex items-center justify-center transition-all duration-200
                 ${active
                   ? "bg-brand-blue/10 text-brand-blue font-bold border border-brand-blue/20 shadow-xs"
                   : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}
               `}
             >
               {item.icon}
-              <span className="text-[10px] font-semibold tracking-tight whitespace-nowrap">{item.label}</span>
             </Link>
           );
         })}
+
         <button
           onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 shrink-0 rounded-xl text-red-500 hover:bg-red-50 min-w-[68px] cursor-pointer"
+          title="Log Out"
+          className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center text-red-500 hover:bg-red-50 transition-all duration-200 cursor-pointer"
         >
           <LogOut className="h-5 w-5" />
-          <span className="text-[10px] font-semibold tracking-tight whitespace-nowrap">Logout</span>
         </button>
       </nav>
     </>

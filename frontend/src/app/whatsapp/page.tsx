@@ -30,7 +30,9 @@ import {
   ArrowLeft,
   Star,
   RefreshCw,
-  Store
+  Store,
+  Menu,
+  X
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -531,6 +533,7 @@ export default function Dashboard() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Settings States
   const [config, setConfig] = useState<WhatsAppConfig>({
@@ -1175,24 +1178,104 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
+      {/* Mobile Drawer Backdrop */}
+      {mobileDrawerOpen && (
+        <div 
+          onClick={() => setMobileDrawerOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 sm:hidden"
+        />
+      )}
+
+      {/* Mobile Slide-out Drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 shadow-2xl flex flex-col justify-between p-5 transform transition-transform duration-300 ease-in-out sm:hidden ${
+        mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="font-extrabold text-sm text-slate-900 tracking-tight">WhatsApp Suite</span>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Cloud API</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1">
+              Modules & Tools
+            </span>
+            {[
+              { id: "chats_whatsapp", label: "WhatsApp Chats", icon: MessageCircle, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+              { id: "bulk_broadcast", label: "Bulk Broadcast", icon: Send, color: "text-teal-600", activeBg: "bg-teal-50 text-teal-800 border-teal-200" },
+              { id: "meta_templates", label: "Meta Templates", icon: FileText, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
+              { id: "flows", label: "Flow Builder", icon: GitMerge, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200", onClick: () => { setActiveTab("flows"); setSelectedPlatform("whatsapp"); } },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isSelected = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.onClick) item.onClick();
+                    else setActiveTab(item.id as any);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? `${item.activeBg} border shadow-xs`
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${item.color}`} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Meta Cloud API Connected</span>
+        </div>
+      </aside>
+
       {/* TOP SECTION NAVIGATION HEADER */}
-      <header className="px-6 py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+      <header className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => setMobileDrawerOpen(true)}
+            className="sm:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 shrink-0"
+            title="Open Menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+
+          <div className="h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
             <MessageSquare className="h-4 w-4" />
           </div>
-          <div>
-            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              WhatsApp Suite
-              <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-mono lowercase font-bold">
-                official cloud api
+          <div className="min-w-0">
+            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 truncate">
+              <span>WhatsApp Suite</span>
+              <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-mono lowercase font-bold shrink-0">
+                cloud api
               </span>
             </h1>
           </div>
         </div>
 
-        {/* Section Tabs */}
-        <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs">
+        {/* Section Tabs - Hidden on mobile, shown on desktop */}
+        <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs shrink-0">
           <button
             onClick={() => setActiveTab("chats_whatsapp")}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -1603,8 +1686,8 @@ export default function Dashboard() {
                                     </div>
                                   );
                                 })() : (
-                                  <div className="flex flex-col gap-2">
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
+                                  <div className="flex flex-col gap-2 min-w-0 max-w-full">
+                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere">{messageBody}</p>
                                     
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (

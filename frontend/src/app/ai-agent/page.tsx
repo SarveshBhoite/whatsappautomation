@@ -997,55 +997,63 @@ export default function AiAgentPage() {
           ) : (
             <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-700">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold">
+                <table className="w-full table-fixed text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold text-[11px]">
                     <tr>
-                      <th className="p-3.5">Customer Name</th>
-                      <th className="p-3.5">Phone / Contact</th>
-                      <th className="p-3.5">Topic Discussed</th>
-                      <th className="p-3.5">Captured Notes</th>
-                      <th className="p-3.5">Sales Team Remarks</th>
-                      <th className="p-3.5">Status</th>
-                      <th className="p-3.5">Date</th>
+                      <th className="py-3 px-3.5 w-[14%]">Customer</th>
+                      <th className="py-3 px-3 w-[14%]">Contact</th>
+                      <th className="py-3 px-3 w-[15%]">Topic</th>
+                      <th className="py-3 px-3 w-[16%]">Captured Notes</th>
+                      <th className="py-3 px-3 w-[20%]">Remarks</th>
+                      <th className="py-3 px-2 w-[11%] text-center">Status</th>
+                      <th className="py-3 px-3.5 w-[10%] text-center">Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {leads.map(lead => (
-                      <tr key={lead.id} className="hover:bg-slate-50/80">
-                        <td className="p-3.5 font-bold text-slate-900">{lead.customerName || "WhatsApp User"}</td>
-                        <td className="p-3.5 font-mono text-purple-700 font-bold flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5" />
-                          <span>{lead.customerPhone}</span>
+                      <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="p-3 font-bold text-slate-900 truncate" title={lead.customerName || "WhatsApp User"}>
+                          {lead.customerName || "WhatsApp User"}
                         </td>
-                        <td className="p-3.5 text-slate-700 font-medium">{lead.topicDiscussed || "General Inquiry"}</td>
-                        <td className="p-3.5 text-slate-500 max-w-xs truncate">{lead.notes || "AI captured contact"}</td>
-                        <td className="p-3.5 min-w-[240px]">
-                          <div className="flex items-center gap-1.5">
+                        <td className="p-3 font-mono text-purple-700 font-bold truncate">
+                          <div className="flex items-center gap-1">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{lead.customerPhone}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-slate-700 font-medium truncate" title={lead.topicDiscussed || "General Inquiry"}>
+                          {lead.topicDiscussed || "General Inquiry"}
+                        </td>
+                        <td className="p-3 text-slate-500 truncate" title={lead.notes || "AI captured contact"}>
+                          {lead.notes || "AI captured contact"}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1 min-w-0">
                             <input
                               type="text"
                               value={editingRemarks[lead.id] !== undefined ? editingRemarks[lead.id] : (lead.remark || "")}
                               onChange={(e) => setEditingRemarks({ ...editingRemarks, [lead.id]: e.target.value })}
                               onKeyDown={(e) => e.key === "Enter" && updateLeadRemark(lead.id)}
-                              placeholder="Add sales remark for context..."
-                              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-purple-500"
+                              placeholder="Add remark..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-purple-500 truncate"
                             />
                             {(editingRemarks[lead.id] !== undefined && editingRemarks[lead.id] !== (lead.remark || "")) && (
                               <button
                                 type="button"
                                 onClick={() => updateLeadRemark(lead.id)}
                                 disabled={savingRemarkId === lead.id}
-                                className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold shrink-0 transition-all flex items-center gap-1 cursor-pointer"
+                                className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold shrink-0 transition-all flex items-center gap-0.5 cursor-pointer"
                               >
-                                {savingRemarkId === lead.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Save"}
+                                {savingRemarkId === lead.id ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : "Save"}
                               </button>
                             )}
                           </div>
                         </td>
-                        <td className="p-3.5">
+                        <td className="p-3 text-center">
                           <select
                             value={lead.status}
                             onChange={(e) => updateLeadStatus(lead.id, e.target.value as any)}
-                            className={`border text-xs font-bold rounded-lg px-2.5 py-1 focus:outline-none ${
+                            className={`border text-[11px] font-bold rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer ${
                               lead.status === "NEW" ? "border-amber-200 bg-amber-50 text-amber-800" :
                               lead.status === "CONTACTED" ? "border-purple-200 bg-purple-50 text-purple-800" :
                               "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -1056,7 +1064,9 @@ export default function AiAgentPage() {
                             <option value="CLOSED">CLOSED</option>
                           </select>
                         </td>
-                        <td className="p-3.5 text-slate-500">{new Date(lead.createdAt).toLocaleDateString()}</td>
+                        <td className="py-3 px-3.5 text-slate-500 text-[11px] text-center font-medium whitespace-nowrap">
+                          {new Date(lead.createdAt).toLocaleDateString([], { month: "numeric", day: "numeric" })}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

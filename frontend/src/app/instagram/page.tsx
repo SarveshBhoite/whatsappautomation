@@ -29,9 +29,10 @@ import {
   Headphones,
   ArrowLeft,
   Star,
-  RefreshCw,
-  Store,
-  Trash2
+  Trash2,
+  Menu,
+  X,
+  RefreshCw
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -562,6 +563,7 @@ export default function Dashboard() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Settings States
   const [config, setConfig] = useState<WhatsAppConfig>({
@@ -1206,24 +1208,104 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
+      {/* Mobile Drawer Backdrop */}
+      {mobileDrawerOpen && (
+        <div 
+          onClick={() => setMobileDrawerOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 sm:hidden"
+        />
+      )}
+
+      {/* Mobile Slide-out Drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 shadow-2xl flex flex-col justify-between p-5 transform transition-transform duration-300 ease-in-out sm:hidden ${
+        mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-2xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shadow-xs">
+                <Instagram className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="font-extrabold text-sm text-slate-900 tracking-tight">Instagram Suite</span>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Graph API v21</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1">
+              Modules & Tools
+            </span>
+            {[
+              { id: "chats_instagram", label: "Instagram DMs", icon: MessageSquare, color: "text-pink-600", activeBg: "bg-pink-50 text-pink-800 border-pink-200" },
+              { id: "comments", label: "Comment Automation", icon: Sparkles, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
+              { id: "profile", label: "Profile & API Config", icon: User, color: "text-amber-600", activeBg: "bg-amber-50 text-amber-800 border-amber-200" },
+              { id: "flows", label: "Flow Builder", icon: GitMerge, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200", onClick: () => { setActiveTab("flows"); setSelectedPlatform("instagram"); } },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isSelected = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.onClick) item.onClick();
+                    else setActiveTab(item.id as any);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? `${item.activeBg} border shadow-xs`
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${item.color}`} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+          <div className="h-2 w-2 rounded-full bg-pink-500 animate-pulse" />
+          <span>Meta Graph API Connected</span>
+        </div>
+      </aside>
+
       {/* TOP SECTION NAVIGATION HEADER */}
-      <header className="px-6 py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600">
+      <header className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => setMobileDrawerOpen(true)}
+            className="sm:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 shrink-0"
+            title="Open Menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+
+          <div className="h-8 w-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shrink-0">
             <Instagram className="h-4 w-4" />
           </div>
-          <div>
-            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              Instagram Suite
-              <span className="text-[9px] bg-pink-50 text-pink-700 border border-pink-200 px-2 py-0.5 rounded-full font-mono lowercase font-bold">
+          <div className="min-w-0">
+            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 truncate">
+              <span>Instagram Suite</span>
+              <span className="text-[9px] bg-pink-50 text-pink-700 border border-pink-200 px-1.5 py-0.5 rounded-full font-mono lowercase font-bold shrink-0">
                 Graph API v21
               </span>
             </h1>
           </div>
         </div>
 
-        {/* Section Tabs */}
-        <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs">
+        {/* Section Tabs - Hidden on mobile, shown on desktop */}
+        <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs shrink-0">
           <button
             onClick={() => setActiveTab("chats_instagram")}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -1361,34 +1443,34 @@ export default function Dashboard() {
                 {activeConv ? (
                   <>
                     {/* Chat header */}
-                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-3 sm:px-6 flex items-center justify-between z-10 gap-2">
+                    <div className="h-16 border-b border-slate-200 bg-white px-3 sm:px-6 flex items-center justify-between z-10 gap-2 shadow-xs">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <button
                           type="button"
                           onClick={() => setMobileChatOpen(false)}
-                          className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 shrink-0 transition-all"
+                          className="sm:hidden p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 shrink-0 transition-all"
                         >
                           <ArrowLeft className="h-5 w-5" />
                         </button>
-                        <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700 shrink-0">
+                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-semibold border border-slate-200 shrink-0">
                           {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
                         </div>
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2">
                             {activeConv.platform === "instagram" ? (
-                              <Instagram className="h-4 w-4 text-pink-400 shrink-0" />
+                              <Instagram className="h-4 w-4 text-pink-600 shrink-0" />
                             ) : (
-                              <WhatsApp className="h-4 w-4 text-emerald-400 shrink-0" />
+                              <WhatsApp className="h-4 w-4 text-emerald-600 shrink-0" />
                             )}
-                            <span className="font-semibold text-sm text-slate-200 truncate">
+                            <span className="font-bold text-sm text-slate-900 truncate">
                               {activeConv.customerName || (activeConv.platform === "instagram" ? "Instagram User" : "WhatsApp User")}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-400 flex items-center gap-1 truncate">
+                          <span className="text-xs text-slate-500 flex items-center gap-1 truncate">
                             {activeConv.platform === "instagram" ? (
                               <><span>Instagram ID:</span> {activeConv.customerPhone}</>
                             ) : (
-                              <><Phone className="h-3 w-3 text-slate-500 shrink-0" /> {activeConv.customerPhone}</>
+                              <><Phone className="h-3 w-3 text-slate-400 shrink-0" /> {activeConv.customerPhone}</>
                             )}
                           </span>
                         </div>
@@ -1396,10 +1478,10 @@ export default function Dashboard() {
 
                       {/* Bot active / pause controllers */}
                       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        {/* Bot status badge ΓÇö hidden on very small screens, visible on sm+ */}
-                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${activeConv.isBotPaused
-                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-                          : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        {/* Bot status badge */}
+                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border font-bold transition-all ${activeConv.isBotPaused
+                          ? "bg-amber-50 border-amber-200 text-amber-800"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-800"
                           }`}>
                           {activeConv.isBotPaused ? (
                             <><User className="h-3.5 w-3.5" /><span>Bot Paused</span></>
@@ -1407,10 +1489,10 @@ export default function Dashboard() {
                             <><Bot className="h-3.5 w-3.5" /><span>Bot Active</span></>
                           )}
                         </div>
-                        {/* Compact bot status icon ΓÇö mobile only */}
+                        {/* Compact bot status icon — mobile only */}
                         <div className={`sm:hidden p-2 rounded-xl border transition-all ${activeConv.isBotPaused
-                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-                          : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          ? "bg-amber-50 border-amber-200 text-amber-800"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-800"
                           }`}>
                           {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                         </div>
@@ -1418,9 +1500,9 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${activeConv.isBotPaused
-                            ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950"
-                            : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
+                          className={`text-xs font-bold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all cursor-pointer shadow-2xs ${activeConv.isBotPaused
+                            ? "bg-emerald-600 border-emerald-700 hover:bg-emerald-500 text-white"
+                            : "bg-white hover:bg-slate-50 border-slate-200 text-slate-800"
                             }`}
                         >
                           <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
@@ -1430,7 +1512,7 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={(e) => handleDeleteConversation(activeConv.id, e)}
-                          className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer"
+                          className="p-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all cursor-pointer shadow-2xs"
                           title="Delete Chat Conversation"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1438,8 +1520,9 @@ export default function Dashboard() {
 
                       </div>
                     </div>
+
                     {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-100/60 relative scrollbar-thin">
                       {messages.map((msg) => {
                         const isInbound = msg.direction === "inbound";
 
@@ -1506,28 +1589,28 @@ export default function Dashboard() {
                             key={msg.id}
                             className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
                           >
-                            <div className="relative max-w-[70%]">
+                            <div className="relative max-w-[85%] sm:max-w-[70%] min-w-0">
                               {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
                               <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
                                 <button
                                   type="button"
                                   onClick={() => setQuotedMessage(msg)}
-                                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-2 rounded-full border border-slate-700 shadow-lg transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+                                  className="bg-white hover:bg-slate-50 text-slate-700 p-2 rounded-full border border-slate-200 shadow-md transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
                                   title="Quote Reply"
                                 >
-                                  <CornerUpLeft className="h-3.5 w-3.5" />
+                                  <CornerUpLeft className="h-3.5 w-3.5 text-pink-600" />
                                 </button>
                               </div>
 
                               {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${isInbound
-                                ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none"
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-xs flex flex-col gap-1 min-w-0 overflow-hidden break-words ${isInbound
+                                ? "bg-white text-slate-900 border border-slate-200/90 rounded-tl-none"
                                 : activeConv?.platform === "instagram"
-                                  ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                  : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
+                                  ? "bg-gradient-to-r from-pink-500 to-rose-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
+                                  : "bg-[#DCF8C6] text-slate-900 font-medium rounded-tr-none border border-emerald-300/80 shadow-emerald-500/5"
                                 }`}>
                                 {msg.senderName && !isInbound && (
-                                  <span className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/80" : "text-slate-800/70"}`}>
+                                  <span className={`text-[9px] uppercase tracking-wider font-bold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/90" : "text-emerald-800"}`}>
                                     {msg.senderName}
                                   </span>
                                 )}
@@ -1535,10 +1618,10 @@ export default function Dashboard() {
                                 {/* Render Quoted Reply Box inside Bubble */}
                                 {hasQuote && (
                                   <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${isInbound
-                                    ? "bg-slate-900/40 border-slate-500 text-slate-400"
+                                    ? "bg-slate-100 border-slate-400 text-slate-600"
                                     : activeConv?.platform === "instagram"
-                                      ? "bg-violet-950/40 border-violet-400 text-violet-200"
-                                      : "bg-emerald-600/30 border-emerald-950 text-slate-900"
+                                      ? "bg-violet-950/40 border-violet-400 text-violet-100"
+                                      : "bg-emerald-100/90 border-emerald-600 text-emerald-950 font-medium"
                                     }`}>
                                     {quoteText}
                                   </div>
@@ -1569,9 +1652,9 @@ export default function Dashboard() {
                                   }
 
                                   return (
-                                    <div className="flex flex-col gap-2">
+                                    <div className="flex flex-col gap-2 min-w-0">
                                       {msg.messageType === "image" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                        <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 max-w-[240px]">
                                           <img
                                             src={getMediaUrl(mediaUrl)}
                                             alt="Sent Media"
@@ -1580,7 +1663,7 @@ export default function Dashboard() {
                                           />
                                         </div>
                                       ) : msg.messageType === "video" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                        <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 max-w-[240px]">
                                           <video
                                             src={getMediaUrl(mediaUrl)}
                                             controls
@@ -1600,11 +1683,11 @@ export default function Dashboard() {
                                           href={getMediaUrl(mediaUrl)}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
+                                          className="flex items-center gap-2 bg-slate-100 p-2 rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors max-w-full"
                                         >
-                                          <FileText className="h-8 w-8 stroke-1" />
+                                          <FileText className="h-8 w-8 stroke-1 text-slate-700 shrink-0" />
                                           <div className="flex flex-col min-w-0">
-                                            <span className="text-xs font-semibold truncate max-w-[150px]">
+                                            <span className="text-xs font-semibold truncate max-w-[150px] text-slate-800">
                                               {displayFilename}
                                             </span>
                                             <span className="text-[10px] text-slate-500">Document File</span>
@@ -1612,17 +1695,17 @@ export default function Dashboard() {
                                         </a>
                                       )}
                                       {captionText && (
-                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
+                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap break-all ${isInbound ? "text-slate-700" : "text-slate-800"}`}>{captionText}</p>
                                       )}
                                     </div>
                                   );
                                 })() : (
-                                  <div className="flex flex-col gap-2">
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
+                                  <div className="flex flex-col gap-2 min-w-0 max-w-full">
+                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere">{messageBody}</p>
 
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
-                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-200/80 pt-2 w-full min-w-[200px]">
                                         {buttonsArray.map((btnTitle, index) => {
                                           const isIg = activeConv?.platform === "instagram";
                                           const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
@@ -1642,7 +1725,7 @@ export default function Dashboard() {
 
                                     {/* Render Clickable WhatsApp-styled List Menus in chat logs */}
                                     {hasList && (
-                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-200/80 pt-2 w-full min-w-[200px]">
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1663,8 +1746,8 @@ export default function Dashboard() {
 
                                         {/* Dropdown popup of options */}
                                         {activeListMenuMsgId === msg.id && (
-                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
-                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
+                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 border-b border-slate-100 mb-1 flex justify-between items-center">
                                               <span>Menu Options</span>
                                               <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
                                             </div>
@@ -1672,10 +1755,10 @@ export default function Dashboard() {
                                               {listRowsArray.map((rowText, index) => (
                                                 <div
                                                   key={index}
-                                                  className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
+                                                  className="w-full text-left bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs py-2 px-3 rounded-lg border border-slate-200 flex items-center justify-between select-none"
                                                 >
                                                   <span className="truncate pr-2">{rowText}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                                                 </div>
                                               ))}
                                             </div>
@@ -1688,7 +1771,7 @@ export default function Dashboard() {
 
                                 {/* Ticks status and time */}
                                 <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${isInbound
-                                  ? "text-slate-500"
+                                  ? "text-slate-400"
                                   : activeConv?.platform === "instagram"
                                     ? "text-pink-100/85"
                                     : "text-slate-800/80"
@@ -1714,21 +1797,21 @@ export default function Dashboard() {
 
                     {/* Quoted Message Preview Header above input bar */}
                     {quotedMessage && (
-                      <div className="bg-slate-950 border-t border-slate-800 p-2.5 flex justify-between items-center text-[11px] text-slate-300 w-full animate-fadeIn shrink-0">
-                        <div className="flex flex-col truncate border-l-2 border-emerald-500 pl-2">
-                          <span className="font-bold text-emerald-400 text-[9px] uppercase tracking-wider">
+                      <div className="bg-slate-50 border-t border-slate-200 p-2.5 flex justify-between items-center text-[11px] text-slate-700 w-full animate-fadeIn shrink-0">
+                        <div className="flex flex-col truncate border-l-2 border-pink-500 pl-2">
+                          <span className="font-bold text-pink-600 text-[9px] uppercase tracking-wider">
                             Quoting {quotedMessage.direction === "inbound" ? "Customer" : "Agent/Bot"}
                           </span>
-                          <span className="truncate text-xs text-slate-400 font-sans italic">
+                          <span className="truncate text-xs text-slate-600 font-sans italic">
                             {quotedMessage.content.split("|")[0]}
                           </span>
                         </div>
                         <button
                           type="button"
                           onClick={() => setQuotedMessage(null)}
-                          className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
+                          className="text-slate-400 hover:text-slate-600 font-bold px-2 text-sm"
                         >
-                          ├ù
+                          ✕
                         </button>
                       </div>
                     )}
