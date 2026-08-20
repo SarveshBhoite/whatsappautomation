@@ -1011,7 +1011,7 @@ Return ONLY a raw JSON object (no markdown, no explanation):
     const response = await axios.post(
       GROQ_API_URL,
       {
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-20b",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.65,
         max_tokens: 1500
@@ -1061,7 +1061,7 @@ Return ONLY a JSON array of strings (no markdown):
 
     const response = await axios.post(
       GROQ_API_URL,
-      { model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.5, max_tokens: 800 },
+      { model: "openai/gpt-oss-20b", messages: [{ role: "user", content: prompt }], temperature: 0.5, max_tokens: 800 },
       { headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_KEY}` } }
     );
 
@@ -1109,7 +1109,7 @@ Return ONLY a JSON object:
 
     const response = await axios.post(
       GROQ_API_URL,
-      { model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.4, max_tokens: 1200 },
+      { model: "openai/gpt-oss-20b", messages: [{ role: "user", content: prompt }], temperature: 0.4, max_tokens: 1200 },
       { headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_KEY}` } }
     );
 

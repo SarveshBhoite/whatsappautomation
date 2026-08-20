@@ -233,6 +233,32 @@ router.get("/threads", async (req: Request, res: Response) => {
   }
 });
 
+// GET: Fetch real-time count metrics for each folder/label
+router.get("/counts", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+
+    const [inbox, starred, sent, spam, trash] = await Promise.all([
+      prisma.gmailThread.count({ where: { organizationId, label: "INBOX" } }),
+      prisma.gmailThread.count({ where: { organizationId, isStarred: true } }),
+      prisma.gmailThread.count({ where: { organizationId, label: "SENT" } }),
+      prisma.gmailThread.count({ where: { organizationId, label: "SPAM" } }),
+      prisma.gmailThread.count({ where: { organizationId, label: "TRASH" } }),
+    ]);
+
+    return res.status(200).json({
+      INBOX: inbox,
+      STARRED: starred,
+      SENT: sent,
+      SPAM: spam,
+      TRASH: trash,
+    });
+  } catch (error: any) {
+    console.error("Error fetching Gmail counts:", error);
+    return res.status(500).json({ error: "Failed to fetch Gmail counts", details: error.message });
+  }
+});
+
 // POST: Toggle Star on a thread
 router.post("/threads/:threadId/star", async (req: Request, res: Response) => {
   try {

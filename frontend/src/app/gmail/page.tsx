@@ -303,7 +303,16 @@ export default function GmailDashboard() {
 
   const socketRef = useRef<Socket | null>(null);
 
-  // Fetch Threads fast (non-blocking for config)
+  // Folder real counts state
+  const [folderCounts, setFolderCounts] = useState<{ [key: string]: number }>({
+    INBOX: 0,
+    STARRED: 0,
+    SENT: 0,
+    SPAM: 0,
+    TRASH: 0,
+  });
+
+  // Fetch Threads fast (non-blocking for config & counts)
   const fetchData = async (label = selectedLabel) => {
     setLoading(true);
     setErrorMsg(null);
@@ -329,6 +338,15 @@ export default function GmailDashboard() {
           setSelectedThread(null);
         }
       }
+
+      // Non-blocking fetch of folder counts
+      fetch(`${BACKEND_URL}/api/gmail/counts`, {
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
+      }).then(res => res.ok ? res.json() : null).then(countsData => {
+        if (countsData) {
+          setFolderCounts(countsData);
+        }
+      }).catch(console.error);
 
       // Non-blocking fetch of config & rules
       fetch(`${BACKEND_URL}/api/gmail/config`, {
@@ -726,6 +744,7 @@ export default function GmailDashboard() {
             {LABELS.map((lbl) => {
               const Icon = lbl.icon;
               const isSelected = activeTab === "MAIL" && selectedLabel === lbl.id;
+              const count = folderCounts[lbl.id] ?? 0;
               return (
                 <button
                   key={lbl.id}
@@ -738,13 +757,20 @@ export default function GmailDashboard() {
                 >
                   <div className="flex items-center gap-3">
                     <Icon className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 duration-200 ${isSelected ? "text-emerald-600" : "text-slate-500 group-hover:text-slate-700"}`} />
-                    <span>{lbl.name}</span>
-                  </div>
-                  {lbl.count > 0 && (
-                    <span className="text-[9px] font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full text-slate-600">
-                      {lbl.count}
+                    <span className="flex items-center gap-1.5">
+                      {lbl.name}
+                      <span className={`text-[11px] font-bold ${isSelected ? "text-emerald-600" : "text-slate-400"}`}>
+                        ({count})
+                      </span>
                     </span>
-                  )}
+                  </div>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                    isSelected 
+                      ? "bg-emerald-500 text-white border-emerald-500 shadow-xs" 
+                      : "bg-slate-100 text-slate-600 border-slate-200"
+                  }`}>
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -1025,8 +1051,19 @@ export default function GmailDashboard() {
             {/* Conversation Threads Pane */}
             <div className="w-85 border-r border-slate-200 flex flex-col shrink-0 bg-white overflow-hidden">
               
-              {/* Search Bar Block */}
+              {/* Search Bar & Folder Title Block */}
               <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-3 shrink-0">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 capitalize">
+                    {LABELS.find(l => l.id === selectedLabel)?.name || selectedLabel}
+                    <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                      {folderCounts[selectedLabel] ?? filteredThreads.length}
+                    </span>
+                  </h2>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    {filteredThreads.length} listed
+                  </span>
+                </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <input
@@ -1039,89 +1076,126 @@ export default function GmailDashboard() {
                 </div>
               </div>
 
-              {/* Scrollable Conversation List */}
+              {/* Scrollable Chronologically Grouped Conversation List */}
               <div className="flex-1 overflow-y-auto no-scrollbar divide-y divide-slate-100">
-                {filteredThreads.map((thread) => {
-                  const isActive = selectedThread?.threadId === thread.threadId;
-                  const isUnreplied = thread.status === "UNREPLIED";
-                  const initials = getInitials(thread.sender);
-                  const avatarTheme = getAvatarColor(initials);
-                  
-                  return (
-                    <div
-                      key={thread.id}
-                      onClick={() => setSelectedThread(thread)}
-                      className={`p-4 flex gap-3.5 cursor-pointer transition-all duration-200 text-left relative group ${
-                        isActive 
-                          ? "bg-emerald-50/60 border-l-3 border-emerald-500" 
-                          : "hover:bg-slate-50 border-l-3 border-transparent"
-                      }`}
-                    >
-                      {/* Initials Avatar */}
-                      <div className={`h-10 w-10 rounded-2xl bg-gradient-to-tr ${avatarTheme} border flex items-center justify-center font-bold text-xs shrink-0 shadow-sm transition-transform duration-300 group-hover:scale-105`}>
-                        {initials}
+                {(() => {
+                  const now = new Date();
+                  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                  const yesterdayStart = todayStart - (24 * 60 * 60 * 1000);
+
+                  const groups: { label: string; threads: GmailThread[] }[] = [
+                    { label: "Today", threads: [] },
+                    { label: "Yesterday", threads: [] },
+                    { label: "Older Messages", threads: [] }
+                  ];
+
+                  filteredThreads.forEach(thread => {
+                    const time = new Date(thread.updatedAt).getTime();
+                    if (time >= todayStart) {
+                      groups[0].threads.push(thread);
+                    } else if (time >= yesterdayStart) {
+                      groups[1].threads.push(thread);
+                    } else {
+                      groups[2].threads.push(thread);
+                    }
+                  });
+
+                  return groups.filter(g => g.threads.length > 0).map(group => (
+                    <div key={group.label} className="flex flex-col">
+                      <div className="sticky top-0 bg-slate-100/90 backdrop-blur-md px-4 py-1.5 border-y border-slate-200 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider z-10">
+                        <span>{group.label}</span>
+                        <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[9px]">
+                          {group.threads.length}
+                        </span>
                       </div>
+                      {group.threads.map(thread => {
+                        const isActive = selectedThread?.threadId === thread.threadId;
+                        const isUnreplied = thread.status === "UNREPLIED";
+                        const initials = getInitials(thread.sender);
+                        const avatarTheme = getAvatarColor(initials);
 
-                      <div className="flex-1 min-w-0 flex flex-col gap-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs truncate max-w-[130px] ${isUnreplied ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
-                            {thread.sender.split("<")[0].trim().replace(/['"]/g, "") || "Unknown"}
-                          </span>
-                          <span className="text-[9px] text-slate-400 flex items-center gap-0.5 shrink-0">
-                            <Clock className="h-2.5 w-2.5" />
-                            {new Date(thread.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-                          </span>
-                        </div>
-                        <h4 className={`text-xs truncate ${isUnreplied ? "font-bold text-slate-800" : "font-medium text-slate-600"}`}>
-                          {thread.subject}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mt-0.5">
-                          {thread.snippet}
-                        </p>
+                        return (
+                          <div
+                            key={thread.id}
+                            onClick={() => setSelectedThread(thread)}
+                            className={`p-4 flex gap-3.5 cursor-pointer transition-all duration-200 text-left relative group ${
+                              isActive 
+                                ? "bg-emerald-50/60 border-l-3 border-emerald-500" 
+                                : "hover:bg-slate-50 border-l-3 border-transparent"
+                            }`}
+                          >
+                            {/* Initials Avatar */}
+                            <div className={`h-10 w-10 rounded-2xl bg-gradient-to-tr ${avatarTheme} border flex items-center justify-center font-bold text-xs shrink-0 shadow-sm transition-transform duration-300 group-hover:scale-105`}>
+                              {initials}
+                            </div>
 
-                        {/* Status Pills and Action Buttons */}
-                        <div className="flex items-center justify-between mt-1.5">
-                          {isUnreplied ? (
-                            <span className="text-[9px] font-extrabold tracking-wide uppercase bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-lg shadow-sm">
-                              Pending Action
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-extrabold tracking-wide uppercase bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
-                              <Check className="h-2.5 w-2.5" /> Replied
-                            </span>
-                          )}
+                            <div className="flex-1 min-w-0 flex flex-col gap-1">
+                              <div className="flex items-center justify-between">
+                                <span className={`text-xs truncate max-w-[130px] ${isUnreplied ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
+                                  {thread.sender.split("<")[0].trim().replace(/['"]/g, "") || "Unknown"}
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-bold flex items-center gap-1 shrink-0 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                                  <Clock className="h-2.5 w-2.5 text-slate-400" />
+                                  {(() => {
+                                    const d = new Date(thread.updatedAt);
+                                    if (isNaN(d.getTime())) return "";
+                                    return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} • ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                                  })()}
+                                </span>
+                              </div>
+                              <h4 className={`text-xs truncate ${isUnreplied ? "font-bold text-slate-800" : "font-medium text-slate-600"}`}>
+                                {thread.subject}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mt-0.5">
+                                {thread.snippet}
+                              </p>
 
-                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              title={thread.isStarred ? "Unstar" : "Star"}
-                              onClick={(e) => { e.stopPropagation(); handleToggleStar(thread.threadId, !!thread.isStarred); }}
-                              className={`p-1 rounded-lg transition ${thread.isStarred ? "text-amber-500 hover:text-amber-600" : "text-slate-400 hover:text-amber-500 hover:bg-slate-100"}`}
-                            >
-                              <Star className={`h-3.5 w-3.5 ${thread.isStarred ? "fill-amber-400" : ""}`} />
-                            </button>
-                            <button
-                              type="button"
-                              title={thread.isSpam ? "Unmark Spam" : "Mark as Spam"}
-                              onClick={(e) => { e.stopPropagation(); handleToggleSpam(thread.threadId, !!thread.isSpam); }}
-                              className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 transition"
-                            >
-                              <AlertCircle className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title="Delete"
-                              onClick={(e) => { e.stopPropagation(); handleDeleteThread(thread.threadId); }}
-                              className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-100 transition"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                              {/* Status Pills and Action Buttons */}
+                              <div className="flex items-center justify-between mt-1.5">
+                                {isUnreplied ? (
+                                  <span className="text-[9px] font-extrabold tracking-wide uppercase bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-lg shadow-sm">
+                                    Pending Action
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-extrabold tracking-wide uppercase bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
+                                    <Check className="h-2.5 w-2.5" /> Replied
+                                  </span>
+                                )}
+
+                                <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    title={thread.isStarred ? "Unstar" : "Star"}
+                                    onClick={(e) => { e.stopPropagation(); handleToggleStar(thread.threadId, !!thread.isStarred); }}
+                                    className={`p-1 rounded-lg transition ${thread.isStarred ? "text-amber-500 hover:text-amber-600" : "text-slate-400 hover:text-amber-500 hover:bg-slate-100"}`}
+                                  >
+                                    <Star className={`h-3.5 w-3.5 ${thread.isStarred ? "fill-amber-400" : ""}`} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title={thread.isSpam ? "Unmark Spam" : "Mark as Spam"}
+                                    onClick={(e) => { e.stopPropagation(); handleToggleSpam(thread.threadId, !!thread.isSpam); }}
+                                    className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 transition"
+                                  >
+                                    <AlertCircle className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Delete"
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteThread(thread.threadId); }}
+                                    className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-100 transition"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  ));
+                })()}
 
                 {filteredThreads.length === 0 && (
                   <div className="p-10 text-center text-slate-400 text-xs">
@@ -1211,7 +1285,11 @@ export default function GmailDashboard() {
                               </span>
                               <span>•</span>
                               <span>
-                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                {(() => {
+                                  const d = new Date(msg.createdAt);
+                                  if (isNaN(d.getTime())) return "";
+                                  return `${d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })} at ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                                })()}
                               </span>
                             </div>
                             

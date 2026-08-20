@@ -124,39 +124,53 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
   try {
     let token = await getGmailAccessToken(orgId);
 
-    let query = `in:${label.toLowerCase()}`;
-    if (label.toUpperCase() === "STARRED") {
+    let query = "";
+    const upperLabel = label.toUpperCase();
+    if (upperLabel === "STARRED") {
       query = "is:starred";
+    } else if (upperLabel === "SENT") {
+      query = "in:sent";
+    } else if (upperLabel === "SPAM") {
+      query = "in:spam";
+    } else if (upperLabel === "TRASH") {
+      query = "in:trash";
+    } else {
+      query = "in:inbox";
     }
 
-    let listRes;
-    try {
-      listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { 
-          maxResults: 50, 
-          q: query,
-          includeSpamTrash: true
-        }
-      });
-    } catch (err: any) {
-      if (err?.response?.status === 401) {
-        console.log(`[GMAIL SERVICE] 401 Unauthorized encountered. Forcing access token refresh...`);
-        token = await getGmailAccessToken(orgId, true);
-        listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
+    let threads: any[] = [];
+    let pageToken: string | undefined = undefined;
+    const maxPages = 3; // Sync 3 pages per folder pass to quickly cover all folders
+    let pageCount = 0;
+
+    do {
+      try {
+        const listRes: any = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
           headers: { Authorization: `Bearer ${token}` },
           params: { 
-            maxResults: 50, 
+            maxResults: 100, 
             q: query,
-            includeSpamTrash: true
+            includeSpamTrash: true,
+            pageToken: pageToken
           }
         });
-      } else {
-        throw err;
-      }
-    }
 
-    const threads = listRes.data.threads || [];
+        const fetched = listRes.data.threads || [];
+        threads.push(...fetched);
+        pageToken = listRes.data.nextPageToken;
+        pageCount++;
+      } catch (err: any) {
+        if (err?.response?.status === 401 && pageCount === 0) {
+          console.log(`[GMAIL SERVICE] 401 Unauthorized encountered. Refreshing token...`);
+          token = await getGmailAccessToken(orgId, true);
+          continue;
+        } else {
+          console.warn("[GMAIL SERVICE] Error fetching page of threads:", err.message);
+          break;
+        }
+      }
+    } while (pageToken && pageCount < maxPages);
+
     let syncedCount = 0;
 
     for (const t of threads) {
@@ -178,15 +192,27 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
       const sender = headers.find((h: any) => h.name.toLowerCase() === "from")?.value || "Unknown Sender";
       const snippet = threadData.snippet || firstMsg.snippet || "";
 
-      // Upsert thread locally
+      // Extract latest message internalDate (milliseconds timestamp from Gmail)
+      const lastMsg = gmailMessages[gmailMessages.length - 1] || firstMsg;
+      const threadTimestamp = lastMsg.internalDate ? new Date(Number(lastMsg.internalDate)) : new Date();
+
+      // Check if thread contains STARRED label in Gmail API
+      const isStarredMsg = gmailMessages.some((m: any) => m.labelIds && m.labelIds.includes("STARRED"));
+
+      // Check if thread already exists to preserve exact Gmail timestamp
+      const existingThread = await prisma.gmailThread.findUnique({
+        where: { threadId }
+      });
+
       const localThread = await prisma.gmailThread.upsert({
         where: { threadId },
         update: {
           subject,
           sender,
           snippet,
-          label,
-          updatedAt: new Date(),
+          label: label === "STARRED" ? undefined : label,
+          isStarred: isStarredMsg ? true : undefined,
+          updatedAt: existingThread ? existingThread.updatedAt : threadTimestamp,
         },
         create: {
           threadId,
@@ -194,14 +220,17 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           subject,
           sender,
           snippet,
-          label,
+          label: label === "STARRED" ? "INBOX" : label,
+          isStarred: isStarredMsg,
           status: "UNREPLIED",
+          updatedAt: threadTimestamp,
         }
       });
 
       // Save new messages in this thread
       for (const msg of gmailMessages) {
         const messageId = msg.id;
+        const msgTimestamp = msg.internalDate ? new Date(parseInt(msg.internalDate, 10)) : new Date();
 
         // Check if message is already stored
         const existingMsg = await prisma.gmailMessage.findUnique({
@@ -224,14 +253,15 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           const direction = isInbound ? "inbound" : "outbound";
 
           // Save the message
-          await prisma.gmailMessage.create({
+          const createdMsg = await prisma.gmailMessage.create({
             data: {
-              threadId,
+              threadId: localThread.id,
               messageId,
               direction,
               content: body,
               htmlContent: parsed.html || null,
               sender: msgFrom,
+              createdAt: msgTimestamp,
             }
           });
 
@@ -240,7 +270,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
             for (const att of parsed.attachments) {
               await prisma.gmailAttachment.create({
                 data: {
-                  messageId,
+                  messageId: createdMsg.id,
                   attachmentId: att.attachmentId,
                   filename: att.filename,
                   mimeType: att.mimeType,
@@ -273,9 +303,9 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
                   return tokens.some(token => lowerContent.includes(token) || lowerSubject.includes(token));
                 });
 
-                if (matchedRule) {
+                if (matchedRule && (matchedRule.replyText || matchedRule.replyTemplate)) {
                   // We have a match! We send the static automated reply set by the admin
-                  const replyText = matchedRule.replyText;
+                  const replyText = matchedRule.replyText || matchedRule.replyTemplate || "Thank you for contacting us.";
                   
                   await sendGmailReply(orgId, threadId, replyText);
                   
@@ -353,7 +383,7 @@ export async function generateGmailAiDraft(
     const res = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-20b",
         messages: [
           {
             role: "system",
@@ -443,10 +473,19 @@ export async function sendGmailReply(orgId: string, threadId: string, replyConte
       }
     );
 
+    // Find local thread UUID
+    const localThread = await prisma.gmailThread.findUnique({
+      where: { threadId }
+    });
+
+    if (!localThread) {
+      throw new Error(`Local thread record not found for threadId ${threadId}`);
+    }
+
     // Store the reply message locally
     await prisma.gmailMessage.create({
       data: {
-        threadId,
+        threadId: localThread.id,
         messageId: sendRes.data.id,
         direction: "outbound",
         content: replyContent,
