@@ -1595,59 +1595,59 @@ export default function GmbPerformanceDashboard() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-900 text-slate-100 font-sans">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50 text-slate-900 font-sans">
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-8 py-8 space-y-8">
           
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900 pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-6">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-lg">
-                <Store className="h-6 w-6 text-primary" />
+              <div className="h-12 w-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shadow-sm">
+                <Store className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-black tracking-tight sm:text-2xl">Google Business Profile</h1>
-                <p className="text-xs text-slate-400">
+                <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl text-slate-900">Google Business Profile</h1>
+                <p className="text-xs text-slate-500">
                   {data ? `${data.locationName} • GMB Complete Solution` : "Manage and track Google Business profile details"}
                 </p>
               </div>
             </div>
 
             {/* Horizontal Sub-tabs Navigation */}
-            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 shadow-inner gap-1">
+            <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs gap-1">
               <button
                 type="button"
                 onClick={() => setActiveSubTab("performance")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "performance" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "performance" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <TrendingUp className="h-3.5 w-3.5" /> Performance
+                <TrendingUp className="h-3.5 w-3.5 text-teal-600" /> Performance
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("profile")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "profile" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "profile" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <Settings className="h-3.5 w-3.5" /> Profile Details
+                <Settings className="h-3.5 w-3.5 text-teal-600" /> Profile Details
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("posts")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "posts" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "posts" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <Calendar className="h-3.5 w-3.5" /> Updates & Posts
+                <Calendar className="h-3.5 w-3.5 text-teal-600" /> Updates &amp; Posts
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("qa")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "qa" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "qa" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <HelpCircle className="h-3.5 w-3.5" /> Q&A Inbox
+                <HelpCircle className="h-3.5 w-3.5 text-teal-600" /> Q&amp;A Inbox
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("media")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "media" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "media" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <Camera className="h-3.5 w-3.5" /> Photos Gallery
+                <Camera className="h-3.5 w-3.5 text-teal-600" /> Photos Gallery
               </button>
             </div>
           </div>

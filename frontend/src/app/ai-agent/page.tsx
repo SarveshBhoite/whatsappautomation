@@ -403,29 +403,29 @@ export default function AiAgentStudioPage() {
   });
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-24 sm:pb-6 bg-slate-950 font-sans">
+    <div className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-24 sm:pb-6 bg-slate-50 text-slate-900 font-sans">
       {/* Header Banner & Sticky Navigation Tabs */}
-      <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
         <header className="p-4 sm:p-6 pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary animate-pulse" />
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">AI Agent Studio & Knowledge Engine</h1>
+              <Sparkles className="h-6 w-6 text-purple-600 animate-pulse" />
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">AI Agent Studio &amp; Knowledge Engine</h1>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Train your company AI Agent to chat like a real human representative, attach portfolio screenshots/PDFs, and generate sales leads.
             </p>
           </div>
 
           {/* Mode Switcher Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 flex items-center gap-3 shadow-lg">
-            <div className="flex items-center gap-1.5 bg-slate-950 rounded-xl p-1">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-1.5 flex items-center gap-3 shadow-xs">
+            <div className="flex items-center gap-1.5 bg-white rounded-xl p-1 border border-slate-200/60">
               <button
                 onClick={() => handleSaveConfig({ activeMode: "AI_AGENT" })}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   config.activeMode === "AI_AGENT"
-                    ? "bg-primary text-slate-950 shadow-md shadow-primary/20"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-purple-600 text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 <Bot className="h-4 w-4" />
@@ -434,10 +434,10 @@ export default function AiAgentStudioPage() {
 
               <button
                 onClick={() => handleSaveConfig({ activeMode: "STATIC_FLOW" })}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   config.activeMode === "STATIC_FLOW"
-                    ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 <Layers className="h-4 w-4" />
@@ -451,34 +451,34 @@ export default function AiAgentStudioPage() {
         <div className="px-4 sm:px-6 pt-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab("settings")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === "settings"
-                ? "border-primary text-primary bg-primary/10"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
             <Bot className="h-4 w-4" />
-            <span>Agent Persona & Settings</span>
+            <span>Agent Persona &amp; Settings</span>
           </button>
 
           <button
             onClick={() => setActiveTab("knowledge")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === "knowledge"
-                ? "border-primary text-primary bg-primary/10"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
             <BookOpen className="h-4 w-4" />
-            <span>Trained Knowledge & Media ({knowledgeItems.length})</span>
+            <span>Trained Knowledge &amp; Media ({knowledgeItems.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab("sandbox")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === "sandbox"
-                ? "border-primary text-primary bg-primary/10"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
             <Send className="h-4 w-4" />
@@ -487,10 +487,10 @@ export default function AiAgentStudioPage() {
 
           <button
             onClick={() => setActiveTab("leads")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === "leads"
-                ? "border-primary text-primary bg-primary/10"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
+                : "border-transparent text-slate-500 hover:text-slate-900"
             }`}
           >
             <UserCheck className="h-4 w-4" />

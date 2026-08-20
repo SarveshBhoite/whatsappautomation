@@ -19,6 +19,8 @@ import ComparisonMatrix from "@/components/home/ComparisonMatrix";
 import RoiCalculator from "@/components/home/RoiCalculator";
 import FaqAccordion from "@/components/home/FaqAccordion";
 import BottomCta from "@/components/home/BottomCta";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 /* ── Page-level SEO metadata ── */
 export const metadata: Metadata = {
@@ -125,19 +127,17 @@ export default function LandingPage() {
             </a>
           </nav>
 
-          {/* Action CTAs */}
+          {/* Action CTAs using Clean Shadcn Button components */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href="/login"
-              className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-700 hover:text-brand-blue hover:bg-slate-100/80 transition-all"
-            >
-              Sign In
+            <Link href="/login">
+              <Button variant="ghost" size="sm" className="font-bold text-slate-700">
+                Sign In
+              </Button>
             </Link>
-            <Link
-              href="/login"
-              className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-brand-blue hover:bg-brand-blue-deep text-white text-xs sm:text-sm font-bold transition-all shadow-md shadow-brand-blue/20"
-            >
-              Dashboard <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Link href="/login">
+              <Button variant="default" size="default" className="shadow-md shadow-brand-blue/20">
+                Dashboard <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </Button>
             </Link>
           </div>
         </div>
@@ -148,10 +148,10 @@ export default function LandingPage() {
 
         {/* ── 1. Hero Section ───────────────────────────────────────── */}
         <section className="w-full pt-10 sm:pt-16 pb-10 sm:pb-12 max-w-7xl mx-auto flex flex-col items-center text-center">
-          {/* Brand Shimmer Badge */}
-          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-white border border-slate-200/90 text-slate-800 text-[11px] sm:text-xs font-bold shadow-2xs mb-6 sm:mb-8 max-w-full truncate">
+          {/* Brand Badge */}
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1.5 rounded-full bg-white border border-slate-200/90 text-slate-800 text-[11px] sm:text-xs font-bold shadow-2xs mb-6 sm:mb-8 max-w-full truncate">
             <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
-            <span className="text-brand-blue font-extrabold shrink-0">NEW</span>
+            <Badge variant="brand" className="text-[10px] py-0 px-2 font-extrabold">NEW</Badge>
             <span className="text-slate-300">|</span>
             <span className="truncate">Meta WhatsApp API &amp; Google Ads Command Center</span>
           </div>
@@ -170,20 +170,18 @@ export default function LandingPage() {
             Automate personalized broadcasts, generate AI review responses, and qualify high-intent leads — all from a single, secure platform.
           </p>
 
-          {/* Action Button Row (Responsive Stacking on Mobile) */}
+          {/* Action Button Row (Shadcn Buttons) */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8 w-full sm:w-auto">
-            <Link
-              href="/login"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-brand-blue hover:bg-brand-blue-deep text-white font-black text-sm sm:text-base transition-all shadow-xl shadow-brand-blue/25"
-            >
-              Get Started Free <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+            <Link href="/login" className="w-full sm:w-auto">
+              <Button variant="default" size="lg" className="w-full sm:w-auto shadow-xl shadow-brand-blue/25">
+                Get Started Free <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
             </Link>
-            <a
-              href="#cockpit"
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-7 py-3.5 sm:py-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-bold text-sm sm:text-base transition-all shadow-2xs hover:bg-slate-50"
-            >
-              <Sparkles className="h-4 w-4 text-brand-blue" />
-              Explore Live Cockpit
+            <a href="#cockpit" className="w-full sm:w-auto">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                <Sparkles className="h-4 w-4 text-brand-blue" />
+                Explore Live Cockpit
+              </Button>
             </a>
           </div>
 
@@ -216,10 +214,10 @@ export default function LandingPage() {
         {/* ── 3. Omnichannel Workflow Pipeline (How It Works) ────────── */}
         <section id="workflow" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
           <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mb-3">
+            <Badge variant="success" className="mb-3 px-3 py-1 text-xs">
               <Zap className="h-3.5 w-3.5 text-emerald-600" />
               Complete 4-Stage Lifecycle
-            </div>
+            </Badge>
             <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
               How Jisnu CRM Automates Inbound Leads into 5-Star Reviews
             </h2>
@@ -233,10 +231,10 @@ export default function LandingPage() {
         {/* ── 4. Complete 12-Module Suite Showcase ────────────────────── */}
         <section id="modules" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
           <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold mb-3">
+            <Badge variant="brand" className="mb-3 px-3 py-1 text-xs">
               <Layers className="h-3.5 w-3.5 text-brand-blue" />
               Full Platform Suite
-            </div>
+            </Badge>
             <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
               All 12 Growth Modules in One Integrated Platform
             </h2>
@@ -250,10 +248,10 @@ export default function LandingPage() {
         {/* ── 5. Bento Features Architecture ────────────────────────── */}
         <section id="bento-features" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
           <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-brand-blue/10 border border-brand-blue/20 text-brand-blue-deep text-xs font-bold mb-3">
+            <Badge variant="brand" className="mb-3 px-3 py-1 text-xs">
               <Layers className="h-3.5 w-3.5 text-brand-blue" />
               Engineered for Scalable Performance
-            </div>
+            </Badge>
             <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
               High-Precision Capabilities for Growing Teams
             </h2>
@@ -277,10 +275,10 @@ export default function LandingPage() {
         {/* ── 8. Google Data Transparency & Security ─────────────────── */}
         <section id="security" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
           <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold mb-3">
+            <Badge variant="secondary" className="mb-3 px-3 py-1 text-xs">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
               Verified Compliance &amp; Privacy
-            </div>
+            </Badge>
             <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
               Transparent Google &amp; Meta OAuth Security
             </h2>
@@ -347,9 +345,7 @@ export default function LandingPage() {
         {/* ── 10. FAQ Accordion ─────────────────────────────────────── */}
         <section id="faq" className="w-full py-12 sm:py-20 max-w-7xl mx-auto">
           <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
-            <h2 className="text-xs font-black uppercase tracking-widest text-brand-blue mb-1.5">
-              Frequently Asked Questions
-            </h2>
+            <Badge variant="brand" className="text-xs mb-2">Frequently Asked Questions</Badge>
             <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               Got questions? We have answers.
             </p>

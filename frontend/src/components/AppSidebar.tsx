@@ -142,14 +142,14 @@ export default function AppSidebar() {
 
   return (
     <>
-      {/* ── Desktop sidebar ────────────────────────────────────────────── */}
-      <aside className="hidden sm:flex w-16 flex-col items-center py-4 border-r border-slate-800 bg-slate-950 justify-between shrink-0 z-40">
+      {/* ── Desktop sidebar (Clean Light Theme) ────────────────────────── */}
+      <aside className="hidden sm:flex w-16 flex-col items-center py-4 border-r border-slate-200/90 bg-white justify-between shrink-0 z-40 shadow-xs">
         
         {/* Logo & Nav items */}
         <div className="flex flex-col items-center w-full gap-2 overflow-y-auto no-scrollbar">
-          <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-800 mb-3 shrink-0 shadow-lg shadow-primary/10">
+          <Link href="/" className="h-9 w-9 rounded-xl overflow-hidden border border-slate-200 mb-3 shrink-0 shadow-2xs hover:border-brand-blue/60 transition-all">
             <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
-          </div>
+          </Link>
 
           {visibleNavItems.map((item) => {
             const active = isActive(item.match);
@@ -162,13 +162,13 @@ export default function AppSidebar() {
                     w-10 h-10 rounded-xl flex items-center justify-center relative
                     transition-all duration-200
                     ${active
-                      ? "bg-primary/15 text-primary shadow-sm shadow-primary/20"
-                      : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
+                      ? "bg-brand-blue/10 text-brand-blue shadow-xs font-bold"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}
                   `}
                 >
                   {/* Active left accent bar */}
                   {active && (
-                    <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
+                    <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-blue rounded-r-full" />
                   )}
                   {item.icon}
                 </Link>
@@ -176,8 +176,8 @@ export default function AppSidebar() {
                 {/* Tooltip on Hover */}
                 <span className="
                   absolute left-full ml-3 px-2.5 py-1.5
-                  bg-slate-900 border border-slate-700/60
-                  text-xs text-slate-200 font-medium rounded-lg
+                  bg-slate-900 border border-slate-800
+                  text-xs text-white font-bold rounded-lg
                   whitespace-nowrap shadow-xl
                   scale-0 opacity-0 origin-left
                   group-hover:scale-100 group-hover:opacity-100
@@ -191,7 +191,7 @@ export default function AppSidebar() {
         </div>
 
         {/* Bottom Actions: Super Admin, Settings, Logout */}
-        <div className="flex flex-col gap-2 shrink-0 pt-2 border-t border-slate-800/60 w-full items-center">
+        <div className="flex flex-col gap-2 shrink-0 pt-2 border-t border-slate-200/80 w-full items-center">
           {userRole === "super_admin" && (
             <div className="relative group shrink-0">
               <Link
@@ -200,19 +200,19 @@ export default function AppSidebar() {
                   w-10 h-10 rounded-xl flex items-center justify-center relative
                   transition-all duration-200
                   ${isActive("/admin")
-                    ? "bg-amber-500/15 text-amber-400"
-                    : "text-amber-500/80 hover:text-amber-400 hover:bg-slate-800/60"}
+                    ? "bg-amber-50 text-amber-700 font-bold"
+                    : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"}
                 `}
               >
                 {isActive("/admin") && (
-                  <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-amber-400 rounded-r-full" />
+                  <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-amber-500 rounded-r-full" />
                 )}
                 <Shield className="h-5 w-5" />
               </Link>
               <span className="
                 absolute left-full ml-3 px-2.5 py-1.5
-                bg-slate-900 border border-slate-700/60
-                text-xs text-amber-300 font-medium rounded-lg
+                bg-slate-900 border border-slate-800
+                text-xs text-amber-300 font-bold rounded-lg
                 whitespace-nowrap shadow-xl
                 scale-0 opacity-0 origin-left
                 group-hover:scale-100 group-hover:opacity-100
@@ -230,19 +230,19 @@ export default function AppSidebar() {
                 w-10 h-10 rounded-xl flex items-center justify-center relative
                 transition-all duration-200
                 ${isActive("/settings")
-                  ? "bg-primary/15 text-primary"
-                  : "text-slate-500 hover:text-slate-200 hover:bg-slate-800/60"}
+                  ? "bg-brand-blue/10 text-brand-blue font-bold"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}
               `}
             >
               {isActive("/settings") && (
-                <span className="absolute -left-4 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
+                <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-blue rounded-r-full" />
               )}
               <Settings className="h-5 w-5" />
             </Link>
             <span className="
               absolute left-full ml-3 px-2.5 py-1.5
-              bg-slate-900 border border-slate-700/60
-              text-xs text-slate-200 font-medium rounded-lg
+              bg-slate-900 border border-slate-800
+              text-xs text-white font-bold rounded-lg
               whitespace-nowrap shadow-xl
               scale-0 opacity-0 origin-left
               group-hover:scale-100 group-hover:opacity-100
@@ -255,14 +255,14 @@ export default function AppSidebar() {
           <div className="relative group shrink-0">
             <button
               onClick={handleLogout}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200 cursor-pointer"
             >
               <LogOut className="h-5 w-5" />
             </button>
             <span className="
               absolute left-full ml-3 px-2.5 py-1.5
-              bg-slate-900 border border-slate-700/60
-              text-xs text-red-400 font-medium rounded-lg
+              bg-slate-900 border border-slate-800
+              text-xs text-red-400 font-bold rounded-lg
               whitespace-nowrap shadow-xl
               scale-0 opacity-0 origin-left
               group-hover:scale-100 group-hover:opacity-100
@@ -274,8 +274,8 @@ export default function AppSidebar() {
         </div>
       </aside>
 
-      {/* ── Mobile bottom bar ───────────────────────────────────────────── */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2 py-1.5 gap-1.5 shadow-2xl safe-bottom">
+      {/* ── Mobile bottom bar (Clean Light Theme) ───────────────────────── */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2 py-1.5 gap-1.5 shadow-2xl safe-bottom">
         {visibleNavItems.map(item => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -285,21 +285,21 @@ export default function AppSidebar() {
               className={`
                 flex flex-col items-center justify-center gap-1 py-1.5 px-3 shrink-0 rounded-xl transition-all duration-200 min-w-[68px]
                 ${active
-                  ? "bg-primary/20 text-primary font-bold border border-primary/30 shadow-sm shadow-primary/20"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"}
+                  ? "bg-brand-blue/10 text-brand-blue font-bold border border-brand-blue/20 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}
               `}
             >
               {item.icon}
-              <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">{item.label}</span>
+              <span className="text-[10px] font-semibold tracking-tight whitespace-nowrap">{item.label}</span>
             </Link>
           );
         })}
         <button
           onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 shrink-0 rounded-xl text-red-400 hover:bg-red-500/10 min-w-[68px]"
+          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 shrink-0 rounded-xl text-red-500 hover:bg-red-50 min-w-[68px] cursor-pointer"
         >
           <LogOut className="h-5 w-5" />
-          <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">Logout</span>
+          <span className="text-[10px] font-semibold tracking-tight whitespace-nowrap">Logout</span>
         </button>
       </nav>
     </>

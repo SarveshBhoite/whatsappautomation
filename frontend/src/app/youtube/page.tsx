@@ -1335,70 +1335,70 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* 2. MAIN CONTENT BODY */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         {/* Top Sub-Nav Navigation Bar */}
-        <div className="h-12 border-b border-slate-800 bg-slate-950/60 px-4 sm:px-6 flex items-center justify-between z-20 shrink-0 gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
+        <div className="h-12 border-b border-slate-200 bg-white px-4 sm:px-6 flex items-center justify-between z-20 shrink-0 gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden shadow-2xs">
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab("analytics")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "analytics"
-                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <BarChart2 className="h-3.5 w-3.5 text-red-400" /> Channel Analytics
+              <BarChart2 className="h-3.5 w-3.5 text-red-600" /> Channel Analytics
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("chats_youtube")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "chats_youtube"
-                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <MessageSquare className="h-3.5 w-3.5 text-red-400" /> Comments Inbox
+              <MessageSquare className="h-3.5 w-3.5 text-red-600" /> Comments Inbox
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("videos_shorts")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "videos_shorts"
-                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <Tv className="h-3.5 w-3.5 text-red-400" /> Shorts vs Videos
+              <Tv className="h-3.5 w-3.5 text-red-600" /> Shorts vs Videos
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("comparative")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "comparative"
-                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <TrendingUp className="h-3.5 w-3.5 text-red-400" /> Comparative MoM
+              <TrendingUp className="h-3.5 w-3.5 text-red-600" /> Comparative MoM
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("demographics")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "demographics"
-                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <BarChart2 className="h-3.5 w-3.5 text-red-400" /> Demographics & Traffic
+              <BarChart2 className="h-3.5 w-3.5 text-red-600" /> Demographics &amp; Traffic
             </button>
           </div>
 
@@ -1406,13 +1406,13 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setActiveTab("settings")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === "settings"
-                  ? "bg-red-600 text-white shadow-md shadow-red-600/20 font-bold"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
-              <Settings className="h-3.5 w-3.5 text-red-400" /> Setup
+              <Settings className="h-3.5 w-3.5 text-red-600" /> Setup
             </button>
           </div>
         </div>

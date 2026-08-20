@@ -232,32 +232,32 @@ export default function AdminPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 space-y-8 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-8 space-y-8 font-sans">
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-emerald-950 border border-emerald-800 text-emerald-200 rounded-2xl shadow-2xl animate-fadeIn">
-          <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-          <span className="text-sm font-medium">{toastMessage}</span>
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl shadow-xl animate-fadeIn font-bold text-xs">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+          <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Top Navigation Bar */}
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800/80 pb-6">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-tr from-amber-500/20 to-primary/20 border border-amber-500/30 rounded-2xl text-amber-400 shadow-lg shadow-amber-500/10">
+            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-600 shadow-sm">
               <Shield className="h-6 w-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-white tracking-tight">Super Admin Portal</h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">Super Admin Portal</h1>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-extrabold font-mono">
                   MASTER CONSOLE
                 </span>
               </div>
-              <p className="text-sm text-slate-400 mt-0.5">
-                Manage client organizations, configure allowed features & provision access
+              <p className="text-sm text-slate-500 mt-0.5">
+                Manage client organizations, configure allowed features &amp; provision access
               </p>
             </div>
           </div>
@@ -266,14 +266,14 @@ export default function AdminPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/whatsapp")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" /> Go to Workspace
           </button>
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl shadow-lg shadow-primary/20 transition-all"
+            className="flex items-center gap-2 px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-white text-xs font-bold rounded-xl shadow-md shadow-sky-500/20 transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" /> Onboard New Client
           </button>
@@ -284,24 +284,24 @@ export default function AdminPage() {
         
         {/* Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-xs">
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Client Organizations</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{organizations.length}</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Client Organizations</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{organizations.length}</h3>
             </div>
-            <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-primary">
+            <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-brand-blue shadow-2xs">
               <Building2 className="h-5 w-5" />
             </div>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-xs">
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Deployments</p>
-              <h3 className="text-2xl font-bold text-emerald-400 mt-1">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Deployments</p>
+              <h3 className="text-2xl font-black text-emerald-700 mt-1">
                 {organizations.filter(o => o.status === "ACTIVE").length}
               </h3>
             </div>
-            <div className="p-3 bg-emerald-950 border border-emerald-800 rounded-xl text-emerald-400">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 shadow-2xs">
               <CheckCircle2 className="h-5 w-5" />
             </div>
           </div>

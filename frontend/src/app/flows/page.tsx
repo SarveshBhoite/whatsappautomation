@@ -1749,9 +1749,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* 2. MAIN CONTENT BODY */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {

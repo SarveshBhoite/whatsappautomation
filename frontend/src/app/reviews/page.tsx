@@ -27,186 +27,90 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { io } from "socket.io-client";
-
-// Native SVG Instagram & WhatsApp icons matching main page
-const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    {...props}
-  >
-    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-  </svg>
-);
-
-const WhatsApp = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className={className}
-    {...props}
-  >
-    <path d="M12.012 2c-5.506 0-9.988 4.482-9.988 9.988 0 1.76.46 3.473 1.332 4.977l-1.417 5.176 5.3-.1389a9.92 9.92 0 0 0 4.773 1.218h.004c5.504 0 9.988-4.484 9.988-9.99A9.957 9.957 0 0 0 12.012 2zm5.727 14.17c-.25.7-1.442 1.272-1.992 1.353-.48.072-.942.348-3.048-.52-2.532-1.045-4.14-3.626-4.266-3.794-.124-.168-.948-1.258-.948-2.398 0-1.14.595-1.704.82-1.93.226-.226.495-.282.66-.282.164 0 .328.003.472.01.148.007.348-.056.545.422.2.488.683 1.662.743 1.78.06.12.098.26.018.42-.08.16-.118.26-.237.4-.118.14-.253.31-.36.42-.12.12-.244.25-.104.49.14.24.62 1.022 1.33 1.652.915.816 1.685 1.07 1.925 1.19.24.12.378.1.517-.06.14-.16.596-.694.755-.93.16-.236.32-.2.538-.12.217.08 1.378.65 1.616.77.238.12.396.18.455.28.06.1.06.58-.19 1.28z"/>
-  </svg>
-);
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const FRONTEND_URL = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
-const DEFAULT_ORG_ID = "demo-org-123";
-
-interface GoogleConfig {
-  locationName: string;
-  googlePlaceId: string;
-  googleReviewUrl: string;
-  googleLocationId: string;
-  googleClientId: string;
-  googleClientSecret: string;
-  googleRefreshToken: string;
-  autoReplyEnabled: boolean;
-  autoReplyMinRating: number;
-  autoReplyTemplate: string;
-}
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface Review {
   id: string;
+  source: "GOOGLE" | "FUNNEL";
   customerName: string;
+  customerPhone?: string;
   rating: number;
-  comment: string;
-  status: "PENDING" | "APPROVED" | "DECLINED";
-  replyText: string | null;
-  replyStatus: "UNREPLIED" | "REPLIED" | "ERROR";
-  source: "FUNNEL" | "GOOGLE";
+  comment?: string;
+  status: "APPROVED" | "PENDING" | "DECLINED";
+  replyText?: string;
+  replyStatus?: "PENDING" | "REPLIED" | "ERROR";
   createdAt: string;
 }
 
-export default function ReviewsDashboard() {
-  const [config, setConfig] = useState<GoogleConfig>({
-    locationName: "",
-    googlePlaceId: "",
-    googleReviewUrl: "",
-    googleLocationId: "",
-    googleClientId: "",
-    googleClientSecret: "",
-    googleRefreshToken: "",
-    autoReplyEnabled: false,
-    autoReplyMinRating: 4,
-    autoReplyTemplate: "",
+interface GmbConfig {
+  orgId: string;
+  placeId: string;
+  locationName: string;
+  googleRating: number;
+  googleReviewCount: number;
+  minReviewRating: number;
+}
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const DEFAULT_ORG_ID = "demo-org-123";
+
+export default function ReviewsPage() {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [config, setConfig] = useState<GmbConfig>({
+    orgId: DEFAULT_ORG_ID,
+    placeId: "ChIJW9h8b3T1wjsR_P_0y_x48tM",
+    locationName: "Jisnu Digital Solutions Pvt.Ltd",
+    googleRating: 4.8,
+    googleReviewCount: 142,
+    minReviewRating: 3,
   });
 
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [activeFilter, setActiveFilter] = useState<"ALL" | "GOOD" | "BAD">("ALL");
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
-  const [oauthStatus, setOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [autoReplyingAll, setAutoReplyingAll] = useState(false);
   const [replyTextMap, setReplyTextMap] = useState<{ [reviewId: string]: string }>({});
   const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null);
-  
-  const [publicFunnelUrl, setPublicFunnelUrl] = useState("");
-  const [qrCodeImageUrl, setQrCodeImageUrl] = useState("");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
 
-  const [syncing, setSyncing] = useState(false);
-  const [autoReplyingAll, setAutoReplyingAll] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const publicFunnelUrl = `${FRONTEND_URL}/review/${DEFAULT_ORG_ID}`;
+  const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicFunnelUrl)}`;
 
-  const handleSyncReviews = async () => {
-    setSyncing(true);
-    setSyncMessage(null);
+  const fetchConfig = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/sync?orgId=${DEFAULT_ORG_ID}`);
-      const data = await res.json();
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
       if (res.ok) {
-        setSyncMessage({ text: data.message || "Google reviews synced successfully!", isError: false });
-        if (data.reviews) {
-          setReviews(data.reviews);
-        } else {
-          fetchData();
-        }
-      } else {
-        setSyncMessage({ text: data.error || "Failed to sync Google reviews.", isError: true });
-      }
-    } catch (err: any) {
-      setSyncMessage({ text: err.message || "Failed to connect to backend server.", isError: true });
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setSyncMessage(null), 5000);
-    }
-  };
-
-  const handleAutoReplyAll = async () => {
-    setAutoReplyingAll(true);
-    setSyncMessage(null);
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/auto-reply-all`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: DEFAULT_ORG_ID })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSyncMessage({ text: data.message || "Generated AI sentiment responses for all unreplied reviews!", isError: false });
-        if (data.reviews) {
-          setReviews(data.reviews);
-        } else {
-          fetchData();
-        }
-      } else {
-        setSyncMessage({ text: data.error || "Failed to generate AI sentiment replies.", isError: true });
-      }
-    } catch (err: any) {
-      setSyncMessage({ text: err.message || "Failed to connect to backend server.", isError: true });
-    } finally {
-      setAutoReplyingAll(false);
-      setTimeout(() => setSyncMessage(null), 5000);
-    }
-  };
-
-  // Fetch initial config and reviews
-  const fetchData = async () => {
-    try {
-      // 1. Fetch Config
-      const configRes = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
-      if (configRes.ok) {
-        const configData = await configRes.json();
-        setConfig(configData);
-      }
-
-      // 2. Fetch Reviews
-      const reviewsRes = await fetch(`${BACKEND_URL}/api/gmb/reviews?orgId=${DEFAULT_ORG_ID}`);
-      if (reviewsRes.ok) {
-        const reviewsData = await reviewsRes.json();
-        setReviews(reviewsData);
+        const data = await res.json();
+        setConfig(data);
       }
     } catch (err) {
-      console.error("Failed to load reviews data:", err);
+      console.error("Failed to fetch GMB config:", err);
+    }
+  };
+
+  const fetchReviews = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews?orgId=${DEFAULT_ORG_ID}`);
+      if (res.ok) {
+        const data = await res.json();
+        setReviews(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch reviews:", err);
     }
   };
 
   useEffect(() => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
-    const url = `${origin}/reviews/submit?org=${DEFAULT_ORG_ID}`;
-    setPublicFunnelUrl(url);
-    setQrCodeImageUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`);
+    fetchConfig();
+    fetchReviews();
 
-    fetchData();
-
-    // Setup WebSockets for real-time review notifications
     const socket = io(BACKEND_URL);
     socket.emit("join-org", DEFAULT_ORG_ID);
 
-    socket.on("new-review", (newReview: Review) => {
-      setReviews((prev) => {
-        // Prevent duplicates
-        if (prev.some((r) => r.id === newReview.id)) return prev;
-        return [newReview, ...prev];
-      });
+    socket.on("review-created", (newReview: Review) => {
+      setReviews((prev) => [newReview, ...prev.filter((r) => r.id !== newReview.id)]);
     });
 
     socket.on("review-updated", (updatedReview: Review) => {
@@ -218,52 +122,61 @@ export default function ReviewsDashboard() {
     };
   }, []);
 
-  // Save Settings Config
-  const saveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveStatus("saving");
-
+  const handleSyncReviews = async () => {
+    setSyncing(true);
+    setSyncMessage(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config`, {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/sync-reviews`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: DEFAULT_ORG_ID, ...config }),
+        body: JSON.stringify({ orgId: DEFAULT_ORG_ID }),
       });
-
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
-        setSaveStatus("success");
-        setTimeout(() => setSaveStatus("idle"), 2500);
+        setSyncMessage({
+          text: `Success! Synced ${data.importedCount || 0} reviews. Total live reviews: ${data.totalReviews || 0}.`,
+        });
+        await fetchReviews();
+        await fetchConfig();
       } else {
-        setSaveStatus("error");
+        const errData = await res.json();
+        setSyncMessage({
+          text: errData.error || "Failed to sync reviews from Google Business Profile.",
+          isError: true,
+        });
       }
     } catch (err) {
-      setSaveStatus("error");
+      setSyncMessage({
+        text: "Network error attempting to contact review sync engine.",
+        isError: true,
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
-
-
-  // Moderate Review (Approve or Decline)
-  const handleReviewAction = async (reviewId: string, action: "approve" | "decline") => {
+  const handleAutoReplyAll = async () => {
+    setAutoReplyingAll(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/action`, {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/auto-reply-all`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewId, action, orgId: DEFAULT_ORG_ID }),
+        body: JSON.stringify({ orgId: DEFAULT_ORG_ID }),
       });
-
       if (res.ok) {
-        const updated = await res.json();
-        setReviews((prev) => prev.map((r) => (r.id === reviewId ? updated : r)));
+        const data = await res.json();
+        setSyncMessage({
+          text: `AI Auto-Reply complete! Processed ${data.processedCount || 0} customer reviews with automated sentiment responses.`,
+        });
+        await fetchReviews();
       }
     } catch (err) {
-      console.error("Moderation action failed:", err);
+      console.error("Auto reply all error:", err);
+    } finally {
+      setAutoReplyingAll(false);
     }
   };
 
-  // Submit manual reply
   const handleReplySubmit = async (reviewId: string) => {
     const text = replyTextMap[reviewId];
     if (!text || !text.trim()) return;
@@ -288,7 +201,6 @@ export default function ReviewsDashboard() {
     }
   };
 
-  // Download QR Code Image Helper
   const downloadQrCode = async () => {
     try {
       const response = await fetch(qrCodeImageUrl);
@@ -302,14 +214,10 @@ export default function ReviewsDashboard() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      // Fallback
       window.open(qrCodeImageUrl, "_blank");
     }
   };
 
-
-
-  // Filter reviews locally
   const filteredReviews = reviews.filter((r) => {
     if (activeFilter === "ALL") return true;
     if (activeFilter === "GOOD") return r.rating >= 3;
@@ -318,16 +226,12 @@ export default function ReviewsDashboard() {
   });
 
   const pendingCount = reviews.filter((r) => r.status === "PENDING").length;
-  const approvedCount = reviews.filter((r) => r.status === "APPROVED").length;
-  
-  // Calculate average score and total count using only live Google reviews
   const liveReviews = reviews.filter((r) => r.source === "GOOGLE");
   const liveAverageRating = liveReviews.length 
     ? (liveReviews.reduce((acc, r) => acc + r.rating, 0) / liveReviews.length).toFixed(1) 
     : "0.0";
   const liveTotalReviews = liveReviews.length;
 
-  // Public approval rate is a metric of the feedback funnel performance (approved funnel feedbacks / total funnel feedbacks)
   const funnelReviews = reviews.filter((r) => r.source === "FUNNEL");
   const approvedFunnel = funnelReviews.filter((r) => r.status === "APPROVED").length;
   const approvalRate = funnelReviews.length 
@@ -335,49 +239,54 @@ export default function ReviewsDashboard() {
     : "100";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
-      
-
-      {/* 2. REVIEWS MAIN WORKSPACE */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         
         {/* Header */}
-        <header className="h-16 border-b border-slate-800 bg-slate-950/30 px-6 flex items-center justify-between shrink-0 z-10">
+        <header className="h-16 border-b border-slate-200/90 bg-white px-6 flex items-center justify-between shrink-0 z-10 shadow-xs">
           <div className="flex items-center gap-2.5">
-            <Star className="h-5 w-5 text-primary" />
-            <h1 className="text-base font-bold text-slate-100">GMB Review Automation & Protection</h1>
+            <div className="h-8 w-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-2xs">
+              <Star className="h-4 w-4 fill-current" />
+            </div>
+            <div>
+              <h1 className="text-base font-extrabold text-slate-900">Google Reviews &amp; Reputation Engine</h1>
+              <p className="text-xs text-slate-500">Autonomous sentiment response &amp; feedback funnel</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleAutoReplyAll}
               disabled={autoReplyingAll}
-              className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+              className="border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-50"
             >
-              <Bot className={`h-4 w-4 ${autoReplyingAll ? "animate-spin" : ""}`} />
+              <Bot className={`h-4 w-4 mr-1 ${autoReplyingAll ? "animate-spin" : ""}`} />
               {autoReplyingAll ? "Auto-Replying..." : "AI Sentiment Reply All"}
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="default"
+              size="sm"
               onClick={handleSyncReviews}
               disabled={syncing}
-              className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md cursor-pointer animate-fadeIn"
             >
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Syncing..." : "Sync Live Reviews"}
-            </button>
+            </Button>
           </div>
         </header>
 
         {/* Dashboard Panels Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 w-full max-w-full">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-7xl mx-auto">
 
           {/* Sync Status Banner */}
           {syncMessage && (
-            <div className={`p-4 rounded-xl border flex items-center gap-2 text-xs font-semibold animate-fadeIn ${
+            <div className={`p-4 rounded-2xl border flex items-center gap-2 text-xs font-bold animate-fadeIn shadow-2xs ${
               syncMessage.isError 
-                ? "bg-red-500/10 border-red-500/20 text-red-400" 
-                : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                ? "bg-red-50 border-red-200 text-red-800" 
+                : "bg-emerald-50 border-emerald-200 text-emerald-800"
             }`}>
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span>{syncMessage.text}</span>
@@ -386,44 +295,44 @@ export default function ReviewsDashboard() {
 
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
-              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Average Rating</span>
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col">
+              <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Average Rating</span>
               <div className="flex items-baseline gap-1.5 mt-1.5">
-                <span className="text-3xl font-extrabold text-slate-100">{liveAverageRating}</span>
+                <span className="text-3xl font-black text-slate-900">{liveAverageRating}</span>
                 <div className="flex text-amber-500">
-                  <Star className="h-3.5 w-3.5 fill-current" />
+                  <Star className="h-4 w-4 fill-current" />
                 </div>
               </div>
-              <span className="text-[9px] text-slate-400 mt-1">Live Google Business rating</span>
+              <span className="text-[10px] text-slate-500 mt-1">Live Google Business rating</span>
             </div>
 
-            <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
-              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Total Reviews</span>
-              <span className="text-3xl font-extrabold text-slate-100 mt-1.5">{liveTotalReviews}</span>
-              <span className="text-[9px] text-slate-400 mt-1">Live reviews on business profile</span>
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col">
+              <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Total Reviews</span>
+              <span className="text-3xl font-black text-slate-900 mt-1.5">{liveTotalReviews}</span>
+              <span className="text-[10px] text-slate-500 mt-1">Live reviews on business profile</span>
             </div>
 
-            <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
-              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Pending Feedback</span>
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col">
+              <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Pending Feedback</span>
               <div className="flex items-center justify-between mt-1.5">
-                <span className={`text-3xl font-extrabold ${pendingCount > 0 ? "text-amber-500" : "text-slate-100"}`}>
+                <span className={`text-3xl font-black ${pendingCount > 0 ? "text-amber-600" : "text-slate-900"}`}>
                   {pendingCount}
                 </span>
                 {pendingCount > 0 && (
-                  <span className="text-[9px] uppercase bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded font-bold">
+                  <Badge variant="warning" className="text-[9px]">
                     Filter Locked
-                  </span>
+                  </Badge>
                 )}
               </div>
-              <span className="text-[9px] text-slate-400 mt-1">Internal negative feedback pending</span>
+              <span className="text-[10px] text-slate-500 mt-1">Internal negative feedback pending</span>
             </div>
 
-            <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-4.5 shadow-xl flex flex-col">
-              <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Funnel Promotion Rate</span>
-              <span className="text-3xl font-extrabold text-slate-100 mt-1.5">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col">
+              <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Funnel Promotion Rate</span>
+              <span className="text-3xl font-black text-slate-900 mt-1.5">
                 {approvalRate}%
               </span>
-              <span className="text-[9px] text-slate-400 mt-1">Ratio of funnel submissions approved</span>
+              <span className="text-[10px] text-slate-500 mt-1">Ratio of funnel submissions approved</span>
             </div>
           </div>
 
@@ -431,41 +340,41 @@ export default function ReviewsDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
             
             {/* Setup Form Replaced with Active AI Sentiment Status Card */}
-            <div className="md:col-span-2 bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <Bot className="h-4.5 w-4.5 text-primary" /> Automated AI Sentiment Analysis Auto-Reply
+            <div className="md:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Bot className="h-4.5 w-4.5 text-amber-600" /> Automated AI Sentiment Analysis Auto-Reply
                 </h3>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                <Badge variant="success">
                   Active ✓
-                </span>
+                </Badge>
               </div>
 
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-600 leading-relaxed">
                 Automated sentiment analysis auto-reply is active for all Google and Funnel reviews. Our AI engine automatically analyzes the star rating and sentiment context of incoming customer reviews to generate and post appropriate, personalized responses directly to Google Business Profile.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                <div className="bg-slate-900/60 border border-slate-850 p-3 rounded-xl flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">4-5 Star Reviews</span>
-                  <span className="text-xs text-slate-300">Generates appreciative, warm customer thank-you responses.</span>
+                <div className="bg-emerald-50/60 border border-emerald-200 p-3.5 rounded-2xl flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">4-5 Star Reviews</span>
+                  <span className="text-xs text-emerald-950 font-medium">Generates appreciative, warm customer thank-you responses.</span>
                 </div>
-                <div className="bg-slate-900/60 border border-slate-850 p-3 rounded-xl flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">3 Star Reviews</span>
-                  <span className="text-xs text-slate-300">Generates polite thanks and commitment to continuous service improvement.</span>
+                <div className="bg-amber-50/60 border border-amber-200 p-3.5 rounded-2xl flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">3 Star Reviews</span>
+                  <span className="text-xs text-amber-950 font-medium">Generates polite thanks and commitment to continuous service improvement.</span>
                 </div>
-                <div className="bg-slate-900/60 border border-slate-850 p-3 rounded-xl flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">1-2 Star Reviews</span>
-                  <span className="text-xs text-slate-300">Generates empathetic apologies with management assistance contact info.</span>
+                <div className="bg-red-50/60 border border-red-200 p-3.5 rounded-2xl flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-red-800 uppercase tracking-wider">1-2 Star Reviews</span>
+                  <span className="text-xs text-red-950 font-medium">Generates empathetic apologies with management assistance contact info.</span>
                 </div>
               </div>
             </div>
 
             {/* QR Card */}
-            <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-between text-center space-y-6 shadow-xl h-full">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-between text-center space-y-5 shadow-sm h-full">
               <div className="space-y-1">
-                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 justify-center">
-                  <Database className="h-4.5 w-4.5 text-primary" /> Review Funnel QR Code
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 justify-center">
+                  <Database className="h-4.5 w-4.5 text-amber-600" /> Review Funnel QR Code
                 </h3>
                 <p className="text-[11px] text-slate-500 leading-normal max-w-xs mx-auto">
                   Scan this QR code or click download to print it. Display it on your properties to capture positive reviews directly onto maps while buffering negative reviews.
@@ -473,7 +382,7 @@ export default function ReviewsDashboard() {
               </div>
 
               {/* QR Image Box */}
-              <div className="bg-white p-4 rounded-2xl shadow-inner border border-slate-200 flex items-center justify-center h-48 w-48 shrink-0 relative group">
+              <div className="bg-slate-50 p-4 rounded-2xl shadow-inner border border-slate-200 flex items-center justify-center h-44 w-44 shrink-0 relative group">
                 {qrCodeImageUrl ? (
                   <img 
                     src={qrCodeImageUrl} 
@@ -481,23 +390,25 @@ export default function ReviewsDashboard() {
                     className="h-full w-full animate-fadeIn" 
                   />
                 ) : (
-                  <div className="h-full w-full bg-slate-100 animate-pulse rounded-lg" />
+                  <div className="h-full w-full bg-slate-200 animate-pulse rounded-lg" />
                 )}
               </div>
 
               <div className="w-full space-y-2">
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={downloadQrCode}
-                  className="w-full bg-slate-850 hover:bg-slate-800 border border-slate-800 text-xs font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer text-slate-200"
+                  className="w-full border-slate-200 text-slate-800"
                 >
-                  <Download className="h-4 w-4 text-primary" /> Download Print Quality QR Code
-                </button>
+                  <Download className="h-4 w-4 mr-1 text-amber-600" /> Download Print Quality QR
+                </Button>
                 
                 <a
                   href={publicFunnelUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full text-slate-400 hover:text-primary text-[10px] flex items-center justify-center gap-1 transition-all underline"
+                  className="w-full text-slate-500 hover:text-amber-700 text-[10px] flex items-center justify-center gap-1 transition-all underline font-semibold"
                 >
                   Open Funnel Review Form <ExternalLink className="h-3 w-3" />
                 </a>
@@ -507,21 +418,21 @@ export default function ReviewsDashboard() {
 
           {/* Reviews Moderation List Section */}
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <FileText className="h-4.5 w-4.5 text-primary" /> Customer Feedbacks Queue
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="h-4.5 w-4.5 text-amber-600" /> Customer Feedbacks Queue
               </h3>
 
               {/* local search and tabs */}
-              <div className="flex border border-slate-800 bg-slate-950/60 p-0.5 rounded-xl shrink-0">
+              <div className="flex border border-slate-200 bg-white p-1 rounded-2xl shrink-0 shadow-2xs">
                 {(["ALL", "GOOD", "BAD"] as const).map((filter) => (
                   <button
                     key={filter}
                     onClick={() => setActiveFilter(filter)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                       activeFilter === filter 
-                        ? "bg-primary text-slate-950 font-bold" 
-                        : "text-slate-400 hover:text-slate-200"
+                        ? "bg-amber-500 text-slate-950 shadow-xs" 
+                        : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     {filter === "ALL" && "All Reviews"}
@@ -534,30 +445,27 @@ export default function ReviewsDashboard() {
 
             {/* Grid of Reviews */}
             {filteredReviews.length === 0 ? (
-              <div className="bg-slate-950/10 border border-slate-800 rounded-2xl p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                <Star className="h-8 w-8 text-slate-700 stroke-1" />
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400 flex flex-col items-center gap-2 shadow-xs">
+                <Star className="h-8 w-8 text-slate-300 stroke-1" />
                 <p className="text-xs">No reviews found under the selected tab filter.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredReviews.map((review) => {
                   const hasComment = review.comment && review.comment.trim();
-                  const isPending = review.status === "PENDING";
-                  const isApproved = review.status === "APPROVED";
-                  const isDeclined = review.status === "DECLINED";
                   const isGmbDirect = review.source === "GOOGLE";
 
                   return (
                     <div 
                       key={review.id}
-                      className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between gap-4 shadow-xl transition-all"
+                      className="bg-white border border-slate-200 rounded-3xl p-5 flex flex-col justify-between gap-4 shadow-xs transition-all hover:shadow-sm"
                     >
                       <div className="space-y-2">
                         {/* Rating stars and header */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex flex-col">
-                            <span className="font-bold text-sm text-slate-200">{review.customerName}</span>
-                            <span className="text-[9px] text-slate-500">
+                            <span className="font-bold text-sm text-slate-900">{review.customerName}</span>
+                            <span className="text-[10px] text-slate-400">
                               {new Date(review.createdAt).toLocaleDateString(undefined, { 
                                 year: "numeric", 
                                 month: "short", 
@@ -574,48 +482,44 @@ export default function ReviewsDashboard() {
                                 <Star 
                                   key={i} 
                                   className={`h-3.5 w-3.5 ${
-                                    i < review.rating ? "fill-current" : "text-slate-700"
+                                    i < review.rating ? "fill-current" : "text-slate-200"
                                   }`} 
                                 />
                               ))}
                             </div>
                             
                             <div className="flex gap-1.5">
-                              <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded font-extrabold ${
-                                isGmbDirect 
-                                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" 
-                                  : "bg-teal-500/10 text-teal-400 border border-teal-500/20"
-                              }`}>
+                              <Badge variant={isGmbDirect ? "brand" : "outline"} className="text-[9px]">
                                 {isGmbDirect ? "Google Direct" : "QR Funnel"}
-                              </span>
+                              </Badge>
                             </div>
                           </div>
                         </div>
  
                         {/* Comment text */}
-                        <p className="text-xs text-slate-300 leading-relaxed font-sans bg-slate-900/40 p-3 rounded-xl border border-slate-850/60 min-h-[48px] whitespace-pre-wrap">
-                          {hasComment ? review.comment : <span className="text-slate-500 italic">No comment text submitted.</span>}
+                        <p className="text-xs text-slate-700 leading-relaxed font-sans bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 min-h-[48px] whitespace-pre-wrap">
+                          {hasComment ? review.comment : <span className="text-slate-400 italic">No comment text submitted.</span>}
                         </p>
                       </div>
  
                       {/* Reply Section for live Google reviews */}
                       {isGmbDirect && (
-                        <div className="border-t border-slate-800/80 pt-3.5 space-y-2">
+                        <div className="border-t border-slate-100 pt-3 space-y-2">
                           {review.replyText ? (
-                            <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-xl space-y-1 relative group">
-                              <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                                <Bot className="h-3 w-3 text-primary" /> Auto-Replied Message
+                            <div className="bg-amber-50/40 border border-amber-200/60 p-3 rounded-2xl space-y-1 relative group">
+                              <div className="flex items-center gap-1 text-[9px] font-bold text-amber-800 uppercase tracking-wider">
+                                <Bot className="h-3 w-3 text-amber-600" /> Auto-Replied Message
                               </div>
-                              <p className="text-[11px] text-slate-400 leading-normal">{review.replyText}</p>
+                              <p className="text-[11px] text-slate-800 leading-normal">{review.replyText}</p>
                               
                               <div className="absolute right-3 top-2.5 flex items-center gap-1 text-[8px] font-bold text-slate-500 uppercase">
                                 {review.replyStatus === "REPLIED" && (
-                                  <span className="text-emerald-400 flex items-center gap-0.5">
+                                  <span className="text-emerald-700 flex items-center gap-0.5">
                                     <CheckCheck className="h-3 w-3" /> Live
                                   </span>
                                 )}
                                 {review.replyStatus === "ERROR" && (
-                                  <span className="text-red-400 flex items-center gap-0.5">
+                                  <span className="text-red-700 flex items-center gap-0.5">
                                     Failed to Sync
                                   </span>
                                 )}
@@ -628,15 +532,15 @@ export default function ReviewsDashboard() {
                                 value={replyTextMap[review.id] || ""}
                                 onChange={(e) => setReplyTextMap({ ...replyTextMap, [review.id]: e.target.value })}
                                 placeholder="Write custom reply to Google..."
-                                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
                               />
-                              <button
+                              <Button
+                                size="sm"
                                 onClick={() => handleReplySubmit(review.id)}
                                 disabled={submittingReplyId === review.id}
-                                className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer shadow-md"
                               >
                                 {submittingReplyId === review.id ? "Sending..." : "Submit Reply"}
-                              </button>
+                              </Button>
                             </div>
                           )}
                         </div>

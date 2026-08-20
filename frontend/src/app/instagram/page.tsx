@@ -1198,31 +1198,31 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* TOP SECTION NAVIGATION HEADER */}
-      <header className="px-6 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0 z-20">
+      <header className="px-6 py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400">
+          <div className="h-8 w-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600">
             <Instagram className="h-4 w-4" />
           </div>
           <div>
-            <h1 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
               Instagram Suite
-              <span className="text-[9px] bg-pink-500/10 text-pink-400 border border-pink-500/20 px-2 py-0.5 rounded-full font-mono lowercase">
-                graph api engine
+              <span className="text-[9px] bg-pink-50 text-pink-700 border border-pink-200 px-2 py-0.5 rounded-full font-mono lowercase font-bold">
+                Graph API v21
               </span>
             </h1>
           </div>
         </div>
 
         {/* Section Tabs */}
-        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 gap-1 text-xs">
+        <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs">
           <button
             onClick={() => setActiveTab("chats_instagram")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "chats_instagram"
-                ? "bg-pink-500/15 text-pink-400 border border-pink-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-pink-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
             <MessageSquare className="h-3.5 w-3.5" /> Instagram DMs
@@ -1230,10 +1230,10 @@ export default function Dashboard() {
 
           <button
             onClick={() => setActiveTab("comments")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "comments"
-                ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-purple-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" /> Comment Automation
@@ -1241,13 +1241,13 @@ export default function Dashboard() {
 
           <button
             onClick={() => setActiveTab("profile")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "profile"
-                ? "bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-amber-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
-            <User className="h-3.5 w-3.5" /> Profile & API Config
+            <User className="h-3.5 w-3.5" /> Profile &amp; API Config
           </button>
 
           <button
@@ -1255,10 +1255,10 @@ export default function Dashboard() {
               setActiveTab("flows");
               setSelectedPlatform("instagram");
             }}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "flows"
-                ? "bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-brand-blue border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
             <GitMerge className="h-3.5 w-3.5" /> Flow Builder
@@ -1267,7 +1267,7 @@ export default function Dashboard() {
       </header>
 
       {/* 2. MAIN CONTENT BODY */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
 
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {((activeTab as any) === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
@@ -1277,26 +1277,26 @@ export default function Dashboard() {
 
           return (
             <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar ΓÇö full screen on mobile when no chat open, fixed width on desktop */}
+              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
               <div className={`${mobileChatOpen ? "hidden" : "flex"
-                } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                  <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
+                } sm:flex w-full sm:w-80 border-r border-slate-200 bg-white flex-col h-full shrink-0 shadow-xs`}>
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                  <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isInstagramTab ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
                       {filteredConversations.length} active
                     </span>
                   </h2>
                 </div>
 
                 {/* Conversation items list */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-900 scrollbar-none no-scrollbar">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-100 scrollbar-none no-scrollbar">
                   {filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                    <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
                       {isInstagramTab ? (
-                        <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
+                        <Instagram className="h-8 w-8 stroke-1 text-pink-500" />
                       ) : (
-                        <WhatsApp className="h-8 w-8 text-emerald-400/60" />
+                        <WhatsApp className="h-8 w-8 text-emerald-500" />
                       )}
                       <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
                     </div>
@@ -1310,33 +1310,33 @@ export default function Dashboard() {
                         <div
                           key={conv.id}
                           onClick={() => handleSelectConversation(conv)}
-                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-2 ${isSelected ? (isInstagram ? "bg-slate-800/40 border-pink-500" : "bg-slate-800/40 border-emerald-500") : "hover:bg-slate-850/50 border-transparent"}`}
+                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-3 ${isSelected ? (isInstagram ? "bg-pink-50/80 border-pink-500 text-slate-900" : "bg-emerald-50/80 border-emerald-500 text-slate-900") : "hover:bg-slate-50 border-transparent text-slate-700"}`}
                         >
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-1.5 min-w-0">
                               {isInstagram ? (
-                                <Instagram className="h-3.5 w-3.5 text-pink-400 shrink-0" />
+                                <Instagram className="h-3.5 w-3.5 text-pink-600 shrink-0" />
                               ) : (
-                                <WhatsApp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                <WhatsApp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                               )}
-                              <span className="font-semibold text-slate-200 text-sm truncate">
+                              <span className="font-bold text-slate-900 text-sm truncate">
                                 {conv.customerName || conv.customerPhone}
                               </span>
                             </div>
-                            <span className="text-[10px] text-slate-500">
+                            <span className="text-[10px] text-slate-400 font-medium">
                               {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                            <p className="text-xs text-slate-500 truncate max-w-[180px]">
                               {lastMsg?.content || "No messages yet"}
                             </p>
                             {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
+                              <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
                                 <User className="h-2.5 w-2.5" /> Manual
                               </span>
                             ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
                                 <Bot className="h-2.5 w-2.5" /> Auto
                               </span>
                             )}
@@ -1348,9 +1348,9 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Chat Conversation Pane ΓÇö full screen on mobile when chat open */}
+              {/* Chat Conversation Pane — full screen on mobile when chat open */}
               <div className={`${mobileChatOpen ? "flex" : "hidden"
-                } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
+                } sm:flex flex-1 flex-col h-full bg-slate-100/70 relative animate-slideInRight sm:animate-none`}>
                 {activeConv ? (
                   <>
                     {/* Chat header */}

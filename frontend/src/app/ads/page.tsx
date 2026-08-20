@@ -1947,32 +1947,32 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-hidden">
       {/* ── Top Header Bar (Identical Layout to Google Ads) ── */}
-      <header className="relative z-50 flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur shrink-0 gap-3 flex-wrap overflow-visible">
+      <header className="relative z-50 flex items-center justify-between px-4 py-3 border-b border-slate-200/90 bg-white backdrop-blur shrink-0 gap-3 flex-wrap overflow-visible shadow-xs">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
               <Globe className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-slate-100 text-sm leading-none">Meta Ads</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Facebook & Instagram Platform</p>
+              <h1 className="font-extrabold text-slate-900 text-sm leading-none">Meta Ads</h1>
+              <p className="text-xs text-slate-500 mt-0.5">Facebook &amp; Instagram Platform</p>
             </div>
           </div>
 
           {/* Platform Switcher Buttons */}
-          <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200 rounded-xl">
             <button
               onClick={() => setPlatform("google")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
             >
               <Megaphone className="h-3.5 w-3.5" />
               Google Ads
             </button>
             <button
               onClick={() => setPlatform("meta")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white shadow shadow-blue-500/30 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white shadow-xs transition-all cursor-pointer"
             >
               <Globe className="h-3.5 w-3.5" />
               Meta Ads
@@ -1986,10 +1986,10 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
             <select
               value={selectedAccountId || ""}
               onChange={(e) => handleSelectAccount(e.target.value)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700/50 text-xs text-slate-100 focus:outline-none focus:border-slate-600 transition-all min-w-[210px]"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-all min-w-[210px]"
             >
               {accounts.length === 0 ? (
-                <option value="" disabled className="bg-slate-900 text-slate-400">
+                <option value="" disabled className="bg-white text-slate-400">
                   No Ad Accounts Found (Click Meta Credentials)
                 </option>
               ) : (
@@ -1997,7 +1997,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
                   const accId = acc.adAccountId || acc.id || `acc_${index}`;
                   const accName = acc.name || acc.businessName || "Meta Ad Account";
                   return (
-                    <option key={accId} value={accId} className="bg-slate-900 text-slate-100">
+                    <option key={accId} value={accId} className="bg-white text-slate-900">
                       {accName} ({accId})
                     </option>
                   );
@@ -2010,7 +2010,7 @@ function MetaAdsWorkspace({ orgId, showToast, platform, setPlatform }: { orgId: 
           <select
             value={dateRange}
             onChange={e => setDateRange(e.target.value)}
-            className="bg-slate-800 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary/60 transition-all"
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-all"
           >
             {DATE_RANGES.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
