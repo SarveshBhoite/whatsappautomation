@@ -73,6 +73,7 @@ export default function AppSidebar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hoveredNav, setHoveredNav] = useState<{ label: string; top: number; isRed?: boolean; isAmber?: boolean } | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -142,12 +143,12 @@ export default function AppSidebar() {
 
   return (
     <>
-      {/* ── Desktop sidebar (Clean Light Theme) ────────────────────────── */}
-      <aside className="hidden sm:flex w-16 flex-col items-center py-4 border-r border-slate-200/90 bg-white justify-between shrink-0 z-40 shadow-xs">
+      {/* ── Desktop sidebar (Clean Light Theme, No Scrollbars) ──────────── */}
+      <aside className="hidden sm:flex w-16 flex-col items-center py-4 border-r border-slate-200 bg-white justify-between shrink-0 z-40 shadow-xs h-full overflow-hidden select-none">
         
         {/* Logo & Nav items */}
-        <div className="flex flex-col items-center w-full gap-2 overflow-y-auto no-scrollbar">
-          <Link href="/" className="h-9 w-9 rounded-xl overflow-hidden border border-slate-200 mb-3 shrink-0 shadow-2xs hover:border-brand-blue/60 transition-all">
+        <div className="flex flex-col items-center w-full gap-2 overflow-y-auto overflow-x-hidden no-scrollbar flex-1 pb-2">
+          <Link href="/" className="h-9 w-9 rounded-xl overflow-hidden border border-slate-200 mb-2 shrink-0 shadow-2xs hover:border-brand-blue/60 transition-all">
             <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
           </Link>
 
@@ -155,9 +156,17 @@ export default function AppSidebar() {
             const active = isActive(item.match);
 
             return (
-              <div key={item.href} className="relative group shrink-0">
+              <div key={item.href} className="relative shrink-0">
                 <Link
                   href={item.href}
+                  onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setHoveredNav({
+                      label: item.label,
+                      top: rect.top + rect.height / 2,
+                    });
+                  }}
+                  onMouseLeave={() => setHoveredNav(null)}
                   className={`
                     w-10 h-10 rounded-xl flex items-center justify-center relative
                     transition-all duration-200
@@ -172,30 +181,26 @@ export default function AppSidebar() {
                   )}
                   {item.icon}
                 </Link>
-
-                {/* Tooltip on Hover */}
-                <span className="
-                  absolute left-full ml-3 px-2.5 py-1.5
-                  bg-slate-900 border border-slate-800
-                  text-xs text-white font-bold rounded-lg
-                  whitespace-nowrap shadow-xl
-                  scale-0 opacity-0 origin-left
-                  group-hover:scale-100 group-hover:opacity-100
-                  transition-all duration-150 z-50 pointer-events-none
-                ">
-                  {item.label}
-                </span>
               </div>
             );
           })}
         </div>
 
         {/* Bottom Actions: Super Admin, Settings, Logout */}
-        <div className="flex flex-col gap-2 shrink-0 pt-2 border-t border-slate-200/80 w-full items-center">
+        <div className="flex flex-col gap-2 shrink-0 pt-3 border-t border-slate-200 w-full items-center">
           {userRole === "super_admin" && (
-            <div className="relative group shrink-0">
+            <div className="relative shrink-0">
               <Link
                 href="/admin"
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredNav({
+                    label: "Super Admin Console",
+                    top: rect.top + rect.height / 2,
+                    isAmber: true,
+                  });
+                }}
+                onMouseLeave={() => setHoveredNav(null)}
                 className={`
                   w-10 h-10 rounded-xl flex items-center justify-center relative
                   transition-all duration-200
@@ -209,23 +214,20 @@ export default function AppSidebar() {
                 )}
                 <Shield className="h-5 w-5" />
               </Link>
-              <span className="
-                absolute left-full ml-3 px-2.5 py-1.5
-                bg-slate-900 border border-slate-800
-                text-xs text-amber-300 font-bold rounded-lg
-                whitespace-nowrap shadow-xl
-                scale-0 opacity-0 origin-left
-                group-hover:scale-100 group-hover:opacity-100
-                transition-all duration-150 z-50 pointer-events-none
-              ">
-                Super Admin Console
-              </span>
             </div>
           )}
 
-          <div className="relative group shrink-0">
+          <div className="relative shrink-0">
             <Link
               href="/settings"
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredNav({
+                  label: "Settings & Integrations",
+                  top: rect.top + rect.height / 2,
+                });
+              }}
+              onMouseLeave={() => setHoveredNav(null)}
               className={`
                 w-10 h-10 rounded-xl flex items-center justify-center relative
                 transition-all duration-200
@@ -239,40 +241,49 @@ export default function AppSidebar() {
               )}
               <Settings className="h-5 w-5" />
             </Link>
-            <span className="
-              absolute left-full ml-3 px-2.5 py-1.5
-              bg-slate-900 border border-slate-800
-              text-xs text-white font-bold rounded-lg
-              whitespace-nowrap shadow-xl
-              scale-0 opacity-0 origin-left
-              group-hover:scale-100 group-hover:opacity-100
-              transition-all duration-150 z-50 pointer-events-none
-            ">
-              Settings
-            </span>
           </div>
 
-          <div className="relative group shrink-0">
+          <div className="relative shrink-0">
             <button
               onClick={handleLogout}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredNav({
+                  label: "Log Out",
+                  top: rect.top + rect.height / 2,
+                  isRed: true,
+                });
+              }}
+              onMouseLeave={() => setHoveredNav(null)}
               className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200 cursor-pointer"
             >
               <LogOut className="h-5 w-5" />
             </button>
-            <span className="
-              absolute left-full ml-3 px-2.5 py-1.5
-              bg-slate-900 border border-slate-800
-              text-xs text-red-400 font-bold rounded-lg
-              whitespace-nowrap shadow-xl
-              scale-0 opacity-0 origin-left
-              group-hover:scale-100 group-hover:opacity-100
-              transition-all duration-150 z-50 pointer-events-none
-            ">
-              Log Out
-            </span>
           </div>
         </div>
       </aside>
+
+      {/* ── Screen-Overlay Floating Tooltip (Never clipped, never causes scrollbars) ── */}
+      {hoveredNav && (
+        <div
+          style={{ top: `${hoveredNav.top}px` }}
+          className="hidden sm:flex fixed left-[72px] -translate-y-1/2 z-[9999] pointer-events-none items-center animate-fadeIn duration-150"
+        >
+          <div
+            className={`relative px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xl border whitespace-nowrap flex items-center gap-1.5 ${
+              hoveredNav.isRed
+                ? "bg-slate-900 text-red-300 border-red-800 shadow-red-950/30"
+                : hoveredNav.isAmber
+                ? "bg-slate-900 text-amber-300 border-amber-800 shadow-amber-950/30"
+                : "bg-slate-900 text-white border-slate-800 shadow-slate-950/40"
+            }`}
+          >
+            {/* Pointer arrow pointing to icon */}
+            <span className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-slate-900 border-l border-b border-slate-800 rotate-45" />
+            <span className="relative z-10">{hoveredNav.label}</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile bottom bar (Clean Light Theme) ───────────────────────── */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-2 py-1.5 gap-1.5 shadow-2xl safe-bottom">

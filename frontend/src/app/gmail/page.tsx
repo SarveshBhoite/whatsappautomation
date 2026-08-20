@@ -867,23 +867,8 @@ export default function GmailDashboard() {
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans select-none antialiased">
       
-      {/* Global CSS for custom animations and scrollbars */}
+      {/* Global CSS for custom animations */}
       <style jsx global>{`
-        ::-webkit-scrollbar {
-          width: 5px;
-          height: 5px;
-        }
-        ::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.3);
-        }
-        ::-webkit-scrollbar-thumb {
-          background: rgba(148, 163, 184, 0.15);
-          border-radius: 99px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: rgba(148, 163, 184, 0.3);
-        }
-        
         .glow-pulse {
           box-shadow: 0 0 15px rgba(var(--primary), 0.15);
           animation: pulse 2s infinite alternate;

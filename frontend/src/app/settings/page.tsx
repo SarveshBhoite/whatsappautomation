@@ -1054,8 +1054,13 @@ export default function Dashboard() {
         headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
-      if (data) {
-        setConfig(data);
+      if (data && !data.error) {
+        setConfig({
+          phoneNumberId: data.phoneNumberId || "",
+          wabaId: data.wabaId || "",
+          accessToken: data.accessToken || "",
+          webhookVerifyToken: data.webhookVerifyToken || "my_secure_verify_token_123"
+        });
       }
     } catch (err) {
       console.error("Error fetching config:", err);
@@ -1091,8 +1096,12 @@ export default function Dashboard() {
         headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
-      if (data) {
-        setIgConfig(data);
+      if (data && !data.error) {
+        setIgConfig({
+          instagramAccountId: data.instagramAccountId || "",
+          pageId: data.pageId || "",
+          pageAccessToken: data.pageAccessToken || ""
+        });
       }
     } catch (err) {
       console.error("Error fetching Instagram config:", err);
@@ -1128,8 +1137,13 @@ export default function Dashboard() {
         headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
-      if (data) {
-        setYtConfig(data);
+      if (data && !data.error) {
+        setYtConfig({
+          channelId: data.channelId || "",
+          channelTitle: data.channelTitle || "",
+          accessToken: data.accessToken || "",
+          refreshToken: data.refreshToken || ""
+        });
       }
     } catch (err) {
       console.error("Error fetching YouTube config:", err);
@@ -1169,21 +1183,35 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
       if (res.ok) {
         const data = await res.json();
-        setGoogleConfig(data);
+        if (data && !data.error) {
+          setGoogleConfig({
+            locationName: data.locationName || "",
+            googlePlaceId: data.googlePlaceId || "",
+            googleReviewUrl: data.googleReviewUrl || "",
+            googleLocationId: data.googleLocationId || "",
+            googleClientId: data.googleClientId || "",
+            googleClientSecret: data.googleClientSecret || "",
+            googleRefreshToken: data.googleRefreshToken || "",
+            googleAdsCustomerId: data.googleAdsCustomerId || "",
+            autoReplyEnabled: !!data.autoReplyEnabled,
+            autoReplyMinRating: data.autoReplyMinRating ?? 4,
+            autoReplyTemplate: data.autoReplyTemplate || "",
+          });
 
-        // Parse Google location path into split fields
-        let accountId = "";
-        let locationId = data.googleLocationId || "";
-        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-          const parts = locationId.split("/");
-          accountId = parts[1] || "";
-          locationId = parts[3] || "";
-        } else if (locationId.includes("locations/")) {
-          locationId = locationId.replace("locations/", "");
+          // Parse Google location path into split fields
+          let accountId = "";
+          let locationId = data.googleLocationId || "";
+          if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
+            const parts = locationId.split("/");
+            accountId = parts[1] || "";
+            locationId = parts[3] || "";
+          } else if (locationId.includes("locations/")) {
+            locationId = locationId.replace("locations/", "");
+          }
+          setFormGoogleAccountId(accountId);
+          setFormGoogleLocationId(locationId);
+          setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
         }
-        setFormGoogleAccountId(accountId);
-        setFormGoogleLocationId(locationId);
-        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
       }
     } catch (err) {
       console.error("Error fetching Google GMB config:", err);
@@ -2459,7 +2487,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-700 font-bold">Phone Number ID</label>
                         <input
                           type="text"
-                          value={config.phoneNumberId}
+                          value={config.phoneNumberId || ""}
                           onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
                           placeholder="e.g. 1048473820293"
                           className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
@@ -2470,7 +2498,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-700 font-bold">WhatsApp Business Account ID (WABA ID)</label>
                         <input
                           type="text"
-                          value={config.wabaId}
+                          value={config.wabaId || ""}
                           onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
                           placeholder="e.g. 1048473820999"
                           className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
@@ -2480,7 +2508,7 @@ export default function Dashboard() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs text-slate-700 font-bold">System User Access Token (Permanent)</label>
                         <textarea
-                          value={config.accessToken}
+                          value={config.accessToken || ""}
                           onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
                           placeholder="Paste EAAG... permanent access token here"
                           rows={4}
@@ -2520,7 +2548,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">my_secure_verify_token_123</span>
+                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{config.webhookVerifyToken || "my_secure_verify_token_123"}</span>
                       </div>
 
                       <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex gap-3">
@@ -2546,7 +2574,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-700 font-bold">Instagram Business Account ID</label>
                         <input
                           type="text"
-                          value={igConfig.instagramAccountId}
+                          value={igConfig.instagramAccountId || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
                           placeholder="e.g. 17841401234567890"
                           className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono"
@@ -2557,7 +2585,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-700 font-bold">Facebook Page ID</label>
                         <input
                           type="text"
-                          value={igConfig.pageId}
+                          value={igConfig.pageId || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
                           placeholder="e.g. 10203040506070"
                           className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono"
@@ -2567,7 +2595,7 @@ export default function Dashboard() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs text-slate-700 font-bold">Page Access Token (Permanent)</label>
                         <textarea
-                          value={igConfig.pageAccessToken}
+                          value={igConfig.pageAccessToken || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
                           placeholder="Paste Page Access Token here"
                           rows={4}
