@@ -22,3 +22,10 @@ yarn-error.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Agent skills & customizations (local only)
+.agents/
+skills/
+skills-lock.json
+.gemini/
+scratch/
