@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Mail,
   Bot,
@@ -29,7 +29,10 @@ import {
   ArrowRight,
   Search,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Menu,
+  X,
+  ArrowLeft
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
@@ -129,8 +132,14 @@ const getAvatarColor = (initials: string) => {
 const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?: string | null }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Sanitize htmlContent to strip out inline script tags before injecting into sandboxed iframe
+  const sanitizedHtml = useMemo(() => {
+    if (!htmlContent) return "";
+    return htmlContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  }, [htmlContent]);
+
   useEffect(() => {
-    if (iframeRef.current && htmlContent) {
+    if (iframeRef.current && sanitizedHtml) {
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       if (doc) {
         doc.open();
@@ -152,10 +161,10 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
             }
             table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
             td, th { word-break: break-word !important; }
-            a { color: #55e6c1; text-decoration: underline; word-break: break-all; }
+            a { color: #059669; text-decoration: underline; word-break: break-all; }
             img, video, iframe { max-width: 100% !important; height: auto !important; border-radius: 8px; }
             blockquote {
-              border-left: 3px solid #334155;
+              border-left: 3px solid #cbd5e1;
               padding-left: 12px;
               color: #64748b;
               margin: 12px 0;
@@ -164,7 +173,7 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
           </style>
         `;
         const head = `<head><base target="_blank">${baseStyle}</head>`;
-        doc.write(`${head}<body>${htmlContent}</body>`);
+        doc.write(`${head}<body>${sanitizedHtml}</body>`);
         doc.close();
 
         const adjustHeight = () => {
@@ -189,9 +198,9 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
         return () => clearTimeout(timeout);
       }
     }
-  }, [htmlContent]);
+  }, [sanitizedHtml]);
 
-  if (htmlContent) {
+  if (sanitizedHtml) {
     return (
       <iframe
         ref={iframeRef}
@@ -288,6 +297,7 @@ export default function GmailDashboard() {
   const [selectedLabel, setSelectedLabel] = useState("INBOX");
   const [inboxCategory, setInboxCategory] = useState<"PRIMARY" | "PROMOTIONS" | "SOCIAL" | "UPDATES" | "ALL">("PRIMARY");
   const [searchTerm, setSearchTerm] = useState("");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Bulk Email Campaign State
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -400,9 +410,17 @@ export default function GmailDashboard() {
   // Toggle Star on a thread
   const handleToggleStar = async (threadId: string, currentStarred: boolean) => {
     const nextStarred = !currentStarred;
-    setThreads(prev => prev.map(t => t.threadId === threadId ? { ...t, isStarred: nextStarred } : t));
-    if (selectedThread?.threadId === threadId) {
-      setSelectedThread(prev => prev ? { ...prev, isStarred: nextStarred } : null);
+    if (selectedLabel === "STARRED" && !nextStarred) {
+      // If currently on STARRED tab and unstarring, remove from list immediately
+      setThreads(prev => prev.filter(t => t.threadId !== threadId));
+      if (selectedThread?.threadId === threadId) {
+        setSelectedThread(null);
+      }
+    } else {
+      setThreads(prev => prev.map(t => t.threadId === threadId ? { ...t, isStarred: nextStarred } : t));
+      if (selectedThread?.threadId === threadId) {
+        setSelectedThread(prev => prev ? { ...prev, isStarred: nextStarred } : null);
+      }
     }
 
     try {
@@ -934,22 +952,40 @@ export default function GmailDashboard() {
         }
       `}</style>
 
+      {/* Mobile Drawer Backdrop */}
+      {mobileSidebarOpen && (
+        <div 
+          onClick={() => setMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden"
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="w-64 border-r border-slate-200 bg-white backdrop-blur-xl flex flex-col justify-between shrink-0 z-25">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-slate-200 bg-white backdrop-blur-xl flex flex-col justify-between shrink-0 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${
+        mobileSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+      }`}>
         <div className="flex flex-col gap-6 p-5">
-          {/* Logo Brand Header */}
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-sky-500 p-0.5 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <div className="h-full w-full rounded-[14px] bg-white flex items-center justify-center">
-                <Mail className="h-5 w-5 text-emerald-600" />
+          {/* Logo Brand Header & Close button on mobile */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-sky-500 p-0.5 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <div className="h-full w-full rounded-[14px] bg-white flex items-center justify-center">
+                  <Mail className="h-5 w-5 text-emerald-600" />
+                </div>
+              </div>
+              <div>
+                <span className="font-extrabold text-sm tracking-tight text-slate-900">
+                  Gmail Portal
+                </span>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Automation Hub</p>
               </div>
             </div>
-            <div>
-              <span className="font-extrabold text-sm tracking-tight text-slate-900">
-                Gmail Portal
-              </span>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Automation Hub</p>
-            </div>
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
           {/* Mailboxes Group */}
@@ -963,7 +999,10 @@ export default function GmailDashboard() {
               return (
                 <button
                   key={lbl.id}
-                  onClick={() => handleLabelChange(lbl.id)}
+                  onClick={() => {
+                    handleLabelChange(lbl.id);
+                    setMobileSidebarOpen(false);
+                  }}
                   className={`flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
                     isSelected
                       ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
@@ -990,7 +1029,10 @@ export default function GmailDashboard() {
               Campaigns & Automation
             </span>
             <button
-              onClick={() => setActiveTab("CAMPAIGNS")}
+              onClick={() => {
+                setActiveTab("CAMPAIGNS");
+                setMobileSidebarOpen(false);
+              }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
                 activeTab === "CAMPAIGNS"
                   ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
@@ -1001,7 +1043,10 @@ export default function GmailDashboard() {
               <span>Bulk Email Campaign</span>
             </button>
             <button
-              onClick={handleOpenSettings}
+              onClick={() => {
+                handleOpenSettings();
+                setMobileSidebarOpen(false);
+              }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
                 activeTab === "SETTINGS"
                   ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
@@ -1034,16 +1079,23 @@ export default function GmailDashboard() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
         
         {/* Header Section */}
-        <header className="h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-10">
-          <div className="flex items-center gap-4">
-            <div className="h-11 w-11 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shadow-sm">
-              <Mail className="h-5 w-5 text-emerald-600" />
+        <header className="h-16 lg:h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-4 lg:px-8 shrink-0 z-10">
+          <div className="flex items-center gap-3 lg:gap-4">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700"
+              title="Open Navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="h-9 w-9 lg:h-11 lg:w-11 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shadow-sm">
+              <Mail className="h-4 w-4 lg:h-5 lg:w-5 text-emerald-600" />
             </div>
             <div>
-              <h1 className="font-black text-lg tracking-tight text-slate-900">
+              <h1 className="font-black text-sm lg:text-lg tracking-tight text-slate-900 truncate max-w-[160px] sm:max-w-xs md:max-w-md">
                 {activeTab === "CAMPAIGNS" ? "Bulk Email Campaigns" : activeTab === "SETTINGS" ? "Automation Configuration" : `Mailbox: ${selectedLabel}`}
               </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[10px] lg:text-[11px] text-slate-500 mt-0.5 hidden sm:block">
                 {activeTab === "CAMPAIGNS"
                   ? "Extract recipients from Excel/CSV/PDF & send personalized email campaigns"
                   : activeTab === "SETTINGS" 
@@ -1053,24 +1105,24 @@ export default function GmailDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 lg:gap-3">
             <button
               onClick={handleSyncInbox}
               disabled={syncing || !connectedEmail}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition duration-200 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 lg:px-4 lg:py-2.5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition duration-200 disabled:opacity-50"
             >
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-emerald-600" : ""}`} />
-              {syncing ? "Syncing Inbox..." : "Sync Inbox"}
+              <RefreshCw className={`h-3.5 w-3.5 lg:h-4 lg:w-4 ${syncing ? "animate-spin text-emerald-600" : ""}`} />
+              <span className="hidden sm:inline">{syncing ? "Syncing..." : "Sync Inbox"}</span>
             </button>
             <button
               onClick={handleConnectGmail}
-              className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition shadow-md ${
+              className={`px-3 py-2 lg:px-5 lg:py-2.5 rounded-2xl text-xs font-bold transition shadow-md ${
                 connectedEmail 
                   ? "bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700"
                   : "bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-emerald-500/20"
               }`}
             >
-              {connectedEmail ? "Reconnect Account" : "Connect Gmail"}
+              {connectedEmail ? "Reconnect" : "Connect"}
             </button>
           </div>
         </header>
@@ -1602,7 +1654,9 @@ export default function GmailDashboard() {
           <div className="flex-1 flex overflow-hidden">
             
             {/* Conversation Threads Pane */}
-            <div className="w-85 border-r border-slate-200 flex flex-col shrink-0 bg-white overflow-hidden">
+            <div className={`w-full md:w-85 border-r border-slate-200 flex flex-col shrink-0 bg-white overflow-hidden ${
+              selectedThread ? "hidden md:flex" : "flex"
+            }`}>
               
               {/* Search Bar & Inbox Categories Bar */}
               <div className="p-3.5 border-b border-slate-200 bg-slate-50 flex flex-col gap-2.5 shrink-0">
@@ -1743,17 +1797,28 @@ export default function GmailDashboard() {
             </div>
 
             {/* Email Message Detail Flow and Reader Pane */}
-            <div className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-y-auto no-scrollbar p-8">
+            <div className={`flex-1 flex flex-col min-w-0 bg-slate-50 overflow-y-auto no-scrollbar p-4 lg:p-8 ${
+              selectedThread ? "flex" : "hidden md:flex"
+            }`}>
               {selectedThread ? (
                 <div className="max-w-4xl w-full mx-auto flex flex-col gap-6 min-w-0">
                   
-                  {/* Selected Subject Header with Actions */}
-                  <div className="border-b border-slate-200 pb-5 min-w-0 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <h2 className="text-xl font-bold text-slate-900 truncate tracking-tight">{selectedThread.subject}</h2>
-                      <p className="text-xs text-slate-500 mt-1 truncate">
-                        From: <span className="text-slate-700 font-semibold">{selectedThread.sender}</span>
-                      </p>
+                  {/* Selected Subject Header with Actions & Mobile Back Button */}
+                  <div className="border-b border-slate-200 pb-5 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="min-w-0 flex items-start gap-3">
+                      <button
+                        onClick={() => setSelectedThread(null)}
+                        className="md:hidden p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shrink-0"
+                        title="Back to Conversations"
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </button>
+                      <div className="min-w-0">
+                        <h2 className="text-lg lg:text-xl font-bold text-slate-900 truncate tracking-tight">{selectedThread.subject}</h2>
+                        <p className="text-xs text-slate-500 mt-1 truncate">
+                          From: <span className="text-slate-700 font-semibold">{selectedThread.sender}</span>
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">

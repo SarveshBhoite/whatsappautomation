@@ -141,6 +141,14 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
       query = "in:inbox";
     }
 
+    // When syncing STARRED folder specifically, reset isStarred flag first so unstarred emails are pruned
+    if (upperLabel === "STARRED") {
+      await prisma.gmailThread.updateMany({
+        where: { organizationId: orgId },
+        data: { isStarred: false }
+      });
+    }
+
     let listRes;
     try {
       listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
@@ -223,7 +231,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
 
       // Determine label IDs
       const allLabelIds: string[] = Array.from(new Set(gmailMessages.flatMap((m: any) => m.labelIds || [])));
-      const isStarred = (lastMsg.labelIds || []).includes("STARRED") || gmailMessages.some((m: any) => (m.labelIds || []).includes("STARRED"));
+      const isStarred = (upperLabel === "STARRED") || (lastMsg.labelIds || []).includes("STARRED") || gmailMessages.some((m: any) => (m.labelIds || []).includes("STARRED"));
       const isSpam = allLabelIds.includes("SPAM");
       const isTrash = allLabelIds.includes("TRASH");
       const isSent = allLabelIds.includes("SENT") && !allLabelIds.includes("INBOX");
