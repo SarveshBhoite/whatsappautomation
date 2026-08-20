@@ -34,7 +34,14 @@ import {
 import { io, Socket } from "socket.io-client";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 interface GmailAttachment {
   id: string;
@@ -335,7 +342,7 @@ export default function GmailDashboard() {
     try {
       // Get threads list for current label immediately from local DB
       const threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
 
       if (threadsRes.ok) {
@@ -357,7 +364,7 @@ export default function GmailDashboard() {
 
       // Non-blocking fetch of config & rules
       fetch(`${BACKEND_URL}/api/gmail/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       }).then(res => res.ok ? res.json() : null).then(configData => {
         if (configData) {
           setAutoReplyEnabled(configData.autoReplyEnabled);
@@ -378,7 +385,7 @@ export default function GmailDashboard() {
   const fetchRules = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/rules`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -400,7 +407,7 @@ export default function GmailDashboard() {
     try {
       await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}/star`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-organization-id": DEFAULT_ORG_ID },
+        headers: { "Content-Type": "application/json", "x-organization-id": getOrgId() },
         body: JSON.stringify({ isStarred: nextStarred })
       });
     } catch (err) {
@@ -419,7 +426,7 @@ export default function GmailDashboard() {
     try {
       await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}/spam`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-organization-id": DEFAULT_ORG_ID },
+        headers: { "Content-Type": "application/json", "x-organization-id": getOrgId() },
         body: JSON.stringify({ isSpam: nextSpam })
       });
     } catch (err) {
@@ -437,7 +444,7 @@ export default function GmailDashboard() {
     try {
       await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}`, {
         method: "DELETE",
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
     } catch (err) {
       console.error("Failed to delete thread:", err);
@@ -448,7 +455,7 @@ export default function GmailDashboard() {
   const fetchCampaigns = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -462,7 +469,7 @@ export default function GmailDashboard() {
   const fetchTemplates = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/templates`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -486,7 +493,7 @@ export default function GmailDashboard() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns/extract-file`, {
         method: "POST",
-        headers: { "x-organization-id": DEFAULT_ORG_ID },
+        headers: { "x-organization-id": getOrgId() },
         body: formData
       });
 
@@ -526,7 +533,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           name: campaignName,
@@ -565,7 +572,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ action })
       });
@@ -588,7 +595,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           name: templateName,
@@ -618,7 +625,10 @@ export default function GmailDashboard() {
 
     socket.on("connect", () => {
       console.log("Gmail socket connected");
-      socket.emit("join-org", DEFAULT_ORG_ID);
+      const org = getOrgId();
+      if (org) {
+        socket.emit("join-org", org);
+      }
     });
 
     socket.on("gmail-updated", () => {
@@ -675,7 +685,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ label: selectedLabel })
       });
@@ -701,7 +711,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           autoReplyEnabled,
@@ -732,7 +742,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           threadId: selectedThread.threadId,
@@ -763,7 +773,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           threadId: selectedThread.threadId
@@ -805,7 +815,7 @@ export default function GmailDashboard() {
       const res = await fetch(`${BACKEND_URL}/api/gmail/rules`, {
         method: "POST",
         headers: {
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: formData
       });
@@ -833,7 +843,7 @@ export default function GmailDashboard() {
       const res = await fetch(`${BACKEND_URL}/api/gmail/rules/${id}`, {
         method: "DELETE",
         headers: {
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         }
       });
       if (res.ok) {
@@ -851,7 +861,13 @@ export default function GmailDashboard() {
 
   // OAuth Authentication Redirect
   const handleConnectGmail = () => {
-    window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${DEFAULT_ORG_ID}&redirect=/gmail`;
+    const org = getOrgId();
+    if (!org) {
+      alert("Please log in to your organization account to connect Gmail.");
+      window.location.href = "/login";
+      return;
+    }
+    window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${encodeURIComponent(org)}&redirect=/gmail`;
   };
 
   // Filter threads by search term
