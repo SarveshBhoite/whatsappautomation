@@ -54,16 +54,24 @@ interface GmbConfig {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 export default function ReviewsPage() {
+  const [orgId, setOrgId] = useState<string>(getOrgId());
   const [reviews, setReviews] = useState<Review[]>([]);
   const [config, setConfig] = useState<GmbConfig>({
-    orgId: DEFAULT_ORG_ID,
-    placeId: "ChIJW9h8b3T1wjsR_P_0y_x48tM",
+    orgId: getOrgId(),
+    placeId: "",
     locationName: "Jisnu Digital Solutions Pvt.Ltd",
-    googleRating: 4.8,
-    googleReviewCount: 142,
+    googleRating: 5.0,
+    googleReviewCount: 0,
     minReviewRating: 3,
   });
 
@@ -75,12 +83,14 @@ export default function ReviewsPage() {
   const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
 
-  const publicFunnelUrl = `${FRONTEND_URL}/review/${DEFAULT_ORG_ID}`;
+  const currentOrg = orgId || getOrgId();
+  const publicFunnelUrl = `${FRONTEND_URL}/review/${currentOrg}`;
   const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicFunnelUrl)}`;
 
-  const fetchConfig = async () => {
+  const fetchConfig = async (activeOrg = currentOrg) => {
+    if (!activeOrg) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${encodeURIComponent(activeOrg)}`);
       if (res.ok) {
         const data = await res.json();
         setConfig(data);
@@ -90,9 +100,10 @@ export default function ReviewsPage() {
     }
   };
 
-  const fetchReviews = async () => {
+  const fetchReviews = async (activeOrg = currentOrg) => {
+    if (!activeOrg) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews?orgId=${DEFAULT_ORG_ID}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews?orgId=${encodeURIComponent(activeOrg)}`);
       if (res.ok) {
         const data = await res.json();
         setReviews(data);
@@ -103,11 +114,15 @@ export default function ReviewsPage() {
   };
 
   useEffect(() => {
-    fetchConfig();
-    fetchReviews();
+    const resolvedOrg = getOrgId();
+    setOrgId(resolvedOrg);
+    if (!resolvedOrg) return;
+
+    fetchConfig(resolvedOrg);
+    fetchReviews(resolvedOrg);
 
     const socket = io(BACKEND_URL);
-    socket.emit("join-org", DEFAULT_ORG_ID);
+    socket.emit("join-org", resolvedOrg);
 
     socket.on("review-created", (newReview: Review) => {
       setReviews((prev) => [newReview, ...prev.filter((r) => r.id !== newReview.id)]);
@@ -117,29 +132,41 @@ export default function ReviewsPage() {
       setReviews((prev) => prev.map((r) => (r.id === updatedReview.id ? updatedReview : r)));
     });
 
+    socket.on("reviews-synced", (syncedReviews: Review[]) => {
+      if (Array.isArray(syncedReviews)) {
+        setReviews(syncedReviews);
+      }
+    });
+
     return () => {
       socket.disconnect();
     };
   }, []);
 
   const handleSyncReviews = async () => {
+    const resolvedOrg = orgId || getOrgId();
+    if (!resolvedOrg) {
+      alert("Please log in to your organization to sync reviews.");
+      return;
+    }
+
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/sync-reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: DEFAULT_ORG_ID }),
-      });
+      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/sync?orgId=${encodeURIComponent(resolvedOrg)}`);
       if (res.ok) {
         const data = await res.json();
         setSyncMessage({
-          text: `Success! Synced ${data.importedCount || 0} reviews. Total live reviews: ${data.totalReviews || 0}.`,
+          text: data.message || `Success! Synced ${data.syncedCount || 0} reviews.`,
         });
-        await fetchReviews();
-        await fetchConfig();
+        if (data.reviews) {
+          setReviews(data.reviews);
+        } else {
+          await fetchReviews(resolvedOrg);
+        }
+        await fetchConfig(resolvedOrg);
       } else {
-        const errData = await res.json();
+        const errData = await res.json().catch(() => ({}));
         setSyncMessage({
           text: errData.error || "Failed to sync reviews from Google Business Profile.",
           isError: true,
@@ -156,19 +183,28 @@ export default function ReviewsPage() {
   };
 
   const handleAutoReplyAll = async () => {
+    const resolvedOrg = orgId || getOrgId();
+    if (!resolvedOrg) {
+      alert("Please log in to your organization.");
+      return;
+    }
     setAutoReplyingAll(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/auto-reply-all`, {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/auto-reply-all`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: DEFAULT_ORG_ID }),
+        body: JSON.stringify({ orgId: resolvedOrg }),
       });
       if (res.ok) {
         const data = await res.json();
         setSyncMessage({
-          text: `AI Auto-Reply complete! Processed ${data.processedCount || 0} customer reviews with automated sentiment responses.`,
+          text: data.message || `AI Auto-Reply complete! Processed customer reviews with automated sentiment responses.`,
         });
-        await fetchReviews();
+        if (data.reviews) {
+          setReviews(data.reviews);
+        } else {
+          await fetchReviews(resolvedOrg);
+        }
       }
     } catch (err) {
       console.error("Auto reply all error:", err);
@@ -181,12 +217,18 @@ export default function ReviewsPage() {
     const text = replyTextMap[reviewId];
     if (!text || !text.trim()) return;
 
+    const resolvedOrg = orgId || getOrgId();
+    if (!resolvedOrg) {
+      alert("Please log in to your organization.");
+      return;
+    }
+
     setSubmittingReplyId(reviewId);
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmb/reviews/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reviewId, replyText: text, orgId: DEFAULT_ORG_ID }),
+        body: JSON.stringify({ reviewId, replyText: text, orgId: resolvedOrg }),
       });
 
       if (res.ok) {
