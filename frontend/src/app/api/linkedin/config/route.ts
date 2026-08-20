@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
 
 /**
  * Next.js App Router API Route: GET /api/linkedin/config
@@ -9,7 +8,10 @@ const DEFAULT_ORG_ID = "demo-org-123";
  */
 export async function GET(request: Request) {
   try {
-    const orgId = request.headers.get("x-organization-id") || DEFAULT_ORG_ID;
+    const orgId = request.headers.get("x-organization-id") || "";
+    if (!orgId) {
+      return NextResponse.json({ error: "Missing x-organization-id header" }, { status: 400 });
+    }
 
     const res = await fetch(`${API_BASE_URL}/api/linkedin/config`, {
       headers: { "x-organization-id": orgId },

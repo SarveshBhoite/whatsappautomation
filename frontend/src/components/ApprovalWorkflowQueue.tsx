@@ -22,7 +22,7 @@ interface ApprovalWorkflowQueueProps {
 }
 
 export function ApprovalWorkflowQueue({
-  organizationId = "demo-org-123",
+  organizationId = "",
   pendingPosts,
   userRole = "Admin",
   onRefresh

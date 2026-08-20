@@ -285,7 +285,14 @@ const MediaNodeComponent = ({ data }: any) => {
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 // TS Interfaces
 interface Message {
@@ -404,7 +411,7 @@ export default function Dashboard() {
   const fetchIgComments = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -422,7 +429,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           fromUser: "akash.raw__",
@@ -714,7 +721,7 @@ export default function Dashboard() {
     socket.on("connect", () => {
       console.log("Connected to Real-time WebSocket Server");
       // Join Organization Room
-      socket.emit("join-org", DEFAULT_ORG_ID);
+      const org = getOrgId(); if (org) socket.emit("join-org", org);
     });
 
     // Handle Inbound/Outbound Messages
@@ -818,7 +825,7 @@ export default function Dashboard() {
   const fetchConversations = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -846,7 +853,7 @@ export default function Dashboard() {
   const fetchConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -866,7 +873,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(config)
       });
@@ -884,7 +891,7 @@ export default function Dashboard() {
   const fetchInstagramConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -904,7 +911,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(igConfig)
       });
@@ -921,7 +928,7 @@ export default function Dashboard() {
 
   const fetchGoogleConfig = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
       if (!res.ok) return;
       const data = await res.json();
       if (!data) return;
@@ -962,11 +969,11 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           ...googleConfig,
-          orgId: DEFAULT_ORG_ID,
+          orgId: getOrgId(),
           googleLocationId: combinedLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId.trim()
         })
@@ -985,14 +992,14 @@ export default function Dashboard() {
   const handleGoogleOAuthConnect = () => {
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${DEFAULT_ORG_ID}`;
+      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}`;
     }
   };
 
   const fetchActiveFlow = async (platform: "whatsapp" | "instagram" = "whatsapp") => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/flows?platform=${platform}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -1051,7 +1058,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           id: flowId,
@@ -1139,7 +1146,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}`, {
         method: "DELETE",
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         setConversations((prev) => prev.filter((c) => c.id !== convId));

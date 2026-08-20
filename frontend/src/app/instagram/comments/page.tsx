@@ -21,7 +21,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 interface CommentItem {
   id: string;
@@ -47,7 +54,7 @@ export default function InstagramCommentsPage() {
     try {
       // Fetch live comments
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -58,7 +65,7 @@ export default function InstagramCommentsPage() {
 
       // Fetch live profile handle from Meta config
       const profileRes = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (profileRes.ok) {
         const profileData = await profileRes.json();
@@ -84,7 +91,7 @@ export default function InstagramCommentsPage() {
     }, 600000);
 
     const socket: Socket = io(BACKEND_URL);
-    socket.emit("join-org", DEFAULT_ORG_ID);
+    const org = getOrgId(); if (org) socket.emit("join-org", org);
 
     socket.on("instagram-comment-received", (newComment: CommentItem) => {
       setComments((prev) => [newComment, ...prev]);

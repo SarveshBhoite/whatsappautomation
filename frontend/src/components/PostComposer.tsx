@@ -19,7 +19,7 @@ interface PostComposerProps {
 const MAX_CHARACTERS = 3000;
 
 export function PostComposer({
-  organizationId = "demo-org-123",
+  organizationId = "",
   authorName = "LinkedIn Member",
   authorPicture = "",
   headline = "LinkedIn Member Profile",

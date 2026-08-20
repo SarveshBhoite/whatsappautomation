@@ -181,8 +181,14 @@ export default function ToolsSuitePage() {
   const [inspectorViewTab, setInspectorViewTab] = useState<"analysis" | "humanizer" | "history">("analysis");
   const [copiedInspectorText, setCopiedInspectorText] = useState(false);
 
-  const DEFAULT_ORG_ID = "demo-org-123";
-
+  const getOrgId = (): string => {
+    if (typeof window !== "undefined") {
+      const org = localStorage.getItem("organization_id");
+      if (org) return org;
+    }
+    return "";
+  };
+  
   const scanSteps = [
     "📡 Establishing secure HTTP connection & fetching website source...",
     "⚡ Querying Google PageSpeed API v5 for Performance & Core Web Vitals...",
@@ -260,7 +266,7 @@ ${auditResult.aiRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
   const fetchInspectorHistory = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/inspector/history`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -281,7 +287,7 @@ ${auditResult.aiRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
     try {
       const res = await fetch(`${BACKEND_URL}/api/inspector/extract-file`, {
         method: "POST",
-        headers: { "x-organization-id": DEFAULT_ORG_ID },
+        headers: { "x-organization-id": getOrgId() },
         body: formData
       });
 
@@ -317,7 +323,7 @@ ${auditResult.aiRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           text: inspectorText,

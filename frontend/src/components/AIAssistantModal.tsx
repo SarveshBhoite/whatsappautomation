@@ -59,7 +59,7 @@ const TEMPLATES = [
 ];
 
 export function AIAssistantModal({
-  organizationId = "demo-org-123",
+  organizationId = "",
   isOpen,
   onClose,
   onApplyContent

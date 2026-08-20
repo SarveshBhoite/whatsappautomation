@@ -74,7 +74,7 @@ export function LinkedInProfileDashboard({
   posts = [],
   scheduledPosts = [],
   drafts = [],
-  organizationId = "demo-org-123",
+  organizationId = "",
   onRefreshProfile,
   onDisconnect,
   onOpenAIAssistant,

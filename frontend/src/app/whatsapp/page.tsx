@@ -284,13 +284,13 @@ const MediaNodeComponent = ({ data }: any) => {
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
   }
-  return DEFAULT_ORG_ID;
+  return "";
 };
 
 // TS Interfaces
@@ -888,8 +888,10 @@ export default function Dashboard() {
   };
 
   const fetchGoogleConfig = async () => {
+    const org = getOrgId();
+    if (!org) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${encodeURIComponent(org)}`);
       if (!res.ok) return;
       const data = await res.json();
       if (!data) return;
@@ -916,6 +918,11 @@ export default function Dashboard() {
 
   const saveGoogleConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    const org = getOrgId();
+    if (!org) {
+      alert("Please log in to your organization.");
+      return;
+    }
     setGoogleSaveStatus("saving");
     try {
       // Clean inputs to remove any accidental prefixes
@@ -931,10 +938,10 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": org
         },
         body: JSON.stringify({ 
-          orgId: DEFAULT_ORG_ID, 
+          orgId: org, 
           ...googleConfig,
           googleLocationId: finalLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId
@@ -968,9 +975,14 @@ export default function Dashboard() {
   };
 
   const handleGoogleOAuthConnect = () => {
+    const org = getOrgId();
+    if (!org) {
+      alert("Please log in to your organization.");
+      return;
+    }
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${DEFAULT_ORG_ID}`;
+      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${encodeURIComponent(org)}`;
     }
   };
 

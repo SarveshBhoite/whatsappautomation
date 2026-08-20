@@ -44,7 +44,14 @@ const LinkedInIcon = ({ className = "h-5 w-5", ...props }: React.SVGProps<SVGSVG
 );
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 // Helper function to safely format values
 const formatSafeValue = (val: any, fallback = "Not synchronized"): string => {
@@ -202,7 +209,7 @@ export default function LinkedInPage() {
   const fetchConfig = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/linkedin/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -219,7 +226,7 @@ export default function LinkedInPage() {
   const fetchProfile = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/linkedin/profile`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -238,7 +245,7 @@ export default function LinkedInPage() {
   const fetchPosts = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/linkedin/posts`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -254,7 +261,7 @@ export default function LinkedInPage() {
   const fetchDrafts = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/linkedin/drafts`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -269,7 +276,7 @@ export default function LinkedInPage() {
   const fetchScheduled = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/linkedin/scheduled`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -292,7 +299,7 @@ export default function LinkedInPage() {
     let socket: Socket | null = null;
     try {
       socket = io(API_BASE_URL);
-      socket.emit("join-org", DEFAULT_ORG_ID);
+      const org = getOrgId(); if (org) socket.emit("join-org", org);
 
       socket.on("linkedin-profile-updated", (data: any) => {
         if (data.profile) setProfile(data.profile);
@@ -322,7 +329,7 @@ export default function LinkedInPage() {
   }, []);
 
   const handleConnectOAuth = () => {
-    window.location.href = `${API_BASE_URL}/api/linkedin/auth?orgId=${DEFAULT_ORG_ID}&redirect=/linkedin`;
+    window.location.href = `${API_BASE_URL}/api/linkedin/auth?orgId=${getOrgId()}&redirect=/linkedin`;
   };
 
   const handleSyncNow = async () => {
@@ -331,7 +338,7 @@ export default function LinkedInPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/linkedin/sync`, {
         method: "POST",
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
 
@@ -364,7 +371,7 @@ export default function LinkedInPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/linkedin/disconnect`, {
         method: "POST",
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         setConfig({});
@@ -566,7 +573,7 @@ export default function LinkedInPage() {
                 <LinkedInProfileCard
                   profile={profile}
                   config={config}
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   onRefreshSuccess={() => {
                     fetchConfig();
                     fetchProfile();
@@ -589,7 +596,7 @@ export default function LinkedInPage() {
 
                 {/* 5. Post Composer Component */}
                 <PostComposer
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   authorName={memberName}
                   authorPicture={memberPicture}
                   headline={headline}
@@ -601,7 +608,7 @@ export default function LinkedInPage() {
 
                 {/* 6. Approval Workflow Queue */}
                 <ApprovalWorkflowQueue
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   pendingPosts={scheduledPosts.filter((s) => s.approvalStatus === "PENDING_APPROVAL")}
                   onRefresh={fetchScheduled}
                 />
@@ -618,7 +625,7 @@ export default function LinkedInPage() {
 
                 {/* 9. Enterprise Reporting Engine */}
                 <EnterpriseReports
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   publishedCount={posts.length}
                   scheduledCount={scheduledPosts.length}
                 />
@@ -736,7 +743,7 @@ export default function LinkedInPage() {
                 className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
               >
                 <PostComposer
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   authorName={memberName}
                   authorPicture={memberPicture}
                   headline={headline}
@@ -755,7 +762,7 @@ export default function LinkedInPage() {
                 />
 
                 <ScheduleQueue
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   scheduledPosts={scheduledPosts}
                   loading={loading}
                   onRefresh={fetchScheduled}
@@ -766,7 +773,7 @@ export default function LinkedInPage() {
                 />
 
                 <DraftLibrary
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   drafts={drafts}
                   loading={loading}
                   onRefresh={fetchDrafts}
@@ -798,7 +805,7 @@ export default function LinkedInPage() {
                   posts={posts}
                   scheduledPosts={scheduledPosts}
                   drafts={drafts}
-                  organizationId={DEFAULT_ORG_ID}
+                  organizationId={getOrgId()}
                   onRefreshProfile={handleSyncNow}
                   onDisconnect={handleDisconnect}
                   onOpenAIAssistant={() => setActiveTab("posts")}

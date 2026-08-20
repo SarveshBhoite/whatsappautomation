@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { Star, Send, CheckCircle2, MessageSquare, ShieldCheck, ExternalLink } from "lucide-react";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
 
 const TEMPLATE_REVIEWS = [
   "Excellent service, prompt response, and very professional team. Highly recommended!",
@@ -13,7 +12,7 @@ const TEMPLATE_REVIEWS = [
 ];
 
 export default function PublicReviewSubmit() {
-  const [orgId, setOrgId] = useState(DEFAULT_ORG_ID);
+  const [orgId, setOrgId] = useState("");
   const [businessName, setBusinessName] = useState("Our Business");
   const [customerName, setCustomerName] = useState("");
   const [rating, setRating] = useState(0);
@@ -59,8 +58,9 @@ export default function PublicReviewSubmit() {
       
       // Fetch GMB config to get the correct business name and redirect link
       const fetchConfig = async () => {
+        if (!orgParam) return;
         try {
-          const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${orgParam || DEFAULT_ORG_ID}`);
+          const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${encodeURIComponent(orgParam)}`);
           if (res.ok) {
             const config = await res.json();
             if (config.locationName) {

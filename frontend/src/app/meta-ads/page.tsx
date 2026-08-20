@@ -20,13 +20,13 @@ import AwarenessCampaignFlow from "@/components/meta-ads/AwarenessCampaignFlow";
 import AppPromotionCampaignFlow from "@/components/meta-ads/AppPromotionCampaignFlow";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
   }
-  return DEFAULT_ORG_ID;
+  return "";
 };
 
 const DATE_RANGES = [

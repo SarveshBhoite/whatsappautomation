@@ -36,9 +36,9 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
-      fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
+      fetch(`${BACKEND}/api/ads/customer-info?orgId=${encodeURIComponent(orgId)}&customerId=${customerId}`)
         .then(r => r.json())
         .then(d => {
           setAccountInfo({
