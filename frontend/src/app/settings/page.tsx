@@ -85,13 +85,13 @@ const WhatsApp = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
 
 const TextNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
 
   return (
-    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
         {isIg ? (
           <Instagram className={`h-3 w-3 ${textColor}`} />
         ) : (
@@ -99,8 +99,8 @@ const TextNodeComponent = ({ data }: any) => {
         )}
         {isIg ? "Instagram Text DM" : "WhatsApp Text Msg"}
       </div>
-      <div className="text-slate-200 line-clamp-3 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans whitespace-pre-wrap">
-        {data.text || <span className="text-slate-500 italic">No text message defined</span>}
+      <div className="text-slate-800 line-clamp-3 bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans whitespace-pre-wrap">
+        {data.text || <span className="text-slate-400 italic">No text message defined</span>}
       </div>
       <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
@@ -109,15 +109,15 @@ const TextNodeComponent = ({ data }: any) => {
 
 const ButtonsNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
   const handleBgLight = isIg ? "!bg-pink-400" : "!bg-emerald-400";
   const borderL = isIg ? "border-l-pink-500" : "border-l-emerald-500";
 
   return (
-    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn text-slate-800">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
         {isIg ? (
           <Instagram className={`h-3 w-3 ${textColor}`} />
         ) : (
@@ -125,13 +125,13 @@ const ButtonsNodeComponent = ({ data }: any) => {
         )}
         {isIg ? "Instagram Quick Replies" : "WhatsApp Buttons"}
       </div>
-      <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 whitespace-pre-wrap">
-        {data.text || <span className="text-slate-500 italic">Type button header message...</span>}
+      <div className="text-slate-800 font-medium bg-slate-50 p-2 rounded border border-slate-200/80 whitespace-pre-wrap">
+        {data.text || <span className="text-slate-400 italic">Type button header message...</span>}
       </div>
       
       <div className="flex flex-col gap-1.5 mt-1">
         {data.buttons?.map((btn: any) => (
-          <div key={btn.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-center text-[10px] ${textColor} font-semibold shadow-sm border-l-2 ${borderL}`}>
+          <div key={btn.id} className={`relative bg-slate-50 border border-slate-200 rounded py-1.5 px-3 text-center text-[10px] ${textColor} font-bold shadow-2xs border-l-2 ${borderL}`}>
             {btn.title}
             <Handle 
               type="source" 
@@ -142,7 +142,7 @@ const ButtonsNodeComponent = ({ data }: any) => {
           </div>
         ))}
         {(!data.buttons || data.buttons.length === 0) && (
-          <span className="text-[9px] text-slate-500 italic text-center">Add options buttons on the right</span>
+          <span className="text-[9px] text-slate-400 italic text-center">Add options buttons on the right</span>
         )}
       </div>
     </div>
@@ -151,7 +151,7 @@ const ButtonsNodeComponent = ({ data }: any) => {
 
 const ListNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
   const handleBgLight = isIg ? "!bg-pink-400" : "!bg-emerald-400";
   const borderL = isIg ? "border-l-pink-500" : "border-l-emerald-500";
@@ -161,23 +161,23 @@ const ListNodeComponent = ({ data }: any) => {
   const rows = sections.flatMap((sec: any) => sec.rows || []) || [];
 
   return (
-    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn text-slate-800">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
         <FileText className={`h-3 w-3 ${textColor}`} />
         {isIg ? "Instagram Menu (Quick Replies)" : "WhatsApp List Menu"}
       </div>
-      <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans whitespace-pre-wrap">
-        {data.text || <span className="text-slate-500 italic">No description text</span>}
+      <div className="text-slate-800 font-medium bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans whitespace-pre-wrap">
+        {data.text || <span className="text-slate-400 italic">No description text</span>}
       </div>
-      <div className="bg-slate-950 border border-slate-850 rounded py-1 px-3 text-center text-[10px] text-slate-400 font-semibold mb-1">
+      <div className="bg-slate-100 border border-slate-200 rounded py-1 px-3 text-center text-[10px] text-slate-600 font-semibold mb-1">
         Button: {data.listButtonText || "View Menu"}
       </div>
 
       <div className="flex flex-col gap-1.5 mt-1">
         {rows.map((row: any) => (
-          <div key={row.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-left text-[10px] text-slate-200 font-semibold shadow-sm border-l-2 ${borderL}`}>
-            <div className="truncate font-medium">{row.title}</div>
+          <div key={row.id} className={`relative bg-slate-50 border border-slate-200 rounded py-1.5 px-3 text-left text-[10px] text-slate-800 font-semibold shadow-2xs border-l-2 ${borderL}`}>
+            <div className="truncate font-bold">{row.title}</div>
             {row.description && <div className="text-[8px] text-slate-500 font-normal truncate mt-0.5">{row.description}</div>}
             <Handle 
               type="source" 
@@ -188,7 +188,7 @@ const ListNodeComponent = ({ data }: any) => {
           </div>
         ))}
         {rows.length === 0 && (
-          <span className="text-[9px] text-slate-500 italic text-center">Add menu options on the right</span>
+          <span className="text-[9px] text-slate-400 italic text-center">Add menu options on the right</span>
         )}
       </div>
     </div>
@@ -197,13 +197,13 @@ const ListNodeComponent = ({ data }: any) => {
 
 const QuestionNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
 
   return (
-    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
         {isIg ? (
           <Instagram className={`h-3 w-3 ${textColor}`} />
         ) : (
@@ -211,11 +211,11 @@ const QuestionNodeComponent = ({ data }: any) => {
         )}
         Collect Input Question
       </div>
-      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans mb-2">
-        {data.text || <span className="text-slate-500 italic">No question defined</span>}
+      <div className="text-slate-800 line-clamp-2 bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans mb-2">
+        {data.text || <span className="text-slate-400 italic">No question defined</span>}
       </div>
-      <div className="bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20 text-[9px] text-amber-400 font-mono flex items-center gap-1 justify-center">
-        <Database className="h-3 w-3 text-amber-500" /> Save: {data.variableName || "user_input"}
+      <div className="bg-amber-50 rounded px-2 py-1 border border-amber-200 text-[9px] text-amber-700 font-mono flex items-center gap-1 justify-center font-bold">
+        <Database className="h-3 w-3 text-amber-600" /> Save: {data.variableName || "user_input"}
       </div>
       <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
@@ -224,12 +224,12 @@ const QuestionNodeComponent = ({ data }: any) => {
 
 const WelcomeNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
-  const border = isIg ? "border-pink-500" : "border-emerald-500";
+  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
+  const border = isIg ? "border-pink-400" : "border-emerald-400";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
 
   return (
-    <div className={`bg-slate-800 border-2 ${border} rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn`}>
+    <div className={`bg-white border-2 ${border} rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800`}>
       <div className={`text-[9px] ${textColor} font-bold uppercase tracking-wider mb-1 flex items-center gap-1`}>
         {isIg ? (
           <Instagram className="h-3.5 w-3.5" />
@@ -238,8 +238,8 @@ const WelcomeNodeComponent = ({ data }: any) => {
         )}
         {isIg ? "Instagram Welcome Node (Root)" : "Welcome Node (Root)"}
       </div>
-      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans">
-        {data.text || <span className="text-slate-500 italic">No welcome greeting defined</span>}
+      <div className="text-slate-800 line-clamp-2 bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans">
+        {data.text || <span className="text-slate-400 italic">No welcome greeting defined</span>}
       </div>
       <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
@@ -248,27 +248,27 @@ const WelcomeNodeComponent = ({ data }: any) => {
 
 const MediaNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
   const isVideo = data.mediaType === "video";
   const isAudio = data.mediaType === "audio";
   const isDoc = data.mediaType === "document";
 
   return (
-    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
+    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
         {isDoc ? <FileText className={`h-3 w-3 ${textColor}`} /> :
          isVideo ? <Video className={`h-3 w-3 ${textColor}`} /> :
          isAudio ? <Headphones className={`h-3 w-3 ${textColor}`} /> :
          <ImageIcon className={`h-3 w-3 ${textColor}`} />}
         Media response ({data.mediaType || "image"})
       </div>
-      <div className="text-[10px] text-slate-300 font-semibold truncate bg-slate-900/40 p-1.5 rounded border border-slate-850/60 font-mono mb-1.5 max-w-[180px]">
-        {data.mediaUrl ? (data.mediaUrl.startsWith("/uploads/") ? data.mediaUrl.substring(9) : data.mediaUrl) : <span className="text-slate-500 italic">No URL/file configured</span>}
+      <div className="text-[10px] text-slate-700 font-semibold truncate bg-slate-50 p-1.5 rounded border border-slate-200/80 font-mono mb-1.5 max-w-[180px]">
+        {data.mediaUrl ? (data.mediaUrl.startsWith("/uploads/") ? data.mediaUrl.substring(9) : data.mediaUrl) : <span className="text-slate-400 italic">No URL/file configured</span>}
       </div>
       {data.caption && (
-        <div className="text-slate-400 text-[10px] italic line-clamp-2 bg-slate-900/20 p-1.5 rounded border border-slate-850/30 whitespace-pre-wrap leading-tight">
+        <div className="text-slate-600 text-[10px] italic line-clamp-2 bg-slate-50/50 p-1.5 rounded border border-slate-200/50 whitespace-pre-wrap leading-tight">
           "{data.caption}"
         </div>
       )}
@@ -1440,8 +1440,7 @@ export default function Dashboard() {
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* 2. MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
-        
-        {/* TAB 1: REAL-TIME CHATS PANEL */}
+              {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
           const currentPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
           const filteredConversations = conversations.filter(c => (c.platform || "whatsapp") === currentPlatform);
@@ -1449,23 +1448,23 @@ export default function Dashboard() {
 
           return (
             <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar ΓÇö full screen on mobile when no chat open, fixed width on desktop */}
+              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
               <div className={`${
                 mobileChatOpen ? "hidden" : "flex"
-              } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                  <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
+              } sm:flex w-full sm:w-80 border-r border-slate-200 bg-white flex-col h-full shrink-0 shadow-2xs`}>
+                <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+                  <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${isInstagramTab ? "bg-pink-100 text-pink-700 border border-pink-200" : "bg-emerald-100 text-emerald-700 border border-emerald-200"}`}>
                       {filteredConversations.length} active
                     </span>
                   </h2>
                 </div>
                 
                 {/* Conversation items list */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                   {filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                    <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
                       {isInstagramTab ? (
                         <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
                       ) : (
@@ -1483,33 +1482,33 @@ export default function Dashboard() {
                         <div
                           key={conv.id}
                           onClick={() => handleSelectConversation(conv)}
-                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-2 ${isSelected ? (isInstagram ? "bg-slate-800/40 border-pink-500" : "bg-slate-800/40 border-emerald-500") : "hover:bg-slate-850/50 border-transparent"}`}
+                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-4 ${isSelected ? (isInstagram ? "bg-pink-50/60 border-pink-500" : "bg-emerald-50/60 border-emerald-500") : "hover:bg-slate-50 border-transparent"}`}
                         >
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-1.5 min-w-0">
                               {isInstagram ? (
-                                <Instagram className="h-3.5 w-3.5 text-pink-400 shrink-0" />
+                                <Instagram className="h-3.5 w-3.5 text-pink-600 shrink-0" />
                               ) : (
-                                <WhatsApp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                <WhatsApp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                               )}
-                              <span className="font-semibold text-slate-200 text-sm truncate">
+                              <span className="font-bold text-slate-900 text-sm truncate">
                                 {conv.customerName || conv.customerPhone}
                               </span>
                             </div>
-                            <span className="text-[10px] text-slate-500">
+                            <span className="text-[10px] text-slate-400 font-medium">
                               {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                            <p className="text-xs text-slate-500 truncate max-w-[180px]">
                               {lastMsg?.content || "No messages yet"}
                             </p>
                             {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
+                              <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
                                 <User className="h-2.5 w-2.5" /> Manual
                               </span>
                             ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
                                 <Bot className="h-2.5 w-2.5" /> Auto
                               </span>
                             )}
@@ -1521,41 +1520,41 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Chat Conversation Pane ΓÇö full screen on mobile when chat open */}
+              {/* Chat Conversation Pane — full screen on mobile when chat open */}
               <div className={`${
                 mobileChatOpen ? "flex" : "hidden"
-              } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
+              } sm:flex flex-1 flex-col h-full bg-slate-100/70 relative animate-slideInRight sm:animate-none`}>
                 {activeConv ? (
                   <>
                     {/* Chat header */}
-                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-3 sm:px-6 flex items-center justify-between z-10 gap-2">
+                    <div className="h-16 border-b border-slate-200 bg-white px-3 sm:px-6 flex items-center justify-between z-10 gap-2 shadow-2xs">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <button
                           type="button"
                           onClick={() => setMobileChatOpen(false)}
-                          className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 shrink-0 transition-all"
+                          className="sm:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 shrink-0 transition-all"
                         >
                           <ArrowLeft className="h-5 w-5" />
                         </button>
-                        <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700 shrink-0">
+                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold border border-slate-200 shrink-0">
                           {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
                         </div>
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2">
                             {activeConv.platform === "instagram" ? (
-                              <Instagram className="h-4 w-4 text-pink-400 shrink-0" />
+                              <Instagram className="h-4 w-4 text-pink-600 shrink-0" />
                             ) : (
-                              <WhatsApp className="h-4 w-4 text-emerald-400 shrink-0" />
+                              <WhatsApp className="h-4 w-4 text-emerald-600 shrink-0" />
                             )}
-                            <span className="font-semibold text-sm text-slate-200 truncate">
+                            <span className="font-bold text-sm text-slate-900 truncate">
                               {activeConv.customerName || (activeConv.platform === "instagram" ? "Instagram User" : "WhatsApp User")}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-400 flex items-center gap-1 truncate">
+                          <span className="text-xs text-slate-500 flex items-center gap-1 truncate">
                             {activeConv.platform === "instagram" ? (
                               <><span>Instagram ID:</span> {activeConv.customerPhone}</>
                             ) : (
-                              <><Phone className="h-3 w-3 text-slate-500 shrink-0" /> {activeConv.customerPhone}</>
+                              <><Phone className="h-3 w-3 text-slate-400 shrink-0" /> {activeConv.customerPhone}</>
                             )}
                           </span>
                         </div>
@@ -1563,11 +1562,10 @@ export default function Dashboard() {
 
                       {/* Bot active / pause controllers */}
                       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        {/* Bot status badge ΓÇö hidden on very small screens, visible on sm+ */}
-                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${
+                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border font-bold transition-all ${
                           activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            ? "bg-amber-50 border-amber-200 text-amber-800" 
+                            : "bg-emerald-50 border-emerald-200 text-emerald-800"
                         }`}>
                           {activeConv.isBotPaused ? (
                             <><User className="h-3.5 w-3.5" /><span>Bot Paused</span></>
@@ -1575,36 +1573,27 @@ export default function Dashboard() {
                             <><Bot className="h-3.5 w-3.5" /><span>Bot Active</span></>
                           )}
                         </div>
-                        {/* Compact bot status icon ΓÇö mobile only */}
-                        <div className={`sm:hidden p-2 rounded-xl border transition-all ${
-                          activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        }`}>
-                          {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                        </div>
 
                         <button
                           type="button"
                           onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${
+                          className={`text-xs font-bold px-2.5 sm:px-4 py-1.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                             activeConv.isBotPaused 
-                              ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" 
-                              : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
+                              ? "bg-emerald-600 border-emerald-600 hover:bg-emerald-700 text-white" 
+                              : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
                           }`}
                         >
                           <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
                           <span className="sm:hidden">{activeConv.isBotPaused ? "Resume" : "Pause"}</span>
                         </button>
-
                       </div>
                     </div>
                     {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100/60 relative scrollbar-thin">
                       {messages.map((msg) => {
                         const isInbound = msg.direction === "inbound";
                         
-                        // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
+                        // Check if message is a quoted reply
                         const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
                         let quoteText = "";
                         let messageBody = msg.content;
@@ -1642,7 +1631,6 @@ export default function Dashboard() {
                           const rowsString = listParts?.[1];
                           listRowsArray = rowsString ? rowsString.split(", ") : [];
 
-                          // Fallback to active flow graph listNode options if rows array is empty
                           if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
                             const matchingNode = nodes.find(
                               (n: any) =>
@@ -1668,12 +1656,12 @@ export default function Dashboard() {
                             className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
                           >
                             <div className="relative max-w-[70%]">
-                              {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
+                              {/* Hover Quote Trigger */}
                               <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
                                 <button
                                   type="button"
                                   onClick={() => setQuotedMessage(msg)}
-                                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-2 rounded-full border border-slate-700 shadow-lg transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+                                  className="bg-white hover:bg-slate-50 text-emerald-600 p-2 rounded-full border border-slate-200 shadow-md transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
                                   title="Quote Reply"
                                 >
                                   <CornerUpLeft className="h-3.5 w-3.5" />
@@ -1681,15 +1669,15 @@ export default function Dashboard() {
                               </div>
 
                               {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-sm flex flex-col gap-1 ${
                                 isInbound 
-                                  ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none" 
+                                  ? "bg-white text-slate-900 border border-slate-200/90 rounded-tl-none" 
                                   : activeConv?.platform === "instagram"
-                                    ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                    : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
+                                    ? "bg-gradient-to-r from-pink-600 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
+                                    : "bg-emerald-600 text-white font-medium rounded-tr-none shadow-emerald-500/10"
                               }`}>
                                 {msg.senderName && !isInbound && (
-                                  <span className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/80" : "text-slate-800/70"}`}>
+                                  <span className={`text-[9px] uppercase tracking-wider font-bold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100" : "text-emerald-100"}`}>
                                     {msg.senderName}
                                   </span>
                                 )}
@@ -1698,10 +1686,10 @@ export default function Dashboard() {
                                 {hasQuote && (
                                   <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${
                                     isInbound 
-                                      ? "bg-slate-900/40 border-slate-500 text-slate-400" 
+                                      ? "bg-slate-50 border-slate-300 text-slate-600" 
                                       : activeConv?.platform === "instagram"
-                                        ? "bg-violet-950/40 border-violet-400 text-violet-200"
-                                        : "bg-emerald-600/30 border-emerald-950 text-slate-900"
+                                        ? "bg-violet-950/30 border-violet-300 text-violet-100"
+                                        : "bg-emerald-700/50 border-emerald-200 text-emerald-50"
                                   }`}>
                                     {quoteText}
                                   </div>
@@ -1709,7 +1697,6 @@ export default function Dashboard() {
 
                                 {/* Render media content or plain text */}
                                 {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
-                                  // Parse structured media content
                                   let mediaUrl = msg.content;
                                   let displayFilename = "document.pdf";
                                   let captionText = "";
@@ -1734,7 +1721,7 @@ export default function Dashboard() {
                                   return (
                                     <div className="flex flex-col gap-2">
                                       {msg.messageType === "image" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 max-w-[240px] shadow-2xs">
                                           <img 
                                             src={getMediaUrl(mediaUrl)} 
                                             alt="Sent Media" 
@@ -1743,7 +1730,7 @@ export default function Dashboard() {
                                           />
                                         </div>
                                       ) : msg.messageType === "video" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 max-w-[240px] shadow-2xs">
                                           <video 
                                             src={getMediaUrl(mediaUrl)} 
                                             controls 
@@ -1763,19 +1750,23 @@ export default function Dashboard() {
                                           href={getMediaUrl(mediaUrl)} 
                                           target="_blank" 
                                           rel="noopener noreferrer" 
-                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
+                                          className={`flex items-center gap-2 p-2.5 rounded-xl border transition-colors ${
+                                            isInbound 
+                                              ? "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800" 
+                                              : "bg-white/15 hover:bg-white/25 border-white/20 text-white"
+                                          }`}
                                         >
-                                          <FileText className="h-8 w-8 stroke-1" />
+                                          <FileText className="h-8 w-8 stroke-1 shrink-0" />
                                           <div className="flex flex-col min-w-0">
-                                            <span className="text-xs font-semibold truncate max-w-[150px]">
+                                            <span className="text-xs font-bold truncate max-w-[150px]">
                                               {displayFilename}
                                             </span>
-                                            <span className="text-[10px] text-slate-500">Document File</span>
+                                            <span className="text-[10px] opacity-75">Document File</span>
                                           </div>
                                         </a>
                                       )}
                                       {captionText && (
-                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
+                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-600" : "text-white"}`}>{captionText}</p>
                                       )}
                                     </div>
                                   );
@@ -1785,18 +1776,18 @@ export default function Dashboard() {
                                     
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
-                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-black/10 pt-2 w-full min-w-[200px]">
                                         {buttonsArray.map((btnTitle, index) => {
                                           const isIg = activeConv?.platform === "instagram";
-                                          const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
-                                          const btnIconColor = isIg ? "text-pink-500" : "text-emerald-500";
+                                          const btnTextColor = isIg ? "text-pink-600" : "text-emerald-700";
+                                          const btnIconColor = isIg ? "text-pink-500" : "text-emerald-600";
                                           return (
                                             <div
                                               key={index}
-                                              className="w-full bg-white text-slate-700 border border-slate-200/80 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
+                                              className="w-full bg-white text-slate-800 border border-slate-200 shadow-2xs text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
                                             >
                                               <Bot className={`h-3 w-3 ${btnIconColor}`} />
-                                              {btnTitle}
+                                              <span className={btnTextColor}>{btnTitle}</span>
                                             </div>
                                           );
                                         })}
@@ -1805,7 +1796,7 @@ export default function Dashboard() {
 
                                     {/* Render Clickable WhatsApp-styled List Menus in chat logs */}
                                     {hasList && (
-                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-black/10 pt-2 w-full min-w-[200px]">
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1814,12 +1805,12 @@ export default function Dashboard() {
                                             );
                                           }}
                                           className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${
-                                            activeConv?.platform === "instagram" ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500"
-                                          } border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer`}
+                                            activeConv?.platform === "instagram" ? "text-pink-600" : "text-emerald-700"
+                                          } border border-slate-200 shadow-2xs text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center flex items-center justify-between gap-1.5 cursor-pointer`}
                                         >
                                           <span className="flex items-center gap-1.5">
                                             <FileText className={`h-3.5 w-3.5 ${
-                                              activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-500"
+                                              activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-600"
                                             }`} />
                                             {listButtonText}
                                           </span>
@@ -1828,8 +1819,8 @@ export default function Dashboard() {
 
                                         {/* Dropdown popup of options */}
                                         {activeListMenuMsgId === msg.id && (
-                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
-                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
+                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 border-b border-slate-100 mb-1 flex justify-between items-center">
                                               <span>Menu Options</span>
                                               <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
                                             </div>
@@ -1837,10 +1828,10 @@ export default function Dashboard() {
                                               {listRowsArray.map((rowText, index) => (
                                                 <div
                                                   key={index}
-                                                  className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
+                                                  className="w-full text-left bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2 px-3 rounded-xl border border-slate-200 flex items-center justify-between select-none"
                                                 >
-                                                  <span className="truncate pr-2">{rowText}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                                                  <span className="truncate pr-2 font-medium">{rowText}</span>
+                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                                                 </div>
                                               ))}
                                             </div>
@@ -1854,19 +1845,17 @@ export default function Dashboard() {
                                 {/* Ticks status and time */}
                                 <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${
                                   isInbound 
-                                    ? "text-slate-500" 
-                                    : activeConv?.platform === "instagram"
-                                      ? "text-pink-100/85"
-                                      : "text-slate-800/80"
+                                    ? "text-slate-400" 
+                                    : "text-white/80"
                                 }`}>
                                   <span>
                                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                   {!isInbound && (
                                     <span>
-                                      {msg.status === "sent" && <Check className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                      {msg.status === "delivered" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                      {msg.status === "read" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-white" : "text-emerald-950"}`} />}
+                                      {msg.status === "sent" && <Check className="h-3 w-3 text-white/90" />}
+                                      {msg.status === "delivered" && <CheckCheck className="h-3 w-3 text-white/90" />}
+                                      {msg.status === "read" && <CheckCheck className="h-3 w-3 text-white stroke-[2.5]" />}
                                     </span>
                                   )}
                                 </div>
@@ -1880,32 +1869,32 @@ export default function Dashboard() {
 
                     {/* Quoted Message Preview Header above input bar */}
                     {quotedMessage && (
-                      <div className="bg-slate-950 border-t border-slate-800 p-2.5 flex justify-between items-center text-[11px] text-slate-300 w-full animate-fadeIn shrink-0">
+                      <div className="bg-slate-50 border-t border-slate-200 p-2.5 flex justify-between items-center text-[11px] text-slate-700 w-full animate-fadeIn shrink-0">
                         <div className="flex flex-col truncate border-l-2 border-emerald-500 pl-2">
-                          <span className="font-bold text-emerald-400 text-[9px] uppercase tracking-wider">
+                          <span className="font-bold text-emerald-700 text-[9px] uppercase tracking-wider">
                             Quoting {quotedMessage.direction === "inbound" ? "Customer" : "Agent/Bot"}
                           </span>
-                          <span className="truncate text-xs text-slate-400 font-sans italic">
+                          <span className="truncate text-xs text-slate-600 font-sans italic">
                             {quotedMessage.content.split("|")[0]}
                           </span>
                         </div>
                         <button 
                           type="button" 
                           onClick={() => setQuotedMessage(null)} 
-                          className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
+                          className="text-slate-400 hover:text-slate-700 font-bold px-2 text-sm"
                         >
-                          ├ù
+                          ×
                         </button>
                       </div>
                     )}
 
                     {/* Message input bar */}
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
+                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-200 bg-white flex items-center gap-3 relative shadow-2xs">
                       
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
-                          {["≡ƒÿÇ", "≡ƒÿé", "≡ƒÿì", "≡ƒæì", "≡ƒÖÅ", "≡ƒöÑ", "≡ƒÜÇ", "Γ¥ñ∩╕Å", "≡ƒæÅ", "≡ƒÄë"].map((emoji) => (
+                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50">
+                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
                             <button
                               key={emoji}
                               type="button"
@@ -1923,30 +1912,30 @@ export default function Dashboard() {
 
                       {/* MEDIA/PAPERCLIP POPUP */}
                       {showMediaMenu && (
-                        <div className="absolute bottom-16 left-12 bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xl z-50 text-[11px] min-w-[170px]">
+                        <div className="absolute bottom-16 left-12 bg-white border border-slate-200 rounded-2xl p-2.5 flex flex-col gap-1.5 shadow-xl z-50 text-[11px] min-w-[170px]">
                           <button
                             type="button"
                             onClick={() => {
                               setShowMediaMenu(false);
                               fileInputRef.current?.click();
                             }}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 cursor-pointer"
+                            className="px-2.5 py-1.5 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 cursor-pointer font-semibold"
                           >
-                            <Paperclip className="h-4 w-4 text-emerald-400" /> Upload & Send File
+                            <Paperclip className="h-4 w-4 text-emerald-600" /> Upload & Send File
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 border-t border-slate-850 pt-1.5"
+                            className="px-2.5 py-1.5 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 border-t border-slate-100 pt-1.5 font-semibold"
                           >
-                            <ImageIcon className="h-4 w-4 text-emerald-400/80" /> Mock Case Study (Image)
+                            <ImageIcon className="h-4 w-4 text-emerald-600" /> Mock Case Study (Image)
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300"
+                            className="px-2.5 py-1.5 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold"
                           >
-                            <FileText className="h-4 w-4 text-sky-400/80" /> Mock Portfolio (PDF)
+                            <FileText className="h-4 w-4 text-sky-600" /> Mock Portfolio (PDF)
                           </button>
                         </div>
                       )}
@@ -1965,7 +1954,7 @@ export default function Dashboard() {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
                         }}
-                        className={`p-2 rounded-lg transition-colors ${showEmojiPicker ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                        className={`p-2 rounded-xl transition-colors ${showEmojiPicker ? "bg-emerald-50 text-emerald-600" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"}`}
                       >
                         <Smile className="h-5 w-5" />
                       </button>
@@ -1975,7 +1964,7 @@ export default function Dashboard() {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
                         }}
-                        className={`p-2 rounded-lg transition-colors ${showMediaMenu ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                        className={`p-2 rounded-xl transition-colors ${showMediaMenu ? "bg-emerald-50 text-emerald-600" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"}`}
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
@@ -1985,30 +1974,30 @@ export default function Dashboard() {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         placeholder="Type a message..."
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        className="flex-1 bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                       />
 
                       <button
                         type="submit"
                         disabled={!inputText.trim()}
-                        className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition-all shadow-md shadow-emerald-500/15 disabled:opacity-40 disabled:hover:bg-emerald-500"
+                        className="p-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:hover:bg-emerald-600 cursor-pointer"
                       >
-                        <Send className="h-4.5 w-4.5 fill-slate-950" />
+                        <Send className="h-4.5 w-4.5 fill-white" />
                       </button>
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50">
                     <div className="max-w-md flex flex-col items-center gap-4">
-                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-xl border ${isInstagramTab ? "bg-pink-500/10 text-pink-400 border-pink-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}`}>
+                      <div className={`h-20 w-20 rounded-3xl flex items-center justify-center shadow-xs border ${isInstagramTab ? "bg-pink-50 text-pink-600 border-pink-200" : "bg-emerald-50 text-emerald-600 border-emerald-200"}`}>
                         {isInstagramTab ? (
                           <Instagram className="h-10 w-10 stroke-1" />
                         ) : (
                           <Bot className="h-10 w-10 stroke-1" />
                         )}
                       </div>
-                      <h3 className="text-xl font-bold text-slate-100">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales & Support CRM</h3>
-                      <p className="text-sm text-slate-400">
+                      <h3 className="text-xl font-black text-slate-900">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales & Support CRM</h3>
+                      <p className="text-sm text-slate-500 leading-relaxed">
                         Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
                       </p>
                     </div>
@@ -2021,23 +2010,23 @@ export default function Dashboard() {
 
         {/* TAB 2: VISUAL FLOW BUILDER */}
         {activeTab === "flows" && (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
             {/* Header toolbar */}
-            <div className="h-14 border-b border-slate-800 bg-slate-950/20 px-6 flex items-center justify-between z-10">
+            <div className="h-14 border-b border-slate-200 bg-white px-6 flex items-center justify-between z-10 shadow-2xs">
               <div className="flex items-center gap-4">
                 <input 
                   type="text" 
                   value={flowName} 
                   onChange={(e) => setFlowName(e.target.value)}
-                  className="bg-transparent font-bold text-sm text-slate-200 border-b border-transparent hover:border-slate-700 focus:border-emerald-500 focus:outline-none py-1"
+                  className="bg-transparent font-bold text-sm text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none py-1"
                 />
                 
-                <div className="h-6 w-px bg-slate-800 mx-2" />
+                <div className="h-6 w-px bg-slate-200 mx-2" />
                 
                 <select
                   value={selectedPlatform}
                   onChange={(e) => setSelectedPlatform(e.target.value as "whatsapp" | "instagram")}
-                  className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="whatsapp">WhatsApp Flow</option>
                   <option value="instagram">Instagram Flow</option>
@@ -2046,44 +2035,44 @@ export default function Dashboard() {
 
               {/* Node tools */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 mr-2">Add Message Blocks:</span>
+                <span className="text-xs text-slate-400 font-medium mr-2">Add Message Blocks:</span>
                 <button 
                   onClick={() => addFlowNode("textNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" /> Text Msg
                 </button>
                 <button 
                   onClick={() => addFlowNode("buttonsNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" /> Buttons Options
                 </button>
                 <button 
                   onClick={() => addFlowNode("listNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" /> List Menu
                 </button>
                  <button 
                   onClick={() => addFlowNode("questionNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" /> Input Question
                 </button>
                 <button 
                   onClick={() => addFlowNode("mediaNode")}
-                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
+                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" /> Media Msg
                 </button>
 
-                <div className="h-6 w-px bg-slate-800 mx-2" />
+                <div className="h-6 w-px bg-slate-200 mx-2" />
 
                 <button
                   onClick={saveFlow}
                   disabled={flowSaveStatus === "saving"}
-                  className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                 >
                   <Save className="h-3.5 w-3.5" /> 
                   {flowSaveStatus === "saving" ? "Saving..." : flowSaveStatus === "success" ? "Saved!" : "Save Flow"}
@@ -2092,7 +2081,7 @@ export default function Dashboard() {
             </div>
 
             {/* Canvas workspace using React Flow & Selected Node Panel */}
-            <div className="flex-1 w-full bg-slate-950 relative flex">
+            <div className="flex-1 w-full bg-slate-100/70 relative flex">
               <div className="flex-1 h-full">
                 <ReactFlow
                   nodes={nodes}
@@ -2103,39 +2092,39 @@ export default function Dashboard() {
                   nodeTypes={nodeTypes}
                   fitView
                 >
-                  <Controls className="bg-slate-900 border border-slate-800 text-slate-200" />
-                  <MiniMap className="bg-slate-900 border border-slate-850" nodeColor={() => '#10b981'} maskColor="rgba(15, 23, 42, 0.6)" />
-                  <Background color="#334155" gap={16} />
+                  <Controls className="bg-white border border-slate-200 text-slate-700 shadow-sm" />
+                  <MiniMap className="bg-white border border-slate-200 shadow-sm" nodeColor={() => '#10b981'} maskColor="rgba(241, 245, 249, 0.7)" />
+                  <Background color="#cbd5e1" gap={16} />
                 </ReactFlow>
               </div>
 
               {/* Node properties editor panel (Right Sidebar) */}
               {selectedNode && (
-                <div className="w-80 border-l border-slate-800 bg-slate-950/60 p-5 overflow-y-auto flex flex-col gap-4 text-xs shrink-0 z-20">
-                  <h3 className="font-bold text-sm text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Bot className="h-4 w-4 text-emerald-400" /> Node Properties
+                <div className="w-80 border-l border-slate-200 bg-white p-5 overflow-y-auto flex flex-col gap-4 text-xs shrink-0 z-20 shadow-sm">
+                  <h3 className="font-black text-sm text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Bot className="h-4 w-4 text-emerald-600" /> Node Properties
                   </h3>
                   
                   {/* Common Name/Label */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-slate-400 font-semibold">Label / Name</label>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-slate-700 font-bold">Label / Name</label>
                     <input 
                       type="text" 
                       value={selectedNode.data.label || ""}
                       onChange={(e) => updateSelectedNode({ label: e.target.value })}
-                      className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                      className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 transition-all font-medium"
                     />
                   </div>
 
                   {/* Common Message Text */}
                   {selectedNode.type !== "mediaNode" && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 font-semibold">Message Text</label>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-700 font-bold">Message Text</label>
                       <textarea 
                         value={selectedNode.data.text || ""}
                         onChange={(e) => updateSelectedNode({ text: e.target.value })}
                         rows={4}
-                        className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                        className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 leading-relaxed transition-all"
                         placeholder="Type WhatsApp reply content..."
                       />
                     </div>
@@ -2144,12 +2133,12 @@ export default function Dashboard() {
                   {/* If node is a media node, edit media properties */}
                   {selectedNode.type === "mediaNode" && (
                     <div className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 font-semibold">Media Type</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-700 font-bold">Media Type</label>
                         <select
                           value={selectedNode.data.mediaType || "image"}
                           onChange={(e) => updateSelectedNode({ mediaType: e.target.value })}
-                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                          className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold"
                         >
                           <option value="image">Image</option>
                           <option value="video">Video</option>
@@ -2158,14 +2147,14 @@ export default function Dashboard() {
                         </select>
                       </div>
 
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1.5">
                         <div className="flex justify-between items-center">
-                          <label className="text-slate-400 font-semibold">Media URL / Path</label>
-                          <label className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer">
+                          <label className="text-slate-700 font-bold">Media URL / Path</label>
+                          <label className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer">
                             Upload File
                             <input 
                               type="file" 
-                              onChange={handleFlowMediaUpload}
+                              onChange={handleFlowMediaUpload} 
                               className="hidden" 
                             />
                           </label>
@@ -2174,31 +2163,31 @@ export default function Dashboard() {
                           type="text" 
                           value={selectedNode.data.mediaUrl || ""}
                           onChange={(e) => updateSelectedNode({ mediaUrl: e.target.value })}
-                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                          className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-mono text-xs"
                           placeholder="e.g. /uploads/image.png or http://..."
                         />
                       </div>
 
                       {selectedNode.data.mediaType === "document" && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-slate-400 font-semibold">Display Filename</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-slate-700 font-bold">Display Filename</label>
                           <input 
                             type="text" 
                             value={selectedNode.data.filename || ""}
                             onChange={(e) => updateSelectedNode({ filename: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500"
                             placeholder="e.g. brochure.pdf"
                           />
                         </div>
                       )}
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 font-semibold">Caption Text (Optional)</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-700 font-bold">Caption Text (Optional)</label>
                         <textarea 
                           value={selectedNode.data.caption || ""}
                           onChange={(e) => updateSelectedNode({ caption: e.target.value })}
                           rows={3}
-                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                          className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-emerald-500 leading-relaxed"
                           placeholder="Media caption text..."
                         />
                       </div>
@@ -2207,13 +2196,13 @@ export default function Dashboard() {
 
                   {/* If node is a question, collect variables */}
                   {selectedNode.type === "questionNode" && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 font-semibold">Save Response to Variable</label>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-700 font-bold">Save Response to Variable</label>
                       <input 
                         type="text" 
                         value={selectedNode.data.variableName || ""}
                         onChange={(e) => updateSelectedNode({ variableName: e.target.value })}
-                        className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                        className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono focus:outline-none focus:border-emerald-500"
                         placeholder="e.g. client_email"
                       />
                     </div>
@@ -2227,24 +2216,24 @@ export default function Dashboard() {
 
                     return (
                       <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-slate-400 font-semibold">Menu Button Text</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-slate-700 font-bold">Menu Button Text</label>
                           <input 
                             type="text" 
                             value={selectedNode.data.listButtonText || ""}
                             onChange={(e) => updateSelectedNode({ listButtonText: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold"
                             placeholder="e.g. View Menu"
                           />
                         </div>
 
                         <div className="flex justify-between items-center mt-2">
-                          <label className="text-slate-400 font-semibold">Menu Options (Max {limit} Items)</label>
+                          <label className="text-slate-700 font-bold">Menu Options (Max {limit} Items)</label>
                           {rows.length < limit && (
                             <button 
                               type="button"
                               onClick={addListOptionRow}
-                              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                              className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
                             >
                               + Add Option
                             </button>
@@ -2253,23 +2242,23 @@ export default function Dashboard() {
 
                         <div className="space-y-3">
                           {rows.map((row: any, index: number) => (
-                            <div key={row.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1.5 relative">
+                            <div key={row.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col gap-1.5 relative">
                               <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-slate-500 font-semibold">Option {index + 1}</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Option {index + 1}</span>
                                 <button 
                                   type="button"
                                   onClick={() => removeListOptionRow(row.id)}
-                                  className="text-red-400 hover:text-red-300 font-bold text-xs"
+                                  className="text-red-500 hover:text-red-700 font-bold text-xs cursor-pointer"
                                 >
-                                  ├ù
+                                  ×
                                 </button>
                               </div>
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1.5">
                                 <input 
                                   type="text" 
                                   value={row.title}
                                   onChange={(e) => updateListOptionRow(row.id, e.target.value, row.description)}
-                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
+                                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-emerald-500"
                                   placeholder="Option Title"
                                   maxLength={50}
                                 />
@@ -2277,7 +2266,7 @@ export default function Dashboard() {
                                   type="text" 
                                   value={row.description || ""}
                                   onChange={(e) => updateListOptionRow(row.id, row.title, e.target.value)}
-                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-450 text-[10px] focus:outline-none focus:border-emerald-500"
+                                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-600 text-[10px] focus:outline-none focus:border-emerald-500"
                                   placeholder="Optional description (WhatsApp only)"
                                   maxLength={72}
                                 />
@@ -2285,12 +2274,12 @@ export default function Dashboard() {
                             </div>
                           ))}
                           {rows.length === 0 && (
-                            <span className="text-[10px] text-slate-500 italic block text-center mt-1">No options added yet. Click Add Option.</span>
+                            <span className="text-[10px] text-slate-400 italic block text-center mt-1">No options added yet. Click Add Option.</span>
                           )}
                         </div>
                         
                         {/* Warning banner for Instagram fallback */}
-                        <div className="bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 p-2.5 rounded-lg leading-relaxed mt-2">
+                        <div className="bg-amber-50 border border-amber-200 text-[10px] text-amber-800 p-2.5 rounded-xl leading-relaxed mt-2 font-medium">
                           <strong>Note:</strong> Instagram does not support native List menus; they will fallback to Quick Reply buttons.
                         </div>
                       </div>
@@ -2301,12 +2290,12 @@ export default function Dashboard() {
                   {selectedNode.type === "buttonsNode" && (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between items-center">
-                        <label className="text-slate-400 font-semibold">Options (Max {selectedPlatform === "whatsapp" ? 3 : 13} Buttons)</label>
+                        <label className="text-slate-700 font-bold">Options (Max {selectedPlatform === "whatsapp" ? 3 : 13} Buttons)</label>
                         {(!selectedNode.data.buttons || selectedNode.data.buttons.length < (selectedPlatform === "whatsapp" ? 3 : 13)) && (
                           <button 
                             type="button"
                             onClick={addOptionButton}
-                            className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                            className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
                           >
                             + Add Button
                           </button>
@@ -2319,30 +2308,30 @@ export default function Dashboard() {
                               type="text" 
                               value={btn.title}
                               onChange={(e) => updateOptionButton(btn.id, e.target.value)}
-                              className="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
+                              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-emerald-500"
                               placeholder={`Button ${index + 1}`}
                             />
                             <button 
                               type="button"
                               onClick={() => removeOptionButton(btn.id)}
-                              className="text-red-400 hover:text-red-300 px-1 font-bold text-xs"
+                              className="text-red-500 hover:text-red-700 px-1 font-bold text-xs cursor-pointer"
                             >
-                              ├ù
+                              ×
                             </button>
                           </div>
                         ))}
                         {(!selectedNode.data.buttons || selectedNode.data.buttons.length === 0) && (
-                          <span className="text-[10px] text-slate-500 italic">No buttons added yet. Click Add Button.</span>
+                          <span className="text-[10px] text-slate-400 italic">No buttons added yet. Click Add Button.</span>
                         )}
                       </div>
                     </div>
                   )}
                   {/* Delete Node Action */}
-                  <div className="border-t border-slate-800 pt-4 mt-2">
+                  <div className="border-t border-slate-100 pt-4 mt-2">
                     <button
                       type="button"
                       onClick={deleteSelectedNode}
-                      className="w-full bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-950 font-bold py-2 rounded-lg transition-all text-[11px]"
+                      className="w-full bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 font-bold py-2 rounded-xl transition-all text-xs cursor-pointer"
                     >
                       Delete Block
                     </button>
@@ -2355,65 +2344,68 @@ export default function Dashboard() {
 
         {/* TAB 3: SETTINGS & ONBOARDING */}
         {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-8 w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-800 pb-4">
-              <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
-                <Settings className="h-6 w-6 text-emerald-400" /> Settings & Integrations
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 w-full bg-slate-50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-slate-200 pb-5">
+              <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <span>Settings & Integrations</span>
               </h2>
               
               {/* Secondary sub-tabs selector */}
-              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 self-start sm:self-auto shadow-inner gap-1">
+              <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 self-start sm:self-auto shadow-2xs gap-1.5 overflow-x-auto max-w-full">
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("whatsapp")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
-                  <WhatsApp className="h-3.5 w-3.5" /> WhatsApp Setup
+                  <WhatsApp className="h-4 w-4" /> WhatsApp Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("instagram")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-pink-500 text-white shadow-md shadow-pink-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-pink-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
-                  <Instagram className="h-3.5 w-3.5" /> Instagram Setup
+                  <Instagram className="h-4 w-4" /> Instagram Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("google")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-primary text-slate-950 shadow-md shadow-primary/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
-                  <Star className="h-3.5 w-3.5 text-slate-950" /> Google Setup
+                  <Star className="h-4 w-4 fill-current" /> Google Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("youtube")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "youtube" ? "bg-red-600 text-white shadow-md shadow-red-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "youtube" ? "bg-red-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
-                  <Video className="h-3.5 w-3.5" /> YouTube Setup
+                  <Video className="h-4 w-4" /> YouTube Setup
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Configuration Inputs */}
-              <div className="md:col-span-2 space-y-6">
+              <div className="lg:col-span-2 space-y-6">
                 {settingsSubTab === "whatsapp" ? (
                   <>
                     {/* Meta Official Embedded Signup (Recommended for Tech Provider) */}
-                    <div className="bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-hidden animate-fadeIn">
+                    <div className="bg-gradient-to-br from-emerald-50/70 via-white to-slate-50 border border-emerald-200/80 rounded-3xl p-6 sm:p-7 space-y-5 shadow-xs relative overflow-hidden animate-fadeIn">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                        <div className="flex items-center gap-3.5">
+                          <div className="h-12 w-12 rounded-2xl bg-emerald-100/70 border border-emerald-300/80 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
                             <WhatsApp className="h-6 w-6" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <h3 className="font-bold text-base text-white">Meta WhatsApp Embedded Signup</h3>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                              <h3 className="font-bold text-base text-slate-900">Meta WhatsApp Embedded Signup</h3>
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
                                 OFFICIAL TECH PROVIDER
                               </span>
                             </div>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-slate-500 mt-0.5">
                               Connect your existing company WhatsApp number or create a new WABA instantly with Meta login.
                             </p>
                           </div>
@@ -2424,7 +2416,7 @@ export default function Dashboard() {
                             type="button"
                             onClick={launchWhatsAppSignup}
                             disabled={embeddedConnecting}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
                           >
                             <WhatsApp className="h-4 w-4" />
                             <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
@@ -2435,7 +2427,7 @@ export default function Dashboard() {
                               type="button"
                               onClick={handleDisconnectWhatsApp}
                               disabled={embeddedConnecting}
-                              className="px-4 py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                              className="px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 hover:text-red-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
                             >
                               Disconnect
                             </button>
@@ -2444,55 +2436,55 @@ export default function Dashboard() {
                       </div>
 
                       {(config.wabaId || config.phoneNumberId) && (
-                        <div className="bg-slate-950/80 border border-emerald-500/30 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
-                          <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                            <Check className="h-4.5 w-4.5" />
+                        <div className="bg-white border border-emerald-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+                          <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                            <Check className="h-4.5 w-4.5 stroke-[2.5]" />
                             <span>Status: Connected to Meta Cloud API</span>
                           </div>
-                          <div className="flex items-center gap-3 text-slate-300 font-mono text-[11px]">
-                            <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">WABA ID: <strong className="text-white">{config.wabaId || "Connected"}</strong></span>
-                            <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">Phone ID: <strong className="text-white">{config.phoneNumberId || "Connected"}</strong></span>
+                          <div className="flex items-center gap-3 text-slate-600 font-mono text-[11px]">
+                            <span className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">WABA ID: <strong className="text-slate-900">{config.wabaId || "Connected"}</strong></span>
+                            <span className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">Phone ID: <strong className="text-slate-900">{config.phoneNumberId || "Connected"}</strong></span>
                           </div>
                         </div>
                       )}
                     </div>
 
                     {/* WhatsApp Manual Credentials Form */}
-                    <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Key className="h-4.5 w-4.5 text-emerald-400" /> Manual API Credentials (Advanced)
+                    <form onSubmit={saveConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Key className="h-4.5 w-4.5 text-emerald-600" /> Manual API Credentials (Advanced)
                       </h3>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-slate-700 font-bold">Phone Number ID</label>
                         <input
                           type="text"
                           value={config.phoneNumberId}
                           onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
                           placeholder="e.g. 1048473820293"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-slate-700 font-bold">WhatsApp Business Account ID (WABA ID)</label>
                         <input
                           type="text"
                           value={config.wabaId}
                           onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
                           placeholder="e.g. 1048473820999"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-slate-700 font-bold">System User Access Token (Permanent)</label>
                         <textarea
                           value={config.accessToken}
                           onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
                           placeholder="Paste EAAG... permanent access token here"
                           rows={4}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
+                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono text-xs"
                         />
                       </div>
 
@@ -2500,42 +2492,42 @@ export default function Dashboard() {
                         <button
                           type="submit"
                           disabled={saveStatus === "saving"}
-                          className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                         >
                           <Save className="h-4 w-4" />
                           {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
                         </button>
                         
                         {saveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
+                          <span className="text-xs text-red-600 font-bold">Failed to save settings.</span>
                         )}
                       </div>
                     </form>
 
                     {/* WhatsApp Webhook Integration */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp Webhook Configuration
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Database className="h-4.5 w-4.5 text-emerald-600" /> WhatsApp Webhook Configuration
                       </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
                       </p>
 
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
+                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
                       </div>
 
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">my_secure_verify_token_123</span>
+                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">my_secure_verify_token_123</span>
                       </div>
 
-                      <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 flex gap-3">
-                        <Bot className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex gap-3">
+                        <Bot className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-emerald-300">Important Webhook Fields</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-bold text-emerald-900">Important Webhook Fields</span>
+                          <span className="text-[11px] text-emerald-800 leading-relaxed">
                             In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>message_deliveries</strong> webhook fields.
                           </span>
                         </div>
@@ -2545,41 +2537,41 @@ export default function Dashboard() {
                 ) : settingsSubTab === "instagram" ? (
                   <>
                     {/* Instagram Credentials Form */}
-                    <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Instagram className="h-4.5 w-4.5 text-pink-500" /> Instagram DM Credentials
+                    <form onSubmit={saveInstagramConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Instagram className="h-4.5 w-4.5 text-pink-600" /> Instagram DM Credentials
                       </h3>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Instagram Business Account ID</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-slate-700 font-bold">Instagram Business Account ID</label>
                         <input
                           type="text"
                           value={igConfig.instagramAccountId}
                           onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
                           placeholder="e.g. 17841401234567890"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Facebook Page ID</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-slate-700 font-bold">Facebook Page ID</label>
                         <input
                           type="text"
                           value={igConfig.pageId}
                           onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
                           placeholder="e.g. 10203040506070"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Page Access Token (Permanent)</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-slate-700 font-bold">Page Access Token (Permanent)</label>
                         <textarea
                           value={igConfig.pageAccessToken}
                           onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
                           placeholder="Paste Page Access Token here"
                           rows={4}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono text-xs"
+                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono text-xs"
                         />
                       </div>
 
@@ -2587,42 +2579,42 @@ export default function Dashboard() {
                         <button
                           type="submit"
                           disabled={igSaveStatus === "saving"}
-                          className="bg-pink-500 hover:bg-pink-400 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-pink-500/10 cursor-pointer"
+                          className="bg-pink-600 hover:bg-pink-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                         >
                           <Save className="h-4 w-4" />
                           {igSaveStatus === "saving" ? "Saving..." : igSaveStatus === "success" ? "Saved Successfully!" : "Save Instagram Credentials"}
                         </button>
                         
                         {igSaveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
+                          <span className="text-xs text-red-600 font-bold">Failed to save settings.</span>
                         )}
                       </div>
                     </form>
 
                     {/* Instagram Webhook Integration */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-pink-400" /> Instagram Webhook Configuration
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Database className="h-4.5 w-4.5 text-pink-600" /> Instagram Webhook Configuration
                       </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>Instagram Webhook</strong> product parameters list.
                       </p>
 
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
+                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{`${BACKEND_URL}/api/webhook/instagram`}</span>
                       </div>
 
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
+                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{config.webhookVerifyToken}</span>
+                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{config.webhookVerifyToken}</span>
                       </div>
 
-                      <div className="bg-pink-500/5 border border-pink-500/10 rounded-xl p-3.5 flex gap-3">
-                        <Bot className="h-5 w-5 text-pink-400 shrink-0 mt-0.5" />
+                      <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 flex gap-3">
+                        <Bot className="h-5 w-5 text-pink-600 shrink-0 mt-0.5" />
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-pink-300">Important Webhook Fields</span>
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs font-bold text-pink-950">Important Webhook Fields</span>
+                          <span className="text-[11px] text-pink-900 leading-relaxed">
                             In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>messaging_postbacks</strong> webhook fields under the <strong>Instagram</strong> section.
                           </span>
                         </div>
@@ -2632,77 +2624,77 @@ export default function Dashboard() {
                 ) : settingsSubTab === "google" ? (
                   <>
                     {/* Google GMB Credentials Form */}
-                    <form onSubmit={saveGoogleConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Star className="h-4.5 w-4.5 text-primary" /> Google Business Configuration
+                    <form onSubmit={saveGoogleConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Star className="h-4.5 w-4.5 text-amber-500 fill-amber-500" /> Google Business Configuration
                       </h3>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Location / Business Name</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-slate-700 font-bold">Location / Business Name</label>
                           <input
                             type="text"
                             value={googleConfig.locationName || ""}
                             onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
                             placeholder="e.g. Jisnu Digitals Pune"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
                           />
                         </div>
 
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Place ID (Link redirection)</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-slate-700 font-bold">Google Place ID (Link redirection)</label>
                           <input
                             type="text"
                             value={googleConfig.googlePlaceId || ""}
                             onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
                             placeholder="e.g. ChIJK7R7jG-5wjsR..."
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono"
                           />
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Live Google Business Review Redirect URL</label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs text-slate-700 font-bold">Live Google Business Review Redirect URL</label>
                         <input
                           type="text"
                           value={googleConfig.googleReviewUrl || ""}
                           onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
                           placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Business Account ID (Optional)</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-slate-700 font-bold">Google Business Account ID (Optional)</label>
                           <input
                             type="text"
                             value={formGoogleAccountId}
                             onChange={(e) => setFormGoogleAccountId(e.target.value)}
                             placeholder="e.g. 1048273892019"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono text-xs"
                           />
                         </div>
 
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Business Location ID</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-slate-700 font-bold">Google Business Location ID</label>
                           <input
                             type="text"
                             value={formGoogleLocationId}
                             onChange={(e) => setFormGoogleLocationId(e.target.value)}
                             placeholder="e.g. 15154699825689004204"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono text-xs"
                           />
                         </div>
 
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">Google Ads Customer ID</label>
+                        <div className="flex flex-col gap-1.5 sm:col-span-2">
+                          <label className="text-xs text-slate-700 font-bold">Google Ads Customer ID</label>
                           <input
                             type="text"
                             value={formGoogleAdsCustomerId}
                             onChange={(e) => setFormGoogleAdsCustomerId(e.target.value)}
                             placeholder="e.g. 123-456-7890"
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-xs"
+                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono text-xs"
                           />
                         </div>
                       </div>
@@ -2711,41 +2703,41 @@ export default function Dashboard() {
                         <button
                           type="submit"
                           disabled={googleSaveStatus === "saving"}
-                          className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                          className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                         >
                           <Save className="h-4 w-4" />
                           {googleSaveStatus === "saving" ? "Saving..." : googleSaveStatus === "success" ? "Saved Config Successfully!" : "Save Google Configurations"}
                         </button>
                         {googleSaveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save Google config.</span>
+                          <span className="text-xs text-red-600 font-bold">Failed to save Google config.</span>
                         )}
                       </div>
                     </form>
 
                     {/* Google OAuth Live Connection Panel */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-primary" /> Google Business Profile Authorization
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Database className="h-4.5 w-4.5 text-amber-500" /> Google Business Profile Authorization
                       </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         Connect your live Google Business Profile account so the system can automatically monitor reviews and post automated replies on your behalf.
                       </p>
 
-                      <div className="flex items-center gap-3.5 bg-slate-900/50 border border-slate-850 p-4 rounded-xl">
+                      <div className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
                         <button
                           type="button"
                           onClick={handleGoogleOAuthConnect}
                           disabled={googleOauthStatus === "connecting"}
-                          className="bg-primary hover:bg-secondary text-slate-950 font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-50"
+                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
                         >
                           <RefreshCw className={`h-4.5 w-4.5 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
                           {googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect Google Account"}
                         </button>
                         <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-slate-200">
+                          <span className="text-xs font-bold text-slate-900">
                             {googleConfig.googleRefreshToken ? "Status: CONNECTED" : "Google Login (OAuth)"}
                           </span>
-                          <span className="text-[10px] text-slate-500 leading-normal">
+                          <span className="text-[11px] text-slate-500 leading-normal">
                             {googleConfig.googleRefreshToken 
                               ? "Your Google Business account token is active. Ready to manage reviews."
                               : "Click to authorize GMB review API access via Google's secure portal."}
@@ -2754,36 +2746,36 @@ export default function Dashboard() {
                       </div>
                       
                       {googleOauthStatus === "success" && (
-                        <span className="text-xs text-emerald-400 font-medium block animate-fadeIn">Google profile connected successfully!</span>
+                        <span className="text-xs text-emerald-600 font-bold block animate-fadeIn">Google profile connected successfully!</span>
                       )}
                       {googleOauthStatus === "error" && (
-                        <span className="text-xs text-red-400 font-medium block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
+                        <span className="text-xs text-red-600 font-bold block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
                       )}
                     </div>
                   </>
                 ) : (
                   <>
                     {/* YouTube Credentials Form */}
-                    <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                          <Video className="h-4.5 w-4.5 text-red-500" /> YouTube Channel Configuration
+                    <form onSubmit={saveYoutubeConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                          <Video className="h-4.5 w-4.5 text-red-600" /> YouTube Channel Configuration
                         </h3>
                         {ytConfig.refreshToken || ytConfig.channelId ? (
-                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1">
                             Connected ✓
                           </span>
                         ) : null}
                       </div>
 
                       {(ytConfig.refreshToken || ytConfig.channelId) && (
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Connected Account</span>
-                            <span className="text-sm font-bold text-slate-250">
+                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Connected Account</span>
+                            <span className="text-sm font-bold text-slate-900">
                               {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
                             </span>
-                            <span className="text-xs text-slate-400 font-mono">
+                            <span className="text-xs text-slate-500 font-mono">
                               Channel ID: {ytConfig.channelId || "N/A"}
                             </span>
                           </div>
@@ -2793,7 +2785,7 @@ export default function Dashboard() {
                               setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
                               saveYoutubeConfig({ preventDefault: () => {} } as any);
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                            className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-all cursor-pointer shrink-0"
                           >
                             Disconnect
                           </button>
@@ -2801,34 +2793,34 @@ export default function Dashboard() {
                       )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-slate-700 font-bold">YouTube Channel ID</label>
                           <input
                             type="text"
                             value={ytConfig.channelId || ""}
                             onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all font-mono"
                             placeholder="e.g. UCxxxxxxxxx"
                           />
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs text-slate-700 font-bold">OAuth Access Token</label>
                           <input
                             type="text"
                             value={ytConfig.accessToken || ""}
                             onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all font-mono"
                             placeholder="Access Token"
                           />
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between border-t border-slate-850 pt-4">
+                      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                         <button
                           type="button"
                           onClick={handleYoutubeOAuthConnect}
                           disabled={ytOauthStatus === "connecting"}
-                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
+                          className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer"
                         >
                           <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
                           {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
@@ -2837,7 +2829,7 @@ export default function Dashboard() {
                         <button
                           type="submit"
                           disabled={ytSaveStatus === "saving"}
-                          className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs transition-all cursor-pointer"
+                          className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs transition-all cursor-pointer shadow-sm"
                         >
                           {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
                         </button>
@@ -2849,13 +2841,13 @@ export default function Dashboard() {
 
               {/* Quick instructions sidebar */}
               <div className="space-y-6">
-                <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-5 space-y-4 shadow-xl">
-                  <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <HelpCircle className="h-4 w-4 text-emerald-400" /> Setup Instructions
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs">
+                  <h4 className="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-3">
+                    <HelpCircle className="h-4 w-4 text-emerald-600" /> Setup Instructions
                   </h4>
                   
                   {settingsSubTab === "whatsapp" ? (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-emerald-500 marker:font-bold animate-fadeIn">
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-emerald-600 marker:font-black leading-relaxed animate-fadeIn">
                       <li>
                         Create a Meta Developer app under your Meta developer account.
                       </li>
@@ -2863,7 +2855,7 @@ export default function Dashboard() {
                         Add the <strong>WhatsApp</strong> product to your Meta Developer app.
                       </li>
                       <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permission: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">whatsapp_business_messaging</code>.
+                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permission: <code className="text-[11px] bg-slate-100 border border-slate-200 text-slate-800 font-mono p-0.5 px-1.5 rounded font-semibold">whatsapp_business_messaging</code>.
                       </li>
                       <li>
                         Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>WhatsApp Business Account ID</strong> and paste them on the credentials form.
@@ -2873,7 +2865,7 @@ export default function Dashboard() {
                       </li>
                     </ul>
                   ) : settingsSubTab === "instagram" ? (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-pink-500 marker:font-bold animate-fadeIn">
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-pink-600 marker:font-black leading-relaxed animate-fadeIn">
                       <li>
                         Create a Meta Developer app under your Meta developer account.
                       </li>
@@ -2881,7 +2873,7 @@ export default function Dashboard() {
                         Add the <strong>Messenger</strong> product to your Meta Developer app.
                       </li>
                       <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code>.
+                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[11px] bg-slate-100 border border-slate-200 text-slate-800 font-mono p-0.5 px-1.5 rounded font-semibold">instagram_basic</code>.
                       </li>
                       <li>
                         Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
@@ -2891,7 +2883,7 @@ export default function Dashboard() {
                       </li>
                     </ul>
                   ) : settingsSubTab === "google" ? (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-amber-500 marker:font-black leading-relaxed animate-fadeIn">
                       <li>
                         Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
                       </li>
@@ -2906,7 +2898,7 @@ export default function Dashboard() {
                       </li>
                     </ul>
                   ) : (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-red-500 marker:font-bold animate-fadeIn">
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-red-600 marker:font-black leading-relaxed animate-fadeIn">
                       <li>
                         Connect your YouTube channel by clicking the <strong>Connect YouTube</strong> button.
                       </li>

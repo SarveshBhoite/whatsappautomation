@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   XCircle,
   Sparkles,
-  ExternalLink,
   RefreshCw,
   Globe,
   Share2,
@@ -16,7 +15,6 @@ import {
   FileText,
   Copy,
   Printer,
-  ChevronRight,
   TrendingUp,
   Users,
   Image as ImageIcon,
@@ -24,26 +22,14 @@ import {
   Zap,
   Smartphone,
   Monitor,
-  Link2,
   FileCode,
-  Layers,
-  HelpCircle,
-  Mail,
-  Send,
-  Paperclip,
-  Save,
-  UploadCloud,
-  FileCheck2,
-  BrainCircuit,
-  Sparkle,
-  Download,
-  Eye,
   Sliders,
-  Award,
   History,
   BookOpen,
-  Split,
-  MessageSquare
+  FileCheck2,
+  BrainCircuit,
+  UploadCloud,
+  Download
 } from "lucide-react";
 
 interface InspectionResult {
@@ -170,7 +156,7 @@ interface SeoAuditData {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export default function ToolsSuitePage() {
-  const [activeTab, setActiveTab] = useState<"bulk_email" | "seo" | "youtube_competitor" | "ai_content" | "leads">("bulk_email");
+  const [activeTab, setActiveTab] = useState<"seo" | "ai_content" | "youtube_competitor" | "leads">("seo");
   const [targetUrl, setTargetUrl] = useState("");
   const [strategy, setStrategy] = useState<"mobile" | "desktop">("mobile");
   const [auditing, setAuditing] = useState(false);
@@ -182,20 +168,6 @@ export default function ToolsSuitePage() {
   // Detailed audit view tab inside result
   const [detailTab, setDetailTab] = useState<"overview" | "images" | "headings" | "pagespeed">("overview");
 
-  // Bulk Email Campaign State
-  const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [campaignName, setCampaignName] = useState("");
-  const [campaignSubject, setCampaignSubject] = useState("");
-  const [campaignBody, setCampaignBody] = useState("");
-  const [campaignDelay, setCampaignDelay] = useState(3);
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [extractedRecipients, setExtractedRecipients] = useState<any[]>([]);
-  const [extractedStats, setExtractedStats] = useState<{ total: number; valid: number; duplicates: number; invalid: number } | null>(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [launchingCampaign, setLaunchingCampaign] = useState(false);
-  const [templateName, setTemplateName] = useState("");
-  const [savingTemplate, setSavingTemplate] = useState(false);
   // AI Content Quality Inspector State
   const [inspectorText, setInspectorText] = useState("");
   const [inspectorFile, setInspectorFile] = useState<File | null>(null);
@@ -210,173 +182,6 @@ export default function ToolsSuitePage() {
   const [copiedInspectorText, setCopiedInspectorText] = useState(false);
 
   const DEFAULT_ORG_ID = "demo-org-123";
-
-  // Fetch Campaigns & Templates
-  const fetchCampaigns = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCampaigns(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch campaigns:", err);
-    }
-  };
-
-  const fetchTemplates = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmail/templates`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch templates:", err);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingFile(true);
-    setErrorMsg(null);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns/extract-file`, {
-        method: "POST",
-        headers: { "x-organization-id": DEFAULT_ORG_ID },
-        body: formData
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setExtractedRecipients(data.recipients || []);
-        setExtractedStats({
-          total: data.totalExtracted || 0,
-          valid: data.validCount || 0,
-          duplicates: data.duplicateCount || 0,
-          invalid: data.invalidCount || 0
-        });
-      } else {
-        const errData = await res.json();
-        setErrorMsg(errData.error || "Failed to parse recipient file.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg("Network error uploading recipient file.");
-    } finally {
-      setUploadingFile(false);
-    }
-  };
-
-  const handleLaunchCampaign = async () => {
-    const finalName = campaignName.trim() || `Bulk Campaign - ${new Date().toLocaleDateString([], { month: "short", day: "numeric" })}`;
-
-    if (!campaignSubject.trim() || !campaignBody.trim() || extractedRecipients.length === 0) {
-      setErrorMsg("Please fill in Email Subject, Body, and upload a recipient file.");
-      return;
-    }
-
-    setLaunchingCampaign(true);
-    setErrorMsg(null);
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
-        },
-        body: JSON.stringify({
-          name: finalName,
-          subject: campaignSubject,
-          bodyTemplate: campaignBody,
-          recipients: extractedRecipients,
-          delaySeconds: Number(campaignDelay) || 3,
-          scheduledAt: scheduledDate ? new Date(scheduledDate).toISOString() : undefined
-        })
-      });
-
-      if (res.ok) {
-        setCampaignName("");
-        setCampaignSubject("");
-        setCampaignBody("");
-        setExtractedRecipients([]);
-        setExtractedStats(null);
-        setScheduledDate("");
-        await fetchCampaigns();
-      } else {
-        const errData = await res.json();
-        setErrorMsg(errData.error ? `${errData.error}${errData.details ? `: ${errData.details}` : ""}` : "Failed to launch campaign.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg("Network error launching campaign.");
-    } finally {
-      setLaunchingCampaign(false);
-    }
-  };
-
-  const handleControlCampaign = async (id: string, action: "PAUSE" | "RESUME" | "CANCEL") => {
-    try {
-      await fetch(`${BACKEND_URL}/api/gmail/campaigns/${id}/control`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
-        },
-        body: JSON.stringify({ action })
-      });
-      await fetchCampaigns();
-    } catch (err) {
-      console.error("Control action failed:", err);
-    }
-  };
-
-  const handleSaveTemplate = async () => {
-    if (!templateName.trim() || !campaignSubject.trim() || !campaignBody.trim()) {
-      setErrorMsg("Subject, body, and template name are required to save a template.");
-      return;
-    }
-
-    setSavingTemplate(true);
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmail/templates`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
-        },
-        body: JSON.stringify({
-          name: templateName,
-          subject: campaignSubject,
-          body: campaignBody
-        })
-      });
-
-      if (res.ok) {
-        setTemplateName("");
-        await fetchTemplates();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSavingTemplate(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchCampaigns();
-    fetchTemplates();
-  }, []);
 
   const scanSteps = [
     "📡 Establishing secure HTTP connection & fetching website source...",
@@ -588,10 +393,10 @@ ${auditResult.aiRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
 <head>
   <title>AI Content Quality Report - ${inspectionResult.filename}</title>
   <style>
-    body { font-family: sans-serif; padding: 40px; background: #0f172a; color: #f8fafc; }
-    h1 { color: #f59e0b; }
-    .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-    .score { font-size: 24px; font-weight: bold; color: #10b981; }
+    body { font-family: sans-serif; padding: 40px; background: #f8fafc; color: #0f172a; }
+    h1 { color: #d97706; }
+    .card { background: #ffffff; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .score { font-size: 24px; font-weight: bold; color: #059669; }
   </style>
 </head>
 <body>
@@ -674,28 +479,28 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
-    if (score >= 55) return "text-amber-400 border-amber-500/30 bg-amber-500/10";
-    return "text-red-400 border-red-500/30 bg-red-500/10";
+    if (score >= 80) return "text-emerald-700 border-emerald-200 bg-emerald-50/70";
+    if (score >= 55) return "text-amber-700 border-amber-200 bg-amber-50/70";
+    return "text-red-700 border-red-200 bg-red-50/70";
   };
 
   const getStatusBadge = (status: "good" | "warning" | "error") => {
     if (status === "good") {
       return (
-        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
           <CheckCircle2 className="h-3 w-3" /> Optimal
         </span>
       );
     }
     if (status === "warning") {
       return (
-        <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" /> Needs Attention
         </span>
       );
     }
     return (
-      <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+      <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
         <XCircle className="h-3 w-3" /> Critical Fix
       </span>
     );
@@ -705,12 +510,12 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       
       {/* Top Header */}
-      <header className="h-14 border-b border-slate-200/90 bg-white px-6 flex items-center justify-between z-20 shrink-0 shadow-xs">
+      <header className="h-14 border-b border-slate-200 bg-white px-6 flex items-center justify-between z-20 shrink-0 shadow-2xs">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
             <Wrench className="h-4 w-4" />
           </div>
-          <h1 className="text-base font-extrabold text-slate-900">Growth &amp; Marketing Tools Suite</h1>
+          <h1 className="text-base font-black text-slate-900">Growth &amp; Marketing Tools Suite</h1>
         </div>
         <span className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
           <Sparkles className="h-3.5 w-3.5 text-amber-500" /> Groq LLaMA 3.3 AI Enabled
@@ -718,47 +523,24 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
       </header>
 
       {/* Sub-Nav Tool Selector */}
-      <div className="border-b border-slate-200 bg-slate-100/60 px-6 py-2 flex items-center gap-2 overflow-x-auto scrollbar-none shrink-0">
-        <button
-          onClick={() => setActiveTab("bulk_email")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "bulk_email"
-              ? "bg-white text-emerald-800 border border-slate-200 shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-          }`}
-        >
-          <Mail className="h-3.5 w-3.5 text-emerald-600" /> Bulk Email Campaign
-          <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-1.5 py-0.2 rounded font-mono font-bold">Live</span>
-        </button>
-
+      <div className="border-b border-slate-200 bg-slate-100/70 px-6 py-2 flex items-center gap-2 overflow-x-auto scrollbar-none shrink-0">
         <button
           onClick={() => setActiveTab("seo")}
           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "seo"
-              ? "bg-white text-emerald-800 border border-slate-200 shadow-xs"
+              ? "bg-white text-emerald-800 border border-slate-200 shadow-2xs"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
           }`}
         >
           <Search className="h-3.5 w-3.5 text-emerald-600" /> Instant Live Web SEO Audit
-        </button>
-
-        <button
-          onClick={() => setActiveTab("youtube_competitor")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "youtube_competitor"
-              ? "bg-white text-red-700 border border-slate-200 shadow-xs"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <TrendingUp className="h-3.5 w-3.5 text-red-600" /> YouTube Competitor Benchmarking
-          <span className="text-[9px] bg-slate-200/80 text-slate-600 px-1.5 py-0.2 rounded font-mono">Next</span>
+          <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-1.5 py-0.2 rounded font-mono font-bold">Live</span>
         </button>
 
         <button
           onClick={() => setActiveTab("ai_content")}
           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "ai_content"
-              ? "bg-white text-amber-800 border border-slate-200 shadow-xs"
+              ? "bg-white text-amber-800 border border-slate-200 shadow-2xs"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
           }`}
         >
@@ -767,11 +549,23 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
         </button>
 
         <button
+          onClick={() => setActiveTab("youtube_competitor")}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === "youtube_competitor"
+              ? "bg-white text-red-700 border border-slate-200 shadow-2xs"
+              : "text-slate-500 hover:text-slate-800 hover:bg-white/60"
+          }`}
+        >
+          <TrendingUp className="h-3.5 w-3.5 text-red-600" /> YouTube Competitor Benchmarking
+          <span className="text-[9px] bg-slate-200/80 text-slate-600 px-1.5 py-0.2 rounded font-mono">Next</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("leads")}
           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "leads"
-              ? "bg-white text-sky-700 border border-slate-200 shadow-xs"
-              : "text-slate-500 hover:text-slate-800"
+              ? "bg-white text-sky-700 border border-slate-200 shadow-2xs"
+              : "text-slate-500 hover:text-slate-800 hover:bg-white/60"
           }`}
         >
           <Users className="h-3.5 w-3.5 text-sky-600" /> Google Maps Lead Prospector
@@ -781,344 +575,33 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
       {/* Content Body Scroll Area */}
       <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 w-full max-w-full pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-8">
-        
-        {/* TAB 0: BULK EMAIL CAMPAIGN TOOL */}
-        {activeTab === "bulk_email" && (
-          <div className="space-y-6 max-w-6xl mx-auto">
-            {/* Campaign Creator Card */}
-            <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                    <Send className="h-5 w-5 text-emerald-400" /> Bulk Email Campaign Manager
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">Upload recipient lists (Excel, CSV, or PDF), parse email addresses, and send personalized campaigns using your connected Gmail.</p>
-                </div>
-
-                {/* Error Banner */}
-                {errorMsg && (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-300 text-xs px-4 py-2 rounded-xl flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-400 shrink-0" />
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-
-                {/* Templates Dropdown */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-400">Templates:</span>
-                  <select
-                    onChange={(e) => {
-                      const t = templates.find(temp => temp.id === e.target.value);
-                      if (t) {
-                        setCampaignSubject(t.subject);
-                        setCampaignBody(t.body);
-                      }
-                    }}
-                    className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 font-semibold focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="">Load Saved Template...</option>
-                    {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Left Column: Form & File Upload */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Campaign Name</label>
-                    <input
-                      type="text"
-                      value={campaignName}
-                      onChange={(e) => setCampaignName(e.target.value)}
-                      placeholder="e.g. Summer Special Promotion"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Upload Recipient File (.xlsx, .csv, .pdf)</label>
-                    <label className="border-2 border-dashed border-slate-800 hover:border-emerald-500 bg-slate-900/60 hover:bg-slate-900 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition text-center group">
-                      <Paperclip className="h-6 w-6 text-slate-500 group-hover:text-emerald-400 mb-1" />
-                      <span className="text-xs font-bold text-slate-300 group-hover:text-emerald-300">
-                        {uploadingFile ? "Parsing File..." : "Click to select Excel / CSV / PDF"}
-                      </span>
-                      <span className="text-[10px] text-slate-500 mt-0.5">Auto-extracts emails & columns</span>
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls,.csv,.pdf"
-                        onChange={handleFileUpload}
-                        disabled={uploadingFile}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {extractedStats && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                          <Check className="h-4 w-4 text-emerald-400" /> Recipients Validated
-                        </span>
-                        <span className="text-xs font-extrabold bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-lg">
-                          {extractedStats.valid} Ready
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-400 pt-1 border-t border-emerald-500/20">
-                        <div>Total: <strong className="text-slate-200">{extractedStats.total}</strong></div>
-                        <div>Duplicates: <strong className="text-amber-400">{extractedStats.duplicates}</strong></div>
-                        <div>Invalid: <strong className="text-red-400">{extractedStats.invalid}</strong></div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Anti-Spam Delay (Sec)</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={campaignDelay}
-                        onChange={(e) => setCampaignDelay(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Schedule Later</label>
-                      <input
-                        type="datetime-local"
-                        value={scheduledDate}
-                        onChange={(e) => setScheduledDate(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-[10px] text-slate-100 font-semibold focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Email Content & Action */}
-                <div className="md:col-span-2 space-y-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Email Subject</label>
-                    <input
-                      type="text"
-                      value={campaignSubject}
-                      onChange={(e) => setCampaignSubject(e.target.value)}
-                      placeholder="e.g. Special Offer for {{Company}}"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email Body Message</label>
-                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                        <span>Placeholders:</span>
-                        <span className="font-mono bg-slate-800 text-emerald-400 px-1 rounded">{"{{Name}}"}</span>
-                        <span className="font-mono bg-slate-800 text-emerald-400 px-1 rounded">{"{{Company}}"}</span>
-                        <span className="font-mono bg-slate-800 text-emerald-400 px-1 rounded">{"{{Designation}}"}</span>
-                      </div>
-                    </div>
-                    <textarea
-                      value={campaignBody}
-                      onChange={(e) => setCampaignBody(e.target.value)}
-                      placeholder="Hello {{Name}},&#10;&#10;We are reaching out regarding {{Company}}..."
-                      rows={7}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-sans resize-none leading-relaxed"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={templateName}
-                        onChange={(e) => setTemplateName(e.target.value)}
-                        placeholder="Template Name..."
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 w-36"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveTemplate}
-                        disabled={savingTemplate || !campaignSubject.trim() || !campaignBody.trim()}
-                        className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-slate-300 transition flex items-center gap-1 shadow-sm disabled:opacity-50"
-                      >
-                        <Save className="h-3.5 w-3.5 text-slate-400" /> Save Template
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {(extractedRecipients.length === 0 || !campaignSubject.trim() || !campaignBody.trim()) && (
-                        <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl">
-                          {extractedRecipients.length === 0 ? "Upload file first" : "Enter Subject & Body"}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleLaunchCampaign}
-                        disabled={launchingCampaign || extractedRecipients.length === 0 || !campaignSubject.trim() || !campaignBody.trim()}
-                        className={`px-6 py-2.5 rounded-xl text-xs font-bold transition duration-200 flex items-center gap-2 shadow-lg cursor-pointer ${
-                          launchingCampaign || extractedRecipients.length === 0 || !campaignSubject.trim() || !campaignBody.trim()
-                            ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700 shadow-none opacity-60"
-                            : "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20 active:scale-95"
-                        }`}
-                      >
-                        <Send className="h-4 w-4" />
-                        {launchingCampaign ? "Launching Campaign..." : scheduledDate ? "Schedule Campaign" : "Send Bulk Campaign"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recipient Preview Table */}
-              {extractedRecipients.length > 0 && (
-                <div className="border-t border-slate-800 pt-5">
-                  <span className="text-xs font-extrabold text-slate-200 mb-3 block">Recipient Preview ({extractedRecipients.length})</span>
-                  <div className="max-h-48 overflow-y-auto border border-slate-800 rounded-2xl divide-y divide-slate-800">
-                    {extractedRecipients.slice(0, 50).map((r, i) => (
-                      <div key={i} className="p-3 bg-slate-900/60 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-100">{r.email}</span>
-                          {r.name && <span className="text-slate-400 bg-slate-800 px-2 py-0.5 rounded text-[10px]">{r.name}</span>}
-                          {r.company && <span className="text-slate-400 bg-slate-800 px-2 py-0.5 rounded text-[10px]">{r.company}</span>}
-                        </div>
-                        <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">Valid</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Campaign History & Real-Time Trackers */}
-            <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-extrabold text-slate-100 flex items-center gap-2">
-                    <Layers className="h-5 w-5 text-emerald-400" /> Campaign History & Tracking
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Monitor progress, control sending, and download detailed reports.</p>
-                </div>
-                <button
-                  onClick={fetchCampaigns}
-                  className="p-2 rounded-xl border border-slate-800 hover:bg-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" /> Refresh
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {campaigns.map((c) => {
-                  const percent = c.totalRecipients > 0 ? Math.round(((c.sentCount + c.failedCount) / c.totalRecipients) * 100) : 0;
-                  return (
-                    <div key={c.id} className="p-5 border border-slate-800 rounded-2xl bg-slate-900/60 space-y-4">
-                      <div className="flex items-center justify-between flex-wrap gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-bold text-slate-100">{c.name}</h3>
-                            <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${
-                              c.status === "SENDING" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 animate-pulse" :
-                              c.status === "COMPLETED" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" :
-                              c.status === "PAUSED" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
-                              c.status === "CANCELLED" ? "bg-red-500/10 text-red-400 border-red-500/30" :
-                              "bg-slate-800 text-slate-400 border-slate-700"
-                            }`}>
-                              {c.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-400 mt-1">Subject: <strong>{c.subject}</strong></p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {c.status === "SENDING" && (
-                            <button
-                              onClick={() => handleControlCampaign(c.id, "PAUSE")}
-                              className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold transition"
-                            >
-                              Pause
-                            </button>
-                          )}
-                          {c.status === "PAUSED" && (
-                            <button
-                              onClick={() => handleControlCampaign(c.id, "RESUME")}
-                              className="px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-xs font-bold transition"
-                            >
-                              Resume
-                            </button>
-                          )}
-                          {(c.status === "SENDING" || c.status === "PAUSED" || c.status === "SCHEDULED") && (
-                            <button
-                              onClick={() => handleControlCampaign(c.id, "CANCEL")}
-                              className="px-3 py-1.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-bold transition"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                          <a
-                            href={`${BACKEND_URL}/api/gmail/campaigns/${c.id}/report`}
-                            download
-                            className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-xs font-bold text-slate-300 transition flex items-center gap-1 shadow-sm"
-                          >
-                            <FileText className="h-3.5 w-3.5 text-slate-400" /> Download Report
-                          </a>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
-                          <span>Progress: {c.sentCount + c.failedCount} / {c.totalRecipients} ({percent}%)</span>
-                          <div className="flex items-center gap-3 text-[10px]">
-                            <span className="text-emerald-400 font-bold">Sent: {c.sentCount}</span>
-                            <span className="text-red-400 font-bold">Failed: {c.failedCount}</span>
-                          </div>
-                        </div>
-                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {campaigns.length === 0 && (
-                  <div className="p-10 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs">
-                    No bulk email campaigns launched yet. Create your first campaign above!
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* TAB 1: INSTANT LIVE WEB SEO AUDIT */}
         {activeTab === "seo" && (
           <div className="space-y-6 max-w-6xl mx-auto">
             
             {/* Input Hero Card */}
-            <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                    <Globe className="h-5 w-5 text-emerald-400" /> Website SEO & Performance Scanner
+                  <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Globe className="h-5 w-5 text-emerald-600" /> Website SEO &amp; Performance Scanner
                   </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Enter any website URL to perform a live audit with official Google PageSpeed Insights & Groq LLaMA 3.3 AI recommendations.
+                  <p className="text-xs text-slate-500 mt-1">
+                    Enter any website URL to perform a live audit with official Google PageSpeed Insights &amp; Groq LLaMA 3.3 AI recommendations.
                   </p>
                 </div>
                 
                 {/* Device Strategy Selector */}
-                <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl gap-1 self-start sm:self-auto">
+                <div className="flex items-center bg-slate-100 border border-slate-200 p-1 rounded-2xl gap-1 self-start sm:self-auto shadow-2xs">
                   <button
                     type="button"
                     onClick={() => {
                       setStrategy("mobile");
                       if (targetUrl.trim()) handleRunAudit(targetUrl, "mobile");
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-                      strategy === "mobile" ? "bg-emerald-500 text-slate-950 shadow" : "text-slate-400 hover:text-slate-200"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                      strategy === "mobile" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <Smartphone className="h-3.5 w-3.5" /> Mobile
@@ -1129,8 +612,8 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                       setStrategy("desktop");
                       if (targetUrl.trim()) handleRunAudit(targetUrl, "desktop");
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-                      strategy === "desktop" ? "bg-emerald-500 text-slate-950 shadow" : "text-slate-400 hover:text-slate-200"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                      strategy === "desktop" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <Monitor className="h-3.5 w-3.5" /> Desktop
@@ -1140,20 +623,20 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
               <form onSubmit={(e) => { e.preventDefault(); handleRunAudit(); }} className="flex flex-col sm:flex-row gap-3 pt-2">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     value={targetUrl}
                     onChange={(e) => setTargetUrl(e.target.value)}
                     placeholder="e.g. https://yourwebsite.com or example.com"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    className="w-full bg-slate-50/80 border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 font-medium transition-all"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={auditing || !targetUrl.trim()}
-                  className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:hover:bg-emerald-500 flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                  className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-all shadow-sm disabled:opacity-50 disabled:hover:bg-emerald-600 flex items-center justify-center gap-2 cursor-pointer shrink-0"
                 >
                   <RefreshCw className={`h-4 w-4 ${auditing ? "animate-spin" : ""}`} />
                   {auditing ? "Scanning Website..." : "Run Instant Live Scan"}
@@ -1161,7 +644,7 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
               </form>
 
               {errorMsg && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
@@ -1170,26 +653,26 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
             {/* AUDIT SCAN RESULTS */}
             {auditing ? (
-              <div className="bg-slate-950/40 border border-emerald-500/30 rounded-2xl p-12 text-center space-y-5 flex flex-col items-center shadow-2xl animate-fadeIn">
+              <div className="bg-white border border-emerald-200 rounded-3xl p-12 text-center space-y-5 flex flex-col items-center shadow-md animate-fadeIn">
                 <div className="relative">
-                  <div className="h-16 w-16 rounded-full border-4 border-slate-800 border-t-emerald-400 animate-spin" />
-                  <Sparkles className="h-6 w-6 text-amber-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                  <div className="h-16 w-16 rounded-full border-4 border-slate-100 border-t-emerald-600 animate-spin" />
+                  <Sparkles className="h-6 w-6 text-amber-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                 </div>
 
                 <div className="space-y-2 max-w-lg">
-                  <h3 className="text-base font-bold text-slate-100 flex items-center justify-center gap-2">
-                    Performing Google PageSpeed & SEO Audit ({strategy.toUpperCase()})...
+                  <h3 className="text-base font-black text-slate-900 flex items-center justify-center gap-2">
+                    Performing Google PageSpeed &amp; SEO Audit ({strategy.toUpperCase()})...
                   </h3>
-                  <div className="bg-slate-900 border border-slate-800 px-4 py-3 rounded-xl text-xs font-mono text-emerald-400 flex items-center justify-center gap-2 shadow-inner transition-all duration-300">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400 shrink-0" />
+                  <div className="bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl text-xs font-mono text-emerald-700 flex items-center justify-center gap-2 shadow-2xs transition-all duration-300">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 shrink-0" />
                     <span className="animate-fadeIn">{scanSteps[scanStepIndex]}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                   <span>Phase {scanStepIndex + 1} of {scanSteps.length}</span>
                   <span>•</span>
-                  <span className="text-emerald-400">Google API & Groq LLaMA 3.3 Active</span>
+                  <span className="text-emerald-700">Google API &amp; Groq LLaMA 3.3 Active</span>
                 </div>
               </div>
             ) : auditResult ? (
@@ -1197,60 +680,60 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                 
                 {/* Top Scores Overview Bar */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className={`border rounded-2xl p-5 shadow-xl flex flex-col justify-between ${getScoreColor(auditResult.scores.overall)}`}>
-                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">Overall Health Score</span>
+                  <div className={`border rounded-3xl p-5 shadow-xs flex flex-col justify-between ${getScoreColor(auditResult.scores.overall)}`}>
+                    <span className="text-[10px] uppercase font-black tracking-wider opacity-80">Overall Health Score</span>
                     <div className="flex items-baseline gap-1 mt-2">
                       <span className="text-4xl font-black">{auditResult.scores.overall}</span>
-                      <span className="text-xs font-bold text-slate-400">/ 100</span>
+                      <span className="text-xs font-bold opacity-60">/ 100</span>
                     </div>
-                    <span className="text-[10px] font-semibold mt-2 opacity-90">
+                    <span className="text-[10px] font-bold mt-2 opacity-90">
                       {auditResult.scores.overall >= 80 ? "Excellent Grade" : auditResult.scores.overall >= 60 ? "Good — Minor Fixes Needed" : "Critical Fixes Required"}
                     </span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">On-Page SEO</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">On-Page SEO</span>
                     <div className="flex items-baseline gap-1 mt-2">
-                      <span className="text-3xl font-bold text-slate-100">{auditResult.scores.onPage}</span>
-                      <span className="text-xs text-slate-500">/ 100</span>
+                      <span className="text-3xl font-black text-slate-900">{auditResult.scores.onPage}</span>
+                      <span className="text-xs font-bold text-slate-400">/ 100</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-2">Title, Meta, H1 & Image Alt</span>
+                    <span className="text-[10px] text-slate-500 mt-2 font-medium">Title, Meta, H1 &amp; Image Alt</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Social Sharing</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Social Sharing</span>
                     <div className="flex items-baseline gap-1 mt-2">
-                      <span className="text-3xl font-bold text-slate-100">{auditResult.scores.social}</span>
-                      <span className="text-xs text-slate-500">/ 100</span>
+                      <span className="text-3xl font-black text-slate-900">{auditResult.scores.social}</span>
+                      <span className="text-xs font-bold text-slate-400">/ 100</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-2">WhatsApp & LinkedIn Cards</span>
+                    <span className="text-[10px] text-slate-500 mt-2 font-medium">WhatsApp &amp; LinkedIn Cards</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Tech & Performance</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Tech &amp; Performance</span>
                     <div className="flex items-baseline gap-1 mt-2">
-                      <span className="text-3xl font-bold text-slate-100">{auditResult.scores.technical}</span>
-                      <span className="text-xs text-slate-500">/ 100</span>
+                      <span className="text-3xl font-black text-slate-900">{auditResult.scores.technical}</span>
+                      <span className="text-xs font-bold text-slate-400">/ 100</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-2">HTTPS, Speed ({auditResult.loadTimeMs}ms)</span>
+                    <span className="text-[10px] text-slate-500 mt-2 font-medium">HTTPS, Speed ({auditResult.loadTimeMs}ms)</span>
                   </div>
                 </div>
 
                 {/* Sub-Detail Nav Bar */}
-                <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none">
                   <button
                     onClick={() => setDetailTab("overview")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      detailTab === "overview" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-slate-200"
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      detailTab === "overview" ? "bg-emerald-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    Overview & AI Plan
+                    Overview &amp; AI Plan
                   </button>
 
                   <button
                     onClick={() => setDetailTab("images")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      detailTab === "images" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-slate-200"
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      detailTab === "images" ? "bg-emerald-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
                     <ImageIcon className="h-3.5 w-3.5" /> Image ALT Breakdown ({auditResult.images.missingAltCount} Missing)
@@ -1258,8 +741,8 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
                   <button
                     onClick={() => setDetailTab("headings")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      detailTab === "headings" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-slate-200"
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      detailTab === "headings" ? "bg-emerald-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
                     <FileCode className="h-3.5 w-3.5" /> Heading Structure ({auditResult.headings.h1Count} H1 | {auditResult.headings.h2Count} H2)
@@ -1268,11 +751,11 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                   {auditResult.pageSpeed && (
                     <button
                       onClick={() => setDetailTab("pagespeed")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        detailTab === "pagespeed" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-slate-200"
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        detailTab === "pagespeed" ? "bg-emerald-600 text-white shadow-xs" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      <Zap className="h-3.5 w-3.5" /> Google PageSpeed & Core Web Vitals
+                      <Zap className="h-3.5 w-3.5" /> Google PageSpeed &amp; Core Web Vitals
                     </button>
                   )}
                 </div>
@@ -1281,35 +764,35 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                 {detailTab === "overview" && (
                   <div className="space-y-6">
                     {/* Groq AI Action Plan Card */}
-                    <div className="bg-gradient-to-r from-slate-950/90 via-slate-900 to-slate-950/90 border border-emerald-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h3 className="font-bold text-sm text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                          <Sparkles className="h-4.5 w-4.5 text-amber-400 animate-pulse" /> Groq AI Executive Action Plan
+                    <div className="bg-gradient-to-br from-emerald-50/70 via-white to-slate-50 border border-emerald-200 rounded-3xl p-6 shadow-xs space-y-4">
+                      <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                        <h3 className="font-black text-sm text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                          <Sparkles className="h-4.5 w-4.5 text-amber-500 animate-pulse" /> Groq AI Executive Action Plan
                         </h3>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={copyExecutiveSummary}
-                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all border border-slate-700"
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all border border-slate-200 shadow-2xs"
                           >
-                            {copiedSummary ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                            {copiedSummary ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                             {copiedSummary ? "Copied!" : "Copy Summary"}
                           </button>
                           <button
                             onClick={() => window.print()}
-                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all border border-slate-700"
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all border border-slate-200 shadow-2xs"
                           >
-                            <Printer className="h-3.5 w-3.5 text-sky-400" /> Print Audit Report
+                            <Printer className="h-3.5 w-3.5 text-sky-600" /> Print Audit Report
                           </button>
                         </div>
                       </div>
 
                       <div className="space-y-2.5">
                         {auditResult.aiRecommendations.map((rec, idx) => (
-                          <div key={idx} className="flex items-start gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
-                            <span className="h-6 w-6 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                          <div key={idx} className="flex items-start gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+                            <span className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
                               {idx + 1}
                             </span>
-                            <p className="text-xs text-slate-200 leading-relaxed font-medium">{rec}</p>
+                            <p className="text-xs text-slate-800 leading-relaxed font-semibold">{rec}</p>
                           </div>
                         ))}
                       </div>
@@ -1319,75 +802,75 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       
                       {/* On-Page Metadata Details */}
-                      <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                        <h3 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
+                      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+                        <h3 className="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 pb-2">
                           <span>On-Page SEO Tags</span>
                           <span className="text-[10px] text-slate-500 font-mono">Domain: {auditResult.domain}</span>
                         </h3>
 
-                        <div className="space-y-3 divide-y divide-slate-850">
+                        <div className="space-y-3 divide-y divide-slate-100">
                           {/* Title */}
-                          <div className="pt-2 space-y-1">
+                          <div className="pt-2 space-y-1.5">
                             <div className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-slate-300">Page Title</span>
+                              <span className="font-bold text-slate-800">Page Title</span>
                               {getStatusBadge(auditResult.title.status)}
                             </div>
-                            <p className="text-xs text-slate-100 font-mono bg-slate-900/80 p-2.5 rounded-lg border border-slate-850 truncate">
-                              {auditResult.title.value || <span className="text-slate-500 italic">No title tag found</span>}
+                            <p className="text-xs text-slate-900 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200 truncate">
+                              {auditResult.title.value || <span className="text-slate-400 italic">No title tag found</span>}
                             </p>
-                            <p className="text-[10px] text-slate-500 flex justify-between">
+                            <p className="text-[10px] text-slate-500 flex justify-between font-medium">
                               <span>{auditResult.title.message}</span>
                               <span className="font-mono">Length: {auditResult.title.length} chars</span>
                             </p>
                           </div>
 
                           {/* Meta Description */}
-                          <div className="pt-3 space-y-1">
+                          <div className="pt-3 space-y-1.5">
                             <div className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-slate-300">Meta Description</span>
+                              <span className="font-bold text-slate-800">Meta Description</span>
                               {getStatusBadge(auditResult.description.status)}
                             </div>
-                            <p className="text-xs text-slate-100 font-mono bg-slate-900/80 p-2.5 rounded-lg border border-slate-850 leading-relaxed">
-                              {auditResult.description.value || <span className="text-slate-500 italic">No meta description found</span>}
+                            <p className="text-xs text-slate-900 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200 leading-relaxed">
+                              {auditResult.description.value || <span className="text-slate-400 italic">No meta description found</span>}
                             </p>
-                            <p className="text-[10px] text-slate-500 flex justify-between">
+                            <p className="text-[10px] text-slate-500 flex justify-between font-medium">
                               <span>{auditResult.description.message}</span>
                               <span className="font-mono">Length: {auditResult.description.length} chars</span>
                             </p>
                           </div>
 
                           {/* Image Alt Stats */}
-                          <div className="pt-3 space-y-1">
+                          <div className="pt-3 space-y-1.5">
                             <div className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-slate-300">Image Alt Text Attributes</span>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                                auditResult.images.missingAltCount === 0 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                              <span className="font-bold text-slate-800">Image Alt Text Attributes</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                                auditResult.images.missingAltCount === 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
                               }`}>
                                 {auditResult.images.coveragePercent}% Covered
                               </span>
                             </div>
-                            <div className="flex justify-between text-xs text-slate-400 font-mono bg-slate-900/80 p-2.5 rounded-lg border border-slate-850">
+                            <div className="flex justify-between text-xs text-slate-700 font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-200 font-semibold">
                               <span>Total Images: {auditResult.images.total}</span>
-                              <span className={auditResult.images.missingAltCount > 0 ? "text-amber-400 font-bold" : "text-emerald-400"}>
+                              <span className={auditResult.images.missingAltCount > 0 ? "text-amber-700 font-bold" : "text-emerald-700"}>
                                 Missing Alt: {auditResult.images.missingAltCount}
                               </span>
                             </div>
                           </div>
 
                           {/* Page Links */}
-                          <div className="pt-3 space-y-1">
+                          <div className="pt-3 space-y-1.5">
                             <div className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-slate-300">Page Links Breakdown</span>
-                              <span className="text-[10px] text-slate-400 font-mono">Total: {auditResult.links.total}</span>
+                              <span className="font-bold text-slate-800">Page Links Breakdown</span>
+                              <span className="text-[10px] text-slate-400 font-mono font-medium">Total: {auditResult.links.total}</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                              <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-850">
-                                <span className="text-[10px] text-slate-500 block">Internal Links</span>
-                                <span className="font-bold text-emerald-400">{auditResult.links.internal}</span>
+                            <div className="grid grid-cols-2 gap-2 text-xs font-mono font-bold">
+                              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                                <span className="text-[10px] text-slate-400 block font-normal">Internal Links</span>
+                                <span className="text-emerald-700">{auditResult.links.internal}</span>
                               </div>
-                              <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-850">
-                                <span className="text-[10px] text-slate-500 block">External Links</span>
-                                <span className="font-bold text-sky-400">{auditResult.links.external}</span>
+                              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                                <span className="text-[10px] text-slate-400 block font-normal">External Links</span>
+                                <span className="text-sky-700">{auditResult.links.external}</span>
                               </div>
                             </div>
                           </div>
@@ -1399,33 +882,33 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                       <div className="space-y-6">
                         
                         {/* Social Card Preview */}
-                        <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
-                          <h3 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
-                            <span className="flex items-center gap-1.5"><Share2 className="h-4 w-4 text-sky-400" /> WhatsApp & Social Card Preview</span>
+                        <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-3">
+                          <h3 className="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 pb-2">
+                            <span className="flex items-center gap-1.5"><Share2 className="h-4 w-4 text-sky-600" /> WhatsApp &amp; Social Card Preview</span>
                             {getStatusBadge(auditResult.openGraph.status)}
                           </h3>
 
-                          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg max-w-md mx-auto">
+                          <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs max-w-md mx-auto">
                             {auditResult.openGraph.image ? (
                               <img
                                 src={auditResult.openGraph.image}
                                 alt="OpenGraph Preview"
-                                className="w-full h-36 object-cover bg-slate-950"
+                                className="w-full h-36 object-cover bg-slate-100"
                                 onError={(e) => { (e.target as any).style.display = "none"; }}
                               />
                             ) : (
-                              <div className="w-full h-24 bg-slate-950 flex items-center justify-center text-slate-600 text-xs font-mono">
-                                <ImageIcon className="h-6 w-6 mr-1" /> No OpenGraph Image Found
+                              <div className="w-full h-24 bg-slate-100 flex items-center justify-center text-slate-400 text-xs font-mono font-medium">
+                                <ImageIcon className="h-6 w-6 mr-1 text-slate-300" /> No OpenGraph Image Found
                               </div>
                             )}
-                            <div className="p-3 space-y-1 bg-slate-950">
-                              <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider block truncate">
+                            <div className="p-3.5 space-y-1 bg-white border-t border-slate-200">
+                              <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block truncate font-bold">
                                 {auditResult.domain}
                               </span>
-                              <h4 className="text-xs font-bold text-slate-100 truncate">
+                              <h4 className="text-xs font-bold text-slate-900 truncate">
                                 {auditResult.openGraph.title || auditResult.title.value}
                               </h4>
-                              <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                              <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
                                 {auditResult.openGraph.description || auditResult.description.value || "No description provided."}
                               </p>
                             </div>
@@ -1433,36 +916,36 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                         </div>
 
                         {/* Technical & Security Details */}
-                        <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
-                          <h3 className="font-bold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-850 pb-2">
-                            <ShieldCheck className="h-4 w-4 text-purple-400" /> Technical & Security Protocol Checks
+                        <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-3">
+                          <h3 className="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                            <ShieldCheck className="h-4 w-4 text-purple-600" /> Technical &amp; Security Protocol Checks
                           </h3>
 
                           <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-850 flex flex-col gap-1">
-                              <span className="text-[10px] text-slate-500 font-semibold uppercase">SSL Security</span>
-                              <span className={`font-bold ${auditResult.technical.isHttps ? "text-emerald-400" : "text-red-400"}`}>
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col gap-1">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase">SSL Security</span>
+                              <span className={`font-bold ${auditResult.technical.isHttps ? "text-emerald-700" : "text-red-700"}`}>
                                 {auditResult.technical.isHttps ? "✓ HTTPS Secure" : "✕ Insecure (HTTP)"}
                               </span>
                             </div>
 
-                            <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-850 flex flex-col gap-1">
-                              <span className="text-[10px] text-slate-500 font-semibold uppercase">Canonical Tag</span>
-                              <span className={`font-bold ${auditResult.technical.canonicalUrl ? "text-emerald-400" : "text-amber-400"}`}>
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col gap-1">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase">Canonical Tag</span>
+                              <span className={`font-bold ${auditResult.technical.canonicalUrl ? "text-emerald-700" : "text-amber-700"}`}>
                                 {auditResult.technical.canonicalUrl ? "✓ Configured" : "⚠️ Missing"}
                               </span>
                             </div>
 
-                            <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-850 flex flex-col gap-1">
-                              <span className="text-[10px] text-slate-500 font-semibold uppercase">Language Attribute</span>
-                              <span className="font-bold text-slate-200 font-mono">
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col gap-1">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase">Language Attribute</span>
+                              <span className="font-bold text-slate-800 font-mono">
                                 {auditResult.technical.htmlLang}
                               </span>
                             </div>
 
-                            <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-850 flex flex-col gap-1">
-                              <span className="text-[10px] text-slate-500 font-semibold uppercase">Estimated Content</span>
-                              <span className="font-bold text-slate-200 font-mono">
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col gap-1">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase">Estimated Content</span>
+                              <span className="font-bold text-slate-800 font-mono">
                                 {auditResult.content.wordCount.toLocaleString()} words
                               </span>
                             </div>
@@ -1476,22 +959,22 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
                 {/* IMAGES TAB CONTENT */}
                 {detailTab === "images" && (
-                  <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                    <h3 className="font-bold text-sm text-slate-100 flex items-center justify-between border-b border-slate-850 pb-3">
-                      <span className="flex items-center gap-2"><ImageIcon className="h-4 w-4 text-emerald-400" /> Image ALT Text Attributes Audit</span>
-                      <span className="text-xs font-mono text-slate-400">{auditResult.images.coveragePercent}% Coverage</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                    <h3 className="font-black text-sm text-slate-900 flex items-center justify-between border-b border-slate-100 pb-3">
+                      <span className="flex items-center gap-2"><ImageIcon className="h-4 w-4 text-emerald-600" /> Image ALT Text Attributes Audit</span>
+                      <span className="text-xs font-mono text-slate-500 font-bold">{auditResult.images.coveragePercent}% Coverage</span>
                     </h3>
 
                     {auditResult.images.missingAltList.length > 0 ? (
                       <div className="space-y-3">
-                        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">
+                        <span className="text-xs font-bold text-amber-700 uppercase tracking-wider block">
                           ⚠️ Images Missing Descriptive ALT Tags ({auditResult.images.missingAltCount}):
                         </span>
                         <div className="space-y-2">
                           {auditResult.images.missingAltList.map((img, idx) => (
-                            <div key={idx} className="bg-slate-900 p-3 rounded-xl border border-slate-850 flex items-center justify-between gap-3 text-xs font-mono">
-                              <span className="truncate text-slate-300 max-w-xl">{img.src}</span>
-                              <span className="text-[10px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded shrink-0">
+                            <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs font-mono">
+                              <span className="truncate text-slate-700 max-w-xl font-medium">{img.src}</span>
+                              <span className="text-[10px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg shrink-0">
                                 Missing ALT
                               </span>
                             </div>
@@ -1499,7 +982,7 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                         </div>
                       </div>
                     ) : (
-                      <div className="p-6 text-center text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+                      <div className="p-6 text-center text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-bold flex items-center justify-center gap-2">
                         <CheckCircle2 className="h-4 w-4" /> All images on this page have valid ALT text attributes!
                       </div>
                     )}
@@ -1508,24 +991,24 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
                 {/* HEADINGS TAB CONTENT */}
                 {detailTab === "headings" && (
-                  <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                    <h3 className="font-bold text-sm text-slate-100 flex items-center justify-between border-b border-slate-850 pb-3">
-                      <span className="flex items-center gap-2"><FileCode className="h-4 w-4 text-emerald-400" /> Heading Hierarchy (H1, H2, H3)</span>
-                      <span className="text-xs font-mono text-slate-400">Total H1: {auditResult.headings.h1Count}</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                    <h3 className="font-black text-sm text-slate-900 flex items-center justify-between border-b border-slate-100 pb-3">
+                      <span className="flex items-center gap-2"><FileCode className="h-4 w-4 text-emerald-600" /> Heading Hierarchy (H1, H2, H3)</span>
+                      <span className="text-xs font-mono text-slate-500 font-bold">Total H1: {auditResult.headings.h1Count}</span>
                     </h3>
 
                     <div className="space-y-4">
                       {/* H1 list */}
                       <div className="space-y-2">
-                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">Main H1 Headings ({auditResult.headings.h1Count}):</span>
+                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider block">Main H1 Headings ({auditResult.headings.h1Count}):</span>
                         {auditResult.headings.h1List.length > 0 ? (
                           auditResult.headings.h1List.map((h1, i) => (
-                            <div key={i} className="bg-slate-900 p-3 rounded-xl border border-slate-850 text-xs font-mono text-slate-100">
+                            <div key={i} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs font-mono text-slate-900 font-semibold">
                               H1: "{h1}"
                             </div>
                           ))
                         ) : (
-                          <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+                          <div className="text-xs text-red-700 bg-red-50 border border-red-200 p-3.5 rounded-2xl font-semibold">
                             ⚠️ No H1 heading found on this page.
                           </div>
                         )}
@@ -1533,11 +1016,11 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
                       {/* H2 list */}
                       {auditResult.headings.h2List.length > 0 && (
-                        <div className="space-y-2 pt-2 border-t border-slate-850">
-                          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">H2 Subheadings ({auditResult.headings.h2Count}):</span>
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">H2 Subheadings ({auditResult.headings.h2Count}):</span>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {auditResult.headings.h2List.map((h2, i) => (
-                              <div key={i} className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-850 text-xs font-mono text-slate-300 truncate">
+                              <div key={i} className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-mono text-slate-700 truncate font-medium">
                                 H2: "{h2}"
                               </div>
                             ))}
@@ -1550,42 +1033,42 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
                 {/* PAGESPEED TAB CONTENT */}
                 {detailTab === "pagespeed" && auditResult.pageSpeed && (
-                  <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                      <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
-                        <Zap className="h-4 w-4 text-amber-400" /> Google PageSpeed Insights & Core Web Vitals ({auditResult.pageSpeed.strategy.toUpperCase()})
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-amber-500" /> Google PageSpeed Insights &amp; Core Web Vitals ({auditResult.pageSpeed.strategy.toUpperCase()})
                       </h3>
-                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
                         Official Google Lighthouse V5
                       </span>
                     </div>
 
                     {/* 4 Google Categories */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Google Performance</span>
-                        <span className={`text-2xl font-extrabold mt-1 ${auditResult.pageSpeed.scores.performance >= 80 ? "text-emerald-400" : auditResult.pageSpeed.scores.performance >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                        <span className={`text-2xl font-black mt-1 ${auditResult.pageSpeed.scores.performance >= 80 ? "text-emerald-700" : auditResult.pageSpeed.scores.performance >= 50 ? "text-amber-700" : "text-red-700"}`}>
                           {auditResult.pageSpeed.scores.performance} / 100
                         </span>
                       </div>
 
-                      <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Google SEO</span>
-                        <span className={`text-2xl font-extrabold mt-1 ${auditResult.pageSpeed.scores.seo >= 80 ? "text-emerald-400" : auditResult.pageSpeed.scores.seo >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                        <span className={`text-2xl font-black mt-1 ${auditResult.pageSpeed.scores.seo >= 80 ? "text-emerald-700" : auditResult.pageSpeed.scores.seo >= 50 ? "text-amber-700" : "text-red-700"}`}>
                           {auditResult.pageSpeed.scores.seo} / 100
                         </span>
                       </div>
 
-                      <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Accessibility</span>
-                        <span className={`text-2xl font-extrabold mt-1 ${auditResult.pageSpeed.scores.accessibility >= 80 ? "text-emerald-400" : auditResult.pageSpeed.scores.accessibility >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                        <span className={`text-2xl font-black mt-1 ${auditResult.pageSpeed.scores.accessibility >= 80 ? "text-emerald-700" : auditResult.pageSpeed.scores.accessibility >= 50 ? "text-amber-700" : "text-red-700"}`}>
                           {auditResult.pageSpeed.scores.accessibility} / 100
                         </span>
                       </div>
 
-                      <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Best Practices</span>
-                        <span className={`text-2xl font-extrabold mt-1 ${auditResult.pageSpeed.scores.bestPractices >= 80 ? "text-emerald-400" : auditResult.pageSpeed.scores.bestPractices >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                        <span className={`text-2xl font-black mt-1 ${auditResult.pageSpeed.scores.bestPractices >= 80 ? "text-emerald-700" : auditResult.pageSpeed.scores.bestPractices >= 50 ? "text-amber-700" : "text-red-700"}`}>
                           {auditResult.pageSpeed.scores.bestPractices} / 100
                         </span>
                       </div>
@@ -1593,42 +1076,42 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
                     {/* Core Web Vitals Metrics */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
-                        <span className="text-[10px] text-slate-500 font-semibold block">First Contentful Paint (FCP)</span>
-                        <span className="text-sm font-bold font-mono text-slate-200">{auditResult.pageSpeed.metrics.fcp.displayValue}</span>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold block">First Contentful Paint (FCP)</span>
+                        <span className="text-sm font-black font-mono text-slate-900">{auditResult.pageSpeed.metrics.fcp.displayValue}</span>
                       </div>
-                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
-                        <span className="text-[10px] text-slate-500 font-semibold block">Largest Contentful Paint (LCP)</span>
-                        <span className="text-sm font-bold font-mono text-slate-200">{auditResult.pageSpeed.metrics.lcp.displayValue}</span>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold block">Largest Contentful Paint (LCP)</span>
+                        <span className="text-sm font-black font-mono text-slate-900">{auditResult.pageSpeed.metrics.lcp.displayValue}</span>
                       </div>
-                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
-                        <span className="text-[10px] text-slate-500 font-semibold block">Total Blocking Time (TBT)</span>
-                        <span className="text-sm font-bold font-mono text-slate-200">{auditResult.pageSpeed.metrics.tbt.displayValue}</span>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold block">Total Blocking Time (TBT)</span>
+                        <span className="text-sm font-black font-mono text-slate-900">{auditResult.pageSpeed.metrics.tbt.displayValue}</span>
                       </div>
-                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850">
-                        <span className="text-[10px] text-slate-500 font-semibold block">Cumulative Layout Shift (CLS)</span>
-                        <span className="text-sm font-bold font-mono text-slate-200">{auditResult.pageSpeed.metrics.cls.displayValue}</span>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold block">Cumulative Layout Shift (CLS)</span>
+                        <span className="text-sm font-black font-mono text-slate-900">{auditResult.pageSpeed.metrics.cls.displayValue}</span>
                       </div>
                     </div>
 
                     {/* Diagnostic Opportunities */}
                     {auditResult.pageSpeed.opportunities.length > 0 && (
                       <div className="pt-2 space-y-2">
-                        <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block">
-                          🔴 Top Google Lighthouse Fixes & Opportunities ({auditResult.pageSpeed.opportunities.length}):
+                        <span className="text-[11px] font-black text-amber-700 uppercase tracking-wider block">
+                          🔴 Top Google Lighthouse Fixes &amp; Opportunities ({auditResult.pageSpeed.opportunities.length}):
                         </span>
                         <div className="space-y-2">
                           {auditResult.pageSpeed.opportunities.map((opp, idx) => (
-                            <div key={idx} className="bg-slate-900 p-3 rounded-xl border border-slate-850 flex items-start justify-between gap-3 text-xs">
+                            <div key={idx} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex items-start justify-between gap-3 text-xs">
                               <div>
-                                <span className="font-bold text-slate-200 flex items-center gap-1.5">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                                   {opp.title}
                                 </span>
-                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{opp.description}</p>
+                                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{opp.description}</p>
                               </div>
                               {opp.displayValue && (
-                                <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded shrink-0">
+                                <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg shrink-0">
                                   {opp.displayValue}
                                 </span>
                               )}
@@ -1642,74 +1125,56 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
               </div>
             ) : (
-              <div className="bg-slate-950/20 border border-slate-800 rounded-2xl p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                <Search className="h-8 w-8 text-slate-700 stroke-1" />
-                <p className="text-xs">Enter a website URL above and click "Run Instant Live Scan" to generate audit.</p>
+              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400 flex flex-col items-center gap-2 shadow-xs">
+                <Search className="h-8 w-8 text-slate-300 stroke-1" />
+                <p className="text-xs font-semibold">Enter a website URL above and click &quot;Run Instant Live Scan&quot; to generate audit.</p>
               </div>
             )}
 
           </div>
         )}
 
-        {/* TAB 2: YOUTUBE COMPETITOR BENCHMARKING (PREVIEW) */}
-        {activeTab === "youtube_competitor" && (
-          <div className="max-w-4xl mx-auto bg-slate-950/30 border border-slate-800 rounded-2xl p-8 text-center space-y-4 shadow-xl">
-            <div className="h-16 w-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-400">
-              <TrendingUp className="h-8 w-8" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-100">YouTube Competitor Benchmarking Tool</h2>
-            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-              Compare your YouTube channel's view velocity, upload frequency, and top performing keywords side-by-side against any public YouTube creator handle.
-            </p>
-            <span className="inline-block px-3 py-1 bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-bold rounded-full">
-              Module Ready for Next Addition
-            </span>
-          </div>
-        )}
-
-        {/* TAB 3: AI CONTENT QUALITY INSPECTOR (FULL PRODUCTION MODULE) */}
+        {/* TAB 2: AI CONTENT QUALITY INSPECTOR (FULL PRODUCTION MODULE) */}
         {activeTab === "ai_content" && (
           <div className="max-w-6xl mx-auto space-y-6">
             
             {/* Main Header Banner */}
-            <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-              
+            <div className="bg-gradient-to-br from-amber-50/70 via-white to-slate-50 border border-amber-200/80 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xs relative overflow-hidden">
               <div className="space-y-2 z-10">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-bold rounded-full flex items-center gap-1.5">
+                  <span className="px-3 py-1 bg-amber-100 border border-amber-300 text-amber-800 text-[11px] font-bold rounded-full flex items-center gap-1.5">
                     <BrainCircuit className="h-3.5 w-3.5" /> LLaMA 3.3 70B Neural Engine
                   </span>
-                  <span className="px-3 py-1 bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-semibold rounded-full">
-                    Originality.ai & Grammarly Grade
+                  <span className="px-3 py-1 bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-full shadow-2xs">
+                    Originality.ai &amp; Grammarly Grade
                   </span>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-100 tracking-tight">
-                  AI Content Quality & Humanizer Inspector
+                <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+                  AI Content Quality &amp; Humanizer Inspector
                 </h2>
-                <p className="text-xs md:text-sm text-slate-400 max-w-2xl leading-relaxed">
+                <p className="text-xs md:text-sm text-slate-600 max-w-2xl leading-relaxed">
                   Detect AI probability, plagiarism risk, grammar syntax flaws, and SEO readability in seconds. One-click humanize to bypass AI detectors with natural phrasing.
                 </p>
               </div>
 
               {/* View Switcher Tabs */}
-              <div className="flex items-center bg-slate-900 border border-slate-800 p-1.5 rounded-2xl z-10 shrink-0">
+              <div className="flex items-center bg-white border border-slate-200 p-1.5 rounded-2xl z-10 shrink-0 shadow-2xs">
                 <button
                   onClick={() => setInspectorViewTab("analysis")}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                     inspectorViewTab === "analysis"
-                      ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
-                      : "text-slate-400 hover:text-slate-200"
+                      ? "bg-amber-500 text-slate-950 shadow-sm font-black"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  <FileCheck2 className="h-3.5 w-3.5" /> Inspector & Analysis
+                  <FileCheck2 className="h-3.5 w-3.5" /> Inspector &amp; Analysis
                 </button>
                 <button
                   onClick={() => setInspectorViewTab("humanizer")}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                     inspectorViewTab === "humanizer"
-                      ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
-                      : "text-slate-400 hover:text-slate-200"
+                      ? "bg-amber-500 text-slate-950 shadow-sm font-black"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   <Sparkles className="h-3.5 w-3.5" /> AI Humanizer
@@ -1721,8 +1186,8 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                     inspectorViewTab === "history"
-                      ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
-                      : "text-slate-400 hover:text-slate-200"
+                      ? "bg-amber-500 text-slate-950 shadow-sm font-black"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   <History className="h-3.5 w-3.5" /> Scan History ({inspectorHistory.length})
@@ -1731,16 +1196,16 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
             </div>
 
             {/* Input & File Upload Area */}
-            <div className="bg-slate-950/40 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-amber-400" />
-                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Paste Article Content or Upload File</span>
+                  <BookOpen className="h-4 w-4 text-amber-600" />
+                  <span className="text-xs font-black text-slate-900 uppercase tracking-wider">Paste Article Content or Upload File</span>
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 rounded-xl text-xs font-semibold text-slate-300 cursor-pointer transition">
-                    <UploadCloud className="h-3.5 w-3.5 text-amber-400" />
+                  <label className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer transition shadow-2xs">
+                    <UploadCloud className="h-3.5 w-3.5 text-amber-600" />
                     <span>{inspectorFile ? inspectorFile.name : "Upload PDF, DOCX, TXT"}</span>
                     <input
                       type="file"
@@ -1751,7 +1216,7 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                   </label>
 
                   {inspectorText && (
-                    <span className="text-[11px] font-mono text-slate-400 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
+                    <span className="text-[11px] font-mono text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl font-bold">
                       {inspectorText.trim().split(/\s+/).length} Words | {inspectorText.length} Chars
                     </span>
                   )}
@@ -1763,19 +1228,19 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                 onChange={(e) => setInspectorText(e.target.value)}
                 placeholder="Paste your blog article, social post, website text, or essay here to run AI probability detection, grammar syntax audit, and readability check..."
                 rows={7}
-                className="w-full bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition duration-300 resize-none font-sans leading-relaxed"
+                className="w-full bg-slate-50/80 border border-slate-200 rounded-2xl p-4 text-xs md:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition duration-300 resize-none font-sans leading-relaxed"
               />
 
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-                <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                  <span>Supports PDF, DOCX, & TXT up to 10MB • Auto Groq LLaMA 3.3 Neural Scoring</span>
+                <div className="text-[11px] text-slate-500 flex items-center gap-2 font-medium">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  <span>Supports PDF, DOCX, &amp; TXT up to 10MB • Auto Groq LLaMA 3.3 Neural Scoring</span>
                 </div>
 
                 <button
                   onClick={handleRunInspection}
                   disabled={inspecting || !inspectorText.trim()}
-                  className="w-full sm:w-auto px-8 py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs md:text-sm rounded-xl transition duration-300 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer shrink-0"
+                  className="w-full sm:w-auto px-8 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs md:text-sm rounded-2xl transition duration-300 flex items-center justify-center gap-2 shadow-sm cursor-pointer shrink-0"
                 >
                   {inspecting ? (
                     <>
@@ -1783,7 +1248,7 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                     </>
                   ) : (
                     <>
-                      <BrainCircuit className="h-4.5 w-4.5" /> Inspect Quality & Detect AI
+                      <BrainCircuit className="h-4.5 w-4.5" /> Inspect Quality &amp; Detect AI
                     </>
                   )}
                 </button>
@@ -1791,14 +1256,14 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
               {/* Progress Stepper Bar */}
               {inspecting && (
-                <div className="bg-slate-900 p-4 rounded-2xl border border-amber-500/30 space-y-2 animate-pulse">
-                  <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                <div className="bg-amber-50/80 p-4 rounded-2xl border border-amber-200 space-y-2 animate-pulse">
+                  <div className="flex items-center justify-between text-xs font-black text-amber-800">
                     <span>{inspectorSteps[inspectionStep]}</span>
                     <span>Step {inspectionStep + 1} / {inspectorSteps.length}</span>
                   </div>
-                  <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                  <div className="w-full bg-white h-2.5 rounded-full overflow-hidden border border-amber-200">
                     <div
-                      className="bg-gradient-to-r from-amber-500 to-emerald-400 h-full transition-all duration-300"
+                      className="bg-gradient-to-r from-amber-500 to-emerald-500 h-full transition-all duration-300"
                       style={{ width: `${((inspectionStep + 1) / inspectorSteps.length) * 100}%` }}
                     />
                   </div>
@@ -1808,11 +1273,11 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
             {/* Error Banner */}
             {errorMsg && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between text-xs text-red-300">
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between text-xs text-red-700 font-bold">
                 <span className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" /> {errorMsg}
+                  <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" /> {errorMsg}
                 </span>
-                <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-white font-bold">Dismiss</button>
+                <button onClick={() => setErrorMsg(null)} className="text-red-700 hover:text-red-900 font-bold">Dismiss</button>
               </div>
             )}
 
@@ -1824,56 +1289,56 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                   
                   {/* Overall Score */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Overall Quality</span>
-                    <div className="text-2xl font-black text-amber-400">{inspectionResult.scores.overallQuality}%</div>
-                    <span className="text-[10px] text-slate-500 font-semibold">Grade Score</span>
+                    <div className="text-2xl font-black text-amber-700">{inspectionResult.scores.overallQuality}%</div>
+                    <span className="text-[10px] text-slate-400 font-semibold">Grade Score</span>
                   </div>
 
                   {/* AI Probability */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">AI Detection</span>
-                    <div className={`text-2xl font-black ${inspectionResult.scores.aiProbability > 40 ? "text-red-400" : "text-emerald-400"}`}>
+                    <div className={`text-2xl font-black ${inspectionResult.scores.aiProbability > 40 ? "text-red-600" : "text-emerald-600"}`}>
                       {inspectionResult.scores.aiProbability}%
                     </div>
-                    <span className="text-[10px] text-slate-500 font-semibold">{inspectionResult.scores.aiProbability > 40 ? "High AI Signal" : "Human Written"}</span>
+                    <span className="text-[10px] text-slate-400 font-semibold">{inspectionResult.scores.aiProbability > 40 ? "High AI Signal" : "Human Written"}</span>
                   </div>
 
                   {/* Human Score */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Human Score</span>
-                    <div className="text-2xl font-black text-emerald-400">{inspectionResult.scores.humanScore}%</div>
-                    <span className="text-[10px] text-slate-500 font-semibold">Natural Rhythm</span>
+                    <div className="text-2xl font-black text-emerald-600">{inspectionResult.scores.humanScore}%</div>
+                    <span className="text-[10px] text-slate-400 font-semibold">Natural Rhythm</span>
                   </div>
 
                   {/* Originality Score */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Originality</span>
-                    <div className="text-2xl font-black text-sky-400">{inspectionResult.scores.originalityScore}%</div>
-                    <span className="text-[10px] text-slate-500 font-semibold">Unique Content</span>
+                    <div className="text-2xl font-black text-sky-600">{inspectionResult.scores.originalityScore}%</div>
+                    <span className="text-[10px] text-slate-400 font-semibold">Unique Content</span>
                   </div>
 
                   {/* Plagiarism Risk */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Plagiarism</span>
-                    <div className={`text-2xl font-black ${inspectionResult.scores.plagiarismScore > 15 ? "text-amber-400" : "text-emerald-400"}`}>
+                    <div className={`text-2xl font-black ${inspectionResult.scores.plagiarismScore > 15 ? "text-amber-600" : "text-emerald-600"}`}>
                       {inspectionResult.scores.plagiarismScore}%
                     </div>
-                    <span className="text-[10px] text-slate-500 font-semibold">Risk Index</span>
+                    <span className="text-[10px] text-slate-400 font-semibold">Risk Index</span>
                   </div>
 
                   {/* Readability Score */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Readability</span>
-                    <div className="text-2xl font-black text-purple-400">{inspectionResult.scores.readabilityScore}%</div>
-                    <span className="text-[10px] text-slate-500 font-semibold">{inspectionResult.metrics.fleschKincaidGrade}</span>
+                    <div className="text-2xl font-black text-purple-600">{inspectionResult.scores.readabilityScore}%</div>
+                    <span className="text-[10px] text-slate-400 font-semibold">{inspectionResult.metrics.fleschKincaidGrade}</span>
                   </div>
 
                   {/* SEO Optimization */}
-                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-2xl flex flex-col justify-between space-y-2 shadow-xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SEO Score</span>
-                    <div className="text-2xl font-black text-emerald-400">{inspectionResult.scores.seoScore}%</div>
-                    <span className="text-[10px] text-slate-500 font-semibold">Search Clarity</span>
+                    <div className="text-2xl font-black text-emerald-600">{inspectionResult.scores.seoScore}%</div>
+                    <span className="text-[10px] text-slate-400 font-semibold">Search Clarity</span>
                   </div>
 
                 </div>
@@ -1885,50 +1350,50 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                   <div className="lg:col-span-2 space-y-6">
                     
                     {/* Actionable Recommendations */}
-                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-amber-400" /> AI Action Plan & Recommendations
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                      <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500" /> AI Action Plan &amp; Recommendations
                       </h3>
                       <div className="space-y-2">
                         {inspectionResult.recommendations.map((rec, idx) => (
-                          <div key={idx} className="bg-slate-900/60 border border-slate-850 p-3.5 rounded-xl flex items-start gap-3 text-xs text-slate-300">
-                            <span className="h-5 w-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                          <div key={idx} className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl flex items-start gap-3 text-xs text-slate-800">
+                            <span className="h-5 w-5 rounded-full bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center font-black text-[10px] shrink-0 mt-0.5">
                               {idx + 1}
                             </span>
-                            <span className="leading-relaxed">{rec}</span>
+                            <span className="leading-relaxed font-semibold">{rec}</span>
                           </div>
                         ))}
                       </div>
                     </div>
 
                     {/* Detected Issues Highlight Feed */}
-                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-amber-400" /> Detected Content Issues ({inspectionResult.issues.length})
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" /> Detected Content Issues ({inspectionResult.issues.length})
                         </h3>
-                        <span className="text-[10px] text-slate-500 font-semibold">Grammar, AI Phrasing & SEO</span>
+                        <span className="text-[10px] text-slate-400 font-bold">Grammar, AI Phrasing &amp; SEO</span>
                       </div>
 
                       <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                         {inspectionResult.issues.map((iss, idx) => (
-                          <div key={idx} className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2">
+                          <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded uppercase text-[9px]">
+                              <span className="font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg uppercase text-[9px]">
                                 {iss.type}
                               </span>
-                              <span className="text-[11px] text-slate-400">Suggestion available</span>
+                              <span className="text-[11px] text-slate-400 font-medium">Suggestion available</span>
                             </div>
-                            <div className="text-xs font-mono text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-850">
-                              <span className="line-through text-red-400/80 mr-2">{iss.originalText}</span>
-                              <span className="text-emerald-400 font-bold">➔ {iss.suggestion}</span>
+                            <div className="text-xs font-mono text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200">
+                              <span className="line-through text-red-600 mr-2">{iss.originalText}</span>
+                              <span className="text-emerald-700 font-bold">➔ {iss.suggestion}</span>
                             </div>
-                            <p className="text-[11px] text-slate-400 leading-relaxed">{iss.explanation}</p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed font-medium">{iss.explanation}</p>
                           </div>
                         ))}
 
                         {inspectionResult.issues.length === 0 && (
-                          <div className="p-8 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs">
+                          <div className="p-8 text-center border border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs font-medium">
                             No critical grammar syntax or AI pattern flaws detected. Content looks clean!
                           </div>
                         )}
@@ -1941,68 +1406,68 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                   <div className="space-y-6">
                     
                     {/* One-click Export Card */}
-                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                        <Download className="h-4 w-4 text-amber-400" /> Export Audit Report
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                      <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        <Download className="h-4 w-4 text-amber-600" /> Export Audit Report
                       </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         Download full content quality assessment report in your preferred document format:
                       </p>
 
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => handleDownloadInspectorReport("html")}
-                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="px-3 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                         >
-                          <FileCode className="h-3.5 w-3.5 text-amber-400" /> HTML Report
+                          <FileCode className="h-3.5 w-3.5 text-amber-600" /> HTML Report
                         </button>
                         <button
                           onClick={() => handleDownloadInspectorReport("md")}
-                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="px-3 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                         >
-                          <FileText className="h-3.5 w-3.5 text-sky-400" /> Markdown (.md)
+                          <FileText className="h-3.5 w-3.5 text-sky-600" /> Markdown (.md)
                         </button>
                         <button
                           onClick={() => handleDownloadInspectorReport("txt")}
-                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="px-3 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                         >
-                          <FileText className="h-3.5 w-3.5 text-emerald-400" /> Plain Text (.txt)
+                          <FileText className="h-3.5 w-3.5 text-emerald-600" /> Plain Text (.txt)
                         </button>
                         <button
                           onClick={() => handleDownloadInspectorReport("json")}
-                          className="px-3 py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="px-3 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                         >
-                          <FileCode className="h-3.5 w-3.5 text-purple-400" /> Raw JSON
+                          <FileCode className="h-3.5 w-3.5 text-purple-600" /> Raw JSON
                         </button>
                       </div>
                     </div>
 
                     {/* Metadata Metrics Panel */}
-                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                      <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                        <Sliders className="h-4 w-4 text-amber-400" /> Text Structure Metrics
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                      <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        <Sliders className="h-4 w-4 text-amber-600" /> Text Structure Metrics
                       </h3>
 
                       <div className="space-y-2.5 text-xs">
-                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
-                          <span className="text-slate-400">Total Word Count</span>
-                          <span className="font-bold text-slate-100 font-mono">{inspectionResult.metrics.wordCount}</span>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-slate-500 font-medium">Total Word Count</span>
+                          <span className="font-bold text-slate-900 font-mono">{inspectionResult.metrics.wordCount}</span>
                         </div>
-                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
-                          <span className="text-slate-400">Total Sentence Count</span>
-                          <span className="font-bold text-slate-100 font-mono">{inspectionResult.metrics.sentenceCount}</span>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-slate-500 font-medium">Total Sentence Count</span>
+                          <span className="font-bold text-slate-900 font-mono">{inspectionResult.metrics.sentenceCount}</span>
                         </div>
-                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
-                          <span className="text-slate-400">Est. Reading Time</span>
-                          <span className="font-bold text-amber-400 font-mono">{inspectionResult.metrics.readingTimeMinutes} mins</span>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-slate-500 font-medium">Est. Reading Time</span>
+                          <span className="font-bold text-amber-700 font-mono">{inspectionResult.metrics.readingTimeMinutes} mins</span>
                         </div>
-                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
-                          <span className="text-slate-400">Flesch Grade Level</span>
-                          <span className="font-bold text-emerald-400">{inspectionResult.metrics.fleschKincaidGrade}</span>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-slate-500 font-medium">Flesch Grade Level</span>
+                          <span className="font-bold text-emerald-700">{inspectionResult.metrics.fleschKincaidGrade}</span>
                         </div>
-                        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-slate-850">
-                          <span className="text-slate-400">Detected Tone</span>
-                          <span className="font-bold text-purple-400">{inspectionResult.scores.tone}</span>
+                        <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-slate-500 font-medium">Detected Tone</span>
+                          <span className="font-bold text-purple-700">{inspectionResult.scores.tone}</span>
                         </div>
                       </div>
                     </div>
@@ -2016,27 +1481,27 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
             {/* TAB 2: AI HUMANIZER SIDE-BY-SIDE REWRITE ENGINE */}
             {inspectorViewTab === "humanizer" && (
-              <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-6 shadow-xs">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                   <div>
-                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-amber-400" /> One-Click AI Humanizer & Diff Comparison
+                    <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-amber-500" /> One-Click AI Humanizer &amp; Diff Comparison
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Select target rewrite style mode to transform formulaic AI text into 100% natural, human-written content.
                     </p>
                   </div>
 
                   {/* Mode Selector Buttons */}
-                  <div className="flex items-center gap-1.5 flex-wrap bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
+                  <div className="flex items-center gap-1.5 flex-wrap bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
                     {["Professional", "Casual", "Academic", "Marketing", "Technical", "Creative"].map((m) => (
                       <button
                         key={m}
                         onClick={() => handleHumanizeRewrite(m)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                           humanizeMode === m
-                            ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
-                            : "text-slate-400 hover:text-slate-200"
+                            ? "bg-amber-500 text-slate-950 shadow-2xs font-black"
+                            : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
                         {m}
@@ -2049,23 +1514,23 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   
                   {/* Original Content Panel */}
-                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-300 pb-2 border-b border-slate-800">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800 pb-2 border-b border-slate-200">
                       <span>Original Input Content</span>
-                      <span className="text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded font-mono text-[10px]">
+                      <span className="text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg font-mono text-[10px]">
                         AI Prob: {inspectionResult?.scores.aiProbability || 0}%
                       </span>
                     </div>
-                    <div className="text-xs text-slate-300 leading-relaxed font-sans min-h-64 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                    <div className="text-xs text-slate-800 leading-relaxed font-sans min-h-64 whitespace-pre-wrap max-h-96 overflow-y-auto">
                       {inspectorText || "No content loaded."}
                     </div>
                   </div>
 
                   {/* Humanized Rewritten Panel */}
-                  <div className="bg-slate-900/60 border border-slate-850 rounded-2xl p-4 space-y-3 relative">
-                    <div className="flex items-center justify-between text-xs font-bold text-amber-400 pb-2 border-b border-slate-800">
+                  <div className="bg-amber-50/40 border border-amber-200/80 rounded-2xl p-4 space-y-3 relative">
+                    <div className="flex items-center justify-between text-xs font-bold text-amber-800 pb-2 border-b border-amber-200/80">
                       <span className="flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Humanized Output ({humanizeMode} Mode)
+                        <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Humanized Output ({humanizeMode} Mode)
                       </span>
                       <div className="flex items-center gap-2">
                         {humanizedOutput && (
@@ -2075,20 +1540,20 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                               setCopiedInspectorText(true);
                               setTimeout(() => setCopiedInspectorText(false), 2000);
                             }}
-                            className="text-[11px] font-bold text-slate-300 hover:text-white flex items-center gap-1 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700"
+                            className="text-[11px] font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs"
                           >
                             <Copy className="h-3 w-3" /> {copiedInspectorText ? "Copied!" : "Copy"}
                           </button>
                         )}
-                        <span className="text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-mono text-[10px]">
+                        <span className="text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg font-mono text-[10px] font-bold">
                           Human Score: 98%
                         </span>
                       </div>
                     </div>
 
-                    <div className="text-xs text-slate-100 leading-relaxed font-sans min-h-64 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                    <div className="text-xs text-slate-900 leading-relaxed font-sans min-h-64 whitespace-pre-wrap max-h-96 overflow-y-auto font-medium">
                       {humanizing ? (
-                        <div className="p-12 text-center space-y-3 text-amber-400 animate-pulse">
+                        <div className="p-12 text-center space-y-3 text-amber-700 animate-pulse">
                           <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
                           <p className="text-xs font-bold">Rewriting content into natural {humanizeMode} tone...</p>
                         </div>
@@ -2104,9 +1569,9 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
 
             {/* TAB 3: SCAN HISTORY TABLE */}
             {inspectorViewTab === "history" && (
-              <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <History className="h-5 w-5 text-amber-400" /> Analysis Scan History ({inspectorHistory.length})
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <History className="h-5 w-5 text-amber-600" /> Analysis Scan History ({inspectorHistory.length})
                 </h3>
 
                 <div className="space-y-3">
@@ -2121,24 +1586,24 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                         }
                         setInspectorViewTab("analysis");
                       }}
-                      className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/40 rounded-2xl cursor-pointer transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                      className="p-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-amber-400 rounded-2xl cursor-pointer transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                     >
                       <div className="space-y-1">
-                        <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
-                          <FileText className="h-3.5 w-3.5 text-amber-400" /> {item.filename}
+                        <span className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 text-amber-600" /> {item.filename}
                         </span>
-                        <p className="text-[11px] text-slate-400 line-clamp-1 max-w-xl">{item.text}</p>
-                        <span className="text-[10px] text-slate-500 font-mono">{new Date(item.analyzedAt).toLocaleString()}</span>
+                        <p className="text-[11px] text-slate-600 line-clamp-1 max-w-xl">{item.text}</p>
+                        <span className="text-[10px] text-slate-400 font-mono">{new Date(item.analyzedAt).toLocaleString()}</span>
                       </div>
 
                       <div className="flex items-center gap-3 text-xs shrink-0">
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">Overall Quality</span>
-                          <span className="font-extrabold text-amber-400 font-mono">{item.scores.overallQuality}%</span>
+                          <span className="text-[10px] text-slate-400 block font-semibold">Overall Quality</span>
+                          <span className="font-black text-amber-700 font-mono">{item.scores.overallQuality}%</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">AI Prob</span>
-                          <span className={`font-extrabold font-mono ${item.scores.aiProbability > 40 ? "text-red-400" : "text-emerald-400"}`}>
+                          <span className="text-[10px] text-slate-400 block font-semibold">AI Prob</span>
+                          <span className={`font-black font-mono ${item.scores.aiProbability > 40 ? "text-red-600" : "text-emerald-700"}`}>
                             {item.scores.aiProbability}%
                           </span>
                         </div>
@@ -2147,7 +1612,7 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
                   ))}
 
                   {inspectorHistory.length === 0 && (
-                    <div className="p-12 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs">
+                    <div className="p-12 text-center border border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs font-medium">
                       No inspection history recorded yet. Run your first analysis above!
                     </div>
                   )}
@@ -2158,17 +1623,33 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
           </div>
         )}
 
+        {/* TAB 3: YOUTUBE COMPETITOR BENCHMARKING (PREVIEW) */}
+        {activeTab === "youtube_competitor" && (
+          <div className="max-w-4xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-4 shadow-xs">
+            <div className="h-16 w-16 bg-red-50 border border-red-200 rounded-full flex items-center justify-center mx-auto text-red-600 shadow-2xs">
+              <TrendingUp className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-black text-slate-900">YouTube Competitor Benchmarking Tool</h2>
+            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed font-medium">
+              Compare your YouTube channel&apos;s view velocity, upload frequency, and top performing keywords side-by-side against any public YouTube creator handle.
+            </p>
+            <span className="inline-block px-3 py-1 bg-red-50 text-red-700 border border-red-200 text-xs font-bold rounded-full">
+              Module Ready for Next Addition
+            </span>
+          </div>
+        )}
+
         {/* TAB 4: GOOGLE MAPS LEAD PROSPECTOR (PREVIEW) */}
         {activeTab === "leads" && (
-          <div className="max-w-4xl mx-auto bg-slate-950/30 border border-slate-800 rounded-2xl p-8 text-center space-y-4 shadow-xl">
-            <div className="h-16 w-16 bg-sky-500/10 border border-sky-500/20 rounded-full flex items-center justify-center mx-auto text-sky-400">
+          <div className="max-w-4xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-4 shadow-xs">
+            <div className="h-16 w-16 bg-sky-50 border border-sky-200 rounded-full flex items-center justify-center mx-auto text-sky-600 shadow-2xs">
               <Users className="h-8 w-8" />
             </div>
-            <h2 className="text-xl font-bold text-slate-100">Google Maps Business Lead Prospector</h2>
-            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-              Extract local business listings by category & city, discover unclaimed profiles, extract phone numbers, and export directly into sales outreach pipelines.
+            <h2 className="text-xl font-black text-slate-900">Google Maps Business Lead Prospector</h2>
+            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed font-medium">
+              Extract local business listings by category &amp; city, discover unclaimed profiles, extract phone numbers, and export directly into sales outreach pipelines.
             </p>
-            <span className="inline-block px-3 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-bold rounded-full">
+            <span className="inline-block px-3 py-1 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold rounded-full">
               Module Ready for Next Addition
             </span>
           </div>
