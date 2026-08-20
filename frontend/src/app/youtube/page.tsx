@@ -304,6 +304,13 @@ const MediaNodeComponent = ({ data }: any) => {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+  }
+  return DEFAULT_ORG_ID;
+};
+
 // TS Interfaces
 interface Message {
   id: string;
@@ -790,6 +797,8 @@ export default function Dashboard() {
     fetchYoutubeConfig();
     fetchGoogleConfig();
     fetchActiveFlow("youtube");
+    fetchVideosShorts();
+    fetchAnalytics();
 
     return () => {
       socket.disconnect();
@@ -813,7 +822,7 @@ export default function Dashboard() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === "videos_shorts") {
+    if (activeTab === "videos_shorts" || activeTab === "chats_youtube") {
       fetchVideosShorts();
     } else if (activeTab === "comparative") {
       fetchComparative(comparativeDays);
@@ -835,7 +844,7 @@ export default function Dashboard() {
   const fetchConversations = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -862,7 +871,7 @@ export default function Dashboard() {
     setLoadingAnalytics(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/analytics`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -880,7 +889,7 @@ export default function Dashboard() {
     setVideoCommentsDisabled(false);
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/comments/video/${videoId}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -901,7 +910,7 @@ export default function Dashboard() {
     setLoadingVideosShorts(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/videos-shorts`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -918,7 +927,7 @@ export default function Dashboard() {
     setLoadingComparative(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/comparative?days=${days}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -935,7 +944,7 @@ export default function Dashboard() {
     setLoadingDemographics(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/demographics`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -964,7 +973,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ parentId: commentId, videoId, text })
       });
@@ -986,7 +995,7 @@ export default function Dashboard() {
   const fetchInstagramConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (data) {
@@ -1005,7 +1014,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(igConfig)
       });
@@ -1023,7 +1032,7 @@ export default function Dashboard() {
   const fetchYoutubeConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (data) {
@@ -1042,7 +1051,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(ytConfig)
       });
@@ -1060,13 +1069,13 @@ export default function Dashboard() {
   const handleYoutubeOAuthConnect = () => {
     setYtOauthStatus("connecting");
     if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/youtube/oauth/connect?orgId=${DEFAULT_ORG_ID}&redirect=${window.location.pathname}`;
+      window.location.href = `${BACKEND_URL}/api/youtube/oauth/connect?orgId=${getOrgId()}&redirect=${window.location.pathname}`;
     }
   };
 
   const fetchGoogleConfig = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
       if (res.ok) {
         const data = await res.json();
         setGoogleConfig(data);
@@ -1107,10 +1116,10 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ 
-          orgId: DEFAULT_ORG_ID, 
+          orgId: getOrgId(), 
           ...googleConfig,
           googleLocationId: finalLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId
@@ -1146,14 +1155,14 @@ export default function Dashboard() {
   const handleGoogleOAuthConnect = () => {
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${DEFAULT_ORG_ID}`;
+      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}`;
     }
   };
 
   const fetchActiveFlow = async (platform: "youtube" = "youtube") => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/flows?platform=${platform}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
@@ -1420,68 +1429,70 @@ export default function Dashboard() {
         {/* TAB 1: CHANNEL OVERVIEW ANALYTICS */}
         {activeTab === "analytics" && (
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div className="flex items-center gap-3">
-                <BarChart2 className="h-6 w-6 text-red-500" />
-                <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Channel Performance Overview</h2>
+                <div className="h-9 w-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shadow-2xs">
+                  <BarChart2 className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900 font-sans tracking-tight">YouTube Channel Performance Overview</h2>
               </div>
               <button
                 onClick={fetchAnalytics}
                 disabled={loadingAnalytics}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingAnalytics ? "animate-spin" : ""}`} /> Refresh Analytics
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingAnalytics ? "animate-spin text-red-600" : ""}`} /> Refresh Analytics
               </button>
             </div>
 
             {loadingAnalytics ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
-                <span className="text-xs text-slate-400 font-sans">Fetching YouTube Analytics data...</span>
+                <RefreshCw className="h-8 w-8 text-red-600 animate-spin" />
+                <span className="text-xs text-slate-500 font-sans font-medium">Fetching YouTube Analytics data...</span>
               </div>
             ) : analyticsData ? (
               <div className="space-y-6 animate-fadeIn font-sans">
                 {/* Summary Cards Grid */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                    <div className="flex items-center justify-between text-slate-400">
+                  <div className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col gap-1.5 shadow-xs">
+                    <div className="flex items-center justify-between text-slate-500">
                       <span className="text-[10px] font-bold uppercase tracking-wider">Total Views</span>
-                      <Eye className="h-4.5 w-4.5 text-red-400" />
+                      <Eye className="h-4.5 w-4.5 text-red-600" />
                     </div>
-                    <span className="text-2xl font-bold text-slate-100">
+                    <span className="text-2xl font-black text-slate-900">
                       {Number(analyticsData.summary?.rows?.[0]?.[0] || 0).toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-slate-500">Last 30 days summary</span>
+                    <span className="text-[10px] text-slate-400 font-medium">Last 30 days summary</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                    <div className="flex items-center justify-between text-slate-400">
+                  <div className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col gap-1.5 shadow-xs">
+                    <div className="flex items-center justify-between text-slate-500">
                       <span className="text-[10px] font-bold uppercase tracking-wider">New Subs</span>
-                      <TrendingUp className="h-4.5 w-4.5 text-emerald-400" />
+                      <TrendingUp className="h-4.5 w-4.5 text-emerald-600" />
                     </div>
-                    <span className="text-2xl font-bold text-slate-100">
+                    <span className="text-2xl font-black text-slate-900">
                       {Number(analyticsData.summary?.rows?.[0]?.[3] || 0).toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-slate-500">Subscribers gained</span>
+                    <span className="text-[10px] text-slate-400 font-medium">Subscribers gained</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                    <div className="flex items-center justify-between text-slate-400">
+                  <div className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col gap-1.5 shadow-xs">
+                    <div className="flex items-center justify-between text-slate-500">
                       <span className="text-[10px] font-bold uppercase tracking-wider">Watch Time</span>
-                      <Clock className="h-4.5 w-4.5 text-sky-400" />
+                      <Clock className="h-4.5 w-4.5 text-sky-600" />
                     </div>
-                    <span className="text-2xl font-bold text-slate-100">
+                    <span className="text-2xl font-black text-slate-900">
                       {Number(analyticsData.summary?.rows?.[0]?.[4] || 0).toLocaleString()} min
                     </span>
-                    <span className="text-[10px] text-slate-500">Estimated watched time</span>
+                    <span className="text-[10px] text-slate-400 font-medium">Estimated watched time</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-1.5 shadow-md">
-                    <div className="flex items-center justify-between text-slate-400">
+                  <div className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col gap-1.5 shadow-xs">
+                    <div className="flex items-center justify-between text-slate-500">
                       <span className="text-[10px] font-bold uppercase tracking-wider">Avg Duration</span>
-                      <Clock className="h-4.5 w-4.5 text-amber-400" />
+                      <Clock className="h-4.5 w-4.5 text-amber-600" />
                     </div>
-                    <span className="text-2xl font-bold text-slate-100">
+                    <span className="text-2xl font-black text-slate-900">
                       {(() => {
                         const totalSec = Number(analyticsData.summary?.rows?.[0]?.[5] || 0);
                         const mins = Math.floor(totalSec / 60);
@@ -1489,15 +1500,15 @@ export default function Dashboard() {
                         return `${mins}:${secs.toString().padStart(2, "0")}`;
                       })()}
                     </span>
-                    <span className="text-[10px] text-slate-500">Average view duration</span>
+                    <span className="text-[10px] text-slate-400 font-medium">Average view duration</span>
                   </div>
                 </div>
 
                 {/* Interactive Graph Timeline / Grid */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                  <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider mb-4">Views Timeline</h3>
+                <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+                  <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider mb-4">Views Timeline</h3>
                   {analyticsData.daily?.rows && analyticsData.daily.rows.length > 0 ? (
-                    <div className="h-48 w-full flex items-end justify-between gap-1 pt-6 pb-2 px-2 border-b border-l border-slate-800">
+                    <div className="h-48 w-full flex items-end justify-between gap-1 pt-6 pb-2 px-2 border-b border-l border-slate-200">
                       {analyticsData.daily.rows.map((row: any, idx: number) => {
                         const maxViews = Math.max(...(analyticsData.daily.rows.map((r: any) => Number(r[1] || 0))) || [1]);
                         const val = Number(row[1] || 0);
@@ -1505,15 +1516,15 @@ export default function Dashboard() {
                         return (
                           <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
                             <div className="relative w-full flex justify-center">
-                              <span className="absolute bottom-full mb-1 bg-slate-950 text-slate-200 border border-slate-800 px-1.5 py-0.5 rounded text-[9px] scale-0 group-hover:scale-100 transition-all font-mono z-20">
+                              <span className="absolute bottom-full mb-1 bg-slate-900 text-white px-1.5 py-0.5 rounded text-[9px] scale-0 group-hover:scale-100 transition-all font-mono z-20 shadow-sm">
                                 {val} views
                               </span>
                             </div>
                             <div 
-                              className="w-full bg-red-600/80 group-hover:bg-red-500 rounded-t-sm transition-all"
+                              className="w-full bg-red-600 group-hover:bg-red-500 rounded-t-sm transition-all"
                               style={{ height: `${Math.max(pct, 4)}%` }}
                             />
-                            <span className="text-[8px] text-slate-600 mt-2 font-mono hidden md:block">
+                            <span className="text-[8px] text-slate-400 mt-2 font-mono hidden md:block">
                               {row[0]?.substring(8)}
                             </span>
                           </div>
@@ -1526,61 +1537,61 @@ export default function Dashboard() {
                 </div>
 
                 {/* Top Performing Videos */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-850 pb-2">
-                    <Tv className="h-4.5 w-4.5 text-red-500" /> Top Performing Videos (Last 30 Days)
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-3">
+                    <Tv className="h-4.5 w-4.5 text-red-600" /> Top Performing Videos (Last 30 Days)
                   </h3>
-                  <div className="divide-y divide-slate-850">
+                  <div className="divide-y divide-slate-100">
                     {analyticsData.topVideos && analyticsData.topVideos.length > 0 ? (
                       analyticsData.topVideos.map((video) => (
-                        <div key={video.id} className="py-3 flex items-center justify-between gap-4">
+                        <div key={video.id} className="py-3.5 flex items-center justify-between gap-4">
                           <div className="flex items-center gap-3 min-w-0">
                             {video.thumbnail ? (
                               <img 
                                 src={video.thumbnail} 
                                 alt={video.title} 
-                                className="h-10 w-16 object-cover rounded bg-slate-900 border border-slate-850 shrink-0" 
+                                className="h-10 w-16 object-cover rounded-xl bg-slate-100 border border-slate-200 shrink-0 shadow-2xs" 
                               />
                             ) : (
-                              <div className="h-10 w-16 bg-slate-900 border border-slate-850 rounded shrink-0 flex items-center justify-center text-slate-600">
+                              <div className="h-10 w-16 bg-slate-100 border border-slate-200 rounded-xl shrink-0 flex items-center justify-center text-slate-400">
                                 <Tv className="h-5 w-5" />
                               </div>
                             )}
                             <div className="flex flex-col min-w-0">
-                              <span className="text-xs font-bold text-slate-200 truncate max-w-[200px] sm:max-w-md">
+                              <span className="text-xs font-bold text-slate-900 truncate max-w-[200px] sm:max-w-md">
                                 {video.title}
                               </span>
-                              <span className="text-[10px] text-slate-500 font-mono">
+                              <span className="text-[10px] text-slate-400 font-mono">
                                 ID: {video.id}
                               </span>
                             </div>
                           </div>
                           <div className="flex items-center gap-4 text-right shrink-0">
                             <div className="flex flex-col">
-                              <span className="text-xs font-bold text-slate-200 font-mono">
+                              <span className="text-xs font-bold text-slate-900 font-mono">
                                 {video.views.toLocaleString()}
                               </span>
-                              <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Views</span>
+                              <span className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">Views</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-xs font-bold text-slate-200 font-mono">
+                              <span className="text-xs font-bold text-slate-900 font-mono">
                                 {(video as any).likesHidden || video.likes < 0 ? "Hidden" : video.likes.toLocaleString()}
                               </span>
-                              <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Likes</span>
+                              <span className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">Likes</span>
                             </div>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center text-slate-500 text-xs py-8">No top performing videos metadata found for this channel.</div>
+                      <div className="text-center text-slate-400 text-xs py-8">No top performing videos metadata found for this channel.</div>
                     )}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center bg-slate-900/40 border border-slate-850 rounded-2xl p-10 flex flex-col items-center gap-2">
-                <BarChart2 className="h-8 w-8 text-slate-600" />
-                <span className="text-sm font-semibold text-slate-400">No Analytics Data Available</span>
+              <div className="text-center bg-white border border-slate-200 rounded-3xl p-10 flex flex-col items-center gap-2 shadow-xs">
+                <BarChart2 className="h-8 w-8 text-slate-300" />
+                <span className="text-sm font-bold text-slate-800">No Analytics Data Available</span>
                 <span className="text-xs text-slate-500 max-w-sm">
                   Please verify your credentials in settings and authenticate OAuth with Google YouTube scope to start tracking channel analytics.
                 </span>
@@ -1591,101 +1602,101 @@ export default function Dashboard() {
 
         {/* TAB 2: COMMENTS INBOX & CONTENT FEED */}
         {activeTab === "chats_youtube" && (
-          <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
+          <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
             {selectedVideoForComments ? (
-              <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
-                <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
+                <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0 shadow-xs">
                   <div className="flex items-center gap-3 min-w-0">
                     {selectedVideoForComments.thumbnail && (
-                      <img src={selectedVideoForComments.thumbnail} alt={selectedVideoForComments.title} className="h-10 w-16 object-cover rounded-lg border border-slate-800 shrink-0" />
+                      <img src={selectedVideoForComments.thumbnail} alt={selectedVideoForComments.title} className="h-10 w-16 object-cover rounded-xl border border-slate-200 shrink-0 shadow-2xs" />
                     )}
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider">Video Comment Section</span>
-                      <h3 className="font-bold text-sm text-slate-100 truncate">{selectedVideoForComments.title}</h3>
+                      <span className="text-[10px] uppercase font-bold text-red-600 tracking-wider">Video Comment Section</span>
+                      <h3 className="font-extrabold text-sm text-slate-900 truncate">{selectedVideoForComments.title}</h3>
                     </div>
                   </div>
                   <button
                     onClick={() => setSelectedVideoForComments(null)}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold shrink-0 cursor-pointer flex items-center gap-1"
+                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs transition-all"
                   >
-                    ← Back to All Videos & Shorts
+                    ← Back to All Videos &amp; Shorts
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                   {loadingVideoComments ? (
                     <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                      <RefreshCw className="h-6 w-6 text-red-500 animate-spin" />
-                      <p className="text-xs">Loading video comments...</p>
+                      <RefreshCw className="h-6 w-6 text-red-600 animate-spin" />
+                      <p className="text-xs font-semibold">Loading video comments...</p>
                     </div>
                   ) : videoCommentsDisabled ? (
-                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3 bg-slate-950/40 border border-slate-850 rounded-2xl">
+                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
                       <AlertCircle className="h-8 w-8 text-amber-500" />
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-bold text-slate-200">Comments Disabled for this Video</span>
-                        <span className="text-xs text-slate-400 max-w-sm">
+                        <span className="text-sm font-bold text-slate-900">Comments Disabled for this Video</span>
+                        <span className="text-xs text-slate-500 max-w-sm">
                           Comments are turned off or disabled on YouTube for this specific video/short.
                         </span>
                       </div>
                     </div>
                   ) : videoCommentsData.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                      <MessageSquare className="h-8 w-8 text-slate-600" />
-                      <p className="text-xs">No comments found for this video.</p>
+                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2 bg-white border border-slate-200 rounded-3xl shadow-xs">
+                      <MessageSquare className="h-8 w-8 text-slate-300" />
+                      <p className="text-xs font-bold text-slate-700">No comments found for this video.</p>
                     </div>
                   ) : (
                     videoCommentsData.map((comment: any) => (
-                      <div key={comment.id} className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-lg">
+                      <div key={comment.id} className="bg-white border border-slate-200 rounded-3xl p-5 space-y-3 shadow-xs">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2.5 min-w-0">
                             {comment.authorAvatar ? (
-                              <img src={comment.authorAvatar} alt={comment.authorName} className="h-7 w-7 rounded-full object-cover border border-slate-800 shrink-0" />
+                              <img src={comment.authorAvatar} alt={comment.authorName} className="h-7 w-7 rounded-full object-cover border border-slate-200 shrink-0" />
                             ) : (
-                              <div className="h-7 w-7 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                              <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700 shrink-0">
                                 {comment.authorName?.[0] || "U"}
                               </div>
                             )}
                             <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-xs text-slate-200 truncate">{comment.authorName}</span>
-                              <span className="text-[10px] text-slate-500">{new Date(comment.publishedAt).toLocaleDateString()}</span>
+                              <span className="font-bold text-xs text-slate-900 truncate">{comment.authorName}</span>
+                              <span className="text-[10px] text-slate-400">{new Date(comment.publishedAt).toLocaleDateString()}</span>
                             </div>
                           </div>
-                          <span className="text-xs font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/20">
+                          <span className="text-xs font-bold text-red-700 bg-red-50 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-red-200">
                             👍 {comment.likeCount || 0}
                           </span>
                         </div>
 
-                        <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-850">
+                        <p className="text-xs text-slate-800 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
                           {comment.text}
                         </p>
 
                         {/* Replies */}
                         {comment.replies && comment.replies.length > 0 && (
-                          <div className="pl-4 border-l-2 border-slate-800 space-y-2 mt-2">
+                          <div className="pl-4 border-l-2 border-red-200 space-y-2 mt-2">
                             {comment.replies.map((rep: any) => (
-                              <div key={rep.id} className="bg-slate-900/40 p-2.5 rounded-lg text-xs space-y-1">
-                                <span className="font-bold text-slate-300">{rep.authorName}</span>
-                                <p className="text-slate-400">{rep.text}</p>
+                              <div key={rep.id} className="bg-slate-50 p-3 rounded-xl text-xs space-y-1 border border-slate-200/60">
+                                <span className="font-bold text-slate-900">{rep.authorName}</span>
+                                <p className="text-slate-700">{rep.text}</p>
                               </div>
                             ))}
                           </div>
                         )}
 
                         {/* Inline Reply Input */}
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-850">
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                           <input
                             type="text"
                             value={replyInputText[comment.id] || ""}
                             onChange={(e) => setReplyInputText({ ...replyInputText, [comment.id]: e.target.value })}
                             placeholder="Type a reply to this viewer..."
-                            className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 shadow-2xs"
                           />
                           <button
                             onClick={() => handlePostCommentReply(comment.id, selectedVideoForComments.id)}
                             disabled={postingReplyStatus[comment.id]}
-                            className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs shadow-red-600/20"
                           >
-                            <Send className="h-3 w-3" /> Reply
+                            <Send className="h-3.5 w-3.5" /> Reply
                           </button>
                         </div>
                       </div>
@@ -1695,12 +1706,12 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
                   <div>
-                    <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5 text-red-500" /> Channel Videos & Comments Hub
+                    <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5 text-red-600" /> Channel Videos &amp; Comments Hub
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Select any video or Short to open its comment section and reply to viewers.
                     </p>
                   </div>
@@ -1716,10 +1727,10 @@ export default function Dashboard() {
                         <button
                           key={item.id}
                           onClick={() => setCommentsFilter(item.id as any)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                             commentsFilter === item.id
-                              ? "bg-red-600 text-white font-bold shadow-md shadow-red-500/10"
-                              : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+                              ? "bg-red-600 text-white shadow-xs"
+                              : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
                           }`}
                         >
                           {item.label}
@@ -1731,7 +1742,7 @@ export default function Dashboard() {
 
                 {loadingVideosShorts ? (
                   <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
-                    <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
+                    <RefreshCw className="h-8 w-8 text-red-600 animate-spin" />
                     <p className="text-xs font-semibold">Loading channel videos and Shorts...</p>
                   </div>
                 ) : videosShortsData ? (
@@ -1744,7 +1755,7 @@ export default function Dashboard() {
 
                       if (allItems.length === 0) {
                         return (
-                          <div className="col-span-full p-12 text-center text-slate-500">
+                          <div className="col-span-full p-12 text-center text-slate-500 bg-white border border-slate-200 rounded-3xl">
                             No content found for the selected filter.
                           </div>
                         );
@@ -1754,42 +1765,42 @@ export default function Dashboard() {
                         <div
                           key={item.id}
                           onClick={() => handleSelectVideoForComments(item)}
-                          className="bg-slate-950/40 border border-slate-800 hover:border-red-500/40 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 hover:scale-[1.01] shadow-lg cursor-pointer group"
+                          className="bg-white border border-slate-200 hover:border-red-300 rounded-3xl p-4.5 flex flex-col justify-between gap-3 transition-all duration-200 hover:scale-[1.01] shadow-xs hover:shadow-sm cursor-pointer group"
                         >
                           <div className="flex items-start gap-3">
                             <div className="relative shrink-0">
                               <img
                                 src={item.thumbnail}
                                 alt={item.title}
-                                className={`object-cover rounded-lg border border-slate-800 ${item.isShort ? "h-16 w-11" : "h-14 w-24"}`}
+                                className={`object-cover rounded-xl border border-slate-200 ${item.isShort ? "h-16 w-11" : "h-14 w-24"}`}
                               />
                               {item.isShort && (
-                                <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-[9px] px-1 rounded shadow">
+                                <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full shadow-xs">
                                   ⚡ SHORT
                                 </span>
                               )}
                             </div>
                             <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-xs text-slate-200 truncate group-hover:text-red-400 transition-colors">
+                              <span className="font-bold text-xs text-slate-900 truncate group-hover:text-red-600 transition-colors">
                                 {item.title}
                               </span>
-                              <span className="text-[10px] text-slate-500 mt-1">
+                              <span className="text-[10px] text-slate-400 mt-1">
                                 {new Date(item.publishedAt).toLocaleDateString()}
                               </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between border-t border-slate-850 pt-3 text-xs">
+                          <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
                             <div className="flex items-center gap-3">
-                              <span className="text-slate-400 font-mono text-[11px]">
+                              <span className="text-slate-500 font-mono text-[11px] font-medium">
                                 👁️ {item.views.toLocaleString()}
                               </span>
-                              <span className="text-slate-400 font-mono text-[11px]">
+                              <span className="text-slate-500 font-mono text-[11px] font-medium">
                                 💬 {item.comments.toLocaleString()}
                               </span>
                             </div>
 
-                            <span className="text-[10px] font-bold text-red-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                            <span className="text-[10px] font-bold text-red-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
                               View Comments →
                             </span>
                           </div>
@@ -1798,8 +1809,8 @@ export default function Dashboard() {
                     })()}
                   </div>
                 ) : (
-                  <div className="text-center text-slate-500 text-xs py-10">
-                    Connect your YouTube channel to load video & Short comment feeds.
+                  <div className="text-center text-slate-500 text-xs py-10 bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">
+                    Connect your YouTube channel to load video &amp; Short comment feeds.
                   </div>
                 )}
               </div>
@@ -1810,31 +1821,33 @@ export default function Dashboard() {
         {/* TAB 6: SETTINGS */}
         {activeTab === "settings" && (
           <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-4xl mx-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4 mb-4">
-              <Settings className="h-6 w-6 text-red-500" />
-              <h2 className="text-xl font-bold text-slate-100 font-sans uppercase tracking-wider">YouTube Connection Settings</h2>
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-4 mb-4">
+              <div className="h-9 w-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shadow-2xs">
+                <Settings className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-900 font-sans tracking-tight">YouTube Connection Settings</h2>
             </div>
 
-            <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <Video className="h-4.5 w-4.5 text-red-500" /> YouTube Channel Configuration
+            <form onSubmit={saveYoutubeConfig} className="bg-white border border-slate-200 rounded-3xl p-6 space-y-5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Video className="h-4.5 w-4.5 text-red-600" /> YouTube Channel Configuration
                 </h3>
                 {ytConfig.refreshToken || ytConfig.channelId ? (
-                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1 shadow-2xs">
                     Connected ✓
                   </span>
                 ) : null}
               </div>
 
               {(ytConfig.refreshToken || ytConfig.channelId) && (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn shadow-2xs">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Connected Account</span>
-                    <span className="text-sm font-bold text-slate-200">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Connected Account</span>
+                    <span className="text-sm font-extrabold text-slate-900">
                       {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-xs text-slate-500 font-mono">
                       Channel ID: {ytConfig.channelId || "N/A"}
                     </span>
                   </div>
@@ -1844,7 +1857,7 @@ export default function Dashboard() {
                       setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
                       saveYoutubeConfig({ preventDefault: () => {} } as any);
                     }}
-                    className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                    className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition-all cursor-pointer shrink-0"
                   >
                     Disconnect
                   </button>
@@ -1853,41 +1866,42 @@ export default function Dashboard() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
+                  <label className="text-xs text-slate-700 font-bold">YouTube Channel ID</label>
                   <input
                     type="text"
                     value={ytConfig.channelId || ""}
                     onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
-                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 shadow-2xs"
                     placeholder="e.g. UCxxxxxxxxx"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
+                  <label className="text-xs text-slate-700 font-bold">OAuth Access Token</label>
                   <input
                     type="text"
                     value={ytConfig.accessToken || ""}
                     onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
-                    className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 shadow-2xs"
                     placeholder="Access Token"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-slate-850 pt-4">
+              <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                 <button
                   type="button"
                   onClick={handleYoutubeOAuthConnect}
                   disabled={ytOauthStatus === "connecting"}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-600/20 flex items-center gap-2 cursor-pointer"
                 >
-                  <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
+                  <RefreshCw className={`h-4 w-4 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
                   {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
                 </button>
 
                 <button
                   type="submit"
                   disabled={ytSaveStatus === "saving"}
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all shadow-xs cursor-pointer disabled:opacity-50"
                 >
                   {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
                 </button>
@@ -2232,129 +2246,129 @@ export default function Dashboard() {
         {/* TAB 2: SHORTS VS VIDEOS PERFORMANCE */}
         {activeTab === "videos_shorts" && (
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <Tv className="h-5 w-5 text-amber-400" /> Shorts vs Long-Form Videos Performance
+                <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                  <Tv className="h-5 w-5 text-red-600" /> Shorts vs Long-Form Videos Performance
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Compare performance metrics between YouTube Shorts and regular long-form videos. Click any video to view its comment section!
                 </p>
               </div>
               <button
                 onClick={fetchVideosShorts}
                 disabled={loadingVideosShorts}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition-all"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingVideosShorts ? "animate-spin" : ""}`} /> Refresh Data
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingVideosShorts ? "animate-spin text-red-600" : ""}`} /> Refresh Data
               </button>
             </div>
 
             {loadingVideosShorts ? (
               <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
-                <RefreshCw className="h-8 w-8 text-amber-500 animate-spin" />
-                <p className="text-xs font-semibold">Analyzing videos & shorts metrics...</p>
+                <RefreshCw className="h-8 w-8 text-red-600 animate-spin" />
+                <p className="text-xs font-semibold">Analyzing videos &amp; shorts metrics...</p>
               </div>
             ) : videosShortsData ? (
               <>
                 {/* Summary Metrics Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Long Videos Count</span>
-                    <span className="text-2xl font-black text-slate-100">{videosShortsData.summary?.videoCount || 0}</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Total Views: {(videosShortsData.summary?.videoViews || 0).toLocaleString()}</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1">Long Videos Count</span>
+                    <span className="text-2xl font-black text-slate-900">{videosShortsData.summary?.videoCount || 0}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Total Views: {(videosShortsData.summary?.videoViews || 0).toLocaleString()}</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Shorts Count</span>
-                    <span className="text-2xl font-black text-amber-400">{videosShortsData.summary?.shortCount || 0}</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Total Views: {(videosShortsData.summary?.shortViews || 0).toLocaleString()}</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1">Shorts Count</span>
+                    <span className="text-2xl font-black text-red-600">{videosShortsData.summary?.shortCount || 0}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Total Views: {(videosShortsData.summary?.shortViews || 0).toLocaleString()}</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Avg Video Engagement</span>
-                    <span className="text-2xl font-black text-emerald-400">{videosShortsData.summary?.avgVideoEngagement || 0}%</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Likes + Comments / Views</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1">Avg Video Engagement</span>
+                    <span className="text-2xl font-black text-emerald-600">{videosShortsData.summary?.avgVideoEngagement || 0}%</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Likes + Comments / Views</span>
                   </div>
 
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block mb-1">Avg Shorts Engagement</span>
-                    <span className="text-2xl font-black text-sky-400">{videosShortsData.summary?.avgShortEngagement || 0}%</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Likes + Comments / Views</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1">Avg Shorts Engagement</span>
+                    <span className="text-2xl font-black text-sky-600">{videosShortsData.summary?.avgShortEngagement || 0}%</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Likes + Comments / Views</span>
                   </div>
                 </div>
 
                 {/* Lists Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* YouTube Shorts List */}
-                  <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                    <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                    <h3 className="font-extrabold text-xs text-red-600 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 pb-3">
                       <span className="flex items-center gap-1.5">⚡ YouTube Shorts Feed ({videosShortsData.shorts?.length || 0})</span>
-                      <span className="text-[10px] text-slate-500 font-normal">Click short to open comments</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Click short to open comments</span>
                     </h3>
-                    <div className="divide-y divide-slate-850 max-h-96 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                       {videosShortsData.shorts && videosShortsData.shorts.length > 0 ? (
                         videosShortsData.shorts.map((short: any) => (
                           <div
                             key={short.id}
                             onClick={() => handleSelectVideoForComments(short)}
-                            className="py-3 flex items-center justify-between gap-3 hover:bg-slate-900/60 p-2 rounded-xl transition-all cursor-pointer group"
+                            className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50 p-2.5 rounded-2xl transition-all cursor-pointer group"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <img src={short.thumbnail} alt={short.title} className="h-12 w-8 object-cover rounded bg-slate-900 border border-slate-800 shrink-0 group-hover:scale-105 transition-all" />
+                              <img src={short.thumbnail} alt={short.title} className="h-12 w-8 object-cover rounded-xl bg-slate-100 border border-slate-200 shrink-0 group-hover:scale-105 transition-all shadow-2xs" />
                               <div className="flex flex-col min-w-0">
-                                <span className="font-semibold text-xs text-slate-200 truncate group-hover:text-red-400 transition-all">{short.title}</span>
-                                <span className="text-[10px] text-slate-500">Duration: {short.durationSec}s • {new Date(short.publishedAt).toLocaleDateString()}</span>
+                                <span className="font-bold text-xs text-slate-900 truncate group-hover:text-red-600 transition-all">{short.title}</span>
+                                <span className="text-[10px] text-slate-400">Duration: {short.durationSec}s • {new Date(short.publishedAt).toLocaleDateString()}</span>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
-                              <span className="font-bold text-xs text-slate-200 block">{short.views.toLocaleString()} views</span>
-                              <span className="text-[10px] text-red-400 font-semibold">{short.engagementRate}% eng</span>
+                              <span className="font-bold text-xs text-slate-900 block">{short.views.toLocaleString()} views</span>
+                              <span className="text-[10px] text-red-600 font-bold">{short.engagementRate}% eng</span>
                             </div>
                           </div>
                         ))
                       ) : (
-                        <div className="text-center text-slate-500 text-xs py-8">No YouTube Shorts detected on channel.</div>
+                        <div className="text-center text-slate-400 text-xs py-8">No YouTube Shorts detected on channel.</div>
                       )}
                     </div>
                   </div>
 
                   {/* Long-Form Videos List */}
-                  <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                    <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center justify-between border-b border-slate-850 pb-2">
-                      <span className="flex items-center gap-1.5"><Tv className="h-4 w-4 text-red-500" /> Long-Form Videos ({videosShortsData.videos?.length || 0})</span>
-                      <span className="text-[10px] text-slate-500 font-normal">Click video to open comments</span>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                    <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 pb-3">
+                      <span className="flex items-center gap-1.5"><Tv className="h-4 w-4 text-red-600" /> Long-Form Videos ({videosShortsData.videos?.length || 0})</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Click video to open comments</span>
                     </h3>
-                    <div className="divide-y divide-slate-850 max-h-96 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                       {videosShortsData.videos && videosShortsData.videos.length > 0 ? (
                         videosShortsData.videos.map((video: any) => (
                           <div
                             key={video.id}
                             onClick={() => handleSelectVideoForComments(video)}
-                            className="py-3 flex items-center justify-between gap-3 hover:bg-slate-900/60 p-2 rounded-xl transition-all cursor-pointer group"
+                            className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50 p-2.5 rounded-2xl transition-all cursor-pointer group"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded bg-slate-900 border border-slate-800 shrink-0 group-hover:scale-105 transition-all" />
+                              <img src={video.thumbnail} alt={video.title} className="h-10 w-16 object-cover rounded-xl bg-slate-100 border border-slate-200 shrink-0 group-hover:scale-105 transition-all shadow-2xs" />
                               <div className="flex flex-col min-w-0">
-                                <span className="font-semibold text-xs text-slate-200 truncate group-hover:text-red-400 transition-all">{video.title}</span>
-                                <span className="text-[10px] text-slate-500">Duration: {Math.floor(video.durationSec / 60)}m {video.durationSec % 60}s</span>
+                                <span className="font-bold text-xs text-slate-900 truncate group-hover:text-red-600 transition-all">{video.title}</span>
+                                <span className="text-[10px] text-slate-400">Duration: {Math.floor(video.durationSec / 60)}m {video.durationSec % 60}s</span>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
-                              <span className="font-bold text-xs text-slate-200 block">{video.views.toLocaleString()} views</span>
-                              <span className="text-[10px] text-red-400 font-semibold">{video.engagementRate}% eng</span>
+                              <span className="font-bold text-xs text-slate-900 block">{video.views.toLocaleString()} views</span>
+                              <span className="text-[10px] text-red-600 font-bold">{video.engagementRate}% eng</span>
                             </div>
                           </div>
                         ))
                       ) : (
-                        <div className="text-center text-slate-500 text-xs py-8">No long-form videos found.</div>
+                        <div className="text-center text-slate-400 text-xs py-8">No long-form videos found.</div>
                       )}
                     </div>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="text-center text-slate-500 text-xs py-10">Connect your YouTube channel to load Shorts & Videos breakdown.</div>
+              <div className="text-center text-slate-500 text-xs py-10 bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">Connect your YouTube channel to load Shorts &amp; Videos breakdown.</div>
             )}
           </div>
         )}
@@ -2362,12 +2376,12 @@ export default function Dashboard() {
         {/* TAB 3: COMPARATIVE MOM ANALYTICS */}
         {activeTab === "comparative" && (
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-red-500" /> Comparative Performance Analytics
+                <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-red-600" /> Comparative Performance Analytics
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Compare channel performance metrics against previous time periods (Month-over-Month growth).
                 </p>
               </div>
@@ -2386,10 +2400,10 @@ export default function Dashboard() {
                       setComparativeDays(item.val);
                       fetchComparative(item.val);
                     }}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       comparativeDays === item.val
-                        ? "bg-red-600 text-white font-bold shadow-md shadow-red-600/20"
-                        : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+                        ? "bg-red-600 text-white shadow-xs"
+                        : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
                     }`}
                   >
                     {item.label}
@@ -2400,7 +2414,7 @@ export default function Dashboard() {
 
             {loadingComparative ? (
               <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
-                <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
+                <RefreshCw className="h-8 w-8 text-red-600 animate-spin" />
                 <p className="text-xs font-semibold">Calculating comparative metrics...</p>
               </div>
             ) : comparativeData ? (
@@ -2408,77 +2422,77 @@ export default function Dashboard() {
                 {/* Growth Badge Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Views */}
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Views</span>
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Views</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                         comparativeData.growth?.views >= 0
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-red-50 text-red-700 border border-red-200"
                       }`}>
                         {comparativeData.growth?.views >= 0 ? "+" : ""}{comparativeData.growth?.views}%
                       </span>
                     </div>
-                    <span className="text-2xl font-black text-slate-100">{comparativeData.current?.views?.toLocaleString() || 0}</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: {comparativeData.previous?.views?.toLocaleString() || 0}</span>
+                    <span className="text-2xl font-black text-slate-900">{comparativeData.current?.views?.toLocaleString() || 0}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Prev Period: {comparativeData.previous?.views?.toLocaleString() || 0}</span>
                   </div>
 
                   {/* Net Subs */}
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Net Subscribers</span>
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Net Subscribers</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                         comparativeData.growth?.netSubs >= 0
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-red-50 text-red-700 border border-red-200"
                       }`}>
                         {comparativeData.growth?.netSubs >= 0 ? "+" : ""}{comparativeData.growth?.netSubs}%
                       </span>
                     </div>
-                    <span className="text-2xl font-black text-slate-100">+{comparativeData.current?.netSubs || 0}</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: +{comparativeData.previous?.netSubs || 0}</span>
+                    <span className="text-2xl font-black text-slate-900">+{comparativeData.current?.netSubs || 0}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Prev Period: +{comparativeData.previous?.netSubs || 0}</span>
                   </div>
 
                   {/* Watch Time */}
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Watch Time (Hrs)</span>
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Watch Time (Hrs)</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                         comparativeData.growth?.watchTimeMin >= 0
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-red-50 text-red-700 border border-red-200"
                       }`}>
                         {comparativeData.growth?.watchTimeMin >= 0 ? "+" : ""}{comparativeData.growth?.watchTimeMin}%
                       </span>
                     </div>
-                    <span className="text-2xl font-black text-slate-100">{Math.round((comparativeData.current?.watchTimeMin || 0) / 60)} hrs</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: {Math.round((comparativeData.previous?.watchTimeMin || 0) / 60)} hrs</span>
+                    <span className="text-2xl font-black text-slate-900">{Math.round((comparativeData.current?.watchTimeMin || 0) / 60)} hrs</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Prev Period: {Math.round((comparativeData.previous?.watchTimeMin || 0) / 60)} hrs</span>
                   </div>
 
                   {/* Likes */}
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Likes & Engagement</span>
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Likes &amp; Engagement</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                         comparativeData.growth?.likes >= 0
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-red-50 text-red-700 border border-red-200"
                       }`}>
                         {comparativeData.growth?.likes >= 0 ? "+" : ""}{comparativeData.growth?.likes}%
                       </span>
                     </div>
-                    <span className="text-2xl font-black text-slate-100">{comparativeData.current?.likes?.toLocaleString() || 0}</span>
-                    <span className="text-[10px] text-slate-500 block mt-1">Prev Period: {comparativeData.previous?.likes?.toLocaleString() || 0}</span>
+                    <span className="text-2xl font-black text-slate-900">{comparativeData.current?.likes?.toLocaleString() || 0}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1">Prev Period: {comparativeData.previous?.likes?.toLocaleString() || 0}</span>
                   </div>
                 </div>
 
                 {/* Period Comparison Table */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
                     Detailed Comparison: {comparativeData.currentRange?.start} to {comparativeData.currentRange?.end} vs. {comparativeData.previousRange?.start} to {comparativeData.previousRange?.end}
                   </h3>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300 divide-y divide-slate-850">
+                    <table className="w-full text-left text-xs text-slate-700 divide-y divide-slate-100">
                       <thead>
                         <tr className="text-slate-500 text-[10px] uppercase font-bold">
                           <th className="py-2.5 px-3">Metric</th>
@@ -2487,32 +2501,32 @@ export default function Dashboard() {
                           <th className="py-2.5 px-3">Growth / Growth Rate</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-850/50">
+                      <tbody className="divide-y divide-slate-100">
                         <tr>
-                          <td className="py-3 px-3 font-semibold text-slate-200">Views</td>
-                          <td className="py-3 px-3 font-mono">{comparativeData.current?.views?.toLocaleString()}</td>
+                          <td className="py-3 px-3 font-bold text-slate-900">Views</td>
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900">{comparativeData.current?.views?.toLocaleString()}</td>
                           <td className="py-3 px-3 font-mono text-slate-500">{comparativeData.previous?.views?.toLocaleString()}</td>
-                          <td className={`py-3 px-3 font-bold ${comparativeData.growth?.views >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          <td className={`py-3 px-3 font-bold ${comparativeData.growth?.views >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                             {comparativeData.growth?.views >= 0 ? "+" : ""}{comparativeData.growth?.views}%
                           </td>
                         </tr>
                         <tr>
-                          <td className="py-3 px-3 font-semibold text-slate-200">Subscribers Gained</td>
-                          <td className="py-3 px-3 font-mono">+{comparativeData.current?.subsGained}</td>
+                          <td className="py-3 px-3 font-bold text-slate-900">Subscribers Gained</td>
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900">+{comparativeData.current?.subsGained}</td>
                           <td className="py-3 px-3 font-mono text-slate-500">+{comparativeData.previous?.subsGained}</td>
-                          <td className="py-3 px-3 font-bold text-slate-300">+{comparativeData.current?.subsGained - comparativeData.previous?.subsGained}</td>
+                          <td className="py-3 px-3 font-bold text-slate-700">+{comparativeData.current?.subsGained - comparativeData.previous?.subsGained}</td>
                         </tr>
                         <tr>
-                          <td className="py-3 px-3 font-semibold text-slate-200">Subscribers Lost</td>
-                          <td className="py-3 px-3 font-mono text-red-400">-{comparativeData.current?.subsLost}</td>
+                          <td className="py-3 px-3 font-bold text-slate-900">Subscribers Lost</td>
+                          <td className="py-3 px-3 font-mono font-bold text-red-600">-{comparativeData.current?.subsLost}</td>
                           <td className="py-3 px-3 font-mono text-slate-500">-{comparativeData.previous?.subsLost}</td>
-                          <td className="py-3 px-3 font-bold text-slate-400">-{comparativeData.current?.subsLost - comparativeData.previous?.subsLost}</td>
+                          <td className="py-3 px-3 font-bold text-red-600">-{comparativeData.current?.subsLost - comparativeData.previous?.subsLost}</td>
                         </tr>
                         <tr>
-                          <td className="py-3 px-3 font-semibold text-slate-200">Watch Time (Minutes)</td>
-                          <td className="py-3 px-3 font-mono">{comparativeData.current?.watchTimeMin?.toLocaleString()} min</td>
+                          <td className="py-3 px-3 font-bold text-slate-900">Watch Time (Minutes)</td>
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900">{comparativeData.current?.watchTimeMin?.toLocaleString()} min</td>
                           <td className="py-3 px-3 font-mono text-slate-500">{comparativeData.previous?.watchTimeMin?.toLocaleString()} min</td>
-                          <td className={`py-3 px-3 font-bold ${comparativeData.growth?.watchTimeMin >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          <td className={`py-3 px-3 font-bold ${comparativeData.growth?.watchTimeMin >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                             {comparativeData.growth?.watchTimeMin >= 0 ? "+" : ""}{comparativeData.growth?.watchTimeMin}%
                           </td>
                         </tr>
@@ -2522,7 +2536,7 @@ export default function Dashboard() {
                 </div>
               </>
             ) : (
-              <div className="text-center text-slate-500 text-xs py-10">No comparative statistics available.</div>
+              <div className="text-center text-slate-500 text-xs py-10 bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">No comparative statistics available.</div>
             )}
           </div>
         )}
@@ -2530,123 +2544,123 @@ export default function Dashboard() {
         {/* TAB 4: AUDIENCE DEMOGRAPHICS & TRAFFIC SOURCES */}
         {activeTab === "demographics" && (
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <BarChart2 className="h-5 w-5 text-red-500" /> Audience Demographics & Traffic Sources
+                <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                  <BarChart2 className="h-5 w-5 text-red-600" /> Audience Demographics &amp; Traffic Sources
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Understand your viewer age groups, top geographic regions, traffic acquisition sources, and device types.
                 </p>
               </div>
               <button
                 onClick={fetchDemographics}
                 disabled={loadingDemographics}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition-all"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingDemographics ? "animate-spin" : ""}`} /> Refresh Demographics
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingDemographics ? "animate-spin text-red-600" : ""}`} /> Refresh Demographics
               </button>
             </div>
 
             {loadingDemographics ? (
               <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
-                <RefreshCw className="h-8 w-8 text-red-500 animate-spin" />
+                <RefreshCw className="h-8 w-8 text-red-600 animate-spin" />
                 <p className="text-xs font-semibold">Loading viewer demographics data...</p>
               </div>
             ) : demographicsData ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Age & Gender Distribution */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
-                    Viewer Age & Gender Distribution
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <h3 className="font-extrabold text-xs text-red-600 uppercase tracking-wider border-b border-slate-100 pb-3">
+                    Viewer Age &amp; Gender Distribution
                   </h3>
                   <div className="space-y-3">
                     {demographicsData.ageGender && demographicsData.ageGender.length > 0 ? (
                       demographicsData.ageGender.map((ag: any, idx: number) => (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex justify-between text-xs text-slate-300 font-medium">
+                        <div key={idx} className="space-y-1.5">
+                          <div className="flex justify-between text-xs text-slate-700 font-bold">
                             <span>{ag.ageGroup} years ({ag.gender})</span>
-                            <span className="font-mono text-red-400">{ag.percentage.toFixed(1)}%</span>
+                            <span className="font-mono text-red-600">{ag.percentage.toFixed(1)}%</span>
                           </div>
-                          <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-850">
+                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
                             <div className="bg-red-600 h-full rounded-full transition-all" style={{ width: `${Math.min(ag.percentage, 100)}%` }} />
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center text-slate-500 text-xs py-6">Age and gender distribution data requires additional channel views.</div>
+                      <div className="text-center text-slate-400 text-xs py-6">Age and gender distribution data requires additional channel views.</div>
                     )}
                   </div>
                 </div>
 
                 {/* Top Countries */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <h3 className="font-extrabold text-xs text-red-600 uppercase tracking-wider border-b border-slate-100 pb-3">
                     Top Viewing Countries
                   </h3>
-                  <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {demographicsData.countries && demographicsData.countries.length > 0 ? (
                       demographicsData.countries.map((c: any, idx: number) => (
-                        <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-200">{c.country}</span>
+                        <div key={idx} className="py-3 flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-900">{c.country}</span>
                           <div className="text-right font-mono">
-                            <span className="text-slate-300 block">{c.views.toLocaleString()} views</span>
-                            <span className="text-[10px] text-slate-500">{c.watchTimeMin} min watch time</span>
+                            <span className="text-slate-900 font-bold block">{c.views.toLocaleString()} views</span>
+                            <span className="text-[10px] text-slate-400">{c.watchTimeMin} min watch time</span>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center text-slate-500 text-xs py-6">No country breakdown data available.</div>
+                      <div className="text-center text-slate-400 text-xs py-6">No country breakdown data available.</div>
                     )}
                   </div>
                 </div>
 
                 {/* Traffic Sources */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <h3 className="font-extrabold text-xs text-red-600 uppercase tracking-wider border-b border-slate-100 pb-3">
                     Traffic Acquisition Sources
                   </h3>
-                  <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {demographicsData.trafficSources && demographicsData.trafficSources.length > 0 ? (
                       demographicsData.trafficSources.map((ts: any, idx: number) => (
-                        <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-200">{ts.sourceType?.replace("YT_", "")?.replace("_", " ")}</span>
+                        <div key={idx} className="py-3 flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-900">{ts.sourceType?.replace("YT_", "")?.replace("_", " ")}</span>
                           <div className="text-right font-mono">
-                            <span className="text-slate-300 block">{ts.views.toLocaleString()} views</span>
-                            <span className="text-[10px] text-slate-500">{ts.watchTimeMin} min watch time</span>
+                            <span className="text-slate-900 font-bold block">{ts.views.toLocaleString()} views</span>
+                            <span className="text-[10px] text-slate-400">{ts.watchTimeMin} min watch time</span>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center text-slate-500 text-xs py-6">No traffic source data available.</div>
+                      <div className="text-center text-slate-400 text-xs py-6">No traffic source data available.</div>
                     )}
                   </div>
                 </div>
 
                 {/* Device Breakdown */}
-                <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-                  <h3 className="font-bold text-xs text-red-400 uppercase tracking-wider border-b border-slate-850 pb-2">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <h3 className="font-extrabold text-xs text-red-600 uppercase tracking-wider border-b border-slate-100 pb-3">
                     Device Types Breakdown
                   </h3>
-                  <div className="divide-y divide-slate-850 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {demographicsData.devices && demographicsData.devices.length > 0 ? (
                       demographicsData.devices.map((d: any, idx: number) => (
-                        <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-200">{d.deviceType}</span>
+                        <div key={idx} className="py-3 flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-900">{d.deviceType}</span>
                           <div className="text-right font-mono">
-                            <span className="text-slate-300 block">{d.views.toLocaleString()} views</span>
-                            <span className="text-[10px] text-slate-500">{d.watchTimeMin} min watch time</span>
+                            <span className="text-slate-900 font-bold block">{d.views.toLocaleString()} views</span>
+                            <span className="text-[10px] text-slate-400">{d.watchTimeMin} min watch time</span>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center text-slate-500 text-xs py-6">No device breakdown data available.</div>
+                      <div className="text-center text-slate-400 text-xs py-6">No device breakdown data available.</div>
                     )}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center text-slate-500 text-xs py-10">No demographics statistics available.</div>
+              <div className="text-center text-slate-500 text-xs py-10 bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">No demographics statistics available.</div>
             )}
           </div>
         )}

@@ -78,7 +78,7 @@ export default function AppSidebar() {
     if (typeof window === "undefined") return;
 
     const role = localStorage.getItem("user_role");
-    const orgId = localStorage.getItem("organization_id") || "demo-org-123";
+    const orgId = localStorage.getItem("organization_id") || "";
     setUserRole(role);
 
     // If Super Admin, allow all modules

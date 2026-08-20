@@ -1727,12 +1727,12 @@ export default function Dashboard() {
                     )}
 
                     {/* Message input bar */}
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
+                    <form onSubmit={handleSendMessage} className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2.5 sm:gap-3 relative shadow-xs">
 
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
-                          {["≡ƒÿÇ", "≡ƒÿé", "≡ƒÿì", "≡ƒæì", "≡ƒÖÅ", "≡ƒöÑ", "≡ƒÜÇ", "Γ¥ñ∩╕Å", "≡ƒæÅ", "≡ƒÄë"].map((emoji) => (
+                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50">
+                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
                             <button
                               key={emoji}
                               type="button"
@@ -1740,7 +1740,7 @@ export default function Dashboard() {
                                 setInputText((prev) => prev + emoji);
                                 setShowEmojiPicker(false);
                               }}
-                              className="text-lg hover:scale-125 transition-transform p-1.5"
+                              className="text-lg hover:scale-125 transition-transform p-1.5 cursor-pointer"
                             >
                               {emoji}
                             </button>
@@ -1750,30 +1750,30 @@ export default function Dashboard() {
 
                       {/* MEDIA/PAPERCLIP POPUP */}
                       {showMediaMenu && (
-                        <div className="absolute bottom-16 left-12 bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xl z-50 text-[11px] min-w-[170px]">
+                        <div className="absolute bottom-16 left-12 bg-white border border-slate-200 rounded-2xl p-2.5 flex flex-col gap-1 shadow-xl z-50 text-xs min-w-[190px]">
                           <button
                             type="button"
                             onClick={() => {
                               setShowMediaMenu(false);
                               fileInputRef.current?.click();
                             }}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 cursor-pointer"
+                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
                           >
-                            <Paperclip className="h-4 w-4 text-emerald-400" /> Upload & Send File
+                            <Paperclip className="h-4 w-4 text-pink-600" /> Upload &amp; Send File
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 border-t border-slate-850 pt-1.5"
+                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold border-t border-slate-100 pt-1.5 cursor-pointer"
                           >
-                            <ImageIcon className="h-4 w-4 text-emerald-400/80" /> Mock Case Study (Image)
+                            <ImageIcon className="h-4 w-4 text-pink-600" /> Mock Case Study (Image)
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300"
+                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
                           >
-                            <FileText className="h-4 w-4 text-sky-400/80" /> Mock Portfolio (PDF)
+                            <FileText className="h-4 w-4 text-sky-600" /> Mock Portfolio (PDF)
                           </button>
                         </div>
                       )}
@@ -1792,7 +1792,7 @@ export default function Dashboard() {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
                         }}
-                        className={`p-2 rounded-lg transition-colors ${showEmojiPicker ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showEmojiPicker ? "bg-pink-50 text-pink-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Smile className="h-5 w-5" />
                       </button>
@@ -1802,7 +1802,7 @@ export default function Dashboard() {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
                         }}
-                        className={`p-2 rounded-lg transition-colors ${showMediaMenu ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showMediaMenu ? "bg-pink-50 text-pink-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
@@ -1811,44 +1811,31 @@ export default function Dashboard() {
                         type="text"
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        placeholder="Type a message..."
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        placeholder="Type an Instagram DM..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 shadow-2xs transition-all"
                       />
 
                       <button
                         type="submit"
                         disabled={!inputText.trim()}
-                        className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition-all shadow-md shadow-emerald-500/15 disabled:opacity-40 disabled:hover:bg-emerald-500"
+                        className="p-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-xl transition-all shadow-md shadow-pink-600/20 disabled:opacity-40 disabled:hover:bg-pink-600 cursor-pointer"
                       >
-                        <Send className="h-4.5 w-4.5 fill-slate-950" />
+                        <Send className="h-4.5 w-4.5 fill-white" />
                       </button>
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50 overflow-y-auto">
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50 overflow-y-auto">
                     <div className="max-w-md w-full flex flex-col items-center gap-5">
-                      {isInstagramTab ? (
-                        <div className="w-full flex flex-col items-center justify-center py-12 px-4 text-center animate-fadeIn">
-                          <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-xl border bg-pink-500/10 text-pink-400 border-pink-500/20 mb-4">
-                            <Instagram className="h-10 w-10 stroke-1" />
-                          </div>
-                          <h3 className="text-xl font-bold text-slate-100">Instagram Inbox</h3>
-                          <p className="text-sm text-slate-400 max-w-md mt-2">
-                            Select a conversation from the left sidebar to start chatting, view messages, or handle customer replies.
-                          </p>
+                      <div className="w-full flex flex-col items-center justify-center py-12 px-4 text-center animate-fadeIn">
+                        <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-sm border bg-pink-50 text-pink-600 border-pink-200 mb-4">
+                          <Instagram className="h-10 w-10 stroke-1" />
                         </div>
-                      ) : (
-                        /* Default WhatsApp Sales CRM Placeholder */
-                        <>
-                          <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-xl border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                            <Bot className="h-10 w-10 stroke-1" />
-                          </div>
-                          <h3 className="text-xl font-bold text-slate-100">WhatsApp Sales & Support CRM</h3>
-                          <p className="text-sm text-slate-400">
-                            Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
-                          </p>
-                        </>
-                      )}
+                        <h3 className="text-xl font-extrabold text-slate-900">Instagram DM Inbox</h3>
+                        <p className="text-sm text-slate-500 max-w-md mt-2 leading-relaxed">
+                          Select a conversation from the left sidebar to start chatting, view messages, or handle customer replies.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
