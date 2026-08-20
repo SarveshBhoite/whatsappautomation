@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall,
-  Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, MoreVertical, Settings, Sparkles, Image as ImageIcon, Video as VideoIcon, Edit3
+  X, HelpCircle, ArrowRight, Check, Plus,
+  LayoutGrid, Zap, ChevronUp, Settings, Sparkles, Image as ImageIcon, Info
 } from "lucide-react";
 
 interface CampaignFlowProps {
@@ -24,31 +24,19 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
   // 1. Campaign Settings State
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
-  const [customLocationInput, setCustomLocationInput] = useState<string>("");
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
+  const [selectedLanguages] = useState<string[]>(["English"]);
   const [languageSearchInput, setLanguageSearchInput] = useState<string>("");
-  const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
-  const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
 
   // 2. Budget and Bidding State
   const [dailyBudget, setDailyBudget] = useState<string>("");
-  const [biddingFocus, setBiddingFocus] = useState<string>("Conversions");
-  const [conversionBiddingType, setConversionBiddingType] = useState<"MAX_CONVERSIONS" | "TARGET_CPA">("MAX_CONVERSIONS");
-  const [targetCpaValue, setTargetCpaValue] = useState<string>("");
-
-  // 3. Targeting State
-  const [useOptimizedTargeting, setUseOptimizedTargeting] = useState<boolean>(true);
 
   // 4. Ads Creation State
   const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
   const [businessName, setBusinessName] = useState<string>("");
-  const [headlines, setHeadlines] = useState<string[]>([""]);
-  const [longHeadline, setLongHeadline] = useState<string>("");
-  const [descriptions, setDescriptions] = useState<string[]>([""]);
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
@@ -68,29 +56,29 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
   const formattedType = type.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50 shadow-2xs">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-all cursor-pointer"
+            className="p-2 text-slate-400 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-4 text-xs font-semibold">
-            <span className="text-slate-400">{formattedObjective}</span>
-            <span className="text-slate-600">/</span>
-            <span className="text-slate-200 font-bold">{formattedType} Setup</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-bold">
+            <span className="text-slate-500">{formattedObjective}</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-blue-700">{formattedType} Setup</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
-          <span className="font-mono">
+        <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
+          <span className="font-mono bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-white" />
+          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-slate-700" />
         </div>
       </header>
 
@@ -98,23 +86,23 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sidebar Navigation */}
-        <aside className="w-64 border-r border-slate-800 p-4 space-y-4 shrink-0 bg-slate-950/60 hidden md:flex flex-col justify-between">
+        <aside className="w-64 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-white hidden md:flex flex-col justify-between shadow-2xs">
           <div className="space-y-4">
-            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2 text-xs font-semibold text-slate-200">
-              <LayoutGrid className="h-4 w-4 text-primary shrink-0" />
+            <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 flex items-center gap-2 text-xs font-bold text-blue-900">
+              <LayoutGrid className="h-4 w-4 text-blue-600 shrink-0" />
               <span>{formattedType}</span>
             </div>
 
             <nav className="space-y-1 text-xs">
               <div
                 onClick={() => setCurrentStep("CAMPAIGN_SETTINGS")}
-                className={`p-2.5 rounded-xl space-y-1 cursor-pointer transition-all ${
+                className={`p-3 rounded-xl space-y-1 cursor-pointer transition-all ${
                   currentStep === "CAMPAIGN_SETTINGS"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 font-bold shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
-                <div className="flex items-center gap-2 font-medium">
+                <div className="flex items-center gap-2.5">
                   <Settings className="h-4 w-4" />
                   <span>Campaign settings</span>
                 </div>
@@ -122,10 +110,10 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
               <div
                 onClick={() => setCurrentStep("BUDGET_BIDDING")}
-                className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                className={`p-3 rounded-xl flex items-center gap-2.5 cursor-pointer transition-all ${
                   currentStep === "BUDGET_BIDDING"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 font-bold shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <Zap className="h-4 w-4" />
@@ -134,10 +122,10 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
               <div
                 onClick={() => setCurrentStep("TARGETING")}
-                className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                className={`p-3 rounded-xl flex items-center gap-2.5 cursor-pointer transition-all ${
                   currentStep === "TARGETING"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 font-bold shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <Sparkles className="h-4 w-4" />
@@ -146,10 +134,10 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
               <div
                 onClick={() => setCurrentStep("ADS")}
-                className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                className={`p-3 rounded-xl flex items-center gap-2.5 cursor-pointer transition-all ${
                   currentStep === "ADS"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 font-bold shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <ImageIcon className="h-4 w-4" />
@@ -158,10 +146,10 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
               <div
                 onClick={() => setCurrentStep("REVIEW")}
-                className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                className={`p-3 rounded-xl flex items-center gap-2.5 cursor-pointer transition-all ${
                   currentStep === "REVIEW"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 font-bold shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <Info className="h-4 w-4" />
@@ -176,34 +164,34 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
           
           {currentStep === "CAMPAIGN_SETTINGS" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign settings</h1>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Campaign settings</h1>
 
               {/* Locations Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Locations</h2>
+              <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Locations</h2>
                   <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                 </div>
                 <div className="space-y-3 text-xs">
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="loc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
-                    <span className="text-slate-200">All countries and territories</span>
+                    <input type="radio" name="loc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-blue-600 h-4 w-4" />
+                    <span className="text-slate-700 font-medium">All countries and territories</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="loc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
-                    <span className="text-slate-200">India</span>
+                    <input type="radio" name="loc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-blue-600 h-4 w-4" />
+                    <span className="text-slate-700 font-medium">India</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="loc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
-                    <span className="text-slate-200">Enter another location</span>
+                    <input type="radio" name="loc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-blue-600 h-4 w-4" />
+                    <span className="text-slate-700 font-medium">Enter another location</span>
                   </label>
                 </div>
               </div>
 
               {/* Languages Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Languages</h2>
+              <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Languages</h2>
                   <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                 </div>
                 <div className="relative max-w-md text-xs">
@@ -212,7 +200,7 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
                     value={languageSearchInput}
                     onChange={(e) => setLanguageSearchInput(e.target.value)}
                     placeholder="Start typing or select a language"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -221,15 +209,15 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
           {currentStep === "BUDGET_BIDDING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Budget and bidding</h1>
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <label className="block text-slate-200 font-semibold">Average daily budget (₹)</label>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Budget and bidding</h1>
+              <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <label className="block text-slate-700 font-bold">Average daily budget (₹)</label>
                 <input
                   type="text"
                   value={dailyBudget}
                   onChange={(e) => setDailyBudget(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                  placeholder="500.00"
+                  className="w-full max-w-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 font-bold"
                 />
               </div>
             </div>
@@ -237,32 +225,32 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
 
           {currentStep === "TARGETING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Targeting</h1>
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <p className="text-slate-300">Optimized targeting is enabled for {formattedObjective} ({formattedType}).</p>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Targeting</h1>
+              <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <p className="text-slate-600">Optimized targeting is enabled for <strong className="text-slate-900">{formattedObjective}</strong> ({formattedType}).</p>
               </div>
             </div>
           )}
 
           {currentStep === "ADS" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Ads</h1>
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <label className="block font-semibold text-slate-200">Final URL</label>
-                <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 font-mono" />
-                <label className="block font-semibold text-slate-200 pt-2">Business Name</label>
-                <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Business Name" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100" />
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Ads</h1>
+              <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <label className="block font-bold text-slate-700">Final URL</label>
+                <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-blue-500" />
+                <label className="block font-bold text-slate-700 pt-2">Business Name</label>
+                <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Business Name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500" />
               </div>
             </div>
           )}
 
           {currentStep === "REVIEW" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Review</h1>
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl text-xs">
-                <p>Objective: <strong>{formattedObjective}</strong></p>
-                <p>Campaign Type: <strong>{formattedType}</strong></p>
-                <p>Status: <span className="text-emerald-400 font-bold">Ready to Publish</span></p>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Review</h1>
+              <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-3 shadow-sm text-xs">
+                <p className="text-slate-600">Objective: <strong className="text-slate-900">{formattedObjective}</strong></p>
+                <p className="text-slate-600">Campaign Type: <strong className="text-slate-900">{formattedType}</strong></p>
+                <p className="text-slate-600">Status: <span className="text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200">Ready to Publish</span></p>
               </div>
             </div>
           )}
@@ -271,7 +259,7 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
       </div>
 
       {/* ── Fixed Footer Action Bar ── */}
-      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center justify-between z-50">
+      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-50 shadow-sm">
         <button
           onClick={() => {
             if (currentStep === "REVIEW") setCurrentStep("ADS");
@@ -280,7 +268,7 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
             else if (currentStep === "BUDGET_BIDDING") setCurrentStep("CAMPAIGN_SETTINGS");
             else router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
           }}
-          className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+          className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
         >
           {currentStep === "CAMPAIGN_SETTINGS" ? "Cancel" : "Back"}
         </button>
@@ -294,7 +282,7 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
                 else if (currentStep === "TARGETING") setCurrentStep("ADS");
                 else if (currentStep === "ADS") setCurrentStep("REVIEW");
               }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
+              className="px-6 py-2.5 text-xs font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 transition-all shadow-sm cursor-pointer"
             >
               Continue
               <ArrowRight className="h-4 w-4" />
@@ -305,9 +293,9 @@ export default function GenericCampaignFlowPage({ objective, type }: CampaignFlo
                 alert(`${formattedObjective} - ${formattedType} campaign saved successfully!`);
                 router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
               }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              className="px-6 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-2 transition-all shadow-sm cursor-pointer"
             >
-              Save & Publish
+              Save &amp; Publish
               <Check className="h-4 w-4" />
             </button>
           )}

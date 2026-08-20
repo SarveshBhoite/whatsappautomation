@@ -22,6 +22,13 @@ import AppPromotionCampaignFlow from "@/components/meta-ads/AppPromotionCampaign
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+  }
+  return DEFAULT_ORG_ID;
+};
+
 const DATE_RANGES = [
   { label: "Today", value: "TODAY" },
   { label: "Yesterday", value: "YESTERDAY" },
@@ -1762,10 +1769,16 @@ function MetaAdsWorkspace({
 }
 
 export default function MetaAdsPage() {
+  const [orgId, setOrgId] = useState<string>(getOrgId());
+
+  useEffect(() => {
+    setOrgId(getOrgId());
+  }, []);
+
   return (
     <Suspense fallback={<div className="flex items-center justify-center h-full bg-slate-50"><Loader2 className="h-8 w-8 text-blue-600 animate-spin" /></div>}>
       <SearchParamsHandler onOAuth={() => {}} />
-      <MetaAdsWorkspace orgId={DEFAULT_ORG_ID} showToast={() => { }} platform="meta" setPlatform={() => { }} />
+      <MetaAdsWorkspace orgId={orgId} showToast={() => { }} platform="meta" setPlatform={() => { }} />
     </Suspense>
   );
 }
