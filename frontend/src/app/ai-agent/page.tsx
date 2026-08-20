@@ -22,7 +22,9 @@ import {
   HelpCircle,
   DollarSign,
   Layers,
-  Search
+  Search,
+  Menu,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +80,7 @@ interface CapturedLead {
 
 export default function AiAgentPage() {
   const [activeTab, setActiveTab] = useState<"settings" | "knowledge" | "sandbox" | "leads">("settings");
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Config State
   const [config, setConfig] = useState<AiAgentConfig>({
@@ -411,54 +414,134 @@ export default function AiAgentPage() {
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto pb-24 sm:pb-6 bg-slate-50 text-slate-900 font-sans">
+      {/* Mobile Drawer Backdrop */}
+      {mobileDrawerOpen && (
+        <div 
+          onClick={() => setMobileDrawerOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 sm:hidden"
+        />
+      )}
+
+      {/* Mobile Slide-out Drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 shadow-2xl flex flex-col justify-between p-5 transform transition-transform duration-300 ease-in-out sm:hidden ${
+        mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shadow-xs">
+                <Bot className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="font-extrabold text-sm text-slate-900 tracking-tight">AI Agent Studio</span>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Knowledge Engine</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1">
+              Navigation & Tools
+            </span>
+            {[
+              { id: "settings", label: "Agent Persona & Settings", icon: Bot, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
+              { id: "knowledge", label: `Knowledge & Media (${knowledgeItems.length})`, icon: BookOpen, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200" },
+              { id: "sandbox", label: "AI Test Playground", icon: Send, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+              { id: "leads", label: `Captured Leads (${leads.length})`, icon: UserCheck, color: "text-amber-600", activeBg: "bg-amber-50 text-amber-800 border-amber-200" },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isSelected = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id as any);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? `${item.activeBg} border shadow-xs`
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${item.color}`} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+          <div className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+          <span>Active Mode: {config.activeMode === "AI_AGENT" ? "AI Agent" : "Static Flow"}</span>
+        </div>
+      </aside>
+
       {/* Header Banner & Sticky Navigation Tabs */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
-        <header className="p-4 sm:p-6 pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-purple-600 animate-pulse" />
-              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">AI Agent Studio &amp; Knowledge Engine</h1>
+        <header className="p-4 sm:p-6 pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileDrawerOpen(true)}
+              className="sm:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 shrink-0"
+              title="Open Menu"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 animate-pulse shrink-0" />
+                <h1 className="text-base sm:text-2xl font-extrabold tracking-tight text-slate-900 truncate">AI Agent Studio</h1>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate sm:whitespace-normal">
+                Train your company AI Agent to chat like a real human representative and generate sales leads.
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Train your company AI Agent to chat like a real human representative, attach portfolio screenshots/PDFs, and generate sales leads.
-            </p>
           </div>
 
           {/* Mode Switcher Card */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-1.5 flex items-center gap-3 shadow-xs">
-            <div className="flex items-center gap-1.5 bg-white rounded-xl p-1 border border-slate-200/60">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-1.5 flex items-center justify-between sm:justify-start gap-2 shadow-xs shrink-0 self-start md:self-auto w-full sm:w-auto">
+            <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200/60 w-full sm:w-auto">
               <button
                 onClick={() => handleSaveConfig({ activeMode: "AI_AGENT" })}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   config.activeMode === "AI_AGENT"
                     ? "bg-purple-600 text-white shadow-xs"
                     : "text-slate-500 hover:text-slate-900"
                 }`}
               >
-                <Bot className="h-4 w-4" />
-                <span>🤖 AI Agent Mode</span>
+                <Bot className="h-3.5 w-3.5" />
+                <span>🤖 AI Agent</span>
               </button>
 
               <button
                 onClick={() => handleSaveConfig({ activeMode: "STATIC_FLOW" })}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   config.activeMode === "STATIC_FLOW"
                     ? "bg-amber-500 text-slate-950 shadow-xs"
                     : "text-slate-500 hover:text-slate-900"
                 }`}
               >
-                <Layers className="h-4 w-4" />
-                <span>🌳 Static Flow Mode</span>
+                <Layers className="h-3.5 w-3.5" />
+                <span>🌳 Static Flow</span>
               </button>
             </div>
           </div>
         </header>
 
-        {/* Navigation Tabs */}
-        <div className="px-4 sm:px-6 pt-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        {/* Navigation Tabs - Hidden on mobile, shown on desktop */}
+        <div className="hidden sm:flex px-4 sm:px-6 pt-2 items-center gap-2 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab("settings")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === "settings"
                 ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
                 : "border-transparent text-slate-500 hover:text-slate-900"
@@ -470,7 +553,7 @@ export default function AiAgentPage() {
 
           <button
             onClick={() => setActiveTab("knowledge")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === "knowledge"
                 ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
                 : "border-transparent text-slate-500 hover:text-slate-900"
@@ -482,7 +565,7 @@ export default function AiAgentPage() {
 
           <button
             onClick={() => setActiveTab("sandbox")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === "sandbox"
                 ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
                 : "border-transparent text-slate-500 hover:text-slate-900"
@@ -494,7 +577,7 @@ export default function AiAgentPage() {
 
           <button
             onClick={() => setActiveTab("leads")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === "leads"
                 ? "border-purple-600 text-purple-700 bg-purple-50/60 rounded-t-xl"
                 : "border-transparent text-slate-500 hover:text-slate-900"
@@ -997,16 +1080,16 @@ export default function AiAgentPage() {
           ) : (
             <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
-                <table className="w-full table-fixed text-left text-xs text-slate-700">
+                <table className="w-full min-w-[840px] lg:min-w-full table-fixed text-left text-xs text-slate-700">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold text-[11px]">
                     <tr>
-                      <th className="py-3 px-3.5 w-[14%]">Customer</th>
-                      <th className="py-3 px-3 w-[14%]">Contact</th>
-                      <th className="py-3 px-3 w-[15%]">Topic</th>
-                      <th className="py-3 px-3 w-[16%]">Captured Notes</th>
-                      <th className="py-3 px-3 w-[20%]">Remarks</th>
-                      <th className="py-3 px-2 w-[11%] text-center">Status</th>
-                      <th className="py-3 px-3.5 w-[10%] text-center">Date</th>
+                      <th className="py-3 px-3.5 w-[14%] min-w-[110px]">Customer</th>
+                      <th className="py-3 px-3 w-[14%] min-w-[110px]">Contact</th>
+                      <th className="py-3 px-3 w-[14%] min-w-[110px]">Topic</th>
+                      <th className="py-3 px-3 w-[14%] min-w-[110px]">Captured Notes</th>
+                      <th className="py-3 px-3 w-[18%] min-w-[140px]">Remarks</th>
+                      <th className="py-3 px-2 w-[13%] min-w-[110px] text-center">Status</th>
+                      <th className="py-3 px-3 w-[13%] min-w-[110px] text-center">Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1053,7 +1136,7 @@ export default function AiAgentPage() {
                           <select
                             value={lead.status}
                             onChange={(e) => updateLeadStatus(lead.id, e.target.value as any)}
-                            className={`border text-[11px] font-bold rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer ${
+                            className={`border text-[11px] font-bold rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer inline-block ${
                               lead.status === "NEW" ? "border-amber-200 bg-amber-50 text-amber-800" :
                               lead.status === "CONTACTED" ? "border-purple-200 bg-purple-50 text-purple-800" :
                               "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -1064,8 +1147,8 @@ export default function AiAgentPage() {
                             <option value="CLOSED">CLOSED</option>
                           </select>
                         </td>
-                        <td className="py-3 px-3.5 text-slate-500 text-[11px] text-center font-medium whitespace-nowrap">
-                          {new Date(lead.createdAt).toLocaleDateString([], { month: "numeric", day: "numeric" })}
+                        <td className="py-3 px-3 text-slate-600 text-[11px] text-center font-medium whitespace-nowrap">
+                          {new Date(lead.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
                         </td>
                       </tr>
                     ))}
