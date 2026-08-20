@@ -11,8 +11,8 @@ datasource db {
 model Organization {
   id                  String                 @id @default(uuid())
   name                String
-  enabledModules      String[]               @default(["whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"])
   status              String                 @default("ACTIVE")
+  enabledModules      String[]               @default(["whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"])
   createdAt           DateTime               @default(now())
   users               User[]
   waConfig            WhatsAppConfig?
@@ -366,7 +366,6 @@ model GooglePost {
   id               String       @id @default(uuid())
   organizationId   String
   organization     Organization @relation(fields: [organizationId], references: [id])
-  name             String?      @unique
   summary          String
   topicType        String       @default("STANDARD")
   callToAction     String?
@@ -428,7 +427,6 @@ model Flow {
   platform       String       @default("whatsapp")
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  flowGraph      Json?        @default("{}")
   graphJson      Json?
   status         String?      @default("ACTIVE")
   isActive       Boolean      @default(false)

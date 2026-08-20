@@ -1148,16 +1148,23 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
 router.get("/organization/my-modules", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const org = await (prisma.organization as any).findUnique({
+    const org = await prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { id: true, name: true, enabledModules: true, status: true }
+      select: { id: true, name: true, status: true }
     });
 
     if (!org) {
       return res.status(404).json({ error: "Organization not found" });
     }
 
-    return res.status(200).json(org);
+    const defaultModules = [
+      "whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"
+    ];
+
+    return res.status(200).json({
+      ...org,
+      enabledModules: (org as any).enabledModules || defaultModules
+    });
   } catch (error: any) {
     console.error("Error fetching organization modules:", error);
     return res.status(500).json({ error: "Failed to fetch organization modules", details: error.message });

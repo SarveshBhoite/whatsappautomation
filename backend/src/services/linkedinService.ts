@@ -508,6 +508,14 @@ export class PersonalProvider implements ILinkedInProvider {
           title: "Document Attachment"
         }
       };
+    } else if (mediaUrl && (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) && !mediaCategory) {
+      // Article / Link Preview Content schema for LinkedIn REST Posts API
+      restPayload.content = {
+        article: {
+          source: mediaUrl.trim(),
+          title: text.substring(0, 100) || "Shared Article"
+        }
+      };
     }
 
     console.log("=======================================================");
@@ -556,6 +564,73 @@ export class PersonalProvider implements ILinkedInProvider {
         details: restData
       };
     }
+  }
+
+  /**
+   * Fetch Social Metadata (Likes / Reactions and Comments count) via LinkedIn REST Social Metadata API
+   * Endpoint: GET https://api.linkedin.com/rest/socialMetadata/{entityUrn}
+   */
+  public async getSocialMetadata(accessToken: string, postUrn: string): Promise<{ likesCount: number; commentsCount: number }> {
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      "LinkedIn-Version": "202607",
+      "X-Restli-Protocol-Version": "2.0.0"
+    };
+
+    let totalReactions = 0;
+    let totalComments = 0;
+
+    // List of candidate URN representations to test against LinkedIn REST API
+    const candidateUrns: string[] = [postUrn];
+    if (postUrn.startsWith("urn:li:share:")) {
+      const shareId = postUrn.replace("urn:li:share:", "");
+      candidateUrns.push(`urn:li:activity:${shareId}`);
+      candidateUrns.push(`urn:li:ugcPost:${shareId}`);
+    } else if (postUrn.startsWith("urn:li:ugcPost:")) {
+      const ugcId = postUrn.replace("urn:li:ugcPost:", "");
+      candidateUrns.push(`urn:li:activity:${ugcId}`);
+    }
+
+    // 1. Try querying /rest/socialMetadata/{entityUrn}
+    for (const candidate of candidateUrns) {
+      try {
+        const encodedUrn = encodeURIComponent(candidate);
+        const url = `https://api.linkedin.com/rest/socialMetadata/${encodedUrn}`;
+        console.log(`[LINKEDIN ENGAGEMENT] Querying social metadata for ${candidate}...`);
+        const response = await axios.get(url, { headers, timeout: 6000 });
+        const data = response.data || {};
+
+        console.log(`[LINKEDIN ENGAGEMENT RESPONSE for ${candidate}]:`, JSON.stringify(data));
+
+        if (data.reactionSummaries) {
+          totalReactions = Object.values(data.reactionSummaries).reduce((acc: number, item: any) => acc + (item.count || 0), 0);
+        } else if (data.likesSummary?.totalLikes !== undefined) {
+          totalReactions = Number(data.likesSummary.totalLikes) || 0;
+        } else if (data.totalShares !== undefined) {
+          totalReactions = Number(data.totalShares) || 0;
+        }
+
+        if (data.commentsSummary?.totalComments !== undefined) {
+          totalComments = Number(data.commentsSummary.totalComments) || 0;
+        } else if (data.commentSummary?.count !== undefined) {
+          totalComments = Number(data.commentSummary.count) || 0;
+        }
+
+        // If data found, break early
+        if (totalReactions > 0 || totalComments > 0) {
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`[LINKEDIN ENGAGEMENT NOTICE] /rest/socialMetadata notice for ${candidate} (HTTP ${err?.response?.status}):`, err?.response?.data?.message || err.message);
+      }
+    }
+
+    console.log(`[LINKEDIN ENGAGEMENT FINAL RESULT] ${postUrn} => Likes: ${totalReactions}, Comments: ${totalComments}`);
+
+    return {
+      likesCount: Number(totalReactions) || 0,
+      commentsCount: Number(totalComments) || 0
+    };
   }
 
   /**
@@ -1053,7 +1128,7 @@ export class LinkedInService {
    */
   public static async deletePublishedPost(organizationId: string, postId: string) {
     // 1. Locate the post in CRM DB
-    let post = await prisma.linkedInPost.findFirst({
+    let post: any = await prisma.linkedInPost.findFirst({
       where: { id: postId, organizationId }
     });
 
@@ -1064,25 +1139,7 @@ export class LinkedInService {
       });
       if (personalPost) {
         isPersonalPostTable = true;
-        post = {
-          id: personalPost.id,
-          postId: personalPost.id,
-          authorUrn: personalPost.authorUrn || "",
-          commentary: personalPost.text || "",
-          mediaType: personalPost.mediaUrl ? "IMAGE" : "NONE",
-          organizationId: personalPost.organizationId,
-          linkedinPostId: personalPost.linkedinPostId,
-          author: personalPost.author,
-          summary: personalPost.summary,
-          mediaUrl: personalPost.mediaUrl,
-          visibility: "PUBLIC",
-          lifecycleState: "PUBLISHED",
-          publishedAt: personalPost.publishedAt,
-          likesCount: personalPost.likesCount,
-          commentsCount: personalPost.commentsCount,
-          createdAt: personalPost.createdAt,
-          updatedAt: personalPost.updatedAt
-        };
+        post = personalPost;
       }
     }
 
@@ -1136,6 +1193,74 @@ export class LinkedInService {
     );
 
     return { success: true, id: postId, linkedinPostId };
+  }
+
+  /**
+   * Sync Live Likes and Comments for all CRM-published posts from LinkedIn API
+   */
+  public static async syncEngagementForPosts(organizationId: string) {
+    const config = await prisma.linkedInConfig.findUnique({
+      where: { organizationId }
+    });
+
+    if (!config || !config.accessToken) {
+      throw new Error("LinkedIn account is not connected. Reconnect to sync post engagement.");
+    }
+
+    const posts = await prisma.linkedInPost.findMany({
+      where: {
+        organizationId,
+        linkedinPostId: { startsWith: "urn:li:" }
+      }
+    });
+
+    if (posts.length === 0) {
+      return { success: true, updatedCount: 0, message: "No active LinkedIn posts with valid URNs to sync." };
+    }
+
+    const personalProvider = LinkedInProviderFactory.getPersonalProvider();
+    let updatedCount = 0;
+
+    for (const post of posts) {
+      if (post.linkedinPostId) {
+        try {
+          const metrics = await personalProvider.getSocialMetadata(config.accessToken, post.linkedinPostId);
+          await prisma.linkedInPost.update({
+            where: { id: post.id },
+            data: {
+              likesCount: metrics.likesCount,
+              commentsCount: metrics.commentsCount,
+              updatedAt: new Date()
+            }
+          });
+
+          // Also update secondary table if exists
+          try {
+            await prisma.linkedInPersonalPost.updateMany({
+              where: { linkedinPostId: post.linkedinPostId, organizationId },
+              data: {
+                likesCount: metrics.likesCount,
+                commentsCount: metrics.commentsCount,
+                updatedAt: new Date()
+              }
+            });
+          } catch (e) {}
+
+          updatedCount++;
+        } catch (postErr: any) {
+          console.warn(`[LINKEDIN ENGAGEMENT] Skipping post ${post.id}:`, postErr.message);
+        }
+      }
+    }
+
+    await LinkedInSyncService.logSyncEvent(
+      organizationId,
+      "Engagement Synced",
+      "SUCCESS",
+      `Synchronized live likes and comments for ${updatedCount} post(s).`
+    );
+
+    return { success: true, updatedCount, message: `Successfully updated engagement for ${updatedCount} posts.` };
   }
 }
 

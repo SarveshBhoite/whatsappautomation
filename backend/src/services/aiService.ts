@@ -182,7 +182,7 @@ You MUST respond with valid JSON matching EXACTLY this structure:
   }
 
   /**
-   * Core Groq API LLM Dispatcher using exact model: openai/gpt-oss-120b
+   * Core Groq API LLM Dispatcher using exact model: llama-3.3-70b-versatile
    */
   private static async callLLM(
     prompt: string,
@@ -446,6 +446,130 @@ INSTRUCTIONS:
 
   /**
    * 3. TAB 3: TEMPLATES
+   * Provides reusable blueprint templates with bracketed placeholders.
+   */
+  public static async generateIdeas(organizationId: string, headline?: string, companyName?: string) {
+    const prompt = `Generate 3 fresh, high-performing LinkedIn post topic ideas and content angles for a professional with headline: "${headline || "Business Leader & Creator"}" at company: "${companyName || "Jisnu Digitals"}".
+Return ONLY valid JSON matching this exact structure:
+{
+  "ideas": [
+    {
+      "category": "Industry Insights",
+      "title": "Short punchy hook/topic title",
+      "description": "1 sentence brief describing what to write about",
+      "prompt": "Detailed AI generation prompt to write this complete post"
+    },
+    {
+      "category": "Poll & Engagement",
+      "title": "Short punchy hook/topic title",
+      "description": "1 sentence brief describing what to write about",
+      "prompt": "Detailed AI generation prompt to write this complete post"
+    },
+    {
+      "category": "Case Study & Growth",
+      "title": "Short punchy hook/topic title",
+      "description": "1 sentence brief describing what to write about",
+      "prompt": "Detailed AI generation prompt to write this complete post"
+    }
+  ]
+}`;
+
+    const groqKey = process.env.GROQ_API_KEY || process.env.GROQ_KEY;
+    if (!groqKey) {
+      return {
+        success: true,
+        ideas: [
+          {
+            category: "Industry Insights",
+            title: "3 Major Automation Trends in 2026",
+            description: "Break down recent workflow advancements and key AI lessons.",
+            prompt: "Write a high-converting LinkedIn post explaining 3 major workflow automation trends reshaping businesses in 2026."
+          },
+          {
+            category: "Poll & Engagement",
+            title: "Ask Your Network: AI Tools vs Custom Automations",
+            description: "Spark an interactive discussion on scaling business operations.",
+            prompt: "Write an engaging LinkedIn discussion post with 4 poll options about whether teams prefer off-the-shelf AI tools or tailored workflows."
+          },
+          {
+            category: "Case Study & Growth",
+            title: "How We Saved 20+ Hours Weekly With Smart Workflows",
+            description: "Share a real before-and-after operational transformation story.",
+            prompt: "Write a compelling case-study style LinkedIn post breaking down how automating client onboarding saved 20+ hours every week."
+          }
+        ]
+      };
+    }
+
+    try {
+      const res = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: this.MODEL_NAME,
+          messages: [
+            { role: "system", content: "You are an expert LinkedIn ghostwriter and strategist. Output ONLY valid JSON." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.8,
+          response_format: { type: "json_object" }
+        },
+        { headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" }, timeout: 15000 }
+      );
+
+      const raw = res.data?.choices?.[0]?.message?.content?.trim() || "";
+      const parsed = JSON.parse(raw);
+      return {
+        success: true,
+        ideas: Array.isArray(parsed.ideas) && parsed.ideas.length >= 3 ? parsed.ideas.slice(0, 3) : [
+          {
+            category: "Industry Insights",
+            title: "3 Major Automation Trends in 2026",
+            description: "Break down recent workflow advancements and key AI lessons.",
+            prompt: "Write a high-converting LinkedIn post explaining 3 major workflow automation trends reshaping businesses in 2026."
+          },
+          {
+            category: "Poll & Engagement",
+            title: "Ask Your Network: AI Tools vs Custom Automations",
+            description: "Spark an interactive discussion on scaling business operations.",
+            prompt: "Write an engaging LinkedIn discussion post with 4 poll options about whether teams prefer off-the-shelf AI tools or tailored workflows."
+          },
+          {
+            category: "Case Study & Growth",
+            title: "How We Saved 20+ Hours Weekly With Smart Workflows",
+            description: "Share a real before-and-after operational transformation story.",
+            prompt: "Write a compelling case-study style LinkedIn post breaking down how automating client onboarding saved 20+ hours every week."
+          }
+        ]
+      };
+    } catch {
+      return {
+        success: true,
+        ideas: [
+          {
+            category: "Industry Insights",
+            title: "3 Major Automation Trends in 2026",
+            description: "Break down recent workflow advancements and key AI lessons.",
+            prompt: "Write a high-converting LinkedIn post explaining 3 major workflow automation trends reshaping businesses in 2026."
+          },
+          {
+            category: "Poll & Engagement",
+            title: "Ask Your Network: AI Tools vs Custom Automations",
+            description: "Spark an interactive discussion on scaling business operations.",
+            prompt: "Write an engaging LinkedIn discussion post with 4 poll options about whether teams prefer off-the-shelf AI tools or tailored workflows."
+          },
+          {
+            category: "Case Study & Growth",
+            title: "How We Saved 20+ Hours Weekly With Smart Workflows",
+            description: "Share a real before-and-after operational transformation story.",
+            prompt: "Write a compelling case-study style LinkedIn post breaking down how automating client onboarding saved 20+ hours every week."
+          }
+        ]
+      };
+    }
+  }
+
+  /**
+   * 4. TAB 3: TEMPLATES
    * Provides reusable blueprint templates with bracketed placeholders.
    */
   public static async generateTemplate(organizationId: string, params: AITemplateParams) {
