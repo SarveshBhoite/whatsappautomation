@@ -2372,42 +2372,42 @@ export default function Dashboard() {
 
         {/* TAB 3: SETTINGS & ONBOARDING */}
         {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8 w-full bg-slate-50">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-slate-200 pb-5">
-              <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
-                  <Settings className="h-5 w-5" />
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 w-full bg-slate-50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 border-b border-slate-200 pb-4 sm:pb-5">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-3">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
+                  <Settings className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
                 </div>
                 <span>Settings & Integrations</span>
               </h2>
               
               {/* Secondary sub-tabs selector */}
-              <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 self-start sm:self-auto shadow-2xs gap-1.5 overflow-x-auto max-w-full">
+              <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 self-start sm:self-auto shadow-2xs gap-1.5 overflow-x-auto max-w-full no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("whatsapp")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "whatsapp" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
                   <WhatsApp className="h-4 w-4" /> WhatsApp Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("instagram")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-pink-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "instagram" ? "bg-pink-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
                   <Instagram className="h-4 w-4" /> Instagram Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("google")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "google" ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
                   <Star className="h-4 w-4 fill-current" /> Google Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("youtube")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${settingsSubTab === "youtube" ? "bg-red-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "youtube" ? "bg-red-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
                 >
                   <Video className="h-4 w-4" /> YouTube Setup
                 </button>
