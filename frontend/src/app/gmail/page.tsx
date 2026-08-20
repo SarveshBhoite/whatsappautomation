@@ -286,6 +286,7 @@ export default function GmailDashboard() {
   // Navigation Tab: "MAIL" | "SETTINGS" | "CAMPAIGNS"
   const [activeTab, setActiveTab] = useState<"MAIL" | "SETTINGS" | "CAMPAIGNS">("MAIL");
   const [selectedLabel, setSelectedLabel] = useState("INBOX");
+  const [inboxCategory, setInboxCategory] = useState<"PRIMARY" | "PROMOTIONS" | "SOCIAL" | "UPDATES" | "ALL">("PRIMARY");
   const [searchTerm, setSearchTerm] = useState("");
 
   // Bulk Email Campaign State
@@ -870,14 +871,38 @@ export default function GmailDashboard() {
     window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${encodeURIComponent(org)}&redirect=/gmail`;
   };
 
-  // Filter threads by search term
+  // Filter threads by search term and inbox category
   const filteredThreads = threads.filter(thread => {
     const search = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = 
       thread.subject.toLowerCase().includes(search) ||
       thread.sender.toLowerCase().includes(search) ||
-      thread.snippet.toLowerCase().includes(search)
-    );
+      thread.snippet.toLowerCase().includes(search);
+
+    if (!matchesSearch) return false;
+
+    // If viewing non-Inbox label (e.g. STARRED, SENT, SPAM, TRASH), show all matching search
+    if (selectedLabel !== "INBOX") return true;
+
+    // Detect category from sender/subject for Inbox categorization
+    const senderLower = thread.sender.toLowerCase();
+    const subjectLower = thread.subject.toLowerCase();
+    const isSocial = senderLower.includes("linkedin") || senderLower.includes("facebook") || senderLower.includes("twitter") || senderLower.includes("instagram") || senderLower.includes("pinterest") || senderLower.includes("github");
+    const isPromo = senderLower.includes("flipboard") || senderLower.includes("newsletter") || senderLower.includes("promo") || senderLower.includes("marketing") || senderLower.includes("deal") || senderLower.includes("discount");
+    const isUpdates = senderLower.includes("workindia") || senderLower.includes("notification") || senderLower.includes("alert") || senderLower.includes("support") || senderLower.includes("ys buzz");
+
+    if (inboxCategory === "PRIMARY") {
+      // Primary inbox (exclude obvious social & promo digests)
+      return !isSocial && !isPromo;
+    } else if (inboxCategory === "SOCIAL") {
+      return isSocial;
+    } else if (inboxCategory === "PROMOTIONS") {
+      return isPromo;
+    } else if (inboxCategory === "UPDATES") {
+      return isUpdates;
+    }
+
+    return true;
   });
 
   return (
@@ -1579,8 +1604,8 @@ export default function GmailDashboard() {
             {/* Conversation Threads Pane */}
             <div className="w-85 border-r border-slate-200 flex flex-col shrink-0 bg-white overflow-hidden">
               
-              {/* Search Bar Block */}
-              <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-3 shrink-0">
+              {/* Search Bar & Inbox Categories Bar */}
+              <div className="p-3.5 border-b border-slate-200 bg-slate-50 flex flex-col gap-2.5 shrink-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <input
@@ -1591,6 +1616,31 @@ export default function GmailDashboard() {
                     className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors shadow-sm"
                   />
                 </div>
+
+                {/* Gmail Primary / Social / Promotions Subtabs for Inbox */}
+                {selectedLabel === "INBOX" && (
+                  <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl">
+                    {[
+                      { id: "PRIMARY", label: "Primary" },
+                      { id: "SOCIAL", label: "Social" },
+                      { id: "PROMOTIONS", label: "Promos" },
+                      { id: "UPDATES", label: "Updates" },
+                      { id: "ALL", label: "All" }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setInboxCategory(cat.id as any)}
+                        className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                          inboxCategory === cat.id
+                            ? "bg-white text-emerald-700 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Scrollable Conversation List */}
