@@ -13,6 +13,8 @@ export interface PostItem {
   visibility?: string;
   lifecycleState?: string;
   publishedAt: string | Date;
+  likesCount?: number;
+  commentsCount?: number;
 }
 
 interface RecentPostsProps {
