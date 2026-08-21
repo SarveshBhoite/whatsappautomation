@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
-  MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText, Bot, Shield, LogOut
+  MessageCircle, MessageSquare, User, GitMerge, Star, Store, Megaphone, Settings, Wrench, Mail, Send, FileText, Bot, Shield, LogOut, LayoutDashboard
 } from "lucide-react";
 
 // WhatsApp SVG icon
@@ -53,6 +53,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { href: "/dashboard", icon: <LayoutDashboard className="h-5 w-5" />, label: "Overview Hub",      match: "/dashboard" },
   { href: "/ai-agent",  icon: <Bot className="h-5 w-5" />,         label: "AI Agent Studio",  match: "/ai-agent",  moduleKey: "ai_agent" },
   { href: "/whatsapp",  icon: <WhatsApp className="h-5 w-5" />,    label: "WhatsApp Chats",   match: "/whatsapp",  moduleKey: "whatsapp" },
   { href: "/instagram", icon: <Instagram className="h-5 w-5" />,   label: "Instagram Chats",  match: "/instagram", moduleKey: "instagram" },

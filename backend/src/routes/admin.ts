@@ -78,6 +78,296 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+// GET: Fetch All-in-One Omnichannel Command Dashboard Overview
+router.get("/dashboard/overview", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+
+    // 1. Fetch organization with configurations
+    const org = await (prisma.organization as any).findUnique({
+      where: { id: organizationId },
+      include: {
+        waConfig: true,
+        igConfig: true,
+        ytConfig: true,
+        gmbConfig: true,
+        linkedInConfig: true,
+        gmailConfig: true,
+        aiAgentConfig: true,
+      }
+    });
+
+    if (!org) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    // 2. Compute Connected Platforms Health Status
+    const platforms = {
+      whatsapp: {
+        connected: Boolean(org.waConfig?.phoneNumberId && org.waConfig?.accessToken),
+        name: "WhatsApp Cloud API",
+        status: org.waConfig?.phoneNumberId ? "Operational" : "Not Configured"
+      },
+      instagram: {
+        connected: Boolean(org.igConfig?.pageAccessToken && org.igConfig?.instagramAccountId),
+        name: "Instagram Messaging",
+        status: org.igConfig?.instagramAccountId ? "Operational" : "Not Configured"
+      },
+      google_ads: {
+        connected: Boolean(org.gmbConfig?.accessToken || org.gmbConfig?.accountId),
+        name: "Google Ads",
+        status: org.gmbConfig?.accountId ? "Operational" : "Not Configured"
+      },
+      meta_ads: {
+        connected: Boolean(org.igConfig?.pageAccessToken),
+        name: "Meta Ads Manager",
+        status: org.igConfig?.pageAccessToken ? "Operational" : "Not Configured"
+      },
+      linkedin: {
+        connected: Boolean(org.linkedInConfig?.accessToken),
+        name: "LinkedIn Publishing",
+        status: org.linkedInConfig?.accessToken ? "Operational" : "Not Configured"
+      },
+      youtube: {
+        connected: Boolean(org.ytConfig?.accessToken),
+        name: "YouTube Channel",
+        status: org.ytConfig?.accessToken ? "Operational" : "Not Configured"
+      },
+      gmb: {
+        connected: Boolean(org.gmbConfig?.locationId && org.gmbConfig?.accessToken),
+        name: "Google Business Profile",
+        status: org.gmbConfig?.locationId ? "Operational" : "Not Configured"
+      },
+      gmail: {
+        connected: Boolean(org.gmailConfig?.emailAddress && org.gmailConfig?.accessToken),
+        name: "Gmail Auto-Pilot",
+        status: org.gmailConfig?.emailAddress ? "Operational" : "Not Configured"
+      },
+      ai_agent: {
+        connected: Boolean(org.aiAgentConfig?.isActive !== false),
+        name: "AI Autonomous Agent",
+        status: "Operational"
+      }
+    };
+
+    // 3. Quantitative KPI Aggregations (Org Isolated)
+    const [
+      totalConversations,
+      whatsappConvs,
+      instagramConvs,
+      capturedLeadsCount,
+      googleReviews,
+      linkedInPostsCount,
+      activeGoogleCampaigns,
+      activeMetaCampaigns,
+      gmailThreadsCount,
+      knowledgeItemsCount
+    ] = await Promise.all([
+      prisma.conversation.count({ where: { organizationId } }),
+      prisma.conversation.count({ where: { organizationId, platform: "whatsapp" } }),
+      prisma.conversation.count({ where: { organizationId, platform: "instagram" } }),
+      prisma.aiCapturedLead.count({ where: { organizationId } }),
+      prisma.googleReview.findMany({ where: { organizationId }, select: { starRating: true, reviewerName: true, comment: true, createdAt: true } }),
+      prisma.linkedInPost.count({ where: { organizationId } }),
+      prisma.googleAdCampaign.count({ where: { organizationId, status: "ENABLED" } }).catch(() => 0),
+      prisma.metaAdCampaign.count({ where: { organizationId, status: "ACTIVE" } }).catch(() => 0),
+      prisma.gmailThread.count({ where: { organizationId } }).catch(() => 0),
+      prisma.aiKnowledgeItem.count({ where: { organizationId } }).catch(() => 0)
+    ]);
+
+    // Average Star Rating calculation
+    const totalReviewCount = googleReviews.length;
+    const avgRating = totalReviewCount > 0
+      ? (googleReviews.reduce((sum, r) => {
+          const ratingNum = typeof r.starRating === "number" ? r.starRating : (parseInt(r.starRating as string, 10) || 5);
+          return sum + ratingNum;
+        }, 0) / totalReviewCount).toFixed(1)
+      : "5.0";
+
+    // 4. 7-Day Activity Trend (Daily Aggregation)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const [recentMessages, recentLeads] = await Promise.all([
+      prisma.message.findMany({
+        where: {
+          conversation: { organizationId },
+          createdAt: { gte: sevenDaysAgo }
+        },
+        select: { createdAt: true, direction: true }
+      }),
+      prisma.aiCapturedLead.findMany({
+        where: {
+          organizationId,
+          createdAt: { gte: sevenDaysAgo }
+        },
+        select: { createdAt: true }
+      })
+    ]);
+
+    // Days bucketing (7 days)
+    const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const trendDays: Array<{ day: string; date: string; inquiries: number; leads: number; total: number }> = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      const dayName = dayLabels[d.getDay()];
+
+      const dayInquiries = recentMessages.filter(m => m.createdAt.toISOString().split("T")[0] === dateStr).length;
+      const dayLeads = recentLeads.filter(l => l.createdAt.toISOString().split("T")[0] === dateStr).length;
+
+      trendDays.push({
+        day: i === 0 ? "Today" : dayName,
+        date: dateStr,
+        inquiries: dayInquiries,
+        leads: dayLeads,
+        total: dayInquiries + dayLeads
+      });
+    }
+
+    // 5. Latest 4 Cross-Platform Notifications / Activity Events
+    const rawEvents: Array<{
+      id: string;
+      platform: "whatsapp" | "instagram" | "reviews" | "linkedin" | "gmail" | "ai_agent" | "ads";
+      platformName: string;
+      title: string;
+      description: string;
+      badge: string;
+      timestamp: Date;
+      link: string;
+    }> = [];
+
+    // Latest conversations messages
+    const latestConvs = await prisma.conversation.findMany({
+      where: { organizationId },
+      include: {
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1
+        }
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 4
+    });
+
+    for (const conv of latestConvs) {
+      if (conv.messages.length > 0) {
+        const lastMsg = conv.messages[0];
+        const isIg = conv.platform === "instagram";
+        let snippet = lastMsg.content || "Inbound message";
+        if (snippet.includes("lookaside.fbsbx.com")) snippet = "📷 Photo Attachment";
+        if (snippet.includes(".mp4") || snippet.includes("video")) snippet = "🎥 Video / Reel";
+
+        rawEvents.push({
+          id: `conv_${conv.id}`,
+          platform: isIg ? "instagram" : "whatsapp",
+          platformName: isIg ? "Instagram DM" : "WhatsApp Chat",
+          title: `New message from ${conv.customerName || conv.customerPhone}`,
+          description: snippet.slice(0, 80),
+          badge: lastMsg.direction === "inbound" ? "Inbound" : "Auto-Replied",
+          timestamp: lastMsg.createdAt,
+          link: isIg ? "/instagram" : "/whatsapp"
+        });
+      }
+    }
+
+    // Latest Google Reviews
+    const latestReviews = await prisma.googleReview.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 2
+    });
+
+    for (const r of latestReviews) {
+      rawEvents.push({
+        id: `rev_${r.id}`,
+        platform: "reviews",
+        platformName: "Google Business",
+        title: `New ${r.starRating}★ Review from ${r.reviewerName || "Customer"}`,
+        description: r.comment ? r.comment.slice(0, 80) : "Customer left a 5-star rating on Google Maps.",
+        badge: "Review Sync",
+        timestamp: r.createdAt,
+        link: "/reviews"
+      });
+    }
+
+    // Latest AI Captured Leads
+    const latestLeads = await prisma.aiCapturedLead.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 2
+    });
+
+    for (const l of latestLeads) {
+      rawEvents.push({
+        id: `lead_${l.id}`,
+        platform: "ai_agent",
+        platformName: "AI Lead Capture",
+        title: `New Lead Captured: ${l.customerName || l.customerPhone}`,
+        description: `Phone: ${l.customerPhone} • Inquiry: ${l.topicDiscussed || "Customer Consultation"}`,
+        badge: "Lead Qualified",
+        timestamp: l.createdAt,
+        link: "/ai-agent"
+      });
+    }
+
+    // Latest LinkedIn Posts
+    const latestPosts = await prisma.linkedInPost.findMany({
+      where: { organizationId },
+      orderBy: { publishedAt: "desc" },
+      take: 1
+    });
+
+    for (const p of latestPosts) {
+      rawEvents.push({
+        id: `post_${p.id}`,
+        platform: "linkedin",
+        platformName: "LinkedIn Studio",
+        title: `Published Post: "${(p.summary || "LinkedIn Update").slice(0, 45)}..."`,
+        description: `Engagement: ${p.likesCount || 0} Likes, ${p.commentsCount || 0} Comments`,
+        badge: "Published",
+        timestamp: p.publishedAt || p.createdAt,
+        link: "/linkedin"
+      });
+    }
+
+    // Sort all events by newest first and pick top 4
+    rawEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const latestNotifications = rawEvents.slice(0, 4);
+
+    return res.status(200).json({
+      success: true,
+      organization: {
+        id: org.id,
+        name: org.name,
+        status: org.status,
+        enabledModules: org.enabledModules,
+      },
+      platforms,
+      kpis: {
+        totalConversations,
+        whatsappConvs,
+        instagramConvs,
+        capturedLeadsCount,
+        totalReviewCount,
+        avgRating,
+        linkedInPostsCount,
+        activeAdCampaigns: activeGoogleCampaigns + activeMetaCampaigns,
+        gmailThreadsCount,
+        knowledgeItemsCount
+      },
+      trendDays,
+      latestNotifications
+    });
+  } catch (error: any) {
+    console.error("[DashboardOverview] Error generating dashboard overview:", error);
+    return res.status(500).json({ error: "Failed to generate dashboard overview", details: error.message });
+  }
+});
+
 // GET: Fetch organization's WhatsApp Configuration
 router.get("/config", async (req: Request, res: Response) => {
   try {
