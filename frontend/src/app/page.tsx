@@ -156,19 +156,49 @@ export default function LandingPage() {
             <span className="truncate">Meta WhatsApp API &amp; Google Ads Command Center</span>
           </div>
 
-          {/* Main H1 Headline */}
-          <h1 className="text-3xl sm:text-5xl lg:text-7xl font-black tracking-tight text-slate-900 max-w-4xl leading-[1.14]">
-            Supercharge Customer Growth Across{" "}
-            <span className="text-brand-blue">WhatsApp</span>,{" "}
-            <span className="text-sky-600">Ads</span> &amp;{" "}
-            <span className="text-brand-orange">Reviews</span>
-          </h1>
+          {/* Main Hero Headline with High-Impact Brand Palette Accent */}
+          <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 leading-[1.12] sm:leading-[1.1]">
+              Scale Every Conversation &amp; Campaign with{" "}
+              <span className="relative inline-block whitespace-nowrap mx-1 group">
+                {/* Brand Multi-Tone Ambient Aura (Brand Blue + Brand Green + Brand Orange) */}
+                <span 
+                  className="absolute -inset-1 sm:-inset-2 rounded-2xl bg-gradient-to-r from-[#0284C7] via-[#059669] to-[#EA580C] opacity-35 blur-xl animate-pulse" 
+                  aria-hidden="true" 
+                />
+                {/* Brand Glass Capsule with Triple Brand Colorway */}
+                <span className="relative inline-flex items-center gap-1 px-3.5 sm:px-5 py-0.5 sm:py-1 rounded-2xl bg-white/95 border border-sky-200/90 shadow-md shadow-sky-500/10 backdrop-blur-md">
+                  <span className="bg-gradient-to-r from-[#0284C7] via-[#0369A1] to-[#0F52BA] bg-clip-text text-transparent font-black">
+                    Jisnu
+                  </span>
+                  <span className="bg-gradient-to-r from-[#059669] via-[#0284C7] to-[#EA580C] bg-clip-text text-transparent font-black tracking-wider">
+                    CRM
+                  </span>
+                </span>
+              </span>
+            </h1>
 
-          {/* Subheading */}
-          <p className="mt-4 sm:mt-6 text-sm sm:text-lg lg:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed">
-            Connect your official WhatsApp Business API, Google Ads, Meta Ads, and Google Business Profile.
-            Automate personalized broadcasts, generate AI review responses, and qualify high-intent leads — all from a single, secure platform.
-          </p>
+            {/* Responsive Brand Spectrum Slogan Pill */}
+            <div className="mt-5 inline-flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-2xl sm:rounded-full bg-slate-900/95 text-white shadow-xl shadow-sky-900/15 text-[11px] sm:text-sm font-extrabold tracking-wide border border-slate-800/90 max-w-full">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="w-2 h-2 rounded-full bg-[#059669] animate-ping" />
+                <span className="text-slate-100">One Unified Growth Engine</span>
+              </div>
+              <span className="hidden sm:inline text-slate-600 font-normal">|</span>
+              <div className="flex items-center gap-1.5 flex-wrap justify-center text-[10px] sm:text-xs">
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#38BDF8] font-bold border border-white/5">WhatsApp</span>
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#34D399] font-bold border border-white/5">Ads</span>
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#FB923C] font-bold border border-white/5">Reviews</span>
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#C084FC] font-bold border border-white/5">AI Agent</span>
+              </div>
+            </div>
+
+            {/* Subheading */}
+            <p className="mt-4 sm:mt-6 text-sm sm:text-lg lg:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed">
+              Connect your official WhatsApp Business API, Google Ads, Meta Ads, and Google Business Profile.
+              Automate personalized broadcasts, generate AI review responses, and qualify high-intent leads — all from a single, secure platform.
+            </p>
+          </div>
 
           {/* Action Button Row (Shadcn Buttons) */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8 w-full sm:w-auto">
