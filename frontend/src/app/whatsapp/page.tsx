@@ -366,6 +366,7 @@ export default function Dashboard() {
   
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -798,6 +799,8 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
+    } finally {
+      setLoadingConversations(false);
     }
   };
 
@@ -1357,7 +1360,19 @@ export default function Dashboard() {
                 
                 {/* Conversation items list */}
                 <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-                  {filteredConversations.length === 0 ? (
+                  {loadingConversations ? (
+                    <div className="p-3 space-y-3 animate-pulse">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="p-3 bg-slate-50/70 rounded-2xl space-y-2 border border-slate-100">
+                          <div className="flex justify-between items-center">
+                            <div className="h-4 w-28 bg-slate-200 rounded-md" />
+                            <div className="h-3 w-12 bg-slate-100 rounded-md" />
+                          </div>
+                          <div className="h-3 w-40 bg-slate-100 rounded-md" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : filteredConversations.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
                       {isInstagramTab ? (
                         <Instagram className="h-8 w-8 stroke-1 text-pink-400" />

@@ -1723,11 +1723,22 @@ export default function GmbPerformanceDashboard() {
             );
           })()}
 
-          {/* LOADING STATE */}
+          {/* LOADING SKELETON STATE */}
           {loading && (
-            <div className="flex-1 flex flex-col items-center justify-center py-20 gap-4">
-              <div className="h-10 w-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-slate-500 animate-pulse font-semibold">Querying Google Business Profile API...</p>
+            <div className="space-y-6 animate-pulse">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="bg-white border border-slate-200 p-6 rounded-3xl space-y-3 shadow-xs">
+                    <div className="h-3.5 w-24 bg-slate-100 rounded" />
+                    <div className="h-8 w-28 bg-slate-200 rounded-lg" />
+                    <div className="h-3 w-36 bg-slate-100 rounded" />
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                <div className="h-5 w-40 bg-slate-200 rounded" />
+                <div className="h-48 bg-slate-50 border border-slate-100 rounded-2xl" />
+              </div>
             </div>
           )}
 

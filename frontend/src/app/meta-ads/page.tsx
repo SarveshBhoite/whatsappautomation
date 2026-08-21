@@ -474,8 +474,40 @@ function MetaAdsWorkspace({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-slate-50">
-        <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+      <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
+        {/* Header Skeleton */}
+        <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-slate-200 rounded-xl" />
+            <div className="space-y-2">
+              <div className="h-4 w-32 bg-slate-200 rounded" />
+              <div className="h-3 w-48 bg-slate-100 rounded" />
+            </div>
+          </div>
+          <div className="h-9 w-40 bg-slate-200 rounded-xl" />
+        </div>
+
+        {/* Content Body Skeleton */}
+        <div className="p-6 space-y-6 flex-1 overflow-y-auto animate-pulse">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs">
+                <div className="h-3 w-20 bg-slate-100 rounded" />
+                <div className="h-7 w-28 bg-slate-200 rounded-lg" />
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+            <div className="flex justify-between items-center">
+              <div className="h-5 w-40 bg-slate-200 rounded" />
+              <div className="h-8 w-24 bg-slate-100 rounded-xl" />
+            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-14 bg-slate-50 border border-slate-100 rounded-2xl" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

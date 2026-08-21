@@ -1446,9 +1446,20 @@ export default function Dashboard() {
             </div>
 
             {loadingAnalytics ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <RefreshCw className="h-8 w-8 text-red-600 animate-spin" />
-                <span className="text-xs text-slate-500 font-sans font-medium">Fetching YouTube Analytics data...</span>
+              <div className="space-y-6 animate-pulse">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-white border border-slate-200 p-5 rounded-3xl space-y-3 shadow-xs">
+                      <div className="h-3 w-20 bg-slate-100 rounded" />
+                      <div className="h-8 w-28 bg-slate-200 rounded-lg" />
+                      <div className="h-2.5 w-32 bg-slate-100 rounded" />
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                  <div className="h-4 w-32 bg-slate-200 rounded" />
+                  <div className="h-40 bg-slate-50 border border-slate-100 rounded-2xl" />
+                </div>
               </div>
             ) : analyticsData ? (
               <div className="space-y-6 animate-fadeIn font-sans">

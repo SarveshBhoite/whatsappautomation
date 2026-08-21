@@ -1137,11 +1137,26 @@ export default function GmailDashboard() {
 
         {/* Content Tabs Switch */}
         {loading && threads.length === 0 && rules.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4">
-            <div className="h-12 w-12 rounded-2xl border border-primary/25 bg-primary/5 flex items-center justify-center animate-pulse">
-              <RefreshCw className="h-6 w-6 text-primary animate-spin" />
+          <div className="flex-1 p-6 space-y-6 bg-slate-50 animate-pulse overflow-hidden">
+            <div className="flex gap-4">
+              <div className="w-80 bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="h-8 bg-slate-100 rounded-xl" />
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 w-28 bg-slate-200 rounded" />
+                      <div className="h-3 w-12 bg-slate-100 rounded" />
+                    </div>
+                    <div className="h-3 w-40 bg-slate-100 rounded" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xs">
+                <div className="h-6 w-48 bg-slate-200 rounded" />
+                <div className="h-4 w-32 bg-slate-100 rounded" />
+                <div className="h-40 bg-slate-50 border border-slate-100 rounded-xl mt-6" />
+              </div>
             </div>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Syncing workspace records...</p>
           </div>
         ) : !connectedEmail ? (
           /* Empty / Unconnected State Graphic */
