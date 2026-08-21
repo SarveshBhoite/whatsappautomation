@@ -203,12 +203,28 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
       prisma.aiKnowledgeItem.count({ where: { organizationId } }).catch(() => 0)
     ]);
 
-    // 4. 7-Day Activity Trend (Daily Aggregation)
+    // 4. Calculate Dynamic Real Efficiency Metrics
+    const totalOutbound = aiRepliesCount;
+    const automationRate = totalConversations > 0
+      ? Math.round((aiInquiriesHandled / totalConversations) * 100)
+      : 100;
+
+    // Platform Distribution Breakdown (Real Counts)
+    const channelDistribution = [
+      { name: "WhatsApp", count: whatsappConvs, color: "#10B981" },
+      { name: "Instagram", count: instagramConvs, color: "#EC4899" },
+      { name: "Google Reviews", count: totalReviewCount, color: "#F59E0B" },
+      { name: "AI Leads", count: capturedLeadsCount, color: "#8B5CF6" },
+      { name: "Social & Ads", count: activeGoogleCampaigns + activeMetaCampaigns + linkedInPostsCount, color: "#0284C7" },
+      { name: "Gmail Threads", count: gmailThreadsCount, color: "#F43F5E" }
+    ];
+
+    // 5. 7-Day Activity Trend (Daily Aggregation)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const [recentMessages, recentLeads] = await Promise.all([
+    const [recentMessages, recentLeads, recentReviews] = await Promise.all([
       prisma.message.findMany({
         where: {
           conversation: { organizationId },
@@ -222,12 +238,19 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
           createdAt: { gte: sevenDaysAgo }
         },
         select: { createdAt: true }
+      }),
+      prisma.googleReview.findMany({
+        where: {
+          organizationId,
+          createdAt: { gte: sevenDaysAgo }
+        },
+        select: { createdAt: true }
       })
     ]);
 
     // Days bucketing (7 days)
     const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const trendDays: Array<{ day: string; date: string; inquiries: number; leads: number; total: number }> = [];
+    const trendDays: Array<{ day: string; date: string; inquiries: number; leads: number; reviews: number; total: number }> = [];
     
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -237,13 +260,15 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
 
       const dayInquiries = recentMessages.filter(m => m.createdAt.toISOString().split("T")[0] === dateStr).length;
       const dayLeads = recentLeads.filter(l => l.createdAt.toISOString().split("T")[0] === dateStr).length;
+      const dayReviews = recentReviews.filter(r => r.createdAt.toISOString().split("T")[0] === dateStr).length;
 
       trendDays.push({
         day: i === 0 ? "Today" : dayName,
         date: dateStr,
         inquiries: dayInquiries,
         leads: dayLeads,
-        total: dayInquiries + dayLeads
+        reviews: dayReviews,
+        total: dayInquiries + dayLeads + dayReviews
       });
     }
 
@@ -380,6 +405,13 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         gmailThreadsCount,
         knowledgeItemsCount
       },
+      efficiency: {
+        automationRate,
+        aiRepliesCount,
+        inquiriesHandled: aiInquiriesHandled,
+        activeChannels: Object.values(platforms).filter(p => p.connected).length
+      },
+      channelDistribution,
       trendDays,
       latestNotifications
     });

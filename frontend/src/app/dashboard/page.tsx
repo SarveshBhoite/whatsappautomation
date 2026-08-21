@@ -91,11 +91,23 @@ interface DashboardData {
     gmailThreadsCount: number;
     knowledgeItemsCount: number;
   };
+  efficiency?: {
+    automationRate: number;
+    aiRepliesCount: number;
+    inquiriesHandled: number;
+    activeChannels: number;
+  };
+  channelDistribution?: Array<{
+    name: string;
+    count: number;
+    color: string;
+  }>;
   trendDays: Array<{
     day: string;
     date: string;
     inquiries: number;
     leads: number;
+    reviews?: number;
     total: number;
   }>;
   latestNotifications: Array<{
@@ -114,7 +126,7 @@ export default function OverviewDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeChartFilter, setActiveChartFilter] = useState<"all" | "inquiries" | "leads">("all");
+  const [activeChartFilter, setActiveChartFilter] = useState<"all" | "inquiries" | "leads" | "reviews">("all");
   const [hoveredPoint, setHoveredPoint] = useState<{ day: string; date: string; value: number; x: number; y: number } | null>(null);
 
   const getOrgId = (): string => {
@@ -174,14 +186,15 @@ export default function OverviewDashboardPage() {
 
   // Chart coordinates calculation
   const chartMetrics = useMemo(() => {
-    if (!data?.trendDays || data.trendDays.length === 0) return { path: "", points: [], maxVal: 10 };
+    if (!data?.trendDays || data.trendDays.length === 0) return { path: "", areaPath: "", points: [], maxVal: 10 };
     const values = data.trendDays.map(d => {
       if (activeChartFilter === "inquiries") return d.inquiries;
       if (activeChartFilter === "leads") return d.leads;
+      if (activeChartFilter === "reviews") return d.reviews || 0;
       return d.total;
     });
 
-    const maxVal = Math.max(...values, 8);
+    const maxVal = Math.max(...values, 5);
     const width = 500;
     const height = 150;
     const stepX = width / (data.trendDays.length - 1);
@@ -205,6 +218,12 @@ export default function OverviewDashboardPage() {
 
     return { path, areaPath, points, maxVal };
   }, [data?.trendDays, activeChartFilter]);
+
+  // Channel distribution total
+  const distributionTotal = useMemo(() => {
+    if (!data?.channelDistribution) return 0;
+    return data.channelDistribution.reduce((acc, curr) => acc + curr.count, 0);
+  }, [data?.channelDistribution]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50 text-slate-900 font-sans selection:bg-brand-blue/10 selection:text-brand-blue">
@@ -398,6 +417,14 @@ export default function OverviewDashboardPage() {
                     >
                       Leads
                     </button>
+                    <button
+                      onClick={() => setActiveChartFilter("reviews")}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeChartFilter === "reviews" ? "bg-amber-50 text-amber-800 shadow-2xs border border-amber-200" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Reviews
+                    </button>
                   </div>
                 </div>
 
@@ -467,19 +494,25 @@ export default function OverviewDashboardPage() {
                   </div>
                 </div>
 
-                {/* Footer Metrics Breakdown */}
+                {/* Footer Metrics Breakdown - Dynamic Real Values */}
                 <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100">
                   <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">Avg Response Time</span>
-                    <div className="text-sm font-black text-slate-900 mt-0.5">3.2 Seconds</div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Total Inquiries Handled</span>
+                    <div className="text-sm font-black text-slate-900 mt-0.5">
+                      {data?.kpis.aiInquiriesHandled ?? 0} Conversations
+                    </div>
                   </div>
                   <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">Automation Rate</span>
-                    <div className="text-sm font-black text-emerald-700 mt-0.5">94.8%</div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">AI Autonomy Rate</span>
+                    <div className="text-sm font-black text-emerald-700 mt-0.5">
+                      {data?.efficiency?.automationRate ?? 100}%
+                    </div>
                   </div>
                   <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase">System Health</span>
-                    <div className="text-sm font-black text-sky-700 mt-0.5">99.9% Uptime</div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Active Channels</span>
+                    <div className="text-sm font-black text-sky-700 mt-0.5">
+                      {connectedCount} / 9 Active
+                    </div>
                   </div>
                 </div>
               </div>
@@ -561,6 +594,112 @@ export default function OverviewDashboardPage() {
                       Open Unified Inbox <ChevronRight className="h-3.5 w-3.5 ml-1" />
                     </Button>
                   </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* ── 3.5 Cross-Platform Volume & Performance Breakdown ───────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* Channel Volume Share & Visual Progress Bars */}
+              <div className="lg:col-span-6 bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-brand-blue" /> Channel Activity Distribution
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Real-time cross-platform volume and engagement distribution across channels.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400">
+                    {distributionTotal} Total Events
+                  </span>
+                </div>
+
+                {/* Progress bars list */}
+                <div className="space-y-3 pt-1">
+                  {data?.channelDistribution?.map((ch, idx) => {
+                    const pct = distributionTotal > 0 ? Math.round((ch.count / distributionTotal) * 100) : 0;
+                    return (
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold">
+                          <span className="text-slate-700 flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ch.color }} />
+                            {ch.name}
+                          </span>
+                          <span className="text-slate-500 font-semibold">
+                            {ch.count} <span className="text-[10px] text-slate-400">({pct}%)</span>
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(pct, ch.count > 0 ? 3 : 0)}%`, backgroundColor: ch.color }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Automation Efficiency & Autonomous Response Engine Health */}
+              <div className="lg:col-span-6 bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-600" /> AI Autonomy &amp; Response Engine
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Real-time performance metrics computed for this organization.
+                    </p>
+                  </div>
+                  <Badge variant="success" className="text-[10px] font-bold">
+                    Active
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5 pt-1">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">AI Autonomous Handling</span>
+                    <div className="text-2xl font-black text-slate-900 mt-2">
+                      {data?.efficiency?.automationRate ?? 100}%
+                    </div>
+                    <span className="text-[10px] text-emerald-700 font-bold mt-1">
+                      {data?.kpis.aiInquiriesHandled || 0} of {data?.kpis.totalConversations || 0} Convs Handled
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-100 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Outbound AI Dispatched</span>
+                    <div className="text-2xl font-black text-purple-950 mt-2">
+                      {data?.kpis.aiRepliesCount || 0}
+                    </div>
+                    <span className="text-[10px] text-purple-700 font-bold mt-1">
+                      Auto-Pilot Responses Sent
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-100 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">Review Auto-Reply</span>
+                    <div className="text-2xl font-black text-amber-950 mt-2">
+                      {data?.kpis.reviewsAutoReplied || 0}
+                    </div>
+                    <span className="text-[10px] text-amber-800 font-bold mt-1">
+                      Google Reviews Answered
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-100 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-sky-800 uppercase tracking-wider">Trained Knowledge Base</span>
+                    <div className="text-2xl font-black text-sky-950 mt-2">
+                      {data?.kpis.knowledgeItemsCount || 0}
+                    </div>
+                    <span className="text-[10px] text-sky-700 font-bold mt-1">
+                      Custom Org Facts &amp; Media
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
