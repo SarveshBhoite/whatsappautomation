@@ -91,20 +91,129 @@ export const handleWebhook = async (req: Request, res: Response) => {
             setTimeout(() => processedComments.delete(commentId), 10 * 1000);
           }
 
-          console.log(`[INSTAGRAM COMMENT WEBHOOK] From: @${fromUser}, Post: ${mediaId}, Comment: "${commentText}", ID: ${commentId}`);
-
-          const replyText = `Thanks for commenting @${fromUser}! We appreciate your support. 🚀`;
-
-          if (commentId && igConfig?.pageAccessToken) {
+          // Check for active Instagram Comment-to-DM Automations
+          if (commentId && commentText) {
             try {
-              await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, replyText);
-              console.log(`[INSTAGRAM COMMENT AUTO-REPLY SENT] to comment ${commentId}`);
+              const activeAutomations = await (prisma as any).instagramCommentAutomation.findMany({
+                where: {
+                  status: "ACTIVE",
+                  ...(igConfig?.organizationId ? { organizationId: igConfig.organizationId } : {})
+                }
+              });
+
+              for (const auto of activeAutomations) {
+                // Check if automation applies to this mediaId or ALL media
+                if (auto.mediaId !== "ALL" && auto.mediaId !== mediaId) {
+                  continue;
+                }
+
+                // Check keyword matching (EXACT, CONTAINS, WHOLE_WORD)
+                const textUpper = commentText.toUpperCase().trim();
+                let matchedKw = "";
+                for (const kw of (auto.keywords || [])) {
+                  const targetKw = kw.toUpperCase().trim();
+                  if (!targetKw) continue;
+
+                  if (auto.matchingMode === "EXACT" && textUpper === targetKw) {
+                    matchedKw = kw;
+                    break;
+                  }
+                  if (auto.matchingMode === "CONTAINS" && textUpper.includes(targetKw)) {
+                    matchedKw = kw;
+                    break;
+                  }
+                  if (auto.matchingMode === "WHOLE_WORD") {
+                    const regex = new RegExp(`\\b${targetKw}\\b`, "i");
+                    if (regex.test(textUpper)) {
+                      matchedKw = kw;
+                      break;
+                    }
+                  }
+                }
+
+                if (matchedKw) {
+                  console.log(`[COMMENT-TO-DM AUTOMATION MATCHED] Keyword '${matchedKw}' on post ${mediaId} by @${fromUser}`);
+
+                  // Idempotency check: Ensure only 1 DM is sent per comment ID
+                  const existingLog = await (prisma as any).instagramCommentAuditLog.findUnique({
+                    where: { commentId }
+                  });
+
+                  if (existingLog) {
+                    console.log(`[COMMENT-TO-DM DUPLICATE GUARD] Skip duplicate DM for comment ${commentId}`);
+                    continue;
+                  }
+
+                  // 1. Build private DM message text with document link placeholder
+                  const docLink = auto.documentUrl || "https://www.jisnudigital.com/docs/guide.pdf";
+                  let dmText = auto.privateMessageTemplate.replace(/\{document_link\}/gi, docLink);
+                  dmText = dmText.replace(/\{username\}/gi, fromUser);
+
+                  let dmSentSuccess = false;
+                  let dmError = null;
+
+                  // 2. Send Private DM if token and user ID exist
+                  if (fromUserId && igConfig?.pageAccessToken) {
+                    try {
+                      await InstagramService.sendTextMessage(igConfig.pageAccessToken, fromUserId, dmText, igConfig.pageId);
+                      dmSentSuccess = true;
+                      console.log(`[COMMENT-TO-DM PRIVATE DM SENT] to @${fromUser} (${fromUserId})`);
+                    } catch (err: any) {
+                      dmError = err?.response?.data?.error?.message || err.message;
+                      console.warn(`[COMMENT-TO-DM PRIVATE DM WARN]: ${dmError}`);
+                    }
+                  }
+
+                  // 3. Optional Public Reply under comment
+                  let publicReplyText = null;
+                  if (auto.enablePublicReply && igConfig?.pageAccessToken) {
+                    publicReplyText = (auto.publicReplyTemplate || "Thanks @{username}! Check your DMs for the link 📩").replace(/\{username\}/gi, fromUser);
+                    try {
+                      await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, publicReplyText);
+                      console.log(`[COMMENT-TO-DM PUBLIC REPLY SENT] to comment ${commentId}`);
+                    } catch (err: any) {
+                      console.warn(`[COMMENT-TO-DM PUBLIC REPLY WARN]:`, err?.response?.data?.error?.message || err.message);
+                    }
+                  }
+
+                  // 4. Update automation counters & audit log in DB
+                  await (prisma as any).instagramCommentAutomation.update({
+                    where: { id: auto.id },
+                    data: {
+                      commentsCount: { increment: 1 },
+                      matchesCount: { increment: 1 },
+                      ...(dmSentSuccess ? { dmsSentCount: { increment: 1 } } : {}),
+                      lastTriggeredAt: new Date()
+                    }
+                  });
+
+                  await (prisma as any).instagramCommentAuditLog.create({
+                    data: {
+                      organizationId: auto.organizationId,
+                      automationId: auto.id,
+                      commentId,
+                      mediaId,
+                      commenterUser: fromUser,
+                      commenterId: fromUserId,
+                      commentText,
+                      matchedKeyword: matchedKw,
+                      documentSent: docLink,
+                      publicReplySent: publicReplyText,
+                      privateDmSent: dmSentSuccess,
+                      status: dmSentSuccess ? "SUCCESS" : "FAILED",
+                      errorMessage: dmError
+                    }
+                  });
+
+                  break; // Execute first matching automation rule
+                }
+              }
             } catch (err: any) {
-              console.warn(`Note on auto-reply for Instagram comment ${commentId}:`, err?.response?.data || err.message);
+              console.error("[COMMENT-TO-DM ENGINE ERROR]:", err.message || err);
             }
           }
 
-          // Emit real-time comment notification via Socket.IO so it always shows in CRM portal
+          // Emit real-time comment notification via Socket.IO
           const io = req.app.get("io");
           if (io && igConfig?.organizationId) {
             io.to(igConfig.organizationId).emit("instagram-comment-received", {
@@ -113,7 +222,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
               commentText,
               createdAt: new Date().toISOString(),
               status: "REPLIED",
-              autoReplyText: replyText
+              autoReplyText: `Private DM sent to @${fromUser}`
             });
           }
           continue;
@@ -534,6 +643,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
           },
         });
         console.log(`Saved message in database successfully. Message ID: "${savedMessage.id}"`);
+
+        // Trigger WhatsApp Drip Campaign inbound reply handler (pauses/stops active drip steps on reply)
+        import("../services/whatsappDripService").then(({ WhatsAppDripEngine }) => {
+          WhatsAppDripEngine.handleInboundReply(organizationId, customerPhone).catch((err) => {
+            console.error("[WEBHOOK DRIP HOOK ERROR]:", err);
+          });
+        });
 
         // For media messages, set the incoming content to a virtual text so AI can acknowledge receipt
         if (["image", "document", "video", "audio", "voice"].includes(type)) {

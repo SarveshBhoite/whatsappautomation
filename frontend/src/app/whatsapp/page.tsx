@@ -49,6 +49,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import WhatsAppBulkBroadcastPage from "./bulk/page";
 import WhatsAppTemplatesPage from "./templates/page";
+import WhatsAppDripCampaignsModule from "./drip/WhatsAppDripCampaignsModule";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -348,7 +349,7 @@ export default function Dashboard() {
     []
   );
 
-  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "meta_templates" | "flows">("chats_whatsapp");
+  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "drip_campaigns" | "meta_templates" | "flows">("chats_whatsapp");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
@@ -356,7 +357,7 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (["chats_whatsapp", "chats_instagram", "bulk_broadcast", "meta_templates", "flows"].includes(tab || "")) {
+      if (["chats_whatsapp", "chats_instagram", "bulk_broadcast", "drip_campaigns", "meta_templates", "flows"].includes(tab || "")) {
         setActiveTab(tab as any);
       }
     }
@@ -1204,6 +1205,17 @@ export default function Dashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("drip_campaigns")}
+            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "drip_campaigns"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+            }`}
+          >
+            <GitMerge className="h-3.5 w-3.5" /> Drip Campaigns
+          </button>
+
+          <button
             onClick={() => setActiveTab("meta_templates")}
             className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "meta_templates"
@@ -1835,6 +1847,13 @@ export default function Dashboard() {
         {activeTab === "bulk_broadcast" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             <WhatsAppBulkBroadcastPage />
+          </div>
+        )}
+
+        {/* TAB: WHATSAPP DRIP CAMPAIGN AUTOMATION MODULE */}
+        {activeTab === "drip_campaigns" && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <WhatsAppDripCampaignsModule />
           </div>
         )}
 

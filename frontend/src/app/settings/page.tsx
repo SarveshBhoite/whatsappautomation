@@ -2467,7 +2467,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
                         <input
                           type="text"
-                          value={config.phoneNumberId}
+                          value={config.phoneNumberId || ""}
                           onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
                           placeholder="e.g. 1048473820293"
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
@@ -2478,7 +2478,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
                         <input
                           type="text"
-                          value={config.wabaId}
+                          value={config.wabaId || ""}
                           onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
                           placeholder="e.g. 1048473820999"
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
@@ -2488,7 +2488,7 @@ export default function Dashboard() {
                       <div className="flex flex-col gap-1">
                         <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
                         <textarea
-                          value={config.accessToken}
+                          value={config.accessToken || ""}
                           onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
                           placeholder="Paste EAAG... permanent access token here"
                           rows={4}
@@ -2554,7 +2554,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-400 font-semibold">Instagram Business Account ID</label>
                         <input
                           type="text"
-                          value={igConfig.instagramAccountId}
+                          value={igConfig.instagramAccountId || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
                           placeholder="e.g. 17841401234567890"
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
@@ -2565,7 +2565,7 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-400 font-semibold">Facebook Page ID</label>
                         <input
                           type="text"
-                          value={igConfig.pageId}
+                          value={igConfig.pageId || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
                           placeholder="e.g. 10203040506070"
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
@@ -2575,7 +2575,7 @@ export default function Dashboard() {
                       <div className="flex flex-col gap-1">
                         <label className="text-xs text-slate-400 font-semibold">Page Access Token (Permanent)</label>
                         <textarea
-                          value={igConfig.pageAccessToken}
+                          value={igConfig.pageAccessToken || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
                           placeholder="Paste Page Access Token here"
                           rows={4}

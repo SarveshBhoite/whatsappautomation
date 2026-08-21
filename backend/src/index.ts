@@ -22,6 +22,7 @@ import aiAgentRouter from "./routes/aiAgent";
 import metaAdsRouter from "./routes/metaAds";
 import reportsRouter from "./routes/reports";
 import whatsappEmbeddedRouter from "./routes/whatsappEmbedded";
+import instagramCommentToDmRouter from "./routes/instagramCommentToDm";
 
 const app = express();
 const server = http.createServer(app);
@@ -74,6 +75,7 @@ app.use("/api/ads", googleAdsRouter);
 // Meta Ads (Facebook & Instagram) Router
 app.use("/api/meta-ads", metaAdsRouter);
 app.use("/api/meta", metaAdsRouter);
+app.use("/api/admin/instagram", instagramCommentToDmRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
@@ -95,6 +97,18 @@ app.use("/api/reports", reportsRouter);
 
 // AI Agent Studio & Knowledge Base Engine Router
 app.use("/api/ai-agent", aiAgentRouter);
+
+// WhatsApp Drip Campaign Router
+import whatsappDripRouter from "./routes/whatsappDrip";
+import { WhatsAppDripEngine } from "./services/whatsappDripService";
+app.use("/api/whatsapp/drip", whatsappDripRouter);
+
+// Start 15-second background drip scheduler interval
+setInterval(() => {
+  WhatsAppDripEngine.processPendingQueue().catch((err) => {
+    console.error("[BACKGROUND DRIP SCHEDULER TICK ERROR]:", err);
+  });
+}, 15000);
 
 // Health check endpoints (for Render Keep-Alive cron/uptime pings)
 app.get(["/health", "/api/health"], (req, res) => {

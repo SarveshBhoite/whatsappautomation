@@ -822,9 +822,12 @@ router.post("/upload", async (req: Request, res: Response) => {
 router.get("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const waConfig = await prisma.whatsAppConfig.findUnique({
+    let waConfig = await prisma.whatsAppConfig.findUnique({
       where: { organizationId }
     });
+    if (!waConfig || !waConfig.accessToken) {
+      waConfig = await prisma.whatsAppConfig.findFirst();
+    }
 
     if (!waConfig?.accessToken || !waConfig?.wabaId) {
       return res.status(400).json({ error: "WhatsApp WABA ID or Access Token missing in configuration" });
@@ -894,11 +897,21 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
       components.push(headerObj);
     }
 
-    // Body component
-    components.push({
+    // Body component with variable placeholder examples support (Meta Graph API mandate)
+    const bodyObj: any = {
       type: "BODY",
       text: bodyText.trim()
-    });
+    };
+
+    // Extract placeholders {{1}}, {{2}} to build required example body_text parameters array
+    const matches = bodyText.match(/\{\{\d+\}\}/g);
+    if (matches && matches.length > 0) {
+      const sampleParams = matches.map((_, idx) => `SampleValue_${idx + 1}`);
+      bodyObj.example = {
+        body_text: [sampleParams]
+      };
+    }
+    components.push(bodyObj);
 
     // Footer component
     if (footerText && footerText.trim()) {
@@ -908,17 +921,31 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
       });
     }
 
-    // Button component
-    if (buttonText && buttonText.trim()) {
+    // Button components (URL, QUICK_REPLY, PHONE_NUMBER)
+    const buttonsList: any[] = [];
+    if (req.body.buttons && Array.isArray(req.body.buttons)) {
+      buttonsList.push(...req.body.buttons);
+    } else if (buttonText && buttonText.trim()) {
+      buttonsList.push({
+        type: req.body.buttonType || "URL",
+        text: buttonText.trim(),
+        url: buttonUrl && buttonUrl.trim() ? buttonUrl.trim() : "https://www.jisnudigital.com/",
+        phone_number: req.body.buttonPhoneNumber || ""
+      });
+    }
+
+    if (buttonsList.length > 0) {
       components.push({
         type: "BUTTONS",
-        buttons: [
-          {
-            type: "URL",
-            text: buttonText.trim(),
-            url: buttonUrl && buttonUrl.trim() ? buttonUrl.trim() : "https://www.jisnudigital.com/"
+        buttons: buttonsList.map((btn: any) => {
+          if (btn.type === "PHONE_NUMBER") {
+            return { type: "PHONE_NUMBER", text: btn.text, phone_number: btn.phone_number || "+919876543210" };
           }
-        ]
+          if (btn.type === "QUICK_REPLY") {
+            return { type: "QUICK_REPLY", text: btn.text };
+          }
+          return { type: "URL", text: btn.text, url: btn.url || "https://www.jisnudigital.com/" };
+        })
       });
     }
 

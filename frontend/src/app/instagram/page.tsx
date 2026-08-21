@@ -1232,11 +1232,11 @@ export default function Dashboard() {
             onClick={() => setActiveTab("comments")}
             className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "comments"
-                ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-sm"
+                ? "bg-pink-500/15 text-pink-400 border border-pink-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
             }`}
           >
-            <Sparkles className="h-3.5 w-3.5" /> Comment Automation
+            <Sparkles className="h-3.5 w-3.5" /> Comment-to-DM Automation
           </button>
 
           <button

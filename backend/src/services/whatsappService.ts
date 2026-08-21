@@ -118,6 +118,17 @@ export class WhatsAppService {
     };
   }
 
+  public static formatPhoneNumber(to: string): string {
+    let clean = (to || "").replace(/[^0-9]/g, "");
+    if (!clean) return to;
+
+    // Standard 10-digit mobile numbers (e.g. 9136870930 or 9325174465) require Indian 91 country code
+    if (clean.length === 10) {
+      clean = "91" + clean;
+    }
+    return clean;
+  }
+
   // Send Text Message
   public static async sendTextMessage(
     phoneNumberId: string,
@@ -126,15 +137,16 @@ export class WhatsAppService {
     text: string,
     contextMessageId?: string
   ) {
+    const formattedTo = this.formatPhoneNumber(to);
     if (this.isMock(phoneNumberId, accessToken)) {
-      console.log(`[MOCK WHATSAPP SEND TEXT] to ${to}: "${text}"${contextMessageId ? ` (replying to ${contextMessageId})` : ""}`);
+      console.log(`[MOCK WHATSAPP SEND TEXT] to ${formattedTo}: "${text}"${contextMessageId ? ` (replying to ${contextMessageId})` : ""}`);
       return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
     }
     const url = this.getApiUrl(phoneNumberId);
     const data: any = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to,
+      to: formattedTo,
       type: "text",
       text: {
         preview_url: false,
@@ -452,21 +464,24 @@ export class WhatsAppService {
     accessToken: string,
     to: string,
     templateName: string = "hello_world",
-    languageCode: string = "en_US"
+    languageCode: string = "en_US",
+    components: any[] = []
   ) {
+    const formattedTo = this.formatPhoneNumber(to);
     if (this.isMock(phoneNumberId, accessToken)) {
-      console.log(`[MOCK WHATSAPP SEND TEMPLATE] to ${to}: Template "${templateName}" (${languageCode})`);
+      console.log(`[MOCK WHATSAPP SEND TEMPLATE] to ${formattedTo}: Template "${templateName}" (${languageCode}) components:`, JSON.stringify(components));
       return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
     }
     const url = this.getApiUrl(phoneNumberId);
     const data: any = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to,
+      to: formattedTo,
       type: "template",
       template: {
         name: templateName,
-        language: { code: languageCode }
+        language: { code: languageCode },
+        ...(components && components.length > 0 ? { components } : {})
       }
     };
 

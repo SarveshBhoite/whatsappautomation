@@ -38,6 +38,8 @@ model Organization {
   metaAdConfig        MetaAdConfig?
   metaAdAccounts      MetaAdAccount[]
   metaAdCampaigns     MetaAdCampaign[]
+  whatsappDripCampaigns WhatsAppDripCampaign[]
+  instagramCommentAutomations InstagramCommentAutomation[]
 }
 
 model User {
@@ -214,6 +216,55 @@ model AIContentHistory {
   updatedAt        DateTime     @default(now()) @updatedAt
 
   @@map("ai_content_histories")
+}
+
+model InstagramCommentAutomation {
+  id                    String                    @id @default(uuid())
+  organizationId        String
+  organization          Organization              @relation(fields: [organizationId], references: [id])
+  name                  String
+  mediaId               String
+  mediaType             String                    @default("POST") // REEL, POST, ALL
+  mediaUrl              String?
+  mediaCaption          String?
+  keywords              String[]                  // e.g. ["PDF", "GUIDE", "LINK"]
+  matchingMode          String                    @default("CONTAINS") // EXACT, CONTAINS, WHOLE_WORD
+  privateMessageTemplate String
+  documentUrl           String?
+  documentName          String?
+  enablePublicReply     Boolean                   @default(true)
+  publicReplyTemplate   String?                   @default("Thanks @{username}! Check your DMs for the link 📩")
+  status                String                    @default("ACTIVE") // ACTIVE, PAUSED, INACTIVE
+  commentsCount         Int                       @default(0)
+  matchesCount          Int                       @default(0)
+  dmsSentCount          Int                       @default(0)
+  lastTriggeredAt       DateTime?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  auditLogs             InstagramCommentAuditLog[]
+
+  @@map("instagram_comment_automations")
+}
+
+model InstagramCommentAuditLog {
+  id             String                     @id @default(uuid())
+  organizationId String
+  automationId   String
+  automation     InstagramCommentAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  commentId      String                     @unique
+  mediaId        String
+  commenterUser  String
+  commenterId    String?
+  commentText    String
+  matchedKeyword String
+  documentSent   String?
+  publicReplySent String?
+  privateDmSent  Boolean                    @default(false)
+  status         String                     @default("SUCCESS") // SUCCESS, FAILED
+  errorMessage   String?
+  createdAt      DateTime                   @default(now())
+
+  @@map("instagram_comment_audit_logs")
 }
 
 model GmailConfig {
@@ -815,4 +866,185 @@ model MetaAutomatedRule {
   lastTriggered  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// ─── WhatsApp Drip Campaign Models ─────────────────────────────────────────
+
+model WhatsAppDripCampaign {
+  id                 String                     @id @default(uuid())
+  organizationId     String
+  organization       Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name               String
+  description        String?
+  status             String                     @default("DRAFT") // DRAFT, SCHEDULED, ACTIVE, PAUSED, COMPLETED, ARCHIVED
+  phoneNumberId      String?
+  wabaId             String?
+  timezone           String                     @default("Asia/Kolkata")
+  startDate          DateTime?
+  startTime          String?                    @default("09:00")
+  endDate            DateTime?
+  
+  // Settings & Limits
+  minMessageGapMins  Int                        @default(30)
+  maxDailyMessages   Int                        @default(3)
+  allowReentry       Boolean                    @default(false)
+  
+  // Reply handling rules
+  onReplyAction      String                     @default("STOP") // STOP, CONTINUE, PAUSE, MOVE, NOTIFY, TASK, TAG
+  moveToCampaignId   String?
+  notifyAgentId      String?
+  tagOnReply         String?
+  
+  // Schedule Window
+  businessHoursOnly Boolean                    @default(false)
+  allowedStartTime   String?                    @default("09:00")
+  allowedEndTime     String?                    @default("18:00")
+  excludeWeekends    Boolean                    @default(false)
+  
+  // Audience Filter JSON
+  audienceCriteria   Json                       @default("{}")
+  
+  // Visual Journey Builder Graph JSON (nodes & edges)
+  journeyGraph       Json                       @default("{}")
+  
+  // Template metadata
+  isTemplate         Boolean                    @default(false)
+  templateCategory   String?
+  
+  // Relations
+  steps              WhatsAppDripStep[]
+  enrollments        WhatsAppDripEnrollment[]
+  queueItems         WhatsAppDripMessageQueue[]
+  logs               WhatsAppDripActivityLog[]
+  
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@map("whatsapp_drip_campaigns")
+}
+
+model WhatsAppDripStep {
+  id               String                     @id @default(uuid())
+  campaignId       String
+  campaign         WhatsAppDripCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  stepNumber       Int
+  stepType         String                     // SEND_TEMPLATE, WAIT, CONDITION, BRANCH, STOP, MOVE_CAMPAIGN, NOTIFY, ADD_TAG, REMOVE_TAG, UPDATE_FIELD, END
+  nodeId           String?
+  
+  // Template Send Details
+  templateName     String?
+  languageCode     String?                    @default("en_US")
+  templateHeader   String?
+  templateBody     String?
+  templateFooter   String?
+  templateButtons  Json?                      @default("[]")
+  variableMappings Json?                      @default("{}") // {{1}}: "contact.firstName"
+  priority         String                     @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW, OPTIONAL
+  
+  // Delay & Timing
+  delayUnit        String?                    @default("IMMEDIATE") // IMMEDIATE, MINUTES, HOURS, DAYS, EXACT
+  delayValue       Int?                       @default(0)
+  exactScheduleAt  DateTime?
+  
+  // Conditions & Branches
+  conditionType    String?                    // HAS_REPLIED, DELIVERED, CLICKED, PURCHASED, TAG_EQUALS, FIELD_EQUALS
+  conditionValue   String?
+  branchYesNodeId  String?
+  branchNoNodeId   String?
+  
+  queueItems       WhatsAppDripMessageQueue[]
+  logs             WhatsAppDripActivityLog[]
+
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@map("whatsapp_drip_steps")
+}
+
+model WhatsAppDripEnrollment {
+  id               String                     @id @default(uuid())
+  campaignId       String
+  campaign         WhatsAppDripCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customerPhone    String
+  customerName     String?
+  customerEmail    String?
+  tags             String[]                   @default([])
+  
+  status           String                     @default("ACTIVE") // ACTIVE, WAITING, PAUSED, COMPLETED, STOPPED, REMOVED
+  currentStepId    String?
+  currentStepNo    Int                        @default(1)
+  nextExecutionAt  DateTime?
+  
+  // Stats
+  messagesSent     Int                        @default(0)
+  messagesDelivered Int                       @default(0)
+  replied          Boolean                    @default(false)
+  repliedAt        DateTime?
+  converted        Boolean                    @default(false)
+  convertedAt      DateTime?
+  
+  queueItems       WhatsAppDripMessageQueue[]
+  logs             WhatsAppDripActivityLog[]
+  
+  enrolledAt       DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@unique([campaignId, customerPhone])
+  @@map("whatsapp_drip_enrollments")
+}
+
+model WhatsAppDripMessageQueue {
+  id               String                     @id @default(uuid())
+  organizationId   String
+  campaignId       String
+  campaign         WhatsAppDripCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  enrollmentId     String
+  enrollment       WhatsAppDripEnrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  stepId           String
+  step             WhatsAppDripStep           @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  
+  customerPhone    String
+  customerName     String?
+  templateName     String
+  languageCode     String                     @default("en_US")
+  variableValues   Json                       @default("{}")
+  
+  priority         String                     @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW, OPTIONAL
+  priorityWeight   Int                        @default(3) // 5=CRITICAL, 4=HIGH, 3=MEDIUM, 2=LOW, 1=OPTIONAL
+  scheduledFor     DateTime
+  status           String                     @default("PENDING") // PENDING, PROCESSING, SENT, DELIVERED, READ, FAILED, CANCELLED, SKIPPED, RETRYING
+  
+  attemptCount     Int                        @default(0)
+  maxAttempts      Int                        @default(3)
+  lastAttemptAt    DateTime?
+  lastError        String?
+  waMessageId      String?
+  
+  sentAt           DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@map("whatsapp_drip_message_queues")
+}
+
+model WhatsAppDripActivityLog {
+  id               String                     @id @default(uuid())
+  organizationId   String
+  campaignId       String
+  campaign         WhatsAppDripCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  enrollmentId     String?
+  enrollment       WhatsAppDripEnrollment?    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  stepId           String?
+  step             WhatsAppDripStep?          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  
+  action           String                     // CAMPAIGN_CREATED, CAMPAIGN_STARTED, CAMPAIGN_PAUSED, CAMPAIGN_RESUMED, CONTACT_ENROLLED, MESSAGE_SCHEDULED, MESSAGE_SENT, MESSAGE_DELIVERED, MESSAGE_FAILED, CONTACT_REPLIED, CONTACT_REMOVED, CAMPAIGN_COMPLETED
+  details          String?
+  customerPhone    String?
+  customerName     String?
+  performedBy      String?                    @default("SYSTEM")
+  
+  createdAt        DateTime                   @default(now())
+
+  @@map("whatsapp_drip_activity_logs")
 }
