@@ -32,7 +32,9 @@ import {
   Sparkles,
   Calendar,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  Menu,
+  X
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
@@ -117,41 +119,41 @@ interface PersonalPostItem {
 // CRM Loading Skeletons
 // -------------------------------------------------------------
 const DashboardSkeleton = () => (
-  <div className="p-6 sm:p-8 space-y-6 animate-pulse font-sans">
-    <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+  <div className="p-6 sm:p-8 space-y-6 animate-pulse font-sans bg-slate-50">
+    <div className="flex items-center justify-between border-b border-slate-200 pb-4">
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 bg-slate-800 rounded-xl" />
+        <div className="h-10 w-10 bg-slate-200 rounded-xl" />
         <div className="space-y-2">
-          <div className="h-5 w-48 bg-slate-800 rounded-md" />
-          <div className="h-3 w-32 bg-slate-850 rounded-md" />
+          <div className="h-5 w-48 bg-slate-200 rounded-md" />
+          <div className="h-3 w-32 bg-slate-100 rounded-md" />
         </div>
       </div>
-      <div className="h-8 w-32 bg-slate-800 rounded-lg" />
+      <div className="h-8 w-32 bg-slate-200 rounded-lg" />
     </div>
 
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl">
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
       <div className="flex items-center gap-4">
-        <div className="h-20 w-20 bg-slate-800 rounded-2xl" />
-        <div className="space-y-2 flex-1">
-          <div className="h-5 w-48 bg-slate-800 rounded" />
-          <div className="h-3 w-64 bg-slate-850 rounded" />
+        <div className="h-16 w-16 bg-slate-200 rounded-2xl shrink-0" />
+        <div className="space-y-2.5 flex-1">
+          <div className="h-5 w-48 bg-slate-200 rounded" />
+          <div className="h-3 w-64 bg-slate-100 rounded" />
         </div>
       </div>
     </div>
 
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex flex-col gap-2 shadow-md">
-          <div className="h-3 w-24 bg-slate-800 rounded" />
-          <div className="h-7 w-32 bg-slate-800 rounded" />
+        <div key={i} className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col gap-2.5 shadow-xs">
+          <div className="h-3.5 w-24 bg-slate-100 rounded" />
+          <div className="h-7 w-32 bg-slate-200 rounded-lg" />
         </div>
       ))}
     </div>
 
-    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-      <div className="h-4 w-40 bg-slate-800 rounded mb-4" />
-      {[1, 2].map((i) => (
-        <div key={i} className="h-12 bg-slate-900/60 rounded-xl" />
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3.5">
+      <div className="h-4 w-40 bg-slate-200 rounded mb-4" />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="h-14 bg-slate-50 border border-slate-100 rounded-xl" />
       ))}
     </div>
   </div>
@@ -159,6 +161,7 @@ const DashboardSkeleton = () => (
 
 export default function LinkedInPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "posts" | "engagement" | "profile">("overview");
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [activeTheme, setActiveTheme] = useState("aurora");
   const [config, setConfig] = useState<LinkedInConfigData>({});
   const [profile, setProfile] = useState<LinkedInProfileData | null>(null);
@@ -204,12 +207,19 @@ export default function LinkedInPage() {
     setIsAIOpen(true);
   };
 
-  const handleSelectTab = (tab: "overview" | "posts" | "profile", section?: "published" | "scheduled" | "drafts" | "ai") => {
+  const handleSelectTab = (
+    tab: "overview" | "posts" | "engagement" | "profile" | "activity" | "settings",
+    section?: "published" | "scheduled" | "drafts" | "ai"
+  ) => {
     if (section === "ai") {
       setIsAIOpen(true);
       return;
     }
-    setActiveTab(tab);
+    if (tab === "overview" || tab === "posts" || tab === "engagement" || tab === "profile") {
+      setActiveTab(tab);
+    } else {
+      setActiveTab("overview");
+    }
     if (section && ["published", "scheduled", "drafts"].includes(section)) {
       setActivePostSection(section as any);
       setTimeout(() => {
@@ -503,11 +513,81 @@ export default function LinkedInPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
+      {/* Mobile Drawer Backdrop */}
+      {mobileDrawerOpen && (
+        <div 
+          onClick={() => setMobileDrawerOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 sm:hidden"
+        />
+      )}
+
+      {/* Mobile Slide-out Drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 shadow-2xl flex flex-col justify-between p-5 transform transition-transform duration-300 ease-in-out sm:hidden ${
+        mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#0A66C2] shadow-xs">
+                <LinkedInIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="font-extrabold text-sm text-slate-900 tracking-tight">LinkedIn Suite</span>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Enterprise Growth</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1">
+              Workspace Tabs
+            </span>
+            {[
+              { id: "overview", label: "Overview & Analytics", icon: LayoutDashboard, color: "text-[#0A66C2]", activeBg: "bg-blue-50 text-blue-800 border-blue-200" },
+              { id: "posts", label: "Posts & Scheduling", icon: FileText, color: "text-indigo-600", activeBg: "bg-indigo-50 text-indigo-800 border-indigo-200" },
+              { id: "engagement", label: "Live Engagement", icon: TrendingUp, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+              { id: "profile", label: "Profile & Connection", icon: User, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isSelected = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id as any);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? `${item.activeBg} border shadow-xs`
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${item.color}`} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+          <div className={`h-2 w-2 rounded-full ${isConnected ? "bg-emerald-500" : "bg-amber-500"} animate-pulse`} />
+          <span>{isConnected ? "LinkedIn Connected" : "Not Connected"}</span>
+        </div>
+      </aside>
+
       {/* MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         {/* Status Alert Message Banner */}
         {statusMessage && (
-          <div className="px-6 pt-4">
+          <div className="px-4 sm:px-6 pt-3">
             <div
               className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-between shadow-sm ${
                 statusMessage.type === "success"
@@ -527,7 +607,7 @@ export default function LinkedInPage() {
               </div>
               <button
                 onClick={() => setStatusMessage(null)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -538,207 +618,123 @@ export default function LinkedInPage() {
         {loading ? (
           <DashboardSkeleton />
         ) : !isConnected ? (
-          /* UNCONNECTED STATE: HIGH-PRIORITY ATTRACTIVE CONNECT HERO + ALL CRM SERVICES SHOWCASE */
-          <div className="flex-1 overflow-y-auto p-6 sm:p-10 relative bg-slate-50 text-slate-900 scrollbar-none">
-            {/* Ambient Background Blur Graphics */}
-            <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="max-w-5xl mx-auto space-y-10 relative z-10">
-              {/* HIGH-PRIORITY HERO CONNECT CARD */}
+          /* UNCONNECTED STATE: CLEAN BRAND CONNECT CARD MATCHING CRM PLATFORMS */
+          <div className="flex-1 overflow-y-auto p-4 sm:p-10 flex items-center justify-center bg-slate-50 text-slate-900 scrollbar-none">
+            <div className="max-w-2xl w-full">
               <motion.div
-                initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.35, ease: "easeOut" }}
-                className="bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8"
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 shadow-lg text-center space-y-6"
               >
-                <div className="space-y-4 max-w-xl text-left">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-[#0A66C2] rounded-2xl text-white shadow-md shadow-blue-600/30 flex items-center justify-center">
-                      <LinkedInIcon className="h-7 w-7" />
-                    </div>
-                    {config.companyLogo && (
-                      <div className="w-10 h-10 rounded-xl border border-slate-200 bg-white overflow-hidden p-1 shadow-sm flex items-center justify-center">
-                        <img src={config.companyLogo} alt={config.companyName || "Company"} className="w-full h-full object-contain rounded-lg" />
-                      </div>
-                    )}
-                    <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold uppercase tracking-wider">
-                      LinkedIn Automation Suite
-                    </span>
-                  </div>
-
-                  <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-sans">
-                    Connect LinkedIn to Unlock Enterprise CRM Tools
-                  </h1>
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
-                    Link your account to gain full access to post scheduling, AI content generator, live post previews, team approval workflows, media asset libraries, and analytics.
-                  </p>
-
-                  <div className="flex items-center gap-2 text-xs text-slate-600 pt-1">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <span>OAuth 2.0 Official Integration</span>
-                    <span className="text-slate-300">•</span>
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <span>Instant Workspace Sync</span>
-                  </div>
+                <div className="mx-auto h-16 w-16 rounded-3xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#0A66C2] shadow-xs">
+                  <LinkedInIcon className="h-9 w-9" />
                 </div>
 
-                <div className="w-full md:w-auto shrink-0 flex flex-col items-center gap-3">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold uppercase tracking-wider">
+                    Official LinkedIn Integration
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-sans">
+                    Connect Your LinkedIn Account
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed font-sans">
+                    Authenticate your personal profile or company page to publish posts, schedule campaigns, and track real-time audience engagement.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex flex-col items-center gap-3">
                   <button
                     onClick={handleConnectOAuth}
-                    className="w-full md:w-auto py-4 px-8 rounded-2xl bg-[#0A66C2] hover:bg-[#084e96] text-white font-bold text-sm flex items-center justify-center gap-3 shadow-lg shadow-blue-600/25 transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+                    className="w-full sm:w-auto px-8 py-3.5 bg-[#0A66C2] hover:bg-[#084e96] text-white font-bold text-sm rounded-2xl shadow-md shadow-blue-600/25 flex items-center justify-center gap-2.5 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                   >
-                    <ExternalLink className="h-5 w-5" /> Connect LinkedIn Now
+                    <LinkedInIcon className="h-5 w-5" />
+                    <span>Connect with LinkedIn</span>
                   </button>
-                  <span className="text-[11px] text-slate-500 font-semibold">1-Click Secure Login</span>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium pt-1">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Secure OAuth 2.0 API</span>
+                    <span>•</span>
+                    <span>Organization Isolated</span>
+                  </div>
                 </div>
               </motion.div>
-
-              {/* CRM SERVICES DISPLAY GRID */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                  <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <LayoutDashboard className="h-4 w-4 text-blue-600" /> Included LinkedIn CRM Services & Features
-                  </h2>
-                  <span className="text-xs text-slate-500 font-semibold">Connect LinkedIn to activate</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* Service 1: CRM Analytics */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <Activity className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">CRM Analytics & Metrics</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Track published posts, scheduled queue, drafts, and AI assistant utilization metrics in real time.</p>
-                  </div>
-
-                  {/* Service 2: LinkedIn Company Page */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <User className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">LinkedIn Company Page</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Seamlessly integrate and publish directly to corporate organization pages and brand accounts.</p>
-                  </div>
-
-                  {/* Service 3: Post Composer */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <FileText className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">Post Composer & Media</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">AI Assistant writing, live post preview, image/video/document uploads, drag-and-drop media support.</p>
-                  </div>
-
-                  {/* Service 4: Content Ideas */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <Info className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">Recommended Ideas</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Personalized trending content suggestions tailored to boost profile impression rates.</p>
-                  </div>
-
-                  {/* Service 5: Approval Queue */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <CheckCircle className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">Approval Workflow Queue</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Team post approval workflow, scheduled queue control, and pending review management.</p>
-                  </div>
-
-                  {/* Service 6: Content Calendar */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <SlidersHorizontal className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">Content Calendar</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Interactive timeline & monthly content schedule visualizer for personal and company posts.</p>
-                  </div>
-
-                  {/* Service 7: Media Asset Library */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <RefreshCw className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">Central Media Library</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Store and manage reusable image, video, and document assets for upcoming campaigns.</p>
-                  </div>
-
-                  {/* Service 8: Enterprise Reports */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <ExternalLink className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">Enterprise Reporting Engine</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Export PDF/CSV performance summary reports and historical post analytics.</p>
-                  </div>
-
-                  {/* Service 9: Activity & AI History */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2 hover:border-blue-400 hover:shadow-md transition-all">
-                    <div className="flex items-center gap-2.5 text-blue-600">
-                      <Activity className="h-5 w-5" />
-                      <h3 className="font-bold text-sm text-slate-900">Activity & AI History</h3>
-                    </div>
-                    <p className="text-xs text-slate-600">Newest-first activity timeline, sync logs, profile information, and recent AI generated contents.</p>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         ) : (
           <>
-            {/* STICKY GLASS TOPBAR FOR CONNECTED USERS */}
-            <div className="h-14 border-b border-slate-200 bg-white/90 backdrop-blur-md px-6 flex items-center justify-between z-20 shrink-0 gap-3 shadow-xs">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+            {/* STICKY TOPBAR FOR CONNECTED USERS */}
+            <div className="h-14 border-b border-slate-200 bg-white px-4 sm:px-6 flex items-center justify-between z-20 shrink-0 gap-3 shadow-xs">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setActiveTab("overview")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                    activeTab === "overview"
-                      ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
+                  onClick={() => setMobileDrawerOpen(true)}
+                  className="sm:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 shrink-0 cursor-pointer"
+                  title="Open Menu"
                 >
-                  <LayoutDashboard className="h-4 w-4" /> Overview
+                  <Menu className="h-4 w-4" />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("posts")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                    activeTab === "posts"
-                      ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
-                >
-                  <FileText className="h-4 w-4" /> Posts
-                </button>
+                <div className="hidden sm:flex items-center gap-2 overflow-x-auto scrollbar-none">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("overview")}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                      activeTab === "overview"
+                        ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <LayoutDashboard className="h-4 w-4" /> Overview
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("engagement")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                    activeTab === "engagement"
-                      ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
-                >
-                  <TrendingUp className="h-4 w-4" /> Engagement
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("posts")}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                      activeTab === "posts"
+                        ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" /> Posts
+                  </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("engagement")}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                      activeTab === "engagement"
+                        ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <TrendingUp className="h-4 w-4" /> Engagement
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("profile")}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                      activeTab === "profile"
+                        ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <User className="h-4 w-4" /> Profile
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setActiveTab("profile")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                    activeTab === "profile"
-                      ? "bg-[#0A66C2] text-white shadow-md shadow-blue-600/20"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
+                  onClick={() => setIsAIOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
                 >
-                  <User className="h-4 w-4" /> Profile
+                  <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+                  <span className="hidden sm:inline">AI Writing Assistant</span>
+                  <span className="sm:hidden">AI Assistant</span>
                 </button>
               </div>
             </div>
@@ -1076,7 +1072,7 @@ export default function LinkedInPage() {
                       }}
                       onDeletePost={async (postId) => {
                         try {
-                          const res = await fetch(`/api/linkedin/posts?id=${postId}`, {
+                          const res = await fetch(`${API_BASE_URL}/api/linkedin/posts/${encodeURIComponent(postId)}`, {
                             method: "DELETE",
                             headers: { "x-organization-id": activeOrgId }
                           });
@@ -1114,7 +1110,7 @@ export default function LinkedInPage() {
                   onSyncEngagement={async () => {
                     setSyncing(true);
                     try {
-                      const res = await fetch(`/api/linkedin/posts/sync-engagement`, {
+                      const res = await fetch(`${API_BASE_URL}/api/linkedin/posts/sync-engagement`, {
                         method: "POST",
                         headers: { "x-organization-id": activeOrgId }
                       });
