@@ -102,6 +102,10 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
     }
 
     // 2. Compute Connected Platforms Health Status
+    const isGoogleConnected = Boolean(org.gmbConfig?.googleRefreshToken || org.gmbConfig?.accessToken || org.gmbConfig?.refreshToken);
+    const hasGoogleAds = Boolean(org.gmbConfig?.googleAdsCustomerId || org.gmbConfig?.accountId || isGoogleConnected);
+    const hasGmb = Boolean(org.gmbConfig?.googleLocationId || org.gmbConfig?.locationId || isGoogleConnected || org.gmbConfig?.locationName);
+
     const platforms = {
       whatsapp: {
         connected: Boolean(org.waConfig?.phoneNumberId && org.waConfig?.accessToken),
@@ -114,9 +118,9 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         status: org.igConfig?.instagramAccountId ? "Operational" : "Not Configured"
       },
       google_ads: {
-        connected: Boolean(org.gmbConfig?.accessToken || org.gmbConfig?.accountId),
+        connected: hasGoogleAds,
         name: "Google Ads",
-        status: org.gmbConfig?.accountId ? "Operational" : "Not Configured"
+        status: hasGoogleAds ? "Operational" : "Not Configured"
       },
       meta_ads: {
         connected: Boolean(org.igConfig?.pageAccessToken),
@@ -134,12 +138,12 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         status: org.ytConfig?.accessToken ? "Operational" : "Not Configured"
       },
       gmb: {
-        connected: Boolean(org.gmbConfig?.locationId && org.gmbConfig?.accessToken),
+        connected: hasGmb,
         name: "Google Business Profile",
-        status: org.gmbConfig?.locationId ? "Operational" : "Not Configured"
+        status: hasGmb ? "Operational" : "Not Configured"
       },
       gmail: {
-        connected: Boolean(org.gmailConfig?.emailAddress && org.gmailConfig?.accessToken),
+        connected: Boolean(org.gmailConfig?.emailAddress && (org.gmailConfig?.accessToken || org.gmailConfig?.refreshToken)),
         name: "Gmail Auto-Pilot",
         status: org.gmailConfig?.emailAddress ? "Operational" : "Not Configured"
       },
@@ -155,8 +159,11 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
       totalConversations,
       whatsappConvs,
       instagramConvs,
+      aiInquiriesHandled,
+      aiRepliesCount,
       capturedLeadsCount,
-      googleReviews,
+      totalReviewCount,
+      reviewsAutoReplied,
       linkedInPostsCount,
       activeGoogleCampaigns,
       activeMetaCampaigns,
@@ -166,23 +173,35 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
       prisma.conversation.count({ where: { organizationId } }),
       prisma.conversation.count({ where: { organizationId, platform: "whatsapp" } }),
       prisma.conversation.count({ where: { organizationId, platform: "instagram" } }),
+      // Conversations handled autonomously by AI (bot not paused)
+      prisma.conversation.count({ where: { organizationId, isBotPaused: false } }),
+      // Total outbound AI replies dispatched across conversations
+      prisma.message.count({
+        where: {
+          conversation: { organizationId },
+          direction: "outbound"
+        }
+      }),
       prisma.aiCapturedLead.count({ where: { organizationId } }),
-      prisma.googleReview.findMany({ where: { organizationId }, select: { starRating: true, reviewerName: true, comment: true, createdAt: true } }),
+      prisma.googleReview.count({ where: { organizationId } }),
+      // Reviews with automated AI reply status or attached reviewReply
+      prisma.googleReview.count({
+        where: {
+          organizationId,
+          OR: [
+            { replyStatus: "REPLIED" },
+            { replyStatus: "AI_REPLIED" },
+            { replyText: { not: null } },
+            { reviewReply: { isNot: null } }
+          ]
+        }
+      }),
       prisma.linkedInPost.count({ where: { organizationId } }),
       prisma.googleAdCampaign.count({ where: { organizationId, status: "ENABLED" } }).catch(() => 0),
       prisma.metaAdCampaign.count({ where: { organizationId, status: "ACTIVE" } }).catch(() => 0),
       prisma.gmailThread.count({ where: { organizationId } }).catch(() => 0),
       prisma.aiKnowledgeItem.count({ where: { organizationId } }).catch(() => 0)
     ]);
-
-    // Average Star Rating calculation
-    const totalReviewCount = googleReviews.length;
-    const avgRating = totalReviewCount > 0
-      ? (googleReviews.reduce((sum, r) => {
-          const ratingNum = typeof r.starRating === "number" ? r.starRating : (parseInt(r.starRating as string, 10) || 5);
-          return sum + ratingNum;
-        }, 0) / totalReviewCount).toFixed(1)
-      : "5.0";
 
     // 4. 7-Day Activity Trend (Daily Aggregation)
     const sevenDaysAgo = new Date();
@@ -351,9 +370,11 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         totalConversations,
         whatsappConvs,
         instagramConvs,
+        aiInquiriesHandled,
+        aiRepliesCount,
         capturedLeadsCount,
         totalReviewCount,
-        avgRating,
+        reviewsAutoReplied,
         linkedInPostsCount,
         activeAdCampaigns: activeGoogleCampaigns + activeMetaCampaigns,
         gmailThreadsCount,

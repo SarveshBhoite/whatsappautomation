@@ -81,9 +81,11 @@ interface DashboardData {
     totalConversations: number;
     whatsappConvs: number;
     instagramConvs: number;
+    aiInquiriesHandled: number;
+    aiRepliesCount: number;
     capturedLeadsCount: number;
     totalReviewCount: number;
-    avgRating: string;
+    reviewsAutoReplied: number;
     linkedInPostsCount: number;
     activeAdCampaigns: number;
     gmailThreadsCount: number;
@@ -276,25 +278,21 @@ export default function OverviewDashboardPage() {
           <>
             {/* KPI Cards Strip */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {/* Card 1: Total Conversations */}
+              {/* Card 1: Inquiries Handled by AI */}
               <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs flex flex-col justify-between transition-all hover:shadow-sm hover:border-emerald-200 group">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Active Inquiries</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Inquiries Handled</span>
                   <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-2xs group-hover:scale-105 transition-transform">
-                    <MessageSquare className="h-4 w-4" />
+                    <Bot className="h-4 w-4 text-emerald-600" />
                   </div>
                 </div>
                 <div className="mt-3">
                   <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                    {data?.kpis.totalConversations ?? 0}
+                    {data?.kpis.aiInquiriesHandled ?? 0}
                   </div>
                   <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500 font-medium">
                     <span className="text-emerald-700 font-bold flex items-center gap-0.5">
-                      <WhatsAppIcon className="h-3 w-3 inline text-emerald-600" /> {data?.kpis.whatsappConvs || 0} WA
-                    </span>
-                    <span>•</span>
-                    <span className="text-pink-700 font-bold flex items-center gap-0.5">
-                      <InstagramIcon className="h-3 w-3 inline text-pink-600" /> {data?.kpis.instagramConvs || 0} IG
+                      <Sparkles className="h-3 w-3 inline text-emerald-600" /> {data?.kpis.aiRepliesCount || 0} AI Auto-Replies
                     </span>
                   </div>
                 </div>
@@ -305,7 +303,7 @@ export default function OverviewDashboardPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Captured Leads</span>
                   <div className="h-8 w-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shadow-2xs group-hover:scale-105 transition-transform">
-                    <Bot className="h-4 w-4" />
+                    <Users className="h-4 w-4 text-purple-600" />
                   </div>
                 </div>
                 <div className="mt-3">
@@ -314,26 +312,26 @@ export default function OverviewDashboardPage() {
                   </div>
                   <div className="flex items-center gap-1 text-[11px] text-purple-700 font-semibold mt-1">
                     <Sparkles className="h-3 w-3 text-purple-600" />
-                    <span>AI Autonomous Qualification</span>
+                    <span>Autonomous Qualification</span>
                   </div>
                 </div>
               </div>
 
-              {/* Card 3: Reputation & Rating */}
+              {/* Card 3: Reviews Auto-Replied by AI */}
               <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs flex flex-col justify-between transition-all hover:shadow-sm hover:border-amber-200 group">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Google Reputation</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Reviews Auto-Replied</span>
                   <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shadow-2xs group-hover:scale-105 transition-transform">
                     <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
                   </div>
                 </div>
                 <div className="mt-3">
-                  <div className="text-2xl sm:text-3xl font-black text-amber-950 tracking-tight flex items-baseline gap-1">
-                    {data?.kpis.avgRating || "5.0"} <span className="text-base font-bold text-amber-600">★</span>
+                  <div className="text-2xl sm:text-3xl font-black text-amber-950 tracking-tight">
+                    {data?.kpis.reviewsAutoReplied ?? 0}
                   </div>
                   <div className="text-[11px] text-amber-800 font-semibold mt-1 flex items-center gap-1">
                     <Store className="h-3 w-3 text-amber-600" />
-                    <span>{data?.kpis.totalReviewCount ?? 0} Verified Reviews</span>
+                    <span>of {data?.kpis.totalReviewCount ?? 0} Total Reviews Synced</span>
                   </div>
                 </div>
               </div>
