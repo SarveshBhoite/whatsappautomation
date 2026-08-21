@@ -1433,7 +1433,23 @@ export default function Dashboard() {
                           </div>
                           <div className="flex justify-between items-center">
                             <p className="text-xs text-slate-500 truncate max-w-[180px]">
-                              {lastMsg?.content || "No messages yet"}
+                              {(() => {
+                                if (!lastMsg?.content) return "No messages yet";
+                                const c = lastMsg.content;
+                                if (lastMsg.messageType === "video" || c.includes("instagram_file.pdf") && c.includes(".mp4") || c.includes("/video/") || c.includes("ig_messaging_cdn") && !c.includes("/image/")) {
+                                  return "🎥 Reel / Video";
+                                }
+                                if (lastMsg.messageType === "image" || c.includes("lookaside.fbsbx.com") || c.startsWith("http") && (c.endsWith(".jpg") || c.endsWith(".png") || c.endsWith(".webp") || c.includes("/image/"))) {
+                                  return "📷 Photo";
+                                }
+                                if (lastMsg.messageType === "audio" || lastMsg.messageType === "voice") {
+                                  return "🎤 Voice note";
+                                }
+                                if (lastMsg.messageType === "document" || c.includes("|/uploads/") || c.includes(".pdf")) {
+                                  return "📄 Document";
+                                }
+                                return c;
+                              })()}
                             </p>
                             {conv.isBotPaused ? (
                               <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
@@ -1643,13 +1659,22 @@ export default function Dashboard() {
                                 )}
 
                                 {/* Render media content or plain text */}
-                                {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
+                                {((["image", "document", "video", "audio", "voice"].includes(msg.messageType) || (typeof msg.content === "string" && (msg.content.includes("lookaside.fbsbx.com") || (msg.content.startsWith("http") && (msg.content.endsWith(".jpg") || msg.content.endsWith(".png") || msg.content.endsWith(".webp") || msg.content.includes("/image/")))))) && !hasButtons) ? (() => {
                                   // Parse structured media content
                                   let mediaUrl = msg.content;
                                   let displayFilename = "document.pdf";
                                   let captionText = "";
+                                  let inferredType = msg.messageType;
 
-                                  if (msg.messageType === "document") {
+                                  if (inferredType === "text" || !inferredType) {
+                                    if (mediaUrl.includes("lookaside.fbsbx.com") || mediaUrl.includes("/image/") || mediaUrl.endsWith(".jpg") || mediaUrl.endsWith(".png") || mediaUrl.endsWith(".webp")) {
+                                      inferredType = "image";
+                                    } else if (mediaUrl.includes("/video/")) {
+                                      inferredType = "video";
+                                    }
+                                  }
+
+                                  if (inferredType === "document") {
                                     const parts = msg.content.split("|");
                                     displayFilename = parts[0] || "document.pdf";
                                     mediaUrl = parts[1] || "";
@@ -1668,7 +1693,7 @@ export default function Dashboard() {
 
                                   return (
                                     <div className="flex flex-col gap-2 min-w-0">
-                                      {msg.messageType === "image" ? (
+                                      {inferredType === "image" ? (
                                         <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 max-w-[240px]">
                                           <img
                                             src={getMediaUrl(mediaUrl)}
@@ -1677,7 +1702,7 @@ export default function Dashboard() {
                                             onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
                                           />
                                         </div>
-                                      ) : msg.messageType === "video" ? (
+                                      ) : inferredType === "video" ? (
                                         <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 max-w-[240px]">
                                           <video
                                             src={getMediaUrl(mediaUrl)}
@@ -1685,7 +1710,7 @@ export default function Dashboard() {
                                             className="object-cover w-full h-36"
                                           />
                                         </div>
-                                      ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
+                                      ) : (inferredType === "audio" || inferredType === "voice") ? (
                                         <div className="max-w-[240px] py-1">
                                           <audio
                                             src={getMediaUrl(mediaUrl)}
