@@ -1,6 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 import path from "path";
+import prisma from "../utils/prisma";
 
 interface ButtonItem {
   id: string;
