@@ -66,17 +66,16 @@ const getMetaTemplatePricing = (category: string) => {
 };
 
 const getTemplateAnalytics = (tpl: MetaTemplate) => {
-  const nameHash = (tpl.name || "").split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
   const pricing = getMetaTemplatePricing(tpl.category);
   
-  const usedCount = tpl.analytics?.usedCount ?? ((nameHash * 43) % 4500 + 140);
-  const deliveryRate = tpl.analytics?.deliveryRate ?? Number((97.5 + ((nameHash % 25) / 10)).toFixed(1));
-  const readRate = tpl.analytics?.readRate ?? Number((78.2 + ((nameHash % 18) / 10)).toFixed(1));
-  const ctrRate = tpl.analytics?.ctrRate ?? Number((12.4 + ((nameHash % 14) / 10)).toFixed(1));
+  const usedCount = tpl.analytics?.usedCount ?? 0;
+  const deliveryRate = tpl.analytics?.deliveryRate ?? 0;
+  const readRate = tpl.analytics?.readRate ?? 0;
+  const ctrRate = tpl.analytics?.ctrRate ?? 0;
   const totalCostUsd = (usedCount * pricing.costUsd).toFixed(2);
   const totalCostInr = (usedCount * pricing.costInr).toFixed(2);
   
-  const qualityRating = tpl.analytics?.qualityRating || (nameHash % 10 < 8 ? "HIGH" : (nameHash % 10 < 9 ? "MEDIUM" : "LOW"));
+  const qualityRating = tpl.analytics?.qualityRating || "HIGH";
 
   return {
     pricing,
