@@ -510,7 +510,10 @@ export class WhatsAppService {
       }
     }
 
-    const nameVal = (resolvedCustomerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim() || "Valued Customer";
+    let nameVal = (resolvedCustomerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim();
+    if (!nameVal || /^\d+$/.test(nameVal)) {
+      nameVal = "Valued Customer";
+    }
     const couponVal = (variable2 || "OFFER20").trim();
 
     // Auto-resolve components for templates with {{1}} (Customer Name) and {{2}} (Coupon / Variable) if components not passed

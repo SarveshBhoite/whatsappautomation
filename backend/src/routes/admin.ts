@@ -1603,7 +1603,10 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
             console.log(`Custom CRM Message SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
           } else {
             // Dispatch chosen Meta Approved Template per lead with dynamic {{1}} (Customer Name) and {{2}} (Coupon/Variable)
-            const recipientCustomerName = (leadName || conversation?.customerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim() || "Valued Customer";
+            let recipientCustomerName = (leadName || conversation?.customerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim();
+            if (!recipientCustomerName || /^\d+$/.test(recipientCustomerName)) {
+              recipientCustomerName = "Valued Customer";
+            }
             const couponVar = req.body.couponCode || req.body.variable2 || "SUMMER20";
             const dynamicComponents = WhatsAppService.buildTemplateComponents([recipientCustomerName, couponVar]);
 
