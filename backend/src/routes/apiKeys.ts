@@ -8,13 +8,14 @@ const router = Router();
 
 // Helper to get organizationId from headers (ensures organization exists in DB)
 const getOrgId = async (req: Request): Promise<string> => {
-  const targetOrgId = (req.headers["x-organization-id"] as string) || "demo-org-123";
+  const targetOrgId = (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || "";
+  if (!targetOrgId) throw new Error("Organization ID is required. Please log in.");
   let org = await prisma.organization.findUnique({ where: { id: targetOrgId } });
   if (!org) {
     org = await prisma.organization.create({
       data: {
         id: targetOrgId,
-        name: "Demo Organization"
+        name: "Organization"
       }
     });
   }

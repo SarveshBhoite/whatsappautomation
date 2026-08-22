@@ -37,13 +37,12 @@ import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+    return localStorage.getItem("organization_id") || "";
   }
-  return DEFAULT_ORG_ID;
+  return "";
 };
 
 interface AutomationItem {

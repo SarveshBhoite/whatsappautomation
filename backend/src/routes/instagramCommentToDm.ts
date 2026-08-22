@@ -5,7 +5,7 @@ import { InstagramCommentEngine } from "../services/instagramCommentEngine";
 const router = Router();
 
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || "demo-org-123";
+  return (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || "";
 };
 
 // GET: Fetch live media (Reels + Feed Posts) from Meta Graph API with pagination support
