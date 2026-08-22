@@ -382,11 +382,11 @@ export default function WhatsAppTemplatesPage() {
               </div>
               <div className="px-2">
                 <div className="text-[10px] text-blue-600 font-bold uppercase">Est. Total Spend</div>
-                <div className="text-sm font-black text-blue-700 font-mono flex items-center justify-center gap-1 flex-wrap">
+                <div className="text-sm font-black text-blue-700 font-mono leading-tight">
                   ${templates.reduce((acc, t) => acc + parseFloat(getTemplateAnalytics(t).totalCostUsd), 0).toFixed(2)}
-                  <span className="text-[10px] text-slate-500 font-semibold">
-                    (₹{templates.reduce((acc, t) => acc + parseFloat(getTemplateAnalytics(t).totalCostInr), 0).toFixed(2)})
-                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-bold font-mono">
+                  (₹{templates.reduce((acc, t) => acc + parseFloat(getTemplateAnalytics(t).totalCostInr), 0).toFixed(2)})
                 </div>
               </div>
             </div>
