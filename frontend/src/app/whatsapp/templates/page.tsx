@@ -163,6 +163,7 @@ export default function WhatsAppTemplatesPage() {
 
       if (res.ok && data.success) {
         setTestStatus(`SUCCESS: ${data.message}`);
+        fetchTemplates();
         setTimeout(() => {
           setShowTestModal(false);
           setTestStatus(null);
