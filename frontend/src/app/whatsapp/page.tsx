@@ -991,8 +991,8 @@ export default function Dashboard() {
             {[
               { id: "chats_whatsapp", label: "WhatsApp Chats", icon: MessageCircle, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
               { id: "bulk_broadcast", label: "Bulk Broadcast", icon: Send, color: "text-teal-600", activeBg: "bg-teal-50 text-teal-800 border-teal-200" },
+              { id: "drip_campaigns", label: "Drip Campaigns", icon: GitMerge, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
               { id: "meta_templates", label: "Meta Templates", icon: FileText, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
-              { id: "flows", label: "Flow Builder", icon: GitMerge, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200", onClick: () => { setActiveTab("flows"); setSelectedPlatform("whatsapp"); } },
             ].map((item) => {
               const Icon = item.icon;
               const isSelected = activeTab === item.id;
@@ -1000,7 +1000,7 @@ export default function Dashboard() {
                 <button
                   key={item.id}
                   onClick={() => {
-                    if (item.onClick) item.onClick();
+                    if ((item as any).onClick) (item as any).onClick();
                     else setActiveTab(item.id as any);
                     setMobileDrawerOpen(false);
                   }}
@@ -1093,20 +1093,6 @@ export default function Dashboard() {
             }`}
           >
             <FileText className="h-3.5 w-3.5" /> Meta Templates
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("flows");
-              setSelectedPlatform("whatsapp");
-            }}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === "flows"
-                ? "bg-white text-brand-blue border border-slate-200 shadow-xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-            }`}
-          >
-            <GitMerge className="h-3.5 w-3.5" /> Flow Builder
           </button>
         </div>
       </header>

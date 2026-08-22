@@ -36,7 +36,7 @@ export default function InstagramProfilePage() {
     instagramAccountId: string;
     accessToken: string;
   }>({
-    instagramAccountId: "17841479044967079",
+    instagramAccountId: "",
     accessToken: "",
   });
   const [loading, setLoading] = useState<boolean>(true);
@@ -52,12 +52,14 @@ export default function InstagramProfilePage() {
         const data = await res.json();
         if (data.config) {
           setConfig({
-            instagramAccountId: data.config.instagramAccountId || "17841479044967079",
+            instagramAccountId: data.config.instagramAccountId || "",
             accessToken: data.config.pageAccessToken || "",
           });
         }
         if (data.liveProfile) {
           setLiveProfile(data.liveProfile);
+        } else {
+          setLiveProfile({});
         }
       }
     } catch (err) {
@@ -113,18 +115,20 @@ export default function InstagramProfilePage() {
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-pink-500 via-purple-500 to-amber-400 p-0.5 shadow-md shadow-pink-500/10 shrink-0">
                 <div className="h-full w-full bg-white rounded-[14px] flex items-center justify-center text-pink-600 font-black text-xl">
-                  {liveProfile.name ? liveProfile.name[0].toUpperCase() : "J"}
+                  {liveProfile.name ? liveProfile.name[0].toUpperCase() : liveProfile.username ? liveProfile.username[0].toUpperCase() : "IG"}
                 </div>
               </div>
               <div className="space-y-0.5">
                 <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  {liveProfile.name || "JISNU Digital Solutions Pvt.Ltd"}
-                  <span className="text-xs font-bold text-pink-600 font-mono">
-                    @{liveProfile.username || "jisnu_digitalsolution_pvt_ltd"}
-                  </span>
+                  {liveProfile.name || (config.instagramAccountId ? "Connected Business Account" : "No Instagram Account Linked")}
+                  {liveProfile.username && (
+                    <span className="text-xs font-bold text-pink-600 font-mono">
+                      @{liveProfile.username}
+                    </span>
+                  )}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Official Instagram Business Account connected to CRM Webhook engine
+                  {config.instagramAccountId ? "Official Instagram Business Account connected to CRM Webhook engine" : "Link your Meta Page and Instagram Account in Settings to view metrics."}
                 </p>
                 {config.instagramAccountId && (
                   <p className="text-[11px] text-slate-400 font-mono pt-1">
@@ -133,8 +137,8 @@ export default function InstagramProfilePage() {
                 )}
               </div>
             </div>
-            <Badge variant="success" className="text-xs">
-              Connected &amp; Verified
+            <Badge variant={config.instagramAccountId ? "success" : "outline"} className="text-xs">
+              {config.instagramAccountId ? "Connected & Verified" : "Not Configured"}
             </Badge>
           </div>
 
@@ -144,20 +148,22 @@ export default function InstagramProfilePage() {
               <Users className="h-4 w-4 text-pink-600 mx-auto" />
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Followers</span>
               <span className="text-xl font-black text-slate-900 font-mono">
-                {liveProfile.followers_count !== undefined ? liveProfile.followers_count : 569}
+                {liveProfile.followers_count !== undefined ? liveProfile.followers_count.toLocaleString() : "—"}
               </span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-1 shadow-2xs">
               <Film className="h-4 w-4 text-purple-600 mx-auto" />
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Media Posts</span>
               <span className="text-xl font-black text-slate-900 font-mono">
-                {liveProfile.media_count !== undefined ? liveProfile.media_count : 100}
+                {liveProfile.media_count !== undefined ? liveProfile.media_count.toLocaleString() : "—"}
               </span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-1 shadow-2xs">
               <ShieldCheck className="h-4 w-4 text-emerald-600 mx-auto" />
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Status</span>
-              <span className="text-sm font-bold text-emerald-700 block pt-1">Active</span>
+              <span className={`text-sm font-bold block pt-1 ${config.instagramAccountId ? "text-emerald-700" : "text-slate-400"}`}>
+                {config.instagramAccountId ? "Active" : "Inactive"}
+              </span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center space-y-1 shadow-2xs">
               <Key className="h-4 w-4 text-amber-600 mx-auto" />

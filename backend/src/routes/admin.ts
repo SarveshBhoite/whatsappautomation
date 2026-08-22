@@ -906,51 +906,40 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
 
-    let config = await prisma.instagramConfig.findUnique({
-      where: { organizationId },
+    if (!organizationId) {
+      return res.status(200).json({
+        config: null,
+        liveProfile: null
+      });
+    }
+
+    // Verify organization exists first
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId }
     });
 
-    const REAL_PAGE_TOKEN = "EAIJktYxgU04BSOfT3jG94ZCiHYt8trzFEW0yKmhaCp1xlRZBup9O27QNmWILSp8WHC4fkMfQMPfBaFWqBFV3EeDP3ekz8udJVku5nPWe4ixZAzlNXD3TVUrED3mp8hl51h2zzRIlg7GyV8d4dmZCz3AiAL08qdHR99x0EvuXzqTZCxeFuvbZAufpdEAqZCQbC9D79rLG5TZBZBTM9T39PaHjO14s0yPmQtlrHipsXxmACY7jTYDBRoSlRv7phocgZD";
-    const REAL_ACCOUNT_ID = "17841479044967079";
-    const REAL_PAGE_ID = "1062234726963242";
+    if (!org) {
+      return res.status(200).json({
+        config: null,
+        liveProfile: null
+      });
+    }
 
-    // Update ALL Instagram configs in database with active Page Access Token
-    await prisma.instagramConfig.updateMany({
-      data: {
-        pageId: REAL_PAGE_ID,
-        instagramAccountId: REAL_ACCOUNT_ID,
-        pageAccessToken: REAL_PAGE_TOKEN,
-      }
-    });
-
-    config = await prisma.instagramConfig.upsert({
+    const config = await prisma.instagramConfig.findUnique({
       where: { organizationId },
-      update: {
-        pageId: REAL_PAGE_ID,
-        instagramAccountId: REAL_ACCOUNT_ID,
-        pageAccessToken: REAL_PAGE_TOKEN,
-      },
-      create: {
-        organizationId,
-        pageId: REAL_PAGE_ID,
-        instagramAccountId: REAL_ACCOUNT_ID,
-        pageAccessToken: REAL_PAGE_TOKEN,
-      },
     });
 
     let liveProfile: { followers_count?: number; media_count?: number; username?: string; name?: string } | null = null;
 
     // If Meta Access Token and IG Account ID are available, fetch live profile stats from Meta Graph API
-    if (config.pageAccessToken && config.instagramAccountId) {
+    if (config?.pageAccessToken && config?.instagramAccountId) {
       try {
         const metaRes = await fetch(
-          `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=business_discovery.username(jisnu_digitalsolution_pvt_ltd){followers_count,media_count,username,name}&access_token=${config.pageAccessToken}`
+          `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=followers_count,media_count,username,name&access_token=${config.pageAccessToken}`
         );
         if (metaRes.ok) {
           const metaData = await metaRes.json();
-          if (metaData.business_discovery) {
-            liveProfile = metaData.business_discovery;
-          }
+          liveProfile = metaData;
         }
       } catch (e) {
         console.warn("Could not fetch live Graph API stats:", e);
@@ -959,12 +948,7 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
 
     return res.status(200).json({
       config,
-      liveProfile: liveProfile || {
-        followers_count: 569,
-        media_count: 100,
-        username: "jisnu_digitalsolution_pvt_ltd",
-        name: "Jisnu Digital Solution Pvt Ltd"
-      }
+      liveProfile: liveProfile || null
     });
   } catch (error: any) {
     console.error("Error fetching Instagram config:", error);
@@ -1022,21 +1006,12 @@ router.get("/instagram/comments", async (req: Request, res: Response) => {
 
     if (config?.pageAccessToken && config?.instagramAccountId) {
       try {
-        let metaRes = await fetch(
+        const metaRes = await fetch(
           `https://graph.facebook.com/v19.0/${config.instagramAccountId}/media?fields=comments{text,username,timestamp}&access_token=${config.pageAccessToken}`
         );
         let metaData: any = {};
         if (metaRes.ok) {
           metaData = await metaRes.json();
-        } else {
-          // Fallback query via business discovery endpoint
-          metaRes = await fetch(
-            `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=business_discovery.username(jisnu_digitalsolution_pvt_ltd){media{comments{text,username,timestamp}}}&access_token=${config.pageAccessToken}`
-          );
-          if (metaRes.ok) {
-            const discData = await metaRes.json();
-            metaData = { data: discData.business_discovery?.media?.data || [] };
-          }
         }
 
         const mediaList = metaData.data || [];

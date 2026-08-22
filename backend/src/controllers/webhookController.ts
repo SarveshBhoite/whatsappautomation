@@ -73,8 +73,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           });
 
           // Prevent self-loop / duplicate replies when the business page posts a reply
-          const isSelfComment = fromUser === "jisnu_digitalsolution_pvt_ltd" || 
-                                fromUserId === igConfig?.instagramAccountId || 
+          const isSelfComment = fromUserId === igConfig?.instagramAccountId || 
                                 fromUserId === igConfig?.pageId;
 
           if (isSelfComment) {
