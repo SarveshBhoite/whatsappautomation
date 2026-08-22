@@ -1276,8 +1276,7 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
     const dbCostStats = await (prisma as any).messageCostRecord.groupBy({
       by: ["templateName"],
       where: { organizationId },
-      _count: { id: true },
-      _sum: { estimatedCost: true, reconciledCost: true }
+      _sum: { billableQuantity: true, estimatedCost: true, reconciledCost: true }
     }).catch(() => []);
 
     const costStatsMap: Record<string, { count: number; totalCostInr: number }> = {};
@@ -1285,7 +1284,7 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
       const sumEst = r._sum?.estimatedCost || 0;
       const sumRec = r._sum?.reconciledCost;
       costStatsMap[r.templateName] = {
-        count: r._count?.id || 0,
+        count: r._sum?.billableQuantity || 0,
         totalCostInr: sumRec ?? sumEst
       };
     }
@@ -1321,7 +1320,7 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
       let usedCount = costRecordStat && costRecordStat.count > 0 ? costRecordStat.count : realStats.used;
       let totalCostInr = costRecordStat && costRecordStat.count > 0 ? Number(costRecordStat.totalCostInr.toFixed(2)) : Number((usedCount * costPerMessageInr).toFixed(2));
 
-      if (META_MANAGER_AUTHORITATIVE_DATA[t.name]) {
+      if (usedCount === 0 && META_MANAGER_AUTHORITATIVE_DATA[t.name]) {
         const metaAuth = META_MANAGER_AUTHORITATIVE_DATA[t.name];
         usedCount = metaAuth.usedCount;
         totalCostInr = metaAuth.totalCostInr;
