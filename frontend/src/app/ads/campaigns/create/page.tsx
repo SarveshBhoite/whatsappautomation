@@ -1272,7 +1272,7 @@ export default function CampaignCreatePage() {
                                     setCustomLocationText("");
                                     setLocationSuggestions([]);
                                   }}
-                                  className="px-2.5 py-1 rounded bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 font-semibold text-[11px] hover:bg-blue-600 text-white/20 transition-all cursor-pointer"
+                                  className="px-2.5 py-1 rounded bg-blue-50/80 border border-blue-500/30 text-blue-600 font-semibold text-[11px] hover:bg-blue-100 transition-all cursor-pointer"
                                 >
                                   Target
                                 </button>
@@ -1426,7 +1426,7 @@ export default function CampaignCreatePage() {
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <span className="text-[11px] text-slate-500 font-medium">Selected ({selectedLanguages.length}):</span>
                   {selectedLanguages.map((lang) => (
-                    <span key={lang} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white/10 border border-blue-500/30 text-xs text-blue-600 font-medium">
+                    <span key={lang} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50/80 border border-blue-500/30 text-xs text-blue-600 font-medium">
                       {lang}
                       <button
                         onClick={() => setSelectedLanguages(prev => prev.filter(l => l !== lang))}
@@ -1664,7 +1664,7 @@ export default function CampaignCreatePage() {
                 {/* AI Max Banner Header */}
                 <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50/80 border border-blue-500/20 flex items-center justify-center shrink-0">
                       <Sparkles className="h-5 w-5 text-blue-600" />
                     </div>
                     <div className="space-y-1">
@@ -5533,13 +5533,13 @@ export default function CampaignCreatePage() {
                     setSelectedType(""); // Reset campaign type on objective change
                   }}
                   className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between min-h-[120px] ${isSelected
-                      ? "bg-blue-600 text-white/10 border-blue-500 shadow-md shadow-primary/10 ring-1 ring-primary"
+                      ? "bg-blue-50/80 border-blue-500 shadow-md shadow-primary/10 ring-1 ring-primary"
                       : "bg-white border-slate-200 hover:border-slate-200 hover:bg-slate-50"
                     }`}
                 >
                   {isSelected && (
                     <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                      <Check className="h-3 w-3 text-slate-900 stroke-[3]" />
+                      <Check className="h-3 w-3 text-white stroke-[3]" />
                     </div>
                   )}
                   <div>
@@ -5579,7 +5579,7 @@ export default function CampaignCreatePage() {
                   </div>
                   <button
                     onClick={() => setShowAddGoalModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 hover:bg-blue-600 text-white/20 text-xs font-semibold transition-all shrink-0 ml-4"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/80 border border-blue-500/30 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition-all shrink-0 ml-4"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Add goal
@@ -5739,13 +5739,13 @@ export default function CampaignCreatePage() {
                           setSelectedType(""); // Reset selected campaign type when video goal changes
                         }}
                         className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between ${isSel
-                            ? "bg-blue-600 text-white/10 border-blue-500 shadow-md ring-1 ring-primary"
+                            ? "bg-blue-50/80 border-blue-500 shadow-md ring-1 ring-primary"
                             : "bg-slate-50 border-slate-200 hover:border-slate-200"
                           }`}
                       >
                         {isSel && (
                           <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                            <Check className="h-3 w-3 text-slate-900 stroke-[3]" />
+                            <Check className="h-3 w-3 text-white stroke-[3]" />
                           </div>
                         )}
                         <div>
@@ -5754,7 +5754,7 @@ export default function CampaignCreatePage() {
                               {goal.title}
                             </h3>
                             {goal.badge && (
-                              <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white/20 text-blue-600 text-[10px] font-bold">
+                              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold">
                                 {goal.badge}
                               </span>
                             )}
@@ -5865,17 +5865,17 @@ export default function CampaignCreatePage() {
                             key={type.id}
                             onClick={() => setSelectedType(type.id)}
                             className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between ${isSelected
-                                ? "bg-blue-600 text-white/10 border-blue-500 ring-1 ring-primary"
+                                ? "bg-blue-50/80 border-blue-500 ring-1 ring-primary"
                                 : "bg-white border-slate-200 hover:border-slate-200 hover:bg-slate-50"
                               }`}
                           >
                             {isSelected && (
                               <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                                <Check className="h-3 w-3 text-slate-900 stroke-[3]" />
+                                <Check className="h-3 w-3 text-white stroke-[3]" />
                               </div>
                             )}
                             <div>
-                              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white/10 text-blue-600 flex items-center justify-center mb-3">
+                              <div className="w-8 h-8 rounded-lg bg-blue-50/80 text-blue-600 flex items-center justify-center mb-3">
                                 <Icon className="h-4 w-4" />
                               </div>
                               <h3 className={`text-sm font-semibold mb-1 ${isSelected ? "text-blue-600" : "text-slate-900"}`}>
@@ -5918,7 +5918,7 @@ export default function CampaignCreatePage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => alert(`Resuming draft ${prefix}-Performance Max-4`)}
-                            className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 font-semibold text-xs hover:bg-blue-600 text-white/20 transition-all"
+                            className="px-3.5 py-1.5 rounded-lg bg-blue-50/80 border border-blue-500/30 text-blue-600 font-semibold text-xs hover:bg-blue-100 transition-all"
                           >
                             Continue from draft
                           </button>
@@ -5970,7 +5970,7 @@ export default function CampaignCreatePage() {
                             </div>
                             <button
                               onClick={() => setShowAddGoalModal(true)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 hover:bg-blue-600 text-white/20 text-xs font-semibold transition-all shrink-0 ml-4"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/80 border border-blue-500/30 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition-all shrink-0 ml-4"
                             >
                               <Plus className="h-3.5 w-3.5" />
                               Add goal
@@ -6142,7 +6142,7 @@ export default function CampaignCreatePage() {
                             </div>
                             <button
                               onClick={() => setShowAddGoalModal(true)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 hover:bg-blue-600 text-white/20 text-xs font-semibold transition-all shrink-0 ml-4"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/80 border border-blue-500/30 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition-all shrink-0 ml-4"
                             >
                               <Plus className="h-3.5 w-3.5" />
                               Add goal
@@ -6282,7 +6282,7 @@ export default function CampaignCreatePage() {
                             <label
                               key={sub.id}
                               onClick={() => setAppSubtype(sub.id as any)}
-                              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${appSubtype === sub.id ? "border-blue-500 bg-blue-600 text-white/5" : "border-slate-200 bg-slate-50 hover:border-slate-200"
+                              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${appSubtype === sub.id ? "border-blue-500 bg-blue-50/50" : "border-slate-200 bg-slate-50 hover:border-slate-200"
                                 }`}
                             >
                               <input
@@ -7121,7 +7121,7 @@ export default function CampaignCreatePage() {
                     <p className="text-[11px] font-semibold text-slate-700">Added brands ({brandListItems.length}):</p>
                     <div className="flex flex-wrap gap-2">
                       {brandListItems.map((b, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white/10 border border-blue-500/30 text-xs text-blue-600 font-medium">
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50/80 border border-blue-500/30 text-xs text-blue-600 font-medium">
                           🛡️ {b}
                           <button onClick={() => setBrandListItems(prev => prev.filter((_, i) => i !== idx))}>
                             <X className="h-3 w-3 hover:text-rose-400" />
