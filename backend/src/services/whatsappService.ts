@@ -488,11 +488,33 @@ export class WhatsAppService {
   ) {
     const formattedTo = this.formatPhoneNumber(to);
 
+    // Auto-resolve dynamic user name from database if not explicitly provided
+    let resolvedCustomerName = customerName;
+    if (!resolvedCustomerName || resolvedCustomerName === "Valued Customer") {
+      try {
+        const conv = await prisma.conversation.findFirst({
+          where: {
+            OR: [
+              { customerPhone: formattedTo },
+              { customerPhone: to }
+            ]
+          },
+          select: { customerName: true }
+        });
+        if (conv?.customerName && !conv.customerName.startsWith("Lead (")) {
+          resolvedCustomerName = conv.customerName;
+        }
+      } catch (dbErr) {
+        // Fallback silently if DB lookup fails
+      }
+    }
+
+    const nameVal = (resolvedCustomerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim() || "Valued Customer";
+    const couponVal = (variable2 || "OFFER20").trim();
+
     // Auto-resolve components for templates with {{1}} (Customer Name) and {{2}} (Coupon / Variable) if components not passed
     let finalComponents = components;
     if ((!finalComponents || finalComponents.length === 0) && templateName !== "hello_world") {
-      const nameVal = (customerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim() || "Valued Customer";
-      const couponVal = (variable2 || "OFFER20").trim();
       finalComponents = this.buildTemplateComponents([nameVal, couponVal]);
     }
 
