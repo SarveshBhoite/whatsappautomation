@@ -1288,11 +1288,7 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
       }
 
       const realStats = statsByTemplate[t.name] || { used: 0, delivered: 0, read: 0 };
-      // Special reconciliation for promo_discount_offer or live Meta dispatches if sent on Meta Manager
-      let usedCount = realStats.used;
-      if (t.name === "promo_discount_offer" && usedCount < 7) {
-        usedCount = 7;
-      }
+      const usedCount = realStats.used;
       const deliveredCount = realStats.delivered;
       const readCount = realStats.read;
 
