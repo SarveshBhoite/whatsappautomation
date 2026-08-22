@@ -23,7 +23,6 @@ import metaAdsRouter from "./routes/metaAds";
 import reportsRouter from "./routes/reports";
 import whatsappEmbeddedRouter from "./routes/whatsappEmbedded";
 import instagramCommentToDmRouter from "./routes/instagramCommentToDm";
-import whatsappTemplateAnalyticsRouter from "./routes/whatsappTemplateAnalyticsRoutes";
 
 const app = express();
 const server = http.createServer(app);
@@ -77,7 +76,6 @@ app.use("/api/ads", googleAdsRouter);
 app.use("/api/meta-ads", metaAdsRouter);
 app.use("/api/meta", metaAdsRouter);
 app.use("/api/admin/instagram", instagramCommentToDmRouter);
-app.use("/api/admin/whatsapp", whatsappTemplateAnalyticsRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
@@ -105,11 +103,13 @@ import whatsappDripRouter from "./routes/whatsappDrip";
 import { WhatsAppDripEngine } from "./services/whatsappDripService";
 import apiKeysRouter from "./routes/apiKeys";
 import externalApiV1Router from "./routes/externalApiV1";
+import costingRouter from "./routes/costing";
 
 app.use("/api/whatsapp/drip", whatsappDripRouter);
 app.use("/api/api-keys", apiKeysRouter);
 app.use("/api/v1", externalApiV1Router);
 app.use("/v1", externalApiV1Router);
+app.use("/api/admin/whatsapp/costing", costingRouter);
 
 // Start 15-second background drip scheduler interval
 setInterval(() => {

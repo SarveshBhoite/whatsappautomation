@@ -41,10 +41,7 @@ model Organization {
   whatsappDripCampaigns WhatsAppDripCampaign[]
   instagramCommentAutomations InstagramCommentAutomation[]
   apiKeys             ApiKey[]
-  waTemplates         WhatsAppTemplateMaster[]
-  waMessages          WhatsAppMessageLog[]
-  waPricingConfigs    WhatsAppMetaPricingConfig[]
-  waMarkupConfigs     WhatsAppClientMarkupConfig[]
+  costRecords         MessageCostRecord[]
 }
 
 model User {
@@ -1140,270 +1137,87 @@ model ApiKey {
   @@map("api_keys")
 }
 
-// ─── WhatsApp Template Master, Versioning & Lifecycle Models ───────────────
+model MetaPricingRate {
+  id               String    @id @default(uuid())
+  pricingVersion   String    // e.g. "2026-v1"
+  effectiveFrom    DateTime  @default(now())
+  effectiveUntil   DateTime?
+  pricingCategory String    // MARKETING, UTILITY, AUTHENTICATION, SERVICE
+  recipientMarket  String    // IN, US, GB, AE, DEFAULT
+  currency         String    @default("INR") // INR, USD
+  unitPrice        Float
+  source           String    @default("META_OFFICIAL_PRICING")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-model WhatsAppTemplateMaster {
-  id                   String                           @id @default(uuid())
-  organizationId       String
-  organization         Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  metaTemplateId       String                           @unique
-  name                 String
-  namespace            String?                          @default("")
-  wabaId               String?
-  phoneNumberId        String?
-  language             String                           @default("en_US")
-  category             String                           @default("MARKETING")
-  status               String                           @default("PENDING") // PENDING, APPROVED, REJECTED, PAUSED, DISABLED, DELETED
-  previousStatus       String?
-  qualityRating        String?                          @default("UNKNOWN") // HIGH, MEDIUM, LOW, UNKNOWN
-  qualityScore         Float?
-  qualityHistory       Json                             @default("[]")
-  rejectionReason      String?
-  disableReason        String?
-  
-  // Component Breakdown & Analysis
-  headerType           String?                          @default("NONE") // TEXT, IMAGE, DOCUMENT, VIDEO, LOCATION, NONE
-  headerContent        String?
-  bodyContent          String
-  footerContent        String?
-  buttons              Json                             @default("[]")
-  numberOfVariables    Int                              @default(0)
-  variablePositions    Json                             @default("[]")
-  sampleVariables      Json                             @default("[]")
-  characterCounts      Json                             @default("{}") // { header: 20, body: 150, footer: 30 }
-  mediaRequirements    Json                             @default("{}")
-  
-  // Sync & Version Timestamps
-  currentVersion       Int                              @default(1)
-  lastSyncedAt         DateTime                         @default(now())
-  metaCreatedAt        DateTime?
-  metaUpdatedAt        DateTime?
-  metaApprovedAt       DateTime?
-  createdAt            DateTime                         @default(now())
-  updatedAt            DateTime                         @updatedAt
-
-  versions             WhatsAppTemplateVersion[]
-  statusHistory        WhatsAppTemplateStatusHistory[]
-
-  @@unique([organizationId, name, language])
-  @@index([organizationId])
-  @@index([metaTemplateId])
-  @@map("whatsapp_template_masters")
+  @@unique([pricingVersion, pricingCategory, recipientMarket])
+  @@index([pricingCategory, recipientMarket])
+  @@map("meta_pricing_rates")
 }
 
-model WhatsAppTemplateVersion {
-  id                String                 @id @default(uuid())
-  templateId        String
-  template          WhatsAppTemplateMaster @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  versionNumber     Int
-  name              String
-  language          String
-  category          String
-  status            String
-  headerContent     String?
-  bodyContent       String
-  footerContent     String?
-  buttons           Json                   @default("[]")
-  changeSummary     String?
-  createdAt         DateTime               @default(now())
-
-  @@unique([templateId, versionNumber])
-  @@map("whatsapp_template_versions")
-}
-
-model WhatsAppTemplateStatusHistory {
-  id             String                 @id @default(uuid())
-  templateId     String
-  template       WhatsAppTemplateMaster @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  organizationId String
-  fromStatus     String?
-  toStatus       String
-  reason         String?
-  changedAt      DateTime               @default(now())
-
-  @@map("whatsapp_template_status_histories")
-}
-
-// ─── Production WhatsApp Message Event Log & Billing Models ────────────────
-
-model WhatsAppMessageLog {
-  id                   String       @id @default(uuid())
-  organizationId       String
-  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  wabaId               String?
-  phoneNumberId        String?
-  metaMessageId        String       @unique
-  templateId           String?
-  templateName         String
-  templateLanguage     String       @default("en_US")
-  templateCategory     String       @default("MARKETING")
-  recipient            String
-  recipientCountry     String       @default("IN")
-  campaignId           String?
-  automationId         String?
-  broadcastId          String?
-
-  // State Tracking
-  messageStatus        String       @default("QUEUED") // QUEUED, SENT, DELIVERED, READ, FAILED, CANCELLED
-  sentAt               DateTime?
-  deliveredAt          DateTime?
-  readAt               DateTime?
-  failedAt             DateTime?
-  failureReason        String?
-  failureCode          String?
-
-  // Billing Classification & Immutable Cost Snapshot
-  billingStatus        String       @default("UNKNOWN") // BILLABLE, NON_BILLABLE, UNKNOWN
-  billingReason        String?
-  pricingVersionId     String?
-  appliedUnitPrice     Float?       @default(0)
-  currency             String       @default("USD")
+model MessageCostRecord {
+  id                    String      @id @default(uuid())
+  messageId             String?     @unique
+  metaMessageId         String?     @unique
+  organizationId        String
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  wabaId                String?
+  phoneNumberId         String?
+  templateId            String?
+  templateName          String
+  templateLanguage      String      @default("en")
+  templateCategory      String      // MARKETING, UTILITY, AUTHENTICATION, SERVICE
+  recipientPhoneCountry String      @default("India")
+  recipientCountryCode  String      @default("IN")
+  recipientMarket       String      @default("IN")
+  campaignId            String?
+  automationId          String?
   
-  metaEstimatedCost    Float?       @default(0)
-  metaReconciledCost   Float?       @default(0)
-  jisnuMarkupAmount    Float?       @default(0)
-  clientCharge         Float?       @default(0)
-  clientCurrency       String       @default("INR")
-  exchangeRate         Float?       @default(83.5)
-  costState            String       @default("ESTIMATED") // ESTIMATED, RECONCILED, UNKNOWN
-
-  calculatedAt         DateTime?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  messageSentAt         DateTime    @default(now())
+  billingStatus         String      @default("ESTIMATED") // AUTHORITATIVE, RECONCILED, ESTIMATED, UNKNOWN
+  billingSource         String      @default("OFFICIAL_PRICING_CALCULATION") // META_AUTHORITATIVE, META_RECONCILED, OFFICIAL_PRICING_CALCULATION, INTERNAL_ESTIMATE, MANUAL, UNKNOWN
+  unknownReason         String?
+  pricingVersion        String      @default("2026-v1")
+  
+  unitPrice             Float       @default(0.0)
+  currency              String      @default("INR")
+  billableQuantity      Int         @default(1)
+  metaCost              Float       @default(0.0)
+  estimatedCost         Float       @default(0.0)
+  reconciledCost        Float?
+  costCalculatedAt      DateTime    @default(now())
+  
+  metaCurrency          String      @default("USD")
+  clientCurrency        String      @default("INR")
+  exchangeRate          Float       @default(83.0)
+  convertedCost         Float       @default(0.0)
+  jisnuMarkup           Float       @default(0.0)
+  clientCharge          Float       @default(0.0)
+  
+  auditLogs             MessageCostAuditLog[]
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   @@index([organizationId])
   @@index([metaMessageId])
   @@index([templateName])
-  @@index([messageStatus])
-  @@map("whatsapp_message_logs")
+  @@index([billingStatus])
+  @@index([campaignId])
+  @@map("message_cost_records")
 }
 
-model WhatsAppMetaPricingConfig {
-  id               String       @id @default(uuid())
-  pricingVersion   String       @default("v2026.1")
-  pricingSource    String       @default("META_OFFICIAL") // META_OFFICIAL, IMPORTED, MANUAL, ESTIMATED
-  country          String       @default("IN") // Country code e.g. IN, US, BR
-  category         String       @default("MARKETING") // MARKETING, UTILITY, AUTHENTICATION, SERVICE, etc.
-  currency         String       @default("USD")
-  price            Float
-  effectiveFrom    DateTime     @default(now())
-  effectiveUntil   DateTime?
-  wabaId           String?      @default("GLOBAL")
-  phoneNumberId    String?      @default("GLOBAL")
-  organizationId   String?      @default("GLOBAL")
-  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-
-  @@map("whatsapp_meta_pricing_configs")
-}
-
-model WhatsAppClientMarkupConfig {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  wabaId         String?      @default("GLOBAL")
-  markupType     String       @default("PERCENTAGE") // PERCENTAGE, FIXED, CUSTOM
-  markupValue    Float        @default(0.10) // 10% or 0.05 USD fixed
-  currency       String       @default("INR")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  @@map("whatsapp_client_markup_configs")
-}
-
-model WhatsAppDailyUsageAggregation {
-  id                   String   @id @default(uuid())
-  organizationId       String
-  date                 String   // YYYY-MM-DD
-  templateName         String
-  category             String   @default("MARKETING")
-  country              String   @default("IN")
-  
-  sentCount            Int      @default(0)
-  deliveredCount       Int      @default(0)
-  readCount            Int      @default(0)
-  failedCount          Int      @default(0)
-  cancelledCount       Int      @default(0)
-  
-  billableCount        Int      @default(0)
-  nonBillableCount     Int      @default(0)
-  unknownBillingCount  Int      @default(0)
-  
-  metaEstimatedCost    Float    @default(0)
-  metaReconciledCost   Float    @default(0)
-  jisnuMarkupAmount    Float    @default(0)
-  clientCharge         Float    @default(0)
-  currency             String   @default("INR")
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  @@unique([organizationId, date, templateName, category, country])
-  @@map("whatsapp_daily_usage_aggregations")
-}
-
-model WhatsAppMonthlyUsageAggregation {
-  id                   String   @id @default(uuid())
-  organizationId       String
-  month                String   // YYYY-MM
-  
-  sentCount            Int      @default(0)
-  deliveredCount       Int      @default(0)
-  readCount            Int      @default(0)
-  failedCount          Int      @default(0)
-  billableCount        Int      @default(0)
-  
-  metaEstimatedCost    Float    @default(0)
-  metaReconciledCost   Float    @default(0)
-  clientCharge         Float    @default(0)
-  currency             String   @default("INR")
-  
-  projectedMonthlyCount Int     @default(0)
-  projectedMonthlyCost  Float   @default(0)
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  @@unique([organizationId, month])
-  @@map("whatsapp_monthly_usage_aggregations")
-}
-
-model WhatsAppTemplateReconciliationLog {
-  id                   String   @id @default(uuid())
-  organizationId       String
-  wabaId               String?
-  periodStart          DateTime
-  periodEnd            DateTime
-  
-  internalCount        Int      @default(0)
-  metaCount            Int      @default(0)
-  countDifference      Int      @default(0)
-  
-  internalEstimatedCost Float   @default(0)
-  metaInvoicedCost     Float    @default(0)
-  costDifference       Float    @default(0)
-  
-  discrepancyType      String?  // NONE, COUNT_MISMATCH, COST_MISMATCH, UNEXPECTED_CHARGE, MISSING_META_RECORD
-  status               String   @default("RECONCILED") // RECONCILED, RECONCILIATION_REQUIRED, DISCREPANCY_FLAGGED
-  notes                String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  @@map("whatsapp_template_reconciliation_logs")
-}
-
-model WhatsAppAuditTrail {
-  id             String   @id @default(uuid())
-  organizationId String
-  entityType     String   // PRICING_CONFIG, MARKUP_CONFIG, TEMPLATE_STATUS, COST_ADJUSTMENT, RECONCILIATION
-  entityId       String
-  action         String   // CREATE, UPDATE, DELETE, STATUS_CHANGE, RECONCILE
-  performedBy    String   @default("SYSTEM")
-  previousValue  Json?
-  newValue       Json?
+model MessageCostAuditLog {
+  id             String            @id @default(uuid())
+  costRecordId   String
+  costRecord     MessageCostRecord @relation(fields: [costRecordId], references: [id], onDelete: Cascade)
+  previousStatus String
+  newStatus      String
+  previousCost   Float
+  newCost        Float
+  source         String
   reason         String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime          @default(now())
 
-  @@map("whatsapp_audit_trails")
+  @@index([costRecordId])
+  @@map("message_cost_audit_logs")
 }

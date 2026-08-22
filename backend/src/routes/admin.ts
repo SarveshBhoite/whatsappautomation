@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "../services/whatsappService";
+import { MetaCostingService } from "../services/metaCostingService";
 import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
 
@@ -1398,6 +1399,18 @@ router.post("/whatsapp/templates/test-send", async (req: Request, res: Response)
           status: "sent",
           senderName: "Template Tester"
         }
+      });
+
+      // Create Per-Message Cost Record
+      await MetaCostingService.calculateAndRecordEstimatedCost({
+        metaMessageId: waMsgId,
+        organizationId,
+        wabaId: waConfig.wabaId,
+        phoneNumberId: waConfig.phoneNumberId,
+        templateName: templateName || "name_test",
+        templateLanguage: languageCode || "en_US",
+        templateCategory: "MARKETING",
+        recipientPhone
       });
     } catch (dbSaveErr) {
       console.warn("Failed to log test template message in DB:", dbSaveErr);
