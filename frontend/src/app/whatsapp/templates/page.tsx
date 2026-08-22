@@ -359,7 +359,7 @@ export default function WhatsAppTemplatesPage() {
               </Badge>
               <h2 className="text-lg font-black text-slate-900">Pre-Approved Blueprints &amp; Live Message Performance</h2>
               <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
-                Track real-time Meta template dispatches, per-message conversation costing rates ($0.005–$0.012/msg), delivered volume, read rates, and template quality health.
+                Track real-time Meta template dispatches, per-message conversation costing rates (₹0.11–₹0.78/msg), delivered volume, read rates, and template quality health.
               </p>
             </div>
 
@@ -382,11 +382,8 @@ export default function WhatsAppTemplatesPage() {
               </div>
               <div className="px-2">
                 <div className="text-[10px] text-blue-600 font-bold uppercase">Est. Total Spend</div>
-                <div className="text-sm font-black text-blue-700 font-mono leading-tight">
-                  ${templates.reduce((acc, t) => acc + parseFloat(getTemplateAnalytics(t).totalCostUsd), 0).toFixed(2)}
-                </div>
-                <div className="text-[11px] text-slate-500 font-bold font-mono">
-                  (₹{templates.reduce((acc, t) => acc + parseFloat(getTemplateAnalytics(t).totalCostInr), 0).toFixed(2)})
+                <div className="text-base font-black text-blue-700 font-mono">
+                  ₹{templates.reduce((acc, t) => acc + parseFloat(getTemplateAnalytics(t).totalCostInr), 0).toFixed(2)}
                 </div>
               </div>
             </div>
@@ -510,7 +507,7 @@ export default function WhatsAppTemplatesPage() {
                           💰 Cost / Message Rate
                         </span>
                         <span className="font-mono font-bold text-purple-700 bg-white px-2 py-0.5 rounded-lg border border-purple-200">
-                          ${stats.pricing.costUsd.toFixed(3)}/msg <span className="text-[10px] text-slate-500">(₹{stats.pricing.costInr})</span>
+                          ₹{stats.pricing.costInr}/msg
                         </span>
                       </div>
 
@@ -521,7 +518,7 @@ export default function WhatsAppTemplatesPage() {
                         </div>
                         <div className="bg-white/80 p-2 rounded-xl border border-slate-200/60 shadow-2xs space-y-0.5">
                           <span className="text-slate-400 uppercase font-bold text-[9px] block">Total Est. Spend</span>
-                          <span className="font-mono font-black text-emerald-700 text-xs block">${stats.totalCostUsd} <span className="text-[9px] text-slate-500 font-normal">(₹{stats.totalCostInr})</span></span>
+                          <span className="font-mono font-black text-emerald-700 text-xs block">₹{stats.totalCostInr}</span>
                         </div>
                         <div className="bg-white/80 p-2 rounded-xl border border-slate-200/60 shadow-2xs space-y-0.5">
                           <span className="text-slate-400 uppercase font-bold text-[9px] block">Delivery Rate</span>
