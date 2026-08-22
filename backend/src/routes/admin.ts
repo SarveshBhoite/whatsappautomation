@@ -1512,7 +1512,15 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
     }
 
     const targetTemplate = templateName || "jisnu_official_welcome";
-    const templateLang = targetTemplate === "hello_world" ? "en_US" : "en";
+    const reqLang = req.body.languageCode || req.body.language || req.body.templateLang;
+    let templateLang = reqLang;
+    if (!templateLang) {
+      if (["name_test", "hello_world"].includes(targetTemplate)) {
+        templateLang = "en_US";
+      } else {
+        templateLang = "en";
+      }
+    }
 
     const waConfig = await prisma.whatsAppConfig.findUnique({
       where: { organizationId }
@@ -1610,35 +1618,30 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
                 recipientCustomerName,
                 couponVar
               );
-              console.log(`Approved Template (${targetTemplate}) SENT to ${cleanPhone} (Name: ${recipientCustomerName}):`, responseData?.messages?.[0]?.id);
+              console.log(`Approved Template (${targetTemplate}, Lang: ${templateLang}) SENT to ${cleanPhone} (Name: ${recipientCustomerName}):`, responseData?.messages?.[0]?.id);
             } catch (tErr: any) {
               const metaErrMsg = tErr.response?.data?.error?.message || tErr.message;
-              console.warn(`Template ${targetTemplate} error for ${cleanPhone}:`, metaErrMsg);
-              try {
-                responseData = await WhatsAppService.sendTemplateMessage(
-                  waConfig.phoneNumberId,
-                  waConfig.accessToken,
-                  cleanPhone,
-                  "welcome_jisnu_marketing",
-                  "en_US"
-                );
-              } catch (err: any) {
-                const fallbackErrMsg = err.response?.data?.error?.message || err.message;
-                console.warn(`Fallback template (welcome_jisnu_marketing) error for ${cleanPhone}:`, fallbackErrMsg);
+              console.error(`[TEMPLATE DISPATCH ERROR] Template "${targetTemplate}" (${templateLang}) failed for ${cleanPhone}:`, metaErrMsg);
+
+              // If language en failed, try en_US automatically before throwing
+              if (templateLang === "en") {
                 try {
-                  // Final fallback to Meta's default pre-approved template on every WABA account
                   responseData = await WhatsAppService.sendTemplateMessage(
                     waConfig.phoneNumberId,
                     waConfig.accessToken,
                     cleanPhone,
-                    "hello_world",
-                    "en_US"
+                    targetTemplate,
+                    "en_US",
+                    dynamicComponents,
+                    recipientCustomerName,
+                    couponVar
                   );
-                  console.log(`Default Template (hello_world) SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
-                } catch (finalErr: any) {
-                  const finalMsg = finalErr.response?.data?.error?.message || finalErr.message;
-                  console.warn(`Final hello_world template error for ${cleanPhone}:`, finalMsg);
+                  console.log(`Approved Template (${targetTemplate}, Lang: en_US) SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
+                } catch (retryErr: any) {
+                  throw new Error(`Meta Template ${targetTemplate} failed: ${metaErrMsg}`);
                 }
+              } else {
+                throw new Error(`Meta Template ${targetTemplate} failed: ${metaErrMsg}`);
               }
             }
           }
