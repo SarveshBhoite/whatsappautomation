@@ -727,9 +727,9 @@ export default function CampaignCreatePage() {
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
-      fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
+      fetch(`${BACKEND}/api/ads/customer-info?orgId=${encodeURIComponent(orgId)}&customerId=${customerId}`)
         .then(r => r.json())
         .then(d => {
           setAccountInfo({
@@ -744,29 +744,29 @@ export default function CampaignCreatePage() {
   }, [customerId]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ────────────────── */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-all"
+            className="p-1.5 text-slate-400 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all"
             title="Close"
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
-            <span className="text-sm font-semibold text-slate-200">New Campaign</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+            <span className="text-sm font-semibold text-slate-900">New Campaign</span>
           </div>
         </div>
 
         {/* Creation Mode Toggle (Manual vs AI) */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
           <button
             onClick={() => setCreationMode("MANUAL")}
             className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${creationMode === "MANUAL"
-                ? "bg-primary text-slate-950 shadow"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-blue-600 text-white shadow"
+                : "text-slate-400 hover:text-slate-900"
               }`}
           >
             Manual Creation
@@ -774,8 +774,8 @@ export default function CampaignCreatePage() {
           <button
             onClick={() => setCreationMode("AI")}
             className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 ${creationMode === "AI"
-                ? "bg-primary text-slate-950 shadow"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-blue-600 text-white shadow"
+                : "text-slate-400 hover:text-slate-900"
               }`}
           >
             <Sparkles className="h-3.5 w-3.5" />
@@ -787,7 +787,7 @@ export default function CampaignCreatePage() {
           <span className="font-mono">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-white" />
+          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-slate-900" />
         </div>
       </header>
 
@@ -795,44 +795,44 @@ export default function CampaignCreatePage() {
       {wizardStep === "BIDDING" ? (
         <div className="flex-1 flex w-full pb-20">
           {/* Left Sub-Navigation Sidebar */}
-          <aside className="w-64 border-r border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/50 hidden md:block">
+          <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
               <div className="space-y-1">
-                <div className="flex items-center gap-2 font-bold text-primary">
-                  <div className="w-4 h-4 rounded-full border border-primary flex items-center justify-center text-[10px]">1</div>
+                <div className="flex items-center gap-2 font-bold text-blue-600">
+                  <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">1</div>
                   Bidding
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-800 pl-3 py-1">
-                  <p className="text-primary font-semibold">Bidding</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Customer acquisition</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Customer retention</p>
+                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                  <p className="text-blue-600 font-semibold">Bidding</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Customer acquisition</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Customer retention</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">2</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">2</div>
                 Campaign settings
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">3</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">3</div>
                 Asset group
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">4</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">4</div>
                 Budget
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">5</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">5</div>
                 Summary
               </div>
             </nav>
@@ -840,24 +840,24 @@ export default function CampaignCreatePage() {
 
           {/* Bidding Step Main Content */}
           <main className="flex-1 p-6 md:p-10 space-y-8 max-w-4xl">
-            <h1 className="text-2xl font-semibold text-white tracking-tight">Bidding</h1>
+            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Bidding</h1>
 
             {/* 1. Bidding Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Bidding</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Bidding</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs text-slate-300 flex items-center gap-1">
+                <label className="text-xs text-slate-700 flex items-center gap-1">
                   What do you want to focus on?
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                 </label>
                 <select
                   value={biddingFocus}
                   onChange={(e) => setBiddingFocus(e.target.value as any)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary w-64"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 w-64"
                 >
                   <optgroup label="Recommended">
                     <option value="Conversions">Conversions</option>
@@ -876,9 +876,9 @@ export default function CampaignCreatePage() {
                     type="checkbox"
                     checked={setTargetCpa}
                     onChange={(e) => setSetTargetCpa(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-primary focus:ring-primary h-4 w-4"
+                    className="rounded bg-slate-50 border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4"
                   />
-                  <span className="text-xs text-slate-200 font-medium">Set a target cost per action (optional)</span>
+                  <span className="text-xs text-slate-900 font-medium">Set a target cost per action (optional)</span>
                 </label>
 
                 {setTargetCpa && (
@@ -891,7 +891,7 @@ export default function CampaignCreatePage() {
                         value={targetCpaValue}
                         onChange={(e) => setTargetCpaValue(e.target.value)}
                         placeholder="166.11"
-                        className="bg-slate-950 border border-slate-800 rounded-xl pl-7 pr-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-primary w-full"
+                        className="bg-slate-50 border border-slate-200 rounded-xl pl-7 pr-4 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500 w-full"
                       />
                     </div>
                   </div>
@@ -900,9 +900,9 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* 2. Customer Acquisition Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Customer acquisition</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Customer acquisition</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
@@ -913,9 +913,9 @@ export default function CampaignCreatePage() {
                       type="checkbox"
                       checked={onlyNewCustomers}
                       onChange={(e) => setOnlyNewCustomers(e.target.checked)}
-                      className="rounded bg-slate-950 border-slate-700 text-primary focus:ring-primary h-4 w-4"
+                      className="rounded bg-slate-50 border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4"
                     />
-                    <span className="text-xs font-semibold text-slate-200">Only bid for new customers</span>
+                    <span className="text-xs font-semibold text-slate-900">Only bid for new customers</span>
                   </label>
                   <p className="text-xs text-slate-400 ml-7">
                     Your campaign will be limited to only new customers, regardless of your bid strategy
@@ -937,17 +937,17 @@ export default function CampaignCreatePage() {
                   )}
                 </div>
 
-                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-800 pl-4">
+                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-200 pl-4">
                   By default, your campaign bids equally for new and existing customers. However, you can configure your customer acquisition settings to optimize for acquiring new customers.{" "}
-                  <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about customer acquisition</a>
+                  <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about customer acquisition</a>
                 </div>
               </div>
             </div>
 
             {/* 3. Customer Retention Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Customer retention</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Customer retention</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
@@ -958,9 +958,9 @@ export default function CampaignCreatePage() {
                       type="checkbox"
                       checked={adjustLapsedCustomers}
                       onChange={(e) => setAdjustLapsedCustomers(e.target.checked)}
-                      className="rounded bg-slate-950 border-slate-700 text-primary focus:ring-primary h-4 w-4"
+                      className="rounded bg-slate-50 border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4"
                     />
-                    <span className="text-xs font-semibold text-slate-200">Adjust your bidding to help re-engage lapsed customers</span>
+                    <span className="text-xs font-semibold text-slate-900">Adjust your bidding to help re-engage lapsed customers</span>
                   </label>
 
                   <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-xs flex items-start gap-3">
@@ -971,29 +971,29 @@ export default function CampaignCreatePage() {
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-800 pl-4">
+                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-200 pl-4">
                   By default, your campaign does not adjust bidding to re-engage lapsed customers. However, you can configure your customer acquisition settings to optimize for winning back lapsed customers.{" "}
-                  <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a>
+                  <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a>
                 </div>
               </div>
             </div>
           </main>
 
           {/* Right Weekly Estimates Sidebar */}
-          <aside className="w-72 border-l border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/40 hidden lg:block">
+          <aside className="w-72 border-l border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/40 hidden lg:block">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-200">Campaign optimization score</span>
+                <span className="font-semibold text-slate-900">Campaign optimization score</span>
                 <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
               </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-primary w-full rounded-full"></div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-600 text-white w-full rounded-full"></div>
               </div>
-              <p className="text-right text-xs font-bold text-primary">100%</p>
+              <p className="text-right text-xs font-bold text-blue-600">100%</p>
             </div>
 
-            <div className="space-y-3 pt-4 border-t border-slate-800">
-              <h3 className="text-xs font-semibold text-slate-200">Weekly estimates</h3>
+            <div className="space-y-3 pt-4 border-t border-slate-200">
+              <h3 className="text-xs font-semibold text-slate-900">Weekly estimates</h3>
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Based on your daily budget and bid settings
               </p>
@@ -1001,15 +1001,15 @@ export default function CampaignCreatePage() {
               <div className="space-y-3 pt-2 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Weekly conv.</span>
-                  <span className="font-semibold text-white">61</span>
+                  <span className="font-semibold text-slate-900">61</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Cost / Conv.</span>
-                  <span className="font-semibold text-white">₹166.11</span>
+                  <span className="font-semibold text-slate-900">₹166.11</span>
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                   <span className="text-slate-400">Weekly cost</span>
-                  <span className="font-bold text-primary">₹10,199.00</span>
+                  <span className="font-bold text-blue-600">₹10,199.00</span>
                 </div>
               </div>
             </div>
@@ -1018,10 +1018,10 @@ export default function CampaignCreatePage() {
       ) : wizardStep === "CAMPAIGN_SETTINGS" ? (
         <div className="flex-1 flex w-full pb-20">
           {/* Left Sub-Navigation Sidebar */}
-          <aside className="w-64 border-r border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/50 hidden md:block">
+          <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
@@ -1029,84 +1029,84 @@ export default function CampaignCreatePage() {
             <nav className="space-y-4 text-xs">
               {selectedType === "SEARCH" ? (
                 <>
-                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BIDDING")}>
+                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                     <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                     Bidding
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 font-bold text-primary">
-                      <div className="w-4 h-4 rounded-full border border-primary flex items-center justify-center text-[10px]">2</div>
+                    <div className="flex items-center gap-2 font-bold text-blue-600">
+                      <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">2</div>
                       Campaign settings
                     </div>
-                    <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-800 pl-3 py-1">
-                      <p className="hover:text-slate-200 cursor-pointer">Network</p>
-                      <p className="hover:text-slate-200 cursor-pointer">Locations</p>
-                      <p className="hover:text-slate-200 cursor-pointer">Languages</p>
-                      <p className="hover:text-slate-200 cursor-pointer">EU political ads</p>
-                      <p className="hover:text-slate-200 cursor-pointer">Audiences</p>
-                      <p className="hover:text-slate-200 cursor-pointer text-emerald-400 font-medium">AI Max</p>
-                      <p className="hover:text-slate-200 cursor-pointer">Keyword and asset generation</p>
+                    <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                      <p className="hover:text-slate-900 cursor-pointer">Network</p>
+                      <p className="hover:text-slate-900 cursor-pointer">Locations</p>
+                      <p className="hover:text-slate-900 cursor-pointer">Languages</p>
+                      <p className="hover:text-slate-900 cursor-pointer">EU political ads</p>
+                      <p className="hover:text-slate-900 cursor-pointer">Audiences</p>
+                      <p className="hover:text-slate-900 cursor-pointer text-emerald-400 font-medium">AI Max</p>
+                      <p className="hover:text-slate-900 cursor-pointer">Keyword and asset generation</p>
                     </div>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-slate-400 font-medium">
-                      <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">3</div>
+                      <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">3</div>
                       Keywords and ads
                     </div>
-                    <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-800 pl-3 py-1 text-[11px]">
-                      <p className="hover:text-slate-200 cursor-pointer">Keywords</p>
-                      <p className="hover:text-slate-200 cursor-pointer text-emerald-400">AI Max</p>
-                      <p className="hover:text-slate-200 cursor-pointer">Ads</p>
+                    <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1 text-[11px]">
+                      <p className="hover:text-slate-900 cursor-pointer">Keywords</p>
+                      <p className="hover:text-slate-900 cursor-pointer text-emerald-400">AI Max</p>
+                      <p className="hover:text-slate-900 cursor-pointer">Ads</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BUDGET")}>
-                    <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">4</div>
+                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BUDGET")}>
+                    <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">4</div>
                     Budget
                   </div>
 
                   <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                    <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">5</div>
+                    <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">5</div>
                     Review
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BIDDING")}>
+                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                     <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                     Bidding
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 font-bold text-primary">
-                      <div className="w-4 h-4 rounded-full border border-primary flex items-center justify-center text-[10px]">2</div>
+                    <div className="flex items-center gap-2 font-bold text-blue-600">
+                      <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">2</div>
                       Campaign settings
                     </div>
-                    <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-800 pl-3 py-1">
-                      <p className="hover:text-slate-200 cursor-pointer">Network</p>
-                      <p className="text-primary font-semibold">Locations</p>
-                      <p className="hover:text-slate-200 cursor-pointer">Languages</p>
-                      <p className="hover:text-slate-200 cursor-pointer">EU political ads</p>
-                      <p className="hover:text-slate-200 cursor-pointer">Audiences</p>
+                    <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                      <p className="hover:text-slate-900 cursor-pointer">Network</p>
+                      <p className="text-blue-600 font-semibold">Locations</p>
+                      <p className="hover:text-slate-900 cursor-pointer">Languages</p>
+                      <p className="hover:text-slate-900 cursor-pointer">EU political ads</p>
+                      <p className="hover:text-slate-900 cursor-pointer">Audiences</p>
                     </div>
                   </div>
                 </>
               )}
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">3</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">3</div>
                 Asset group
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">4</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">4</div>
                 Budget
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">5</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">5</div>
                 Summary
               </div>
             </nav>
@@ -1115,14 +1115,14 @@ export default function CampaignCreatePage() {
           {/* Campaign Settings Main Content */}
           <main className="flex-1 p-6 md:p-10 space-y-8 max-w-4xl">
             <div>
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign settings</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
               <p className="text-xs text-slate-400 mt-1">To reach the right people, start by defining key settings for your campaign</p>
             </div>
 
             {/* 1. Networks Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Networks</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Networks</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
@@ -1132,10 +1132,10 @@ export default function CampaignCreatePage() {
                     type="checkbox"
                     checked={searchPartnersNetwork}
                     onChange={(e) => setSearchPartnersNetwork(e.target.checked)}
-                    className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary focus:ring-primary h-4 w-4"
+                    className="mt-0.5 rounded bg-slate-50 border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4"
                   />
                   <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-slate-200 block">
+                    <span className="text-xs font-semibold text-slate-900 block">
                       Google Search Partners Network <span className="text-slate-400 font-normal">(recommended)</span>
                     </span>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -1144,15 +1144,15 @@ export default function CampaignCreatePage() {
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 cursor-pointer border-t border-slate-800/60 pt-3">
+                <label className="flex items-start gap-3 cursor-pointer border-t border-slate-200 pt-3">
                   <input
                     type="checkbox"
                     checked={displayNetwork}
                     onChange={(e) => setDisplayNetwork(e.target.checked)}
-                    className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary focus:ring-primary h-4 w-4"
+                    className="mt-0.5 rounded bg-slate-50 border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4"
                   />
                   <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-slate-200 block">
+                    <span className="text-xs font-semibold text-slate-900 block">
                       Google Display Network <span className="text-slate-400 font-normal">(recommended)</span>
                     </span>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -1164,14 +1164,14 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* 2. Locations Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Locations</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Locations</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
               <div className="space-y-3">
-                <label className="text-xs text-slate-300 flex items-center gap-1">
+                <label className="text-xs text-slate-700 flex items-center gap-1">
                   Select locations for this campaign
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                 </label>
@@ -1183,9 +1183,9 @@ export default function CampaignCreatePage() {
                       name="location"
                       checked={locationOption === "ALL"}
                       onChange={() => setLocationOption("ALL")}
-                      className="text-primary focus:ring-primary h-4 w-4"
+                      className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                     />
-                    <span className="text-xs font-medium text-slate-200">All countries and territories</span>
+                    <span className="text-xs font-medium text-slate-900">All countries and territories</span>
                   </label>
 
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -1194,9 +1194,9 @@ export default function CampaignCreatePage() {
                       name="location"
                       checked={locationOption === "INDIA"}
                       onChange={() => setLocationOption("INDIA")}
-                      className="text-primary focus:ring-primary h-4 w-4"
+                      className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                     />
-                    <span className="text-xs font-medium text-slate-200">India</span>
+                    <span className="text-xs font-medium text-slate-900">India</span>
                   </label>
 
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -1205,9 +1205,9 @@ export default function CampaignCreatePage() {
                       name="location"
                       checked={locationOption === "CUSTOM"}
                       onChange={() => setLocationOption("CUSTOM")}
-                      className="text-primary focus:ring-primary h-4 w-4"
+                      className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                     />
-                    <span className="text-xs font-medium text-slate-200">Enter another location</span>
+                    <span className="text-xs font-medium text-slate-900">Enter another location</span>
                   </label>
 
                   {locationOption === "CUSTOM" && (
@@ -1246,21 +1246,21 @@ export default function CampaignCreatePage() {
                             }
                           }}
                           placeholder="Enter a location to target or exclude (e.g. Mumbai, Maharashtra, India)"
-                          className="bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary w-full"
+                          className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-full"
                         />
                       </div>
 
                       {/* Location Suggestions Dropdown List */}
                       {locationSuggestions.length > 0 && (
-                        <div className="p-2 bg-slate-950 border border-slate-800 rounded-xl space-y-1 animate-in fade-in duration-200 max-h-60 overflow-y-auto shadow-2xl z-30">
+                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1 animate-in fade-in duration-200 max-h-60 overflow-y-auto shadow-2xl z-30">
                           <p className="text-[11px] text-slate-400 font-semibold px-2 py-1">Matching locations:</p>
                           {locationSuggestions.map((loc) => (
                             <div
                               key={loc.name}
-                              className="p-2.5 rounded-lg hover:bg-slate-900 flex items-center justify-between text-xs transition-all border border-transparent hover:border-slate-800"
+                              className="p-2.5 rounded-lg hover:bg-white flex items-center justify-between text-xs transition-all border border-transparent hover:border-slate-200"
                             >
                               <div className="space-y-0.5">
-                                <p className="font-semibold text-slate-100">{loc.name}</p>
+                                <p className="font-semibold text-slate-900">{loc.name}</p>
                                 <p className="text-[11px] text-slate-400">{loc.type} • Reach: {loc.reach}</p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1272,7 +1272,7 @@ export default function CampaignCreatePage() {
                                     setCustomLocationText("");
                                     setLocationSuggestions([]);
                                   }}
-                                  className="px-2.5 py-1 rounded bg-primary/10 border border-primary/30 text-primary font-semibold text-[11px] hover:bg-primary/20 transition-all cursor-pointer"
+                                  className="px-2.5 py-1 rounded bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 font-semibold text-[11px] hover:bg-blue-600 text-white/20 transition-all cursor-pointer"
                                 >
                                   Target
                                 </button>
@@ -1288,14 +1288,14 @@ export default function CampaignCreatePage() {
                           <p className="text-[11px] text-slate-400 font-semibold">Matched and targeted locations:</p>
                           <div className="space-y-1.5">
                             {targetLocations.map((loc) => (
-                              <div key={loc.name} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-xs">
+                              <div key={loc.name} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs">
                                 <div>
-                                  <span className="font-semibold text-slate-200">{loc.name}</span>
+                                  <span className="font-semibold text-slate-900">{loc.name}</span>
                                   <span className="text-slate-500 text-[11px] block">{loc.type} • {loc.reach} reach</span>
                                 </div>
                                 <button
                                   onClick={() => setTargetLocations(prev => prev.filter(l => l.name !== loc.name))}
-                                  className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-900 rounded transition-all"
+                                  className="p-1 text-slate-400 hover:text-rose-400 hover:bg-white rounded transition-all"
                                 >
                                   <X className="h-3.5 w-3.5" />
                                 </button>
@@ -1308,10 +1308,10 @@ export default function CampaignCreatePage() {
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-slate-800/80">
+                <div className="pt-2 border-t border-slate-200">
                   <button
                     onClick={() => setShowLocationOptions(!showLocationOptions)}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1.5 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1.5 cursor-pointer"
                   >
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showLocationOptions ? "rotate-180" : ""}`} />
                     Location options
@@ -1320,7 +1320,7 @@ export default function CampaignCreatePage() {
                   {showLocationOptions && (
                     <div className="mt-3 space-y-3 pl-2 animate-in fade-in duration-200">
                       <div className="space-y-2">
-                        <label className="text-xs text-slate-300 font-semibold flex items-center gap-1">
+                        <label className="text-xs text-slate-700 font-semibold flex items-center gap-1">
                           Include <HelpCircle className="h-3 w-3 text-slate-500" />
                         </label>
                         <div className="space-y-2 pl-1">
@@ -1330,9 +1330,9 @@ export default function CampaignCreatePage() {
                               name="locInclude"
                               checked={locationIncludeOption === "PRESENCE_INTEREST"}
                               onChange={() => setLocationIncludeOption("PRESENCE_INTEREST")}
-                              className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                              className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
-                            <span className="text-xs text-slate-300">
+                            <span className="text-xs text-slate-700">
                               Presence or interest: People in, regularly in, or who've shown interest in your included locations (recommended)
                             </span>
                           </label>
@@ -1343,9 +1343,9 @@ export default function CampaignCreatePage() {
                               name="locInclude"
                               checked={locationIncludeOption === "PRESENCE"}
                               onChange={() => setLocationIncludeOption("PRESENCE")}
-                              className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                              className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
-                            <span className="text-xs text-slate-300">
+                            <span className="text-xs text-slate-700">
                               Presence: People in or regularly in your included locations
                             </span>
                           </label>
@@ -1357,7 +1357,7 @@ export default function CampaignCreatePage() {
                           <Info className="h-4 w-4 shrink-0 text-blue-400 mt-0.5" />
                           <p className="leading-relaxed">
                             Your campaign can't run in the EU because it has EU political ads.{" "}
-                            <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about the EU political ad policy</a>
+                            <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about the EU political ad policy</a>
                           </p>
                         </div>
                       )}
@@ -1368,14 +1368,14 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* 2. Languages Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Languages</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Languages</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
               <div className="space-y-3">
-                <label className="text-xs text-slate-300 flex items-center gap-1">
+                <label className="text-xs text-slate-700 flex items-center gap-1">
                   Select the languages your customers speak.
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                 </label>
@@ -1387,12 +1387,12 @@ export default function CampaignCreatePage() {
                     value={languageSearchInput}
                     onChange={(e) => setLanguageSearchInput(e.target.value)}
                     placeholder="Start typing or select a language"
-                    className="bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary w-full"
+                    className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-full"
                   />
                 </div>
 
                 {/* Popular Languages Checkbox List */}
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl max-w-md space-y-2 max-h-52 overflow-y-auto">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl max-w-md space-y-2 max-h-52 overflow-y-auto">
                   <p className="text-[11px] text-slate-400 font-semibold mb-1">Select languages:</p>
                   {[
                     "English", "Hindi", "Bengali", "Marathi", "Telugu", "Tamil", "Gujarati", "Urdu",
@@ -1403,7 +1403,7 @@ export default function CampaignCreatePage() {
                     .map((lang) => {
                       const isChecked = selectedLanguages.includes(lang);
                       return (
-                        <label key={lang} className="flex items-center gap-3 p-1.5 rounded-lg hover:bg-slate-900 cursor-pointer text-xs transition-all">
+                        <label key={lang} className="flex items-center gap-3 p-1.5 rounded-lg hover:bg-white cursor-pointer text-xs transition-all">
                           <input
                             type="checkbox"
                             checked={isChecked}
@@ -1414,9 +1414,9 @@ export default function CampaignCreatePage() {
                                 setSelectedLanguages(prev => prev.filter(l => l !== lang));
                               }
                             }}
-                            className="rounded bg-slate-900 border-slate-700 text-primary focus:ring-primary h-4 w-4"
+                            className="rounded bg-white border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4"
                           />
-                          <span className={`font-medium ${isChecked ? "text-primary font-semibold" : "text-slate-200"}`}>{lang}</span>
+                          <span className={`font-medium ${isChecked ? "text-blue-600 font-semibold" : "text-slate-900"}`}>{lang}</span>
                         </label>
                       );
                     })}
@@ -1426,7 +1426,7 @@ export default function CampaignCreatePage() {
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <span className="text-[11px] text-slate-400 font-medium">Selected ({selectedLanguages.length}):</span>
                   {selectedLanguages.map((lang) => (
-                    <span key={lang} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-xs text-primary font-medium">
+                    <span key={lang} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white/10 border border-blue-500/30 text-xs text-blue-600 font-medium">
                       {lang}
                       <button
                         onClick={() => setSelectedLanguages(prev => prev.filter(l => l !== lang))}
@@ -1441,16 +1441,16 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* 3. EU Political Ads Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">EU political ads</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">EU political ads</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                 <div className="space-y-3 flex-1">
                   <div className="space-y-0.5">
-                    <p className="text-xs font-semibold text-slate-200">Does your campaign have European Union political ads?</p>
+                    <p className="text-xs font-semibold text-slate-900">Does your campaign have European Union political ads?</p>
                     <span className="text-[10px] text-rose-400 font-semibold uppercase">Required</span>
                   </div>
 
@@ -1461,10 +1461,10 @@ export default function CampaignCreatePage() {
                         name="euPolitical"
                         checked={euPoliticalAds === "YES"}
                         onChange={() => setEuPoliticalAds("YES")}
-                        className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                       />
                       <div className="space-y-2">
-                        <span className="text-xs font-medium text-slate-200">Yes, this campaign has EU political ads</span>
+                        <span className="text-xs font-medium text-slate-900">Yes, this campaign has EU political ads</span>
 
                         {euPoliticalAds === "YES" && (
                           <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-xs space-y-1 animate-in fade-in duration-200">
@@ -1474,7 +1474,7 @@ export default function CampaignCreatePage() {
                             </div>
                             <p className="text-xs text-blue-300/90 leading-relaxed pl-6">
                               Google Ads doesn't allow campaigns with EU political ads to run in the EU. You can still run your campaign in other regions.{" "}
-                              <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about the EU political ads policy</a>
+                              <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about the EU political ads policy</a>
                             </p>
                           </div>
                         )}
@@ -1487,46 +1487,46 @@ export default function CampaignCreatePage() {
                         name="euPolitical"
                         checked={euPoliticalAds === "NO"}
                         onChange={() => setEuPoliticalAds("NO")}
-                        className="text-primary focus:ring-primary h-4 w-4"
+                        className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                       />
-                      <span className="text-xs font-medium text-slate-200">No, this campaign doesn't have EU political ads</span>
+                      <span className="text-xs font-medium text-slate-900">No, this campaign doesn't have EU political ads</span>
                     </label>
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-800 pl-4 space-y-1">
+                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-200 pl-4 space-y-1">
                   <p>EU regulation requires Google to ask this question</p>
-                  <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline block">Learn how an EU political ad is defined</a>
+                  <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline block">Learn how an EU political ad is defined</a>
                 </div>
               </div>
             </div>
 
             {/* 4. Audience Segments Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Audience segments</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Audience segments</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <p className="text-xs text-slate-300">
-                    Select audience segments to add to your campaign. You can create new Your data segments by clicking on <span className="text-primary font-semibold cursor-pointer">+ New segment</span> in the Search tab.
+                  <p className="text-xs text-slate-700">
+                    Select audience segments to add to your campaign. You can create new Your data segments by clicking on <span className="text-blue-600 font-semibold cursor-pointer">+ New segment</span> in the Search tab.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-4 border-b border-slate-800 pb-2 text-xs font-semibold">
+                <div className="flex items-center gap-4 border-b border-slate-200 pb-2 text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => setAudienceTab("SEARCH")}
-                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "SEARCH" ? "border-primary text-primary font-bold" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "SEARCH" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
                   >
                     Search
                   </button>
                   <button
                     type="button"
                     onClick={() => setAudienceTab("BROWSE")}
-                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "BROWSE" ? "border-primary text-primary font-bold" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "BROWSE" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
                   >
                     Browse
                   </button>
@@ -1540,7 +1540,7 @@ export default function CampaignCreatePage() {
                       value={audienceSearchInput}
                       onChange={(e) => setAudienceSearchInput(e.target.value)}
                       placeholder='Try "beauty & wellness"'
-                      className="bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary w-full"
+                      className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-full"
                     />
                   </div>
                 ) : (
@@ -1552,15 +1552,15 @@ export default function CampaignCreatePage() {
                       { category: "How they have interacted with your business", desc: "(Your data segments)", items: ["Website Visitors", "App Users", "Customer Lists"] },
                       { category: "Your combined audience segments", desc: "(Combined segments)", items: ["Custom Combined Segment 1"] },
                     ].map((browseGroup, idx) => (
-                      <div key={idx} className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-900/60 transition-all space-y-2">
+                      <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white transition-all space-y-2">
                         <div className="flex items-center justify-between cursor-pointer">
                           <div>
-                            <span className="text-xs font-semibold text-slate-200 block">{browseGroup.category}</span>
+                            <span className="text-xs font-semibold text-slate-900 block">{browseGroup.category}</span>
                             <span className="text-[11px] text-slate-400 block">{browseGroup.desc}</span>
                           </div>
                           <ChevronDown className="h-4 w-4 text-slate-400" />
                         </div>
-                        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-800/60">
+                        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-200">
                           {browseGroup.items.map(item => (
                             <button
                               key={item}
@@ -1568,9 +1568,9 @@ export default function CampaignCreatePage() {
                               onClick={() => {
                                 if (!audienceSegments.includes(item)) setAudienceSegments(prev => [...prev, item]);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300 hover:text-primary hover:border-primary/50 transition-all flex items-center gap-1 cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 hover:text-blue-600 hover:border-blue-500/50 transition-all flex items-center gap-1 cursor-pointer"
                             >
-                              <Plus className="h-3 w-3 text-primary" /> {item}
+                              <Plus className="h-3 w-3 text-blue-600" /> {item}
                             </button>
                           ))}
                         </div>
@@ -1580,7 +1580,7 @@ export default function CampaignCreatePage() {
                 )}
 
                 {audienceSearchInput && (
-                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl max-w-md space-y-1 animate-in fade-in duration-200">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl max-w-md space-y-1 animate-in fade-in duration-200">
                     <p className="text-[11px] text-slate-400">Search results for "{audienceSearchInput}":</p>
                     {["Beauty & Personal Care", "Wellness & Fitness Enthusiasts", "Online Shoppers"].filter(s => s.toLowerCase().includes(audienceSearchInput.toLowerCase())).map((seg) => (
                       <div
@@ -1589,24 +1589,24 @@ export default function CampaignCreatePage() {
                           if (!audienceSegments.includes(seg)) setAudienceSegments(prev => [...prev, seg]);
                           setAudienceSearchInput("");
                         }}
-                        className="p-2 rounded-lg hover:bg-slate-900 cursor-pointer text-xs text-slate-200 flex items-center justify-between"
+                        className="p-2 rounded-lg hover:bg-white cursor-pointer text-xs text-slate-900 flex items-center justify-between"
                       >
                         <span>{seg}</span>
-                        <Plus className="h-3.5 w-3.5 text-primary" />
+                        <Plus className="h-3.5 w-3.5 text-blue-600" />
                       </div>
                     ))}
                   </div>
                 )}
 
                 {audienceSegments.length === 0 ? (
-                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-1">
-                    <p className="text-xs font-semibold text-slate-300">None selected</p>
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1">
+                    <p className="text-xs font-semibold text-slate-700">None selected</p>
                     <p className="text-xs text-slate-400">Select one or more segments to observe.</p>
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {audienceSegments.map((seg) => (
-                      <span key={seg} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-200">
+                      <span key={seg} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs text-slate-900">
                         {seg}
                         <button onClick={() => setAudienceSegments(prev => prev.filter(s => s !== seg))}>
                           <X className="h-3 w-3 hover:text-rose-400" />
@@ -1616,36 +1616,36 @@ export default function CampaignCreatePage() {
                   </div>
                 )}
 
-                <div className="space-y-3 pt-3 border-t border-slate-800">
+                <div className="space-y-3 pt-3 border-t border-slate-200">
                   <div>
-                    <h4 className="text-xs font-semibold text-slate-200">Targeting setting for this campaign</h4>
+                    <h4 className="text-xs font-semibold text-slate-900">Targeting setting for this campaign</h4>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-slate-800 bg-slate-950 hover:border-slate-700 transition-all">
+                    <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 bg-slate-50 hover:border-slate-200 transition-all">
                       <input
                         type="radio"
                         name="targetingOption"
                         checked={targetingSetting === "TARGETING"}
                         onChange={() => setTargetingSetting("TARGETING")}
-                        className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                       />
                       <div>
-                        <span className="text-xs font-semibold text-slate-200 block">Targeting</span>
+                        <span className="text-xs font-semibold text-slate-900 block">Targeting</span>
                         <span className="text-[11px] text-slate-400 block">Narrow the reach of your campaign to the selected segments, with the option to adjust the bids</span>
                       </div>
                     </label>
 
-                    <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-slate-800 bg-slate-950 hover:border-slate-700 transition-all">
+                    <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 bg-slate-50 hover:border-slate-200 transition-all">
                       <input
                         type="radio"
                         name="targetingOption"
                         checked={targetingSetting === "OBSERVATION"}
                         onChange={() => setTargetingSetting("OBSERVATION")}
-                        className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                       />
                       <div>
-                        <span className="text-xs font-semibold text-slate-200 block">Observation (recommended)</span>
+                        <span className="text-xs font-semibold text-slate-900 block">Observation (recommended)</span>
                         <span className="text-[11px] text-slate-400 block">Don't narrow the reach of your campaign, with the option to adjust the bids on the selected segments</span>
                       </div>
                     </label>
@@ -1656,53 +1656,53 @@ export default function CampaignCreatePage() {
 
             {/* 5. AI Max Card (Search Only) */}
             {selectedType === "SEARCH" && (
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">AI Max for Search campaigns</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">AI Max for Search campaigns</h2>
                 </div>
 
                 {/* AI Max Banner Header */}
-                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-950/60 space-y-4">
+                <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                      <Sparkles className="h-5 w-5 text-primary" />
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
                     </div>
                     <div className="space-y-1">
-                      <h3 className="text-sm font-semibold text-white">Get the best AI-powered performance on Google Search</h3>
+                      <h3 className="text-sm font-semibold text-slate-900">Get the best AI-powered performance on Google Search</h3>
                       <p className="text-xs text-slate-400 leading-relaxed">
                         Advertisers that activate AI Max in Search Campaigns will typically see 14% more conversions or conversion value at a similar CPA / ROAS.
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-2 text-xs text-slate-300">
+                  <div className="space-y-3 pt-2 text-xs text-slate-700">
                     <div className="flex items-start gap-3">
-                      <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <Sparkles className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
                       <p>
-                        <strong className="text-slate-200">Engage more customers and boost performance.</strong> Easily expand your keywords with broad match technology and let Google AI match content from your landing pages and assets to help you show up on more relevant searches. New ad group settings help you guide which customers you reach.
+                        <strong className="text-slate-900">Engage more customers and boost performance.</strong> Easily expand your keywords with broad match technology and let Google AI match content from your landing pages and assets to help you show up on more relevant searches. New ad group settings help you guide which customers you reach.
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <SlidersHorizontal className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <SlidersHorizontal className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
                       <p>
-                        <strong className="text-slate-200">Tailor your ads and keep them fresh.</strong> Use Google AI to serve the most relevant ad copy and landing pages to each customer based on their unique interest and intent.
+                        <strong className="text-slate-900">Tailor your ads and keep them fresh.</strong> Use Google AI to serve the most relevant ad copy and landing pages to each customer based on their unique interest and intent.
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <BarChart3 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <BarChart3 className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
                       <p>
-                        <strong className="text-slate-200">Take charge and understand how the newest and best Google AI is working for you.</strong> You'll get new actionable insights in search term reports that show how AI Max improves performance.
+                        <strong className="text-slate-900">Take charge and understand how the newest and best Google AI is working for you.</strong> You'll get new actionable insights in search term reports that show how AI Max improves performance.
                       </p>
                     </div>
                   </div>
 
                   <div className="pt-1">
-                    <a href="#" onClick={e => e.preventDefault()} className="text-xs text-primary font-semibold hover:underline">Learn more</a>
+                    <a href="#" onClick={e => e.preventDefault()} className="text-xs text-blue-600 font-semibold hover:underline">Learn more</a>
                   </div>
                 </div>
 
                 {/* Main Toggle Switch */}
-                <div className="flex items-center gap-3 pt-1 border-t border-slate-800">
+                <div className="flex items-center gap-3 pt-1 border-t border-slate-200">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
@@ -1710,17 +1710,17 @@ export default function CampaignCreatePage() {
                       onChange={(e) => setOptimizeWithAiMax(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    <div className="w-11 h-6 bg-slate-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 text-white"></div>
                   </label>
-                  <span className="text-xs font-semibold text-slate-200">Optimize your campaign with AI Max</span>
+                  <span className="text-xs font-semibold text-slate-900">Optimize your campaign with AI Max</span>
                 </div>
 
                 {optimizeWithAiMax && (
                   <div className="space-y-6 pt-2 animate-in fade-in duration-200">
                     {/* Asset Optimization Section */}
-                    <div className="border border-slate-800 rounded-2xl bg-slate-950/40 p-5 space-y-6">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h3 className="text-sm font-semibold text-white">Asset optimization</h3>
+                    <div className="border border-slate-200 rounded-2xl bg-slate-50/40 p-5 space-y-6">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <h3 className="text-sm font-semibold text-slate-900">Asset optimization</h3>
                         <ChevronDown className="h-4 w-4 text-slate-400" />
                       </div>
 
@@ -1734,56 +1734,56 @@ export default function CampaignCreatePage() {
                               onChange={(e) => setTextCustomization(e.target.checked)}
                               className="sr-only peer"
                             />
-                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                            <div className="w-9 h-5 bg-slate-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 text-white"></div>
                           </label>
-                          <span className="text-xs font-semibold text-slate-200">Text customization</span>
+                          <span className="text-xs font-semibold text-slate-900">Text customization</span>
                         </div>
 
                         <p className="text-xs text-slate-400 leading-relaxed pl-12">
-                          Match your ad copy to what people are searching for with new headlines and descriptions using your website and assets. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about text customization</a>
+                          Match your ad copy to what people are searching for with new headlines and descriptions using your website and assets. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about text customization</a>
                         </p>
 
-                        <div className="flex items-center gap-4 text-xs font-semibold text-primary pl-12">
+                        <div className="flex items-center gap-4 text-xs font-semibold text-blue-600 pl-12">
                           <button onClick={() => alert("Text guidelines modal")} className="hover:underline cursor-pointer">Add text guidelines</button>
                           <button onClick={() => alert("Asset examples modal")} className="hover:underline cursor-pointer">View asset examples</button>
                         </div>
 
                         {/* Text Customization Visual Example */}
-                        <div className="ml-12 p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-3">
+                        <div className="ml-12 p-4 rounded-xl border border-slate-200 bg-white space-y-3">
                           <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
                             {/* Left Input Mock */}
                             <div className="w-full md:w-5/12 space-y-2">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-400">
                                 <Search className="h-3.5 w-3.5" />
                                 <span>Blue wall paint delivery</span>
                               </div>
-                              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-1">
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
                                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                                   <span>Beahm's https://www.beahms.com/</span>
                                 </div>
-                                <div className="text-primary font-medium text-xs">Blue Paint Colors | Expert Picks</div>
+                                <div className="text-blue-600 font-medium text-xs">Blue Paint Colors | Expert Picks</div>
                                 <p className="text-[11px] text-slate-500">Make your house a home with our range of painting and decorating essentials.</p>
                               </div>
                             </div>
 
                             {/* Arrow Indicator */}
-                            <div className="text-primary font-bold text-lg hidden md:block">»</div>
+                            <div className="text-blue-600 font-bold text-lg hidden md:block">»</div>
 
                             {/* Right Output Mock */}
                             <div className="w-full md:w-6/12 space-y-2">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 font-semibold">
-                                <Search className="h-3.5 w-3.5 text-primary" />
+                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 font-semibold">
+                                <Search className="h-3.5 w-3.5 text-blue-600" />
                                 <span>Blue wall paint delivery</span>
                               </div>
-                              <div className="p-3 rounded-lg bg-slate-950 border border-primary/40 text-xs space-y-1">
+                              <div className="p-3 rounded-lg bg-slate-50 border border-blue-500/40 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
                                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                                   <span>Beahm's https://www.beahms.com/</span>
                                 </div>
-                                <div className="text-primary font-bold text-xs">Blue Wall Paint, Next-Day Delivery | Expert Picks</div>
+                                <div className="text-blue-600 font-bold text-xs">Blue Wall Paint, Next-Day Delivery | Expert Picks</div>
                                 <p className="text-[11px] text-slate-400">Make your house a home with our range of painting and decorating essentials.</p>
                               </div>
                             </div>
@@ -1793,7 +1793,7 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* 2. Final URL expansion */}
-                      <div className="space-y-4 pt-4 border-t border-slate-800">
+                      <div className="space-y-4 pt-4 border-t border-slate-200">
                         <div className="flex items-center gap-3">
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input
@@ -1802,57 +1802,57 @@ export default function CampaignCreatePage() {
                               onChange={(e) => setFinalUrlExpansion(e.target.checked)}
                               className="sr-only peer"
                             />
-                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                            <div className="w-9 h-5 bg-slate-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 text-white"></div>
                           </label>
-                          <span className="text-xs font-semibold text-slate-200">Final URL expansion</span>
+                          <span className="text-xs font-semibold text-slate-900">Final URL expansion</span>
                         </div>
 
                         <div className="pl-12 space-y-1.5">
                           <p className="text-xs text-slate-400 leading-relaxed">
-                            Direct people to the most relevant content by matching your landing pages with user searches. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about Final URL expansion</a>
+                            Direct people to the most relevant content by matching your landing pages with user searches. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about Final URL expansion</a>
                           </p>
                           <p className="text-[11px] text-slate-500">Requires text customization to be turned on to ensure ad copy matches landing page</p>
                         </div>
 
                         <div className="pl-12">
-                          <button onClick={() => alert("URL exclusions modal")} className="text-xs text-primary font-semibold hover:underline cursor-pointer">Add URL exclusions</button>
+                          <button onClick={() => alert("URL exclusions modal")} className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer">Add URL exclusions</button>
                         </div>
 
                         {/* Final URL Expansion Visual Example */}
-                        <div className="ml-12 p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-3">
+                        <div className="ml-12 p-4 rounded-xl border border-slate-200 bg-white space-y-3">
                           <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
                             {/* Left Input Mock */}
                             <div className="w-full md:w-5/12 space-y-2">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-400">
                                 <Search className="h-3.5 w-3.5" />
                                 <span>Blue wall paint delivery</span>
                               </div>
-                              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-1">
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
                                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                                   <span>Beahm's https://www.beahms.com/</span>
                                 </div>
-                                <div className="text-primary font-medium text-xs">Blue Paint Colors | Expert Picks</div>
+                                <div className="text-blue-600 font-medium text-xs">Blue Paint Colors | Expert Picks</div>
                               </div>
                             </div>
 
                             {/* Arrow Indicator */}
-                            <div className="text-primary font-bold text-lg hidden md:block">»</div>
+                            <div className="text-blue-600 font-bold text-lg hidden md:block">»</div>
 
                             {/* Right Output Mock */}
                             <div className="w-full md:w-6/12 space-y-2">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 font-semibold">
-                                <Search className="h-3.5 w-3.5 text-primary" />
+                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 font-semibold">
+                                <Search className="h-3.5 w-3.5 text-blue-600" />
                                 <span>Blue wall paint delivery</span>
                               </div>
-                              <div className="p-3 rounded-lg bg-slate-950 border border-primary/40 text-xs space-y-1">
+                              <div className="p-3 rounded-lg bg-slate-50 border border-blue-500/40 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
                                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                                  <span>Beahm's https://www.beahms.com/<strong className="text-primary">paint/blue</strong></span>
+                                  <span>Beahm's https://www.beahms.com/<strong className="text-blue-600">paint/blue</strong></span>
                                 </div>
-                                <div className="text-primary font-bold text-xs">Blue Wall Paint, Next-Day Delivery | Expert Picks</div>
+                                <div className="text-blue-600 font-bold text-xs">Blue Wall Paint, Next-Day Delivery | Expert Picks</div>
                               </div>
                             </div>
                           </div>
@@ -1862,19 +1862,19 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Brands Section */}
-                    <div className="border border-slate-800 rounded-2xl bg-slate-950/40 p-5 space-y-5">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <h3 className="text-sm font-semibold text-white">Brands</h3>
+                    <div className="border border-slate-200 rounded-2xl bg-slate-50/40 p-5 space-y-5">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <h3 className="text-sm font-semibold text-slate-900">Brands</h3>
                         <ChevronDown className="h-4 w-4 text-slate-400" />
                       </div>
 
                       <p className="text-xs text-slate-400 leading-relaxed">
-                        Use brand settings to ensure your campaign meets your branded traffic needs. You can add up to 20 brand lists across your brand inclusions and exclusions. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about brand settings</a>
+                        Use brand settings to ensure your campaign meets your branded traffic needs. You can add up to 20 brand lists across your brand inclusions and exclusions. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand settings</a>
                       </p>
 
                       {/* Brand Inclusions */}
                       <div className="space-y-2">
-                        <label className="text-xs font-semibold text-slate-200 block">Brand inclusions</label>
+                        <label className="text-xs font-semibold text-slate-900 block">Brand inclusions</label>
                         <p className="text-[11px] text-slate-400">
                           Your ads will only show on searches that match your keywords and mention selected brands, including related products and services. Brand inclusions will limit search traffic, so apply only necessary brands.
                         </p>
@@ -1891,7 +1891,7 @@ export default function CampaignCreatePage() {
                               }
                             }}
                             placeholder="Add brand lists"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         {brandInclusions.length > 0 && (
@@ -1909,8 +1909,8 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Brand Exclusions */}
-                      <div className="space-y-2 pt-3 border-t border-slate-800">
-                        <label className="text-xs font-semibold text-slate-200 block">Brand exclusions</label>
+                      <div className="space-y-2 pt-3 border-t border-slate-200">
+                        <label className="text-xs font-semibold text-slate-900 block">Brand exclusions</label>
                         <p className="text-[11px] text-slate-400">
                           Your ads won't show on searches that mention selected brands or related products and services. If you exclude and include the same brand, only the exclusion will work.
                         </p>
@@ -1927,7 +1927,7 @@ export default function CampaignCreatePage() {
                               }
                             }}
                             placeholder="Add brand lists"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         {brandExclusions.length > 0 && (
@@ -1951,20 +1951,20 @@ export default function CampaignCreatePage() {
 
             {/* 6. Keyword and asset generation Card (Search Only) */}
             {selectedType === "SEARCH" && (
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Keyword and asset generation</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Keyword and asset generation</h2>
                 </div>
 
-                <div className="border border-slate-800 rounded-2xl bg-slate-950/60 p-6 space-y-5">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-                    <h3 className="text-sm font-semibold text-slate-100">Keyword and asset generation</h3>
+                <div className="border border-slate-200 rounded-2xl bg-slate-50/60 p-6 space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Keyword and asset generation</h3>
                     <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                   </div>
 
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-white">Get help creating your ad</h4>
+                      <h4 className="text-sm font-semibold text-slate-900">Get help creating your ad</h4>
                       <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[9px] uppercase tracking-wider">
                         BETA
                       </span>
@@ -1976,15 +1976,15 @@ export default function CampaignCreatePage() {
 
                     <p className="text-xs text-slate-400 leading-relaxed">
                       Your use is subject to Google's{" "}
-                      <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Terms of Service</a>{" "}
+                      <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Terms of Service</a>{" "}
                       and{" "}
-                      <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Generative AI Prohibited Use Policy</a>.{" "}
+                      <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Generative AI Prohibited Use Policy</a>.{" "}
                       Your data is handled as explained in the Google{" "}
-                      <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Privacy Policy</a>.
+                      <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Privacy Policy</a>.
                     </p>
 
                     <div className="space-y-2 pt-2">
-                      <label className="block text-xs font-semibold text-slate-200">
+                      <label className="block text-xs font-semibold text-slate-900">
                         Where will people go when they click your ad?
                       </label>
 
@@ -1997,7 +1997,7 @@ export default function CampaignCreatePage() {
                           value={keywordAssetGenerationUrl}
                           onChange={(e) => setKeywordAssetGenerationUrl(e.target.value)}
                           placeholder="Final URL (required)*"
-                          className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-all font-medium"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all font-medium"
                         />
                       </div>
 
@@ -2013,7 +2013,7 @@ export default function CampaignCreatePage() {
                   <button
                     type="button"
                     onClick={() => setKeywordAssetGenerationUrl("")}
-                    className="text-xs font-semibold text-primary hover:underline cursor-pointer px-3 py-2"
+                    className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer px-3 py-2"
                   >
                     Skip
                   </button>
@@ -2039,8 +2039,8 @@ export default function CampaignCreatePage() {
                     }}
                     className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                       keywordAssetGenerationUrl.trim() && !isGeneratingKeywordAssets
-                        ? "bg-primary hover:bg-primary-dark text-white cursor-pointer shadow-lg shadow-primary/20"
-                        : "bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed"
+                        ? "bg-blue-600 hover:bg-blue-700 text-slate-900 cursor-pointer shadow-lg shadow-primary/20"
+                        : "bg-slate-100 text-slate-500 border border-slate-200/60 cursor-not-allowed"
                     }`}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
@@ -2051,9 +2051,9 @@ export default function CampaignCreatePage() {
             )}
 
             {/* 7. Ad Rotation Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Ad rotation</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Ad rotation</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
@@ -2064,9 +2064,9 @@ export default function CampaignCreatePage() {
                     name="adRot"
                     checked={adRotation === "OPTIMIZE"}
                     onChange={() => setAdRotation("OPTIMIZE")}
-                    className="text-primary focus:ring-primary h-4 w-4"
+                    className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                   />
-                  <span className="text-xs font-semibold text-slate-200">Optimize: Prefer best performing ads</span>
+                  <span className="text-xs font-semibold text-slate-900">Optimize: Prefer best performing ads</span>
                 </label>
 
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -2075,9 +2075,9 @@ export default function CampaignCreatePage() {
                     name="adRot"
                     checked={adRotation === "DO_NOT_OPTIMIZE"}
                     onChange={() => setAdRotation("DO_NOT_OPTIMIZE")}
-                    className="text-primary focus:ring-primary h-4 w-4"
+                    className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                   />
-                  <span className="text-xs font-semibold text-slate-200">Do not optimize: Rotate ads indefinitely</span>
+                  <span className="text-xs font-semibold text-slate-900">Do not optimize: Rotate ads indefinitely</span>
                 </label>
               </div>
             </div>
@@ -2086,7 +2086,7 @@ export default function CampaignCreatePage() {
             <div className="space-y-3 pt-2">
               <button
                 onClick={() => setShowMoreSettings(!showMoreSettings)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-850 text-xs font-semibold text-primary transition-all cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-blue-600 transition-all cursor-pointer"
               >
                 <Settings className="h-4 w-4" />
                 More settings
@@ -2094,12 +2094,12 @@ export default function CampaignCreatePage() {
               </button>
 
               {showMoreSettings && (
-                <div className="bg-slate-900/80 border border-slate-800 rounded-2xl divide-y divide-slate-800 text-xs animate-in fade-in duration-200 overflow-hidden">
+                <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-800 text-xs animate-in fade-in duration-200 overflow-hidden">
                   
                   {/* 1. Ad schedule */}
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Ad schedule</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Ad schedule</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
 
@@ -2115,7 +2115,7 @@ export default function CampaignCreatePage() {
                                 newScheds[idx].day = e.target.value;
                                 setAdSchedules(newScheds);
                               }}
-                              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary"
+                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                             >
                               <option value="ALL">All days</option>
                               <option value="WEEKDAYS">Mondays - Fridays</option>
@@ -2136,7 +2136,7 @@ export default function CampaignCreatePage() {
                                 newScheds[idx].startTime = e.target.value;
                                 setAdSchedules(newScheds);
                               }}
-                              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary"
+                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                             >
                               {["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"].map(t => (
                                 <option key={t} value={t}>{t}</option>
@@ -2152,7 +2152,7 @@ export default function CampaignCreatePage() {
                                 newScheds[idx].endTime = e.target.value;
                                 setAdSchedules(newScheds);
                               }}
-                              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-primary"
+                              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                             >
                               {["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "23:59"].map(t => (
                                 <option key={t} value={t}>{t}</option>
@@ -2162,7 +2162,7 @@ export default function CampaignCreatePage() {
                             {adSchedules.length > 1 && (
                               <button
                                 onClick={() => setAdSchedules(prev => prev.filter(s => s.id !== sched.id))}
-                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-all"
+                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-100 rounded-lg transition-all"
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -2173,13 +2173,13 @@ export default function CampaignCreatePage() {
 
                       <button
                         onClick={() => setAdSchedules(prev => [...prev, { id: String(Date.now()), day: "MONDAY", startTime: "09:00", endTime: "18:00" }])}
-                        className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 pt-1 cursor-pointer"
+                        className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 pt-1 cursor-pointer"
                       >
                         <Plus className="h-3.5 w-3.5" /> Add schedule
                       </button>
 
                       <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-[11px] leading-relaxed mt-2">
-                        To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                        To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a>
                       </div>
 
                       <p className="text-[11px] text-slate-400">Based on account time zone: <strong>(GMT+05:30) India Standard Time</strong></p>
@@ -2191,23 +2191,23 @@ export default function CampaignCreatePage() {
                   {/* 2. Start and end dates */}
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Start and end dates</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Start and end dates</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="block text-slate-300 font-medium">Start date</label>
+                        <label className="block text-slate-700 font-medium">Start date</label>
                         <input
                           type="date"
                           min={todayStr}
                           value={startDateValue}
                           onChange={(e) => setStartDateValue(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="block text-slate-300 font-medium">End date</label>
+                        <label className="block text-slate-700 font-medium">End date</label>
                         <div className="space-y-2">
                           <select
                             value={endDateMode}
@@ -2226,7 +2226,7 @@ export default function CampaignCreatePage() {
                                 }, 100);
                               }
                             }}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                           >
                             <option value="NONE">None</option>
                             <option value="SELECT">Select a date</option>
@@ -2245,7 +2245,7 @@ export default function CampaignCreatePage() {
                                     (e.currentTarget as any).showPicker();
                                   }
                                 }}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                               />
                             </div>
                           )}
@@ -2258,31 +2258,31 @@ export default function CampaignCreatePage() {
                   {/* 3. Campaign URL options */}
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Campaign URL options</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Campaign URL options</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
 
                     <div className="space-y-3">
                       <div className="space-y-1">
-                        <label className="block text-slate-300 font-medium">Tracking template</label>
+                        <label className="block text-slate-700 font-medium">Tracking template</label>
                         <input
                           type="text"
                           placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-slate-300 font-medium">Final URL suffix</label>
+                        <label className="block text-slate-700 font-medium">Final URL suffix</label>
                         <input
                           type="text"
                           placeholder="Example: param1=value1&param2=value2"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                         />
                       </div>
 
                       <div className="space-y-2 pt-1">
-                        <label className="block text-slate-300 font-medium">Custom parameters</label>
+                        <label className="block text-slate-700 font-medium">Custom parameters</label>
                         <div className="space-y-2">
                           {customParameters.map((cp, idx) => (
                             <div key={cp.id} className="flex items-center gap-2">
@@ -2295,7 +2295,7 @@ export default function CampaignCreatePage() {
                                   setCustomParameters(newCP);
                                 }}
                                 placeholder="{_Name}"
-                                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 w-1/3 focus:outline-none focus:border-primary"
+                                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 w-1/3 focus:outline-none focus:border-blue-500"
                               />
                               <span className="text-slate-400">=</span>
                               <input
@@ -2307,7 +2307,7 @@ export default function CampaignCreatePage() {
                                   setCustomParameters(newCP);
                                 }}
                                 placeholder="Value"
-                                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 w-2/3 focus:outline-none focus:border-primary"
+                                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 w-2/3 focus:outline-none focus:border-blue-500"
                               />
                               {customParameters.length > 1 && (
                                 <button
@@ -2322,27 +2322,27 @@ export default function CampaignCreatePage() {
                         </div>
                         <button
                           onClick={() => setCustomParameters(prev => [...prev, { id: String(Date.now()), name: "", value: "" }])}
-                          className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 pt-1 cursor-pointer"
+                          className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 pt-1 cursor-pointer"
                         >
                           <Plus className="h-3.5 w-3.5" /> Add parameter
                         </button>
                       </div>
 
-                      <p className="text-[11px] text-slate-400">Tracking template is the URL you want the ad click to go to for tracking. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a></p>
+                      <p className="text-[11px] text-slate-400">Tracking template is the URL you want the ad click to go to for tracking. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a></p>
                     </div>
                   </div>
 
                   {/* 4. Page feeds */}
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Page feeds</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Page feeds</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Add page feeds to specify which URLs to use in your campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about page feeds</a>
+                      Add page feeds to specify which URLs to use in your campaign. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about page feeds</a>
                     </p>
-                    <button className="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-750 flex items-center gap-1.5 cursor-pointer">
-                      <Plus className="h-3.5 w-3.5 text-primary" /> Add a page feed
+                    <button className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 flex items-center gap-1.5 cursor-pointer">
+                      <Plus className="h-3.5 w-3.5 text-blue-600" /> Add a page feed
                     </button>
                     <p className="text-[11px] text-slate-500 pt-1">
                       You don't have any page feeds. You can add page feeds in Business Data.
@@ -2352,16 +2352,16 @@ export default function CampaignCreatePage() {
                   {/* 5. Devices */}
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Devices</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Devices</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
                     <p className="text-[11px] text-slate-400">Choose the devices where your ads can appear. <span className="text-rose-400 uppercase text-[10px] font-semibold">Required</span></p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                       {["Computers", "Mobile phones", "Tablets", "TV screens"].map((dev) => (
-                        <label key={dev} className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-800 bg-slate-950 cursor-pointer">
-                          <input type="checkbox" defaultChecked className="rounded bg-slate-900 border-slate-700 text-primary focus:ring-primary h-4 w-4" />
-                          <span className="text-xs text-slate-200 font-medium">{dev}</span>
+                        <label key={dev} className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                          <input type="checkbox" defaultChecked className="rounded bg-white border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4" />
+                          <span className="text-xs text-slate-900 font-medium">{dev}</span>
                         </label>
                       ))}
                     </div>
@@ -2370,15 +2370,15 @@ export default function CampaignCreatePage() {
                   {/* 6. Brand exclusions */}
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Brand exclusions</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Brand exclusions</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
-                    <p className="text-[11px] text-slate-400">Exclude brands so your ads won't show on searches that mention those brands. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about brand exclusions</a></p>
+                    <p className="text-[11px] text-slate-400">Exclude brands so your ads won't show on searches that mention those brands. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand exclusions</a></p>
 
                     {appliedBrandLists.length > 0 && (
                       <div className="flex flex-wrap gap-2 pt-1">
                         {appliedBrandLists.map((bl, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-200">
+                          <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs text-slate-900">
                             🛡️ {bl}
                             <button onClick={() => setAppliedBrandLists(prev => prev.filter((_, i) => i !== idx))}>
                               <X className="h-3 w-3 hover:text-rose-400" />
@@ -2390,16 +2390,16 @@ export default function CampaignCreatePage() {
 
                     <button
                       onClick={() => setShowBrandModal(true)}
-                      className="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-750 flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Plus className="h-3.5 w-3.5 text-primary" /> Use brand lists to exclude brands
+                      <Plus className="h-3.5 w-3.5 text-blue-600" /> Use brand lists to exclude brands
                     </button>
                   </div>
 
                   {/* 7. Demographic exclusions */}
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Demographic exclusions</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Demographic exclusions</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
                     <p className="text-[11px] text-slate-400">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
@@ -2412,9 +2412,9 @@ export default function CampaignCreatePage() {
                             type="checkbox"
                             checked={turnOnAgeExclusions}
                             onChange={(e) => setTurnOnAgeExclusions(e.target.checked)}
-                            className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                            className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                           />
-                          <span className="text-xs text-slate-200 font-semibold">Turn on age exclusions</span>
+                          <span className="text-xs text-slate-900 font-semibold">Turn on age exclusions</span>
                         </label>
 
                         {turnOnAgeExclusions && (
@@ -2422,7 +2422,7 @@ export default function CampaignCreatePage() {
                             <p className="text-[11px] text-slate-400">Select age ranges to exclude from the campaign. Unselected ages will be included.</p>
                             <div className="flex flex-wrap gap-2">
                               {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => (
-                                <label key={age} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs cursor-pointer transition-all ${selectedAgeRanges.includes(age) ? "border-rose-500 bg-rose-500/10 text-rose-300 font-semibold" : "border-slate-800 bg-slate-950 text-slate-300 hover:border-slate-700"}`}>
+                                <label key={age} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs cursor-pointer transition-all ${selectedAgeRanges.includes(age) ? "border-rose-500 bg-rose-500/10 text-rose-300 font-semibold" : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-200"}`}>
                                   <input
                                     type="checkbox"
                                     checked={selectedAgeRanges.includes(age)}
@@ -2441,15 +2441,15 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Gender Exclusions */}
-                      <div className="space-y-2 border-t border-slate-800/60 pt-3">
+                      <div className="space-y-2 border-t border-slate-200 pt-3">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={turnOnGenderExclusions}
                             onChange={(e) => setTurnOnGenderExclusions(e.target.checked)}
-                            className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                            className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                           />
-                          <span className="text-xs text-slate-200 font-semibold">Turn on gender exclusions</span>
+                          <span className="text-xs text-slate-900 font-semibold">Turn on gender exclusions</span>
                         </label>
 
                         {turnOnGenderExclusions && (
@@ -2457,7 +2457,7 @@ export default function CampaignCreatePage() {
                             <p className="text-[11px] text-slate-400">Select genders to exclude from the campaign. Unselected genders will be included.</p>
                             <div className="flex flex-wrap gap-2">
                               {["Female", "Male", "Unknown"].map((g) => (
-                                <label key={g} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs cursor-pointer transition-all ${selectedGenders.includes(g) ? "border-rose-500 bg-rose-500/10 text-rose-300 font-semibold" : "border-slate-800 bg-slate-950 text-slate-300 hover:border-slate-700"}`}>
+                                <label key={g} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs cursor-pointer transition-all ${selectedGenders.includes(g) ? "border-rose-500 bg-rose-500/10 text-rose-300 font-semibold" : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-200"}`}>
                                   <input
                                     type="checkbox"
                                     checked={selectedGenders.includes(g)}
@@ -2480,7 +2480,7 @@ export default function CampaignCreatePage() {
                   {/* 8. Your data exclusions */}
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200 text-sm">Your data exclusions</h3>
+                      <h3 className="font-semibold text-slate-900 text-sm">Your data exclusions</h3>
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer pt-1">
@@ -2488,9 +2488,9 @@ export default function CampaignCreatePage() {
                         type="checkbox"
                         checked={enableDataExclusions}
                         onChange={(e) => setEnableDataExclusions(e.target.checked)}
-                        className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                       />
-                      <span className="text-xs text-slate-300 font-medium">Enable your data exclusions</span>
+                      <span className="text-xs text-slate-700 font-medium">Enable your data exclusions</span>
                     </label>
                   </div>
                 </div>
@@ -2502,7 +2502,7 @@ export default function CampaignCreatePage() {
                 <button
                   type="button"
                   onClick={() => setWizardStep(selectedType === "SEARCH" ? "KEYWORDS_ADS" as any : "ASSET_GROUP")}
-                  className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-semibold text-xs transition-all shadow-lg shadow-primary/20 flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 font-semibold text-xs transition-all shadow-lg shadow-primary/20 flex items-center gap-2 cursor-pointer"
                 >
                   Next <ArrowRight className="h-4 w-4" />
                 </button>
@@ -2510,60 +2510,60 @@ export default function CampaignCreatePage() {
           </main>
 
           {/* Right Weekly Estimates Sidebar */}
-          <aside className="w-72 border-l border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/40 hidden lg:block">
+          <aside className="w-72 border-l border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/40 hidden lg:block">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-200">Campaign optimization score</span>
+                <span className="font-semibold text-slate-900">Campaign optimization score</span>
                 <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
               </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-primary w-full rounded-full"></div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-600 text-white w-full rounded-full"></div>
               </div>
-              <p className="text-right text-xs font-bold text-primary">100%</p>
+              <p className="text-right text-xs font-bold text-blue-600">100%</p>
             </div>
           </aside>
         </div>
       ) : wizardStep === "KEYWORDS_ADS" ? (
         <div className="flex-1 flex w-full pb-20">
           {/* Left Sub-Navigation Sidebar */}
-          <aside className="w-64 border-r border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/50 hidden md:block">
+          <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Search className="h-3.5 w-3.5 text-primary" />
+                <Search className="h-3.5 w-3.5 text-blue-600" />
                 Search
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
 
               <div className="space-y-1">
-                <div className="flex items-center gap-2 font-bold text-primary">
-                  <div className="w-4 h-4 rounded-full border border-primary flex items-center justify-center text-[10px]">3</div>
+                <div className="flex items-center gap-2 font-bold text-blue-600">
+                  <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">3</div>
                   Keywords and ads
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-800 pl-3 py-1">
-                  <p className="hover:text-slate-200 cursor-pointer">Keywords</p>
-                  <p className="hover:text-slate-200 cursor-pointer text-emerald-400 font-medium">AI Max</p>
-                  <p className="text-primary font-semibold">Ads</p>
+                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                  <p className="hover:text-slate-900 cursor-pointer">Keywords</p>
+                  <p className="hover:text-slate-900 cursor-pointer text-emerald-400 font-medium">AI Max</p>
+                  <p className="text-blue-600 font-semibold">Ads</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">4</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">4</div>
                 Budget
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">5</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">5</div>
                 Review
               </div>
             </nav>
@@ -2572,16 +2572,16 @@ export default function CampaignCreatePage() {
           {/* Keywords & Ads Main Content */}
           <main className="flex-1 p-6 md:p-10 space-y-8 max-w-5xl">
             {/* 1. Keywords Box */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Keywords</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Keywords</h2>
                 <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
               </div>
 
               {/* Get keyword suggestions */}
               <div className="space-y-3">
                 <div>
-                  <h3 className="text-xs font-semibold text-slate-200">Get keyword suggestions <span className="text-slate-400 font-normal">(optional)</span></h3>
+                  <h3 className="text-xs font-semibold text-slate-900">Get keyword suggestions <span className="text-slate-400 font-normal">(optional)</span></h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">Google Ads can find keywords for you by scanning a web page or seeing what's working for similar products or services</p>
                 </div>
 
@@ -2595,7 +2595,7 @@ export default function CampaignCreatePage() {
                       value={assetFinalUrl}
                       onChange={(e) => setAssetFinalUrl(e.target.value)}
                       placeholder="Final URL"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -2606,7 +2606,7 @@ export default function CampaignCreatePage() {
                     <input
                       type="text"
                       placeholder="Enter products or services to advertise"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -2617,7 +2617,7 @@ export default function CampaignCreatePage() {
                         setKeywordsInput(prev => (prev ? prev + "\ndigital marketing\nseo services\nlead generation\nwhatsapp automation" : "digital marketing\nseo services\nlead generation\nwhatsapp automation"));
                       }
                     }}
-                    className="px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-primary hover:bg-slate-750 transition-all cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-blue-600 hover:bg-slate-750 transition-all cursor-pointer"
                   >
                     Get keyword suggestions
                   </button>
@@ -2625,9 +2625,9 @@ export default function CampaignCreatePage() {
               </div>
 
               {/* Enter keywords */}
-              <div className="space-y-3 pt-3 border-t border-slate-800/80">
+              <div className="space-y-3 pt-3 border-t border-slate-200">
                 <div>
-                  <h3 className="text-xs font-semibold text-slate-200">Enter keywords</h3>
+                  <h3 className="text-xs font-semibold text-slate-900">Enter keywords</h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     Keywords are words or phrases that are used to match your ads with the terms people are searching for <HelpCircle className="inline h-3 w-3 text-slate-500" />
                   </p>
@@ -2639,16 +2639,16 @@ export default function CampaignCreatePage() {
                     value={keywordsInput}
                     onChange={(e) => setKeywordsInput(e.target.value)}
                     placeholder="Enter or paste keywords. You can separate each keyword by commas or enter one per line."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono leading-relaxed"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono leading-relaxed"
                   />
                 </div>
               </div>
             </div>
 
             {/* 2. Ad group settings for AI Max */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Ad group settings for AI Max</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Ad group settings for AI Max</h2>
                 <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
               </div>
 
@@ -2659,10 +2659,10 @@ export default function CampaignCreatePage() {
 
               <div className="space-y-4">
                 {/* 1. Search term matching */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-semibold text-slate-100">Search term matching</h3>
+                      <h3 className="text-xs font-semibold text-slate-900">Search term matching</h3>
                       <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono font-bold text-[9px] uppercase">
                         BETA
                       </span>
@@ -2679,16 +2679,16 @@ export default function CampaignCreatePage() {
                       type="checkbox"
                       checked={useSearchTermMatching}
                       onChange={(e) => setUseSearchTermMatching(e.target.checked)}
-                      className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4 focus:ring-primary"
+                      className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4 focus:ring-blue-500"
                     />
-                    <span className="text-xs text-slate-200 font-medium">Use search term matching for this ad group</span>
+                    <span className="text-xs text-slate-900 font-medium">Use search term matching for this ad group</span>
                   </label>
                 </div>
 
                 {/* 2. Brand inclusions */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-slate-100">Brand inclusions</h3>
+                    <h3 className="text-xs font-semibold text-slate-900">Brand inclusions</h3>
                     <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                   </div>
 
@@ -2699,7 +2699,7 @@ export default function CampaignCreatePage() {
                   <button
                     type="button"
                     onClick={() => setShowBrandModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-750 text-xs font-semibold text-primary transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add brand lists
                   </button>
@@ -2719,9 +2719,9 @@ export default function CampaignCreatePage() {
                 </div>
 
                 {/* 3. Locations of interest */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-slate-100">Locations of interest</h3>
+                    <h3 className="text-xs font-semibold text-slate-900">Locations of interest</h3>
                     <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                   </div>
 
@@ -2742,7 +2742,7 @@ export default function CampaignCreatePage() {
                           }
                         }}
                         placeholder="For example, a country, city, region, or postal code"
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                       <button
                         type="button"
@@ -2752,7 +2752,7 @@ export default function CampaignCreatePage() {
                             setLocationOfInterestInput("");
                           }
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-primary hover:bg-slate-750 cursor-pointer"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-blue-600 hover:bg-slate-750 cursor-pointer"
                       >
                         Add
                       </button>
@@ -2761,7 +2761,7 @@ export default function CampaignCreatePage() {
                     {locationsOfInterest.length > 0 && (
                       <div className="flex flex-wrap gap-2 pt-1">
                         {locationsOfInterest.map((loc, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-200">
+                          <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs text-slate-900">
                             📍 {loc}
                             <button onClick={() => setLocationsOfInterest(prev => prev.filter((_, i) => i !== idx))}>
                               <X className="h-3 w-3 hover:text-rose-400" />
@@ -2774,9 +2774,9 @@ export default function CampaignCreatePage() {
                 </div>
 
                 {/* 4. URL inclusions */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-slate-100">URL inclusions</h3>
+                    <h3 className="text-xs font-semibold text-slate-900">URL inclusions</h3>
                     <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                   </div>
 
@@ -2787,18 +2787,18 @@ export default function CampaignCreatePage() {
                   <button
                     type="button"
                     onClick={() => setShowUrlInclusionsModal(true)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-750 text-xs font-semibold text-primary transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add url inclusions
                   </button>
 
                   {savedUrlInclusions.length > 0 && (
                     <div className="space-y-1.5 pt-1">
-                      <p className="text-[11px] font-semibold text-slate-300">Added URL inclusions ({savedUrlInclusions.length}):</p>
+                      <p className="text-[11px] font-semibold text-slate-700">Added URL inclusions ({savedUrlInclusions.length}):</p>
                       <div className="space-y-1">
                         {savedUrlInclusions.map((url, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
-                            <span className="font-mono text-slate-200">{url}</span>
+                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 text-xs">
+                            <span className="font-mono text-slate-900">{url}</span>
                             <button onClick={() => setSavedUrlInclusions(prev => prev.filter((_, i) => i !== idx))}>
                               <X className="h-3.5 w-3.5 text-slate-400 hover:text-rose-400" />
                             </button>
@@ -2813,51 +2813,51 @@ export default function CampaignCreatePage() {
 
             {/* Modal: Add URL Inclusions */}
             {showUrlInclusionsModal && (
-              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden space-y-0">
+              <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden space-y-0">
                   {/* Modal Header */}
-                  <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60">
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => setShowUrlInclusionsModal(false)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                       >
                         <X className="h-5 w-5" />
                       </button>
-                      <h2 className="text-lg font-semibold text-white">Add URL inclusions</h2>
+                      <h2 className="text-lg font-semibold text-slate-900">Add URL inclusions</h2>
                     </div>
                   </div>
 
                   {/* Modal Content Grid matching Google Ads UI screenshot */}
                   <div className="p-6 space-y-4">
                     <div className="flex items-start gap-4">
-                      <span className="text-xs font-semibold text-slate-300 pt-1 shrink-0">URL inclusions</span>
+                      <span className="text-xs font-semibold text-slate-700 pt-1 shrink-0">URL inclusions</span>
                       <p className="text-xs text-slate-400">Select specific pages from your website that you want Google AI to include</p>
                     </div>
 
-                    <div className="border border-slate-800 rounded-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 bg-slate-950">
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 bg-slate-50">
                       {/* Left Side: Tabs & Input Form */}
-                      <div className="lg:col-span-8 border-r border-slate-800 p-5 space-y-4">
-                        <div className="flex items-center border-b border-slate-800 text-xs font-semibold">
+                      <div className="lg:col-span-8 border-r border-slate-200 p-5 space-y-4">
+                        <div className="flex items-center border-b border-slate-200 text-xs font-semibold">
                           <button
                             type="button"
                             onClick={() => setUrlInclusionsTab("URLs")}
-                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "URLs" ? "border-primary text-primary font-bold" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "URLs" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
                           >
                             URLs
                           </button>
                           <button
                             type="button"
                             onClick={() => setUrlInclusionsTab("CUSTOM_LABELS")}
-                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "CUSTOM_LABELS" ? "border-primary text-primary font-bold" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "CUSTOM_LABELS" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
                           >
                             Custom labels
                           </button>
                           <button
                             type="button"
                             onClick={() => setUrlInclusionsTab("RULES")}
-                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "RULES" ? "border-primary text-primary font-bold" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "RULES" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
                           >
                             Rules
                           </button>
@@ -2865,7 +2865,7 @@ export default function CampaignCreatePage() {
 
                         {urlInclusionsTab === "URLs" ? (
                           <div className="space-y-3 pt-2">
-                            <label className="block text-xs font-semibold text-slate-200">
+                            <label className="block text-xs font-semibold text-slate-900">
                               Enter URLs to include:
                             </label>
                             <textarea
@@ -2873,7 +2873,7 @@ export default function CampaignCreatePage() {
                               value={urlInclusionsInput}
                               onChange={(e) => setUrlInclusionsInput(e.target.value)}
                               placeholder="Enter or paste your webpages, one URL per line"
-                              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                             />
                             <button
                               type="button"
@@ -2884,7 +2884,7 @@ export default function CampaignCreatePage() {
                                   setUrlInclusionsInput("");
                                 }
                               }}
-                              className="text-xs text-primary font-bold hover:underline cursor-pointer pt-1"
+                              className="text-xs text-blue-600 font-bold hover:underline cursor-pointer pt-1"
                             >
                               Add
                             </button>
@@ -2897,9 +2897,9 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Right Side: Selected Targets */}
-                      <div className="lg:col-span-4 p-5 flex flex-col justify-between space-y-4 bg-slate-950/40">
+                      <div className="lg:col-span-4 p-5 flex flex-col justify-between space-y-4 bg-slate-50/40">
                         <div className="space-y-2">
-                          <h4 className="text-xs font-semibold text-slate-300">
+                          <h4 className="text-xs font-semibold text-slate-700">
                             {savedUrlInclusions.length === 0 ? "None selected" : `Selected (${savedUrlInclusions.length})`}
                           </h4>
 
@@ -2908,8 +2908,8 @@ export default function CampaignCreatePage() {
                           ) : (
                             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                               {savedUrlInclusions.map((url, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px]">
-                                  <span className="truncate text-slate-200 font-mono max-w-[160px]">{url}</span>
+                                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 text-[11px]">
+                                  <span className="truncate text-slate-900 font-mono max-w-[160px]">{url}</span>
                                   <button onClick={() => setSavedUrlInclusions(prev => prev.filter((_, i) => i !== idx))}>
                                     <X className="h-3 w-3 text-slate-400 hover:text-rose-400" />
                                   </button>
@@ -2919,11 +2919,11 @@ export default function CampaignCreatePage() {
                           )}
                         </div>
 
-                        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
                           <button
                             type="button"
                             onClick={() => setShowUrlInclusionsModal(false)}
-                            className="px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-750 cursor-pointer"
+                            className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 cursor-pointer"
                           >
                             Done
                           </button>
@@ -2938,24 +2938,24 @@ export default function CampaignCreatePage() {
             {/* 3. Create ads to get more sales & Interactive Ad Builder */}
             <div className="space-y-4">
               <div>
-                <h2 className="text-xl font-semibold text-white">Create ads to get more sales</h2>
+                <h2 className="text-xl font-semibold text-slate-900">Create ads to get more sales</h2>
               </div>
 
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-base font-semibold text-white">Ads</h3>
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h3 className="text-base font-semibold text-slate-900">Ads</h3>
                   <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
                 </div>
 
                 {/* Ad Strength Header Bar */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/80 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/80 flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full border-4 border-slate-700 border-t-amber-400 flex items-center justify-center font-bold text-amber-400 text-xs">
+                    <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-amber-400 flex items-center justify-center font-bold text-amber-400 text-xs">
                       45%
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-slate-200">Ad strength</span>
+                        <span className="text-xs font-semibold text-slate-900">Ad strength</span>
                         <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                         <span className="text-xs text-amber-400 font-bold">Incomplete</span>
                       </div>
@@ -2967,17 +2967,17 @@ export default function CampaignCreatePage() {
                     <div className="flex items-center gap-2 text-slate-400">
                       <div className="w-3.5 h-3.5 rounded-full border border-slate-600 flex items-center justify-center text-[9px]">○</div>
                       <span>Add headlines</span>
-                      <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold ml-1">View ideas</a>
+                      <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 hover:underline font-semibold ml-1">View ideas</a>
                     </div>
                     <div className="flex items-center gap-2 text-slate-400">
                       <div className="w-3.5 h-3.5 rounded-full border border-slate-600 flex items-center justify-center text-[9px]">○</div>
                       <span>Include popular keywords</span>
-                      <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold ml-1">View ideas</a>
+                      <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 hover:underline font-semibold ml-1">View ideas</a>
                     </div>
                     <div className="flex items-center gap-2 text-slate-400">
                       <div className="w-3.5 h-3.5 rounded-full border border-slate-600 flex items-center justify-center text-[9px]">○</div>
                       <span>Make headlines unique</span>
-                      <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold ml-1">View ideas</a>
+                      <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 hover:underline font-semibold ml-1">View ideas</a>
                     </div>
                   </div>
                 </div>
@@ -2987,9 +2987,9 @@ export default function CampaignCreatePage() {
                   {/* Left Column: Form Fields */}
                   <div className="lg:col-span-6 space-y-5">
                     {/* Final URL */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-200 flex items-center gap-1">
+                        <label className="text-xs font-semibold text-slate-900 flex items-center gap-1">
                           Final URL <HelpCircle className="h-3 w-3 text-slate-500" />
                         </label>
                         <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
@@ -2999,15 +2999,15 @@ export default function CampaignCreatePage() {
                         value={assetFinalUrl}
                         onChange={(e) => setAssetFinalUrl(e.target.value)}
                         placeholder="https://example.com"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                       <p className="text-[10px] text-slate-500">This will be used to suggest assets for your ad</p>
                     </div>
 
                     {/* Display path */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-200 flex items-center gap-1">
+                        <label className="text-xs font-semibold text-slate-900 flex items-center gap-1">
                           Display path <HelpCircle className="h-3 w-3 text-slate-500" />
                         </label>
                         <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
@@ -3020,7 +3020,7 @@ export default function CampaignCreatePage() {
                           maxLength={15}
                           value={displayPath1}
                           onChange={(e) => setDisplayPath1(e.target.value)}
-                          className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                         />
                         <span className="text-slate-500 font-mono">/</span>
                         <input
@@ -3028,23 +3028,23 @@ export default function CampaignCreatePage() {
                           maxLength={15}
                           value={displayPath2}
                           onChange={(e) => setDisplayPath2(e.target.value)}
-                          className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                         />
                       </div>
                     </div>
 
                     {/* Calls */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <PhoneCall className="h-4 w-4 text-primary" />
-                          <span className="text-xs font-semibold text-slate-200">Calls ({campaignCallsList.length})</span>
+                          <PhoneCall className="h-4 w-4 text-blue-600" />
+                          <span className="text-xs font-semibold text-slate-900">Calls ({campaignCallsList.length})</span>
                           <HelpCircle className="h-3 w-3 text-slate-500" />
                         </div>
                         <button
                           type="button"
                           onClick={() => setShowCallsModal(true)}
-                          className="px-3 py-1 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-750 text-xs font-semibold text-primary transition-all flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1 cursor-pointer"
                         >
                           <Plus className="h-3.5 w-3.5" /> Add call
                         </button>
@@ -3052,7 +3052,7 @@ export default function CampaignCreatePage() {
 
                       <div className="space-y-1.5 pt-1">
                         {campaignCallsList.map((num, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+                          <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 text-xs">
                             <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
                               📞 {num}
                             </span>
@@ -3065,11 +3065,11 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Headlines */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Edit3 className="h-4 w-4 text-primary" />
-                          <span className="text-xs font-semibold text-slate-200">Headlines ({headlines.length}/15)</span>
+                          <Edit3 className="h-4 w-4 text-blue-600" />
+                          <span className="text-xs font-semibold text-slate-900">Headlines ({headlines.length}/15)</span>
                           <HelpCircle className="h-3 w-3 text-slate-500" />
                         </div>
                         <div className="flex items-center gap-3">
@@ -3096,7 +3096,7 @@ export default function CampaignCreatePage() {
                                 setIsGeneratingCopy(false);
                               }
                             }}
-                            className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <Sparkles className="h-3.5 w-3.5" />
                             {isGeneratingCopy ? "Generating..." : "View ideas"}
@@ -3108,7 +3108,7 @@ export default function CampaignCreatePage() {
                                 setHeadlines(prev => [...prev, ""]);
                               }
                             }}
-                            className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" /> Headline
                           </button>
@@ -3128,7 +3128,7 @@ export default function CampaignCreatePage() {
                                 setHeadlines(newH);
                               }}
                               placeholder={`Headline ${idx + 1}`}
-                              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                             />
                             {idx > 2 && (
                               <button
@@ -3146,11 +3146,11 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Descriptions */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Edit3 className="h-4 w-4 text-primary" />
-                          <span className="text-xs font-semibold text-slate-200">Descriptions ({descriptions.length}/14)</span>
+                          <Edit3 className="h-4 w-4 text-blue-600" />
+                          <span className="text-xs font-semibold text-slate-900">Descriptions ({descriptions.length}/14)</span>
                           <HelpCircle className="h-3 w-3 text-slate-500" />
                         </div>
                         <div className="flex items-center gap-3">
@@ -3177,7 +3177,7 @@ export default function CampaignCreatePage() {
                                 setIsGeneratingCopy(false);
                               }
                             }}
-                            className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <Sparkles className="h-3.5 w-3.5" />
                             {isGeneratingCopy ? "Generating..." : "View ideas"}
@@ -3189,7 +3189,7 @@ export default function CampaignCreatePage() {
                                 setDescriptions(prev => [...prev, ""]);
                               }
                             }}
-                            className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" /> Description
                           </button>
@@ -3210,7 +3210,7 @@ export default function CampaignCreatePage() {
                                   setDescriptions(newD);
                                 }}
                                 placeholder={`Description ${idx + 1}`}
-                                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                               />
                               {idx > 1 && (
                                 <button
@@ -3232,9 +3232,9 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Business Name */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-200">Business name</label>
+                        <label className="text-xs font-semibold text-slate-900">Business name</label>
                         <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
                       </div>
                       <p className="text-[11px] text-slate-400">This name should match your URL or verified advertiser name</p>
@@ -3244,7 +3244,7 @@ export default function CampaignCreatePage() {
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
                         placeholder="JISNU DIGITAL SOLUTIONS PRIVATE LIMITED"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                       />
                       <div className="flex justify-end text-[10px] text-slate-500">
                         <span>{businessName.length}/25</span>
@@ -3252,16 +3252,16 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Sitelinks Section */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="text-xs font-semibold text-slate-200">Sitelinks</h3>
+                          <h3 className="text-xs font-semibold text-slate-900">Sitelinks</h3>
                           <p className="text-[11px] text-slate-400">Add links to your ads to take people to specific pages on your website.</p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setShowSitelinksModal(true)}
-                          className="px-3.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-750 text-xs font-semibold text-primary transition-all cursor-pointer flex items-center gap-1"
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1"
                         >
                           <Plus className="h-3.5 w-3.5" /> Sitelinks
                         </button>
@@ -3272,9 +3272,9 @@ export default function CampaignCreatePage() {
                         {[1, 2, 3, 4, 5, 6].map((num, idx) => {
                           const item = sitelinkItems[idx] || { text: "", desc1: "", desc2: "", url: "" };
                           return (
-                            <div key={num} className="p-3 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between">
+                            <div key={num} className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between">
                               <div className="flex items-center gap-3">
-                                <span className="text-xs font-semibold text-slate-300">Sitelink {num}</span>
+                                <span className="text-xs font-semibold text-slate-700">Sitelink {num}</span>
                                 <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold text-[10px]">
                                   Recommended
                                 </span>
@@ -3291,7 +3291,7 @@ export default function CampaignCreatePage() {
                                   setActiveSitelinkIndex(idx);
                                   setShowSitelinksModal(true);
                                 }}
-                                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-xs font-semibold text-primary border border-slate-700 cursor-pointer"
+                                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-750 text-xs font-semibold text-blue-600 border border-slate-200 cursor-pointer"
                               >
                                 Edit
                               </button>
@@ -3302,10 +3302,10 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Callouts Section */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="text-xs font-semibold text-slate-200">Callouts</h3>
+                          <h3 className="text-xs font-semibold text-slate-900">Callouts</h3>
                           <p className="text-[11px] text-slate-400">Add more business information</p>
                         </div>
                         <button
@@ -3314,7 +3314,7 @@ export default function CampaignCreatePage() {
                             const val = prompt("Enter callout text (e.g. 24/7 Customer Support):");
                             if (val) setCalloutsList(prev => [...prev, val]);
                           }}
-                          className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-750 text-xs font-semibold text-primary transition-all cursor-pointer flex items-center gap-1"
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1"
                         >
                           <Plus className="h-3.5 w-3.5" /> Callout
                         </button>
@@ -3323,7 +3323,7 @@ export default function CampaignCreatePage() {
                       {calloutsList.length > 0 && (
                         <div className="flex flex-wrap gap-2 pt-1">
                           {calloutsList.map((c, i) => (
-                            <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-200">
+                            <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs text-slate-900">
                               ✓ {c}
                               <button onClick={() => setCalloutsList(prev => prev.filter((_, idx) => idx !== i))}>
                                 <X className="h-3 w-3 hover:text-rose-400" />
@@ -3335,9 +3335,9 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* More asset types (0/7) */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
                       <div>
-                        <h3 className="text-xs font-semibold text-slate-200">More asset types (0/7)</h3>
+                        <h3 className="text-xs font-semibold text-slate-900">More asset types (0/7)</h3>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           Improve your ad performance and make your ad more interactive by adding more details about your business and website
                         </p>
@@ -3347,15 +3347,15 @@ export default function CampaignCreatePage() {
                         {/* Promotions */}
                         <div
                           onClick={() => setShowPromotionsModal(true)}
-                          className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between cursor-pointer hover:bg-slate-850 hover:border-slate-700 transition-all group"
+                          className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-all group"
                         >
                           <div>
-                            <span className="font-semibold text-slate-200 group-hover:text-primary transition-colors block">Promotions</span>
+                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Promotions</span>
                             <span className="text-[10px] text-slate-400">Add promotions</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-800 text-primary group-hover:bg-primary group-hover:text-slate-950 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3364,15 +3364,15 @@ export default function CampaignCreatePage() {
                         {/* Prices */}
                         <div
                           onClick={() => setShowPricesModal(true)}
-                          className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between cursor-pointer hover:bg-slate-850 hover:border-slate-700 transition-all group"
+                          className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-all group"
                         >
                           <div>
-                            <span className="font-semibold text-slate-200 group-hover:text-primary transition-colors block">Prices</span>
+                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Prices</span>
                             <span className="text-[10px] text-slate-400">Add prices</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-800 text-primary group-hover:bg-primary group-hover:text-slate-950 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3381,15 +3381,15 @@ export default function CampaignCreatePage() {
                         {/* Messages */}
                         <div
                           onClick={() => setShowMessagesModal(true)}
-                          className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between cursor-pointer hover:bg-slate-850 hover:border-slate-700 transition-all group"
+                          className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-all group"
                         >
                           <div>
-                            <span className="font-semibold text-slate-200 group-hover:text-primary transition-colors block">Messages</span>
+                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Messages</span>
                             <span className="text-[10px] text-slate-400">Add a message</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-800 text-primary group-hover:bg-primary group-hover:text-slate-950 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3398,15 +3398,15 @@ export default function CampaignCreatePage() {
                         {/* Structured snippets */}
                         <div
                           onClick={() => setShowSnippetsModal(true)}
-                          className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between cursor-pointer hover:bg-slate-850 hover:border-slate-700 transition-all group"
+                          className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-all group"
                         >
                           <div>
-                            <span className="font-semibold text-slate-200 group-hover:text-primary transition-colors block">Structured snippets</span>
+                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Structured snippets</span>
                             <span className="text-[10px] text-slate-400">Add snippets of text</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-800 text-primary group-hover:bg-primary group-hover:text-slate-950 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3415,15 +3415,15 @@ export default function CampaignCreatePage() {
                         {/* Lead forms */}
                         <div
                           onClick={() => setShowLeadFormsModal(true)}
-                          className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between cursor-pointer hover:bg-slate-850 hover:border-slate-700 transition-all group"
+                          className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-all group"
                         >
                           <div>
-                            <span className="font-semibold text-slate-200 group-hover:text-primary transition-colors block">Lead forms</span>
+                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Lead forms</span>
                             <span className="text-[10px] text-slate-400">Add a form</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-800 text-primary group-hover:bg-primary group-hover:text-slate-950 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3432,15 +3432,15 @@ export default function CampaignCreatePage() {
                         {/* Apps */}
                         <div
                           onClick={() => setShowAppsModal(true)}
-                          className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-between cursor-pointer hover:bg-slate-850 hover:border-slate-700 transition-all group"
+                          className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-all group"
                         >
                           <div>
-                            <span className="font-semibold text-slate-200 group-hover:text-primary transition-colors block">Apps</span>
+                            <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Apps</span>
                             <span className="text-[10px] text-slate-400">Add apps</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-800 text-primary group-hover:bg-primary group-hover:text-slate-950 transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3449,46 +3449,46 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Ad URL options */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <h3 className="text-xs font-semibold text-slate-200">Ad URL options</h3>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <h3 className="text-xs font-semibold text-slate-900">Ad URL options</h3>
                         <ChevronUp className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                       </div>
 
                       {/* Tracking template */}
                       <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-300">Tracking template</label>
+                        <label className="block text-[11px] font-semibold text-slate-700">Tracking template</label>
                         <input
                           type="text"
                           value={adTrackingTemplate}
                           onChange={(e) => setAdTrackingTemplate(e.target.value)}
                           placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                         />
                       </div>
 
                       {/* Final URL suffix */}
                       <div className="space-y-1">
-                        <label className="block text-[11px] font-semibold text-slate-300">Final URL suffix</label>
+                        <label className="block text-[11px] font-semibold text-slate-700">Final URL suffix</label>
                         <input
                           type="text"
                           value={adFinalUrlSuffix}
                           onChange={(e) => setAdFinalUrlSuffix(e.target.value)}
                           placeholder="Example: param1=value1&param2=value2"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                         />
                       </div>
 
                       {/* Custom parameters */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <label className="block text-[11px] font-semibold text-slate-300">Custom parameters</label>
+                          <label className="block text-[11px] font-semibold text-slate-700">Custom parameters</label>
                           <button
                             type="button"
                             onClick={() => {
                               setCustomParameters(prev => [...prev, { id: String(Date.now()), name: "", value: "" }]);
                             }}
-                            className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" /> Add custom parameters
                           </button>
@@ -3507,7 +3507,7 @@ export default function CampaignCreatePage() {
                                   setCustomParameters(updated);
                                 }}
                                 placeholder="Name"
-                                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                               />
                               <span className="text-xs font-mono text-slate-400">{`}`}</span>
                               <span className="text-xs font-mono text-slate-400">=</span>
@@ -3520,7 +3520,7 @@ export default function CampaignCreatePage() {
                                   setCustomParameters(updated);
                                 }}
                                 placeholder="Value"
-                                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                               />
                               {customParameters.length > 1 && (
                                 <button
@@ -3537,26 +3537,26 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Mobile URL Switch */}
-                      <div className="pt-2 border-t border-slate-800 space-y-2">
+                      <div className="pt-2 border-t border-slate-200 space-y-2">
                         <label className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={useMobileFinalUrlAd}
                             onChange={(e) => setUseMobileFinalUrlAd(e.target.checked)}
-                            className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                            className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                           />
-                          <span className="text-xs text-slate-200 font-medium">Use a different final URL for mobile</span>
+                          <span className="text-xs text-slate-900 font-medium">Use a different final URL for mobile</span>
                         </label>
 
                         {useMobileFinalUrlAd && (
                           <div className="space-y-1 pl-7 pt-1 animate-in fade-in duration-200">
-                            <label className="block text-[11px] font-semibold text-slate-300">Final URL for mobile</label>
+                            <label className="block text-[11px] font-semibold text-slate-700">Final URL for mobile</label>
                             <input
                               type="text"
                               value={mobileFinalUrlAd}
                               onChange={(e) => setMobileFinalUrlAd(e.target.value)}
                               placeholder="https://m.example.com"
-                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                             />
                           </div>
                         )}
@@ -3567,35 +3567,35 @@ export default function CampaignCreatePage() {
                   {/* Right Column: Google Mobile Phone Ad Preview */}
                   <div className="lg:col-span-6 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-white">Preview</span>
-                      <div className="flex items-center gap-3 text-xs font-semibold text-primary">
+                      <span className="text-xs font-semibold text-slate-900">Preview</span>
+                      <div className="flex items-center gap-3 text-xs font-semibold text-blue-600">
                         <button className="hover:underline cursor-pointer">Share</button>
                         <button className="hover:underline cursor-pointer">Preview ads</button>
                       </div>
                     </div>
 
                     {/* Mobile Mock Frame */}
-                    <div className="p-6 rounded-3xl border border-slate-800 bg-slate-950 flex flex-col items-center space-y-4">
-                      <div className="w-64 rounded-[32px] border-4 border-slate-700 bg-slate-900 p-4 space-y-3 text-xs shadow-2xl">
+                    <div className="p-6 rounded-3xl border border-slate-200 bg-slate-50 flex flex-col items-center space-y-4">
+                      <div className="w-64 rounded-[32px] border-4 border-slate-200 bg-white p-4 space-y-3 text-xs shadow-2xl">
                         {/* Google Search Bar Mock */}
-                        <div className="flex items-center gap-2 p-2 rounded-full bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
+                        <div className="flex items-center gap-2 p-2 rounded-full bg-slate-50 border border-slate-200 text-[11px] text-slate-400">
                           <span className="font-bold text-blue-400 text-xs pl-1">G</span>
                           <span className="truncate">{keywordsInput.split("\n")[0] || "search keywords"}</span>
                         </div>
 
                         {/* Ad Card Mock */}
-                        <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                           <div className="flex items-center justify-between text-[10px]">
-                            <span className="font-bold text-slate-100">Sponsored</span>
+                            <span className="font-bold text-slate-900">Sponsored</span>
                             <Info className="h-3 w-3 text-slate-500" />
                           </div>
 
                           <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                            <div className="w-4 h-4 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[9px]">J</div>
+                            <div className="w-4 h-4 rounded-full bg-blue-600 text-slate-900 font-bold flex items-center justify-center text-[9px]">J</div>
                             <span className="truncate">{assetFinalUrl ? new URL(assetFinalUrl.startsWith("http") ? assetFinalUrl : `https://${assetFinalUrl}`).hostname : "example.com"}</span>
                           </div>
 
-                          <h4 className="font-semibold text-primary text-xs leading-snug">
+                          <h4 className="font-semibold text-blue-600 text-xs leading-snug">
                             {headlines[0] || "Headline 1"} - {headlines[1] || "Headline 2"}
                           </h4>
 
@@ -3604,7 +3604,7 @@ export default function CampaignCreatePage() {
                           </p>
 
                           {/* Phone Call Callout */}
-                          <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800 text-[11px] text-emerald-400 font-semibold pt-1">
+                          <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 text-[11px] text-emerald-400 font-semibold pt-1">
                             <PhoneCall className="h-3.5 w-3.5" />
                             <span>Call 658 735 5041</span>
                           </div>
@@ -3612,13 +3612,13 @@ export default function CampaignCreatePage() {
 
                         {/* Skeleton Rows */}
                         <div className="space-y-1.5 pt-1">
-                          <div className="h-2 bg-slate-800 rounded w-full"></div>
-                          <div className="h-2 bg-slate-800 rounded w-3/4"></div>
+                          <div className="h-2 bg-slate-100 rounded w-full"></div>
+                          <div className="h-2 bg-slate-100 rounded w-3/4"></div>
                         </div>
 
                         {/* Pagination Dots */}
                         <div className="flex justify-center items-center gap-1.5 pt-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-600 text-white"></div>
                           <div className="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
                           <div className="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
                           <div className="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
@@ -3635,11 +3635,11 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Bottom Navigation Buttons */}
-            <div className="flex items-center justify-between pt-6 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-6 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
-                className="px-6 py-2.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-750 text-slate-200 font-semibold text-xs transition-all cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-slate-900 font-semibold text-xs transition-all cursor-pointer"
               >
                 Back
               </button>
@@ -3647,7 +3647,7 @@ export default function CampaignCreatePage() {
               <button
                 type="button"
                 onClick={() => setWizardStep("BUDGET")}
-                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-semibold text-xs transition-all shadow-lg shadow-primary/20 flex items-center gap-2 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 font-semibold text-xs transition-all shadow-lg shadow-primary/20 flex items-center gap-2 cursor-pointer"
               >
                 Next <ArrowRight className="h-4 w-4" />
               </button>
@@ -3657,48 +3657,48 @@ export default function CampaignCreatePage() {
       ) : wizardStep === "ASSET_GROUP" ? (
         <div className="flex-1 flex w-full pb-20">
           {/* Left Sub-Navigation Sidebar */}
-          <aside className="w-64 border-r border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/50 hidden md:block">
+          <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
 
               <div className="space-y-1">
-                <div className="flex items-center gap-2 font-bold text-primary">
-                  <div className="w-4 h-4 rounded-full border border-primary flex items-center justify-center text-[10px]">3</div>
+                <div className="flex items-center gap-2 font-bold text-blue-600">
+                  <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">3</div>
                   Asset group
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-800 pl-3 py-1">
-                  <p className="text-primary font-semibold">Name</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Final URL</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Brand guidelines</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Assets</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Asset optimization</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Search themes</p>
-                  <p className="hover:text-slate-200 cursor-pointer">Audience signal</p>
+                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                  <p className="text-blue-600 font-semibold">Name</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Final URL</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Brand guidelines</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Assets</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Asset optimization</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Search themes</p>
+                  <p className="hover:text-slate-900 cursor-pointer">Audience signal</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">4</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">4</div>
                 Budget
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">5</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">5</div>
                 Summary
               </div>
             </nav>
@@ -3707,14 +3707,14 @@ export default function CampaignCreatePage() {
           {/* Asset Group Main Content */}
           <main className="flex-1 p-6 md:p-10 space-y-8 max-w-4xl">
             {/* Top Ad Strength Bar */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-primary" />
+                <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-blue-600" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-white">Let's start adding ad assets</span>
+                    <span className="text-xs font-semibold text-slate-900">Let's start adding ad assets</span>
                     <span className="text-xs text-slate-400 font-mono">• Ad strength: <strong className="text-amber-400">Incomplete</strong></span>
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
@@ -3727,45 +3727,45 @@ export default function CampaignCreatePage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="text-xs text-primary font-semibold hover:underline">Clear All</button>
-                <button className="text-xs text-primary font-semibold hover:underline">Refine</button>
+                <button className="text-xs text-blue-600 font-semibold hover:underline">Clear All</button>
+                <button className="text-xs text-blue-600 font-semibold hover:underline">Refine</button>
               </div>
             </div>
 
             {/* Asset Group Name & Final URL */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">Asset group name</label>
+                <label className="block text-xs font-semibold text-slate-700">Asset group name</label>
                 <input
                   type="text"
                   value={assetGroupName}
                   onChange={(e) => setAssetGroupName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
 
-              <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                <label className="block text-xs font-semibold text-slate-300">Final URL</label>
+              <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                <label className="block text-xs font-semibold text-slate-700">Final URL</label>
                 <input
                   type="text"
                   value={assetFinalUrl}
                   onChange={(e) => setAssetFinalUrl(e.target.value)}
                   placeholder="https://yourwebsite.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
 
             {/* Brand Guidelines Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-base font-semibold text-white">Brand guidelines</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about brand guidelines</a></p>
+                  <h2 className="text-base font-semibold text-slate-900">Brand guidelines</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand guidelines</a></p>
                 </div>
                 <button
                   onClick={() => setShowAddBrandModal(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-750 text-xs font-semibold text-primary transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                 >
                   <Settings className="h-3.5 w-3.5" /> More options
                 </button>
@@ -3773,7 +3773,7 @@ export default function CampaignCreatePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">
+                  <label className="block text-xs font-semibold text-slate-700">
                     Business name <span className="text-rose-400">*</span>
                   </label>
                   <input
@@ -3782,7 +3782,7 @@ export default function CampaignCreatePage() {
                     onChange={(e) => setBusinessName(e.target.value)}
                     placeholder="Business name"
                     maxLength={25}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                   />
                   <div className="flex justify-between text-[10px] text-slate-500">
                     <span>Required</span>
@@ -3791,9 +3791,9 @@ export default function CampaignCreatePage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Logos ({uploadedLogos.length}/5)</label>
-                  <label className="w-full p-2.5 rounded-xl border border-dashed border-slate-700 bg-slate-950/60 text-xs font-semibold text-slate-300 hover:border-primary flex items-center justify-center gap-2 transition-all cursor-pointer">
-                    <Plus className="h-4 w-4 text-primary" />
+                  <label className="block text-xs font-semibold text-slate-700">Logos ({uploadedLogos.length}/5)</label>
+                  <label className="w-full p-2.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-xs font-semibold text-slate-700 hover:border-blue-500 flex items-center justify-center gap-2 transition-all cursor-pointer">
+                    <Plus className="h-4 w-4 text-blue-600" />
                     {isUploadingLogo ? "Uploading Logo to ImageKit..." : "+ Add logos"}
                     <input
                       type="file"
@@ -3808,11 +3808,11 @@ export default function CampaignCreatePage() {
                   {uploadedLogos.length > 0 && (
                     <div className="flex flex-wrap gap-2 pt-2">
                       {uploadedLogos.map((logo, idx) => (
-                        <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-slate-700 bg-slate-950 p-1">
+                        <div key={idx} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 p-1">
                           <img src={logo.url} alt={logo.name} className="w-full h-full object-contain" />
                           <button
                             onClick={() => setUploadedLogos(prev => prev.filter((_, i) => i !== idx))}
-                            className="absolute top-0.5 right-0.5 p-0.5 bg-rose-500/90 rounded text-white opacity-0 group-hover:opacity-100 transition-all"
+                            className="absolute top-0.5 right-0.5 p-0.5 bg-rose-500/90 rounded text-slate-900 opacity-0 group-hover:opacity-100 transition-all"
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -3825,10 +3825,10 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Headlines Section */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-base font-semibold text-white">Headline ({headlines.length})</h2>
+                  <h2 className="text-base font-semibold text-slate-900">Headline ({headlines.length})</h2>
                   <p className="text-xs text-emerald-400 font-medium mt-0.5">✓ You have enough headlines to reach Excellent ad strength</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3838,7 +3838,7 @@ export default function CampaignCreatePage() {
                         setHeadlines(prev => [...prev, "New AI Headline"]);
                       }
                     }}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Headline
                   </button>
@@ -3865,7 +3865,7 @@ export default function CampaignCreatePage() {
                         setIsGeneratingCopy(false);
                       }
                     }}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="h-3.5 w-3.5" /> {isGeneratingCopy ? "Generating from AI..." : "Generate headlines"}
                   </button>
@@ -3886,7 +3886,7 @@ export default function CampaignCreatePage() {
                           setHeadlines(newH);
                         }}
                         placeholder={`Headline ${idx + 1}`}
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                       {idx < 3 ? <span className="text-[10px] text-rose-400 font-semibold uppercase">Req</span> : (
                         <button onClick={() => setHeadlines(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400">
@@ -3903,10 +3903,10 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Long Headlines Section */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-base font-semibold text-white">Long headlines ({longHeadlines.length})</h2>
+                  <h2 className="text-base font-semibold text-slate-900">Long headlines ({longHeadlines.length})</h2>
                   <p className="text-xs text-emerald-400 font-medium mt-0.5">✓ You have enough long headlines to reach Excellent ad strength</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3914,7 +3914,7 @@ export default function CampaignCreatePage() {
                     onClick={() => {
                       setLongHeadlines(prev => [...prev, ""]);
                     }}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Long headline
                   </button>
@@ -3941,7 +3941,7 @@ export default function CampaignCreatePage() {
                         setIsGeneratingCopy(false);
                       }
                     }}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="h-3.5 w-3.5" /> {isGeneratingCopy ? "Generating from AI..." : "Generate long headlines"}
                   </button>
@@ -3962,7 +3962,7 @@ export default function CampaignCreatePage() {
                           setLongHeadlines(newLH);
                         }}
                         placeholder={`Long headline ${idx + 1}`}
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                       {idx === 0 ? <span className="text-[10px] text-rose-400 font-semibold uppercase">Req</span> : (
                         <button onClick={() => setLongHeadlines(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400">
@@ -3979,10 +3979,10 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Descriptions Section */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-base font-semibold text-white">Descriptions ({descriptions.length})</h2>
+                  <h2 className="text-base font-semibold text-slate-900">Descriptions ({descriptions.length})</h2>
                   <p className="text-xs text-emerald-400 font-medium mt-0.5">✓ You have enough descriptions to reach Excellent ad strength</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3990,7 +3990,7 @@ export default function CampaignCreatePage() {
                     onClick={() => {
                       setDescriptions(prev => [...prev, ""]);
                     }}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Description
                   </button>
@@ -4017,7 +4017,7 @@ export default function CampaignCreatePage() {
                         setIsGeneratingCopy(false);
                       }
                     }}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="h-3.5 w-3.5" /> {isGeneratingCopy ? "Generating from AI..." : "Generate descriptions"}
                   </button>
@@ -4038,7 +4038,7 @@ export default function CampaignCreatePage() {
                           setDescriptions(newD);
                         }}
                         placeholder={`Description ${idx + 1}`}
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                       {idx < 2 ? <span className="text-[10px] text-rose-400 font-semibold uppercase">Req</span> : (
                         <button onClick={() => setDescriptions(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400">
@@ -4055,11 +4055,11 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Images Card with ImageKit Cloud Upload & Display */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Images ({uploadedImages.length})</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Images ({uploadedImages.length})</h2>
                 <div className="flex items-center gap-3 text-xs">
-                  <label className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer">
+                  <label className="text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer">
                     <Plus className="h-3.5 w-3.5" />
                     {isUploadingImage ? "Uploading to ImageKit..." : "+ Upload Image"}
                     <input
@@ -4070,7 +4070,7 @@ export default function CampaignCreatePage() {
                       className="hidden"
                     />
                   </label>
-                  <button className="text-primary font-semibold hover:underline flex items-center gap-1">
+                  <button className="text-blue-600 font-semibold hover:underline flex items-center gap-1">
                     <Sparkles className="h-3.5 w-3.5" /> Generate images
                   </button>
                 </div>
@@ -4079,18 +4079,18 @@ export default function CampaignCreatePage() {
               {/* Uploaded ImageKit Images Display Grid */}
               {uploadedImages.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-slate-300">Saved on ImageKit Cloud CDN:</p>
+                  <p className="text-xs font-semibold text-slate-700">Saved on ImageKit Cloud CDN:</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {uploadedImages.map((img, idx) => (
-                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-700 bg-slate-950">
+                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
                         <img src={img.url} alt={img.name} className="w-full h-24 object-cover" />
-                        <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-all p-2 flex flex-col justify-between text-[10px]">
-                          <span className="text-slate-200 font-medium truncate">{img.name}</span>
+                        <div className="absolute inset-0 bg-slate-50/70 opacity-0 group-hover:opacity-100 transition-all p-2 flex flex-col justify-between text-[10px]">
+                          <span className="text-slate-900 font-medium truncate">{img.name}</span>
                           <div className="flex items-center justify-between">
                             <span className="text-emerald-400 font-mono text-[9px]">ImageKit CDN</span>
                             <button
                               onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
-                              className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-white"
+                              className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-slate-900"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
@@ -4103,26 +4103,26 @@ export default function CampaignCreatePage() {
               )}
 
               <div className="space-y-3 pt-2">
-                <p className="text-xs font-semibold text-slate-300">Add more for variety</p>
+                <p className="text-xs font-semibold text-slate-700">Add more for variety</p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-                    <div className="h-32 rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 flex items-center justify-center text-slate-400 overflow-hidden relative">
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                    <div className="h-32 rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden relative">
                       <img src="https://ik.imagekit.io/automationjds/sample_web_portfolio.png" alt="Generated" className="w-full h-full object-cover opacity-80" />
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span className="flex items-center gap-1"><Sparkles className="h-3 w-3 text-primary" /> Generated</span>
-                      <button className="text-primary font-semibold hover:underline">Select all</button>
+                      <span className="flex items-center gap-1"><Sparkles className="h-3 w-3 text-blue-600" /> Generated</span>
+                      <button className="text-blue-600 font-semibold hover:underline">Select all</button>
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-                    <div className="h-32 rounded-lg bg-gradient-to-br from-blue-900/40 to-slate-900 border border-slate-700 flex items-center justify-center text-slate-400 overflow-hidden relative">
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                    <div className="h-32 rounded-lg bg-gradient-to-br from-blue-900/40 to-slate-900 border border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden relative">
                       <img src="https://ik.imagekit.io/automationjds/sample_seo_growth.png" alt="Enhanced" className="w-full h-full object-cover opacity-80" />
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-400">
                       <span className="flex items-center gap-1">⚡ Enhanced from URL</span>
-                      <button className="text-primary font-semibold hover:underline">View more</button>
+                      <button className="text-blue-600 font-semibold hover:underline">View more</button>
                     </div>
                   </div>
                 </div>
@@ -4134,11 +4134,11 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Videos Card with ImageKit Cloud Upload */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Videos ({uploadedVideos.length})</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Videos ({uploadedVideos.length})</h2>
                 <div className="flex items-center gap-3 text-xs">
-                  <label className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer">
+                  <label className="text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer">
                     <Plus className="h-3.5 w-3.5" />
                     {isUploadingVideo ? "Uploading Video..." : "+ Upload Video"}
                     <input
@@ -4153,7 +4153,7 @@ export default function CampaignCreatePage() {
                     onClick={() => {
                       setUploadedVideos(prev => [...prev, { url: "https://ik.imagekit.io/automationjds/sample_ad_video.mp4", name: "AI Generated Video 1" }]);
                     }}
-                    className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="h-3.5 w-3.5" /> Generate videos
                   </button>
@@ -4163,18 +4163,18 @@ export default function CampaignCreatePage() {
               {/* Uploaded ImageKit Videos Display Grid */}
               {uploadedVideos.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-slate-300">Saved on ImageKit Cloud CDN:</p>
+                  <p className="text-xs font-semibold text-slate-700">Saved on ImageKit Cloud CDN:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {uploadedVideos.map((vid, idx) => (
-                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-700 bg-slate-950 p-2 space-y-1">
-                        <div className="h-24 bg-slate-900 rounded-lg flex items-center justify-center text-primary">
+                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 space-y-1">
+                        <div className="h-24 bg-white rounded-lg flex items-center justify-center text-blue-600">
                           <Video className="h-8 w-8" />
                         </div>
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-200 font-medium truncate max-w-[120px]">{vid.name}</span>
+                          <span className="text-slate-900 font-medium truncate max-w-[120px]">{vid.name}</span>
                           <button
                             onClick={() => setUploadedVideos(prev => prev.filter((_, i) => i !== idx))}
-                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-white"
+                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-slate-900"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -4187,19 +4187,19 @@ export default function CampaignCreatePage() {
               )}
 
               <div className="space-y-3">
-                <p className="text-xs font-semibold text-slate-300">Add more for variety</p>
+                <p className="text-xs font-semibold text-slate-700">Add more for variety</p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-                    <div className="h-28 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
-                      <Video className="h-7 w-7 text-primary" />
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                    <div className="h-28 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                      <Video className="h-7 w-7 text-blue-600" />
                     </div>
                     <span className="text-[10px] text-slate-400 block font-medium">Instagram ad</span>
                   </div>
 
-                  <div className="p-3 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-                    <div className="h-28 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
-                      <Video className="h-7 w-7 text-primary" />
+                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                    <div className="h-28 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                      <Video className="h-7 w-7 text-blue-600" />
                     </div>
                     <span className="text-[10px] text-slate-400 block font-medium">Instagram ad</span>
                   </div>
@@ -4208,10 +4208,10 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Sitelinks Card */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-base font-semibold text-white">Sitelinks</h2>
+                  <h2 className="text-base font-semibold text-slate-900">Sitelinks</h2>
                   <p className="text-xs text-emerald-400 font-medium mt-0.5">✓ You have enough sitelinks to reach Excellent ad strength</p>
                 </div>
                 <button
@@ -4221,7 +4221,7 @@ export default function CampaignCreatePage() {
                       setSitelinks(prev => [...prev, { title: newTitle, desc: "Custom sitelink" }]);
                     }
                   }}
-                  className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Edit3 className="h-3.5 w-3.5" /> Edit sitelinks
                 </button>
@@ -4231,13 +4231,13 @@ export default function CampaignCreatePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {sitelinks.map((sl, idx) => (
-                  <div key={idx} className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/80 space-y-1 hover:border-slate-700 transition-all flex items-start justify-between">
+                  <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-1 hover:border-slate-200 transition-all flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-semibold text-primary">{sl.title}</p>
+                      <p className="text-xs font-semibold text-blue-600">{sl.title}</p>
                       <p className="text-[11px] text-slate-500">{sl.desc}</p>
                     </div>
                     <div className="flex items-center gap-1 text-slate-400">
-                      <button onClick={() => setSitelinks(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:text-white"><Trash2 className="h-3 w-3" /></button>
+                      <button onClick={() => setSitelinks(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:text-slate-900"><Trash2 className="h-3 w-3" /></button>
                     </div>
                   </div>
                 ))}
@@ -4245,11 +4245,11 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Animated Clips Card with ImageKit Cloud Upload */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Animated clips ({uploadedAnimatedClips.length})</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Animated clips ({uploadedAnimatedClips.length})</h2>
                 <div className="flex items-center gap-2">
-                  <label className="text-primary text-xs font-semibold hover:underline flex items-center gap-1 cursor-pointer">
+                  <label className="text-blue-600 text-xs font-semibold hover:underline flex items-center gap-1 cursor-pointer">
                     <Plus className="h-3.5 w-3.5" />
                     {isUploadingAnimatedClip ? "Uploading Clip..." : "+ Upload Animated Clip"}
                     <input
@@ -4266,18 +4266,18 @@ export default function CampaignCreatePage() {
               {/* Uploaded ImageKit Animated Clips Display Grid */}
               {uploadedAnimatedClips.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-slate-300">Saved on ImageKit Cloud CDN:</p>
+                  <p className="text-xs font-semibold text-slate-700">Saved on ImageKit Cloud CDN:</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {uploadedAnimatedClips.map((clip, idx) => (
-                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-700 bg-slate-950 p-2 space-y-1">
-                        <div className="h-16 bg-slate-900 rounded flex items-center justify-center text-primary text-xs font-bold">
+                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 space-y-1">
+                        <div className="h-16 bg-white rounded flex items-center justify-center text-blue-600 text-xs font-bold">
                           ✨ CLIP
                         </div>
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-200 font-medium truncate max-w-[100px]">{clip.name}</span>
+                          <span className="text-slate-900 font-medium truncate max-w-[100px]">{clip.name}</span>
                           <button
                             onClick={() => setUploadedAnimatedClips(prev => prev.filter((_, i) => i !== idx))}
-                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-white"
+                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-slate-900"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -4291,9 +4291,9 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* More Asset Types Section */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-6">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
               <div>
-                <h2 className="text-base font-semibold text-white">More asset types</h2>
+                <h2 className="text-base font-semibold text-slate-900">More asset types</h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Improve your ad performance and make your ad more interactive by adding more details about your business and website
                 </p>
@@ -4368,16 +4368,16 @@ export default function CampaignCreatePage() {
                     onRemove: (idx: number) => setCalloutsList(prev => prev.filter((_, i) => i !== idx))
                   }
                 ].map((mat, idx) => (
-                  <div key={idx} className="p-4 rounded-xl border border-slate-800 bg-slate-950/80 space-y-2 flex flex-col justify-between">
+                  <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50/80 space-y-2 flex flex-col justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-200">{mat.title} ({mat.list.length})</h4>
+                      <h4 className="text-xs font-bold text-slate-900">{mat.title} ({mat.list.length})</h4>
                       <p className="text-[11px] text-slate-500 mt-0.5">{mat.desc}</p>
                     </div>
 
                     {mat.list.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 py-1">
                         {mat.list.map((item, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[11px] text-slate-200">
+                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white border border-slate-200 text-[11px] text-slate-900">
                             {item}
                             <button onClick={() => mat.onRemove(i)}>
                               <X className="h-3 w-3 hover:text-rose-400" />
@@ -4389,7 +4389,7 @@ export default function CampaignCreatePage() {
 
                     <button
                       onClick={mat.onAdd}
-                      className="text-xs text-primary font-semibold hover:underline text-left pt-1 cursor-pointer flex items-center gap-1"
+                      className="text-xs text-blue-600 font-semibold hover:underline text-left pt-1 cursor-pointer flex items-center gap-1"
                     >
                       {mat.action}
                     </button>
@@ -4398,24 +4398,24 @@ export default function CampaignCreatePage() {
               </div>
 
               {/* More Options Accordion with Toggle ^ icon */}
-              <div className="space-y-4 pt-4 border-t border-slate-800">
+              <div className="space-y-4 pt-4 border-t border-slate-200">
                 <div
                   onClick={() => setShowAssetGroupMoreOptions(prev => !prev)}
                   className="flex items-center justify-between cursor-pointer group py-1"
                 >
-                  <h3 className="text-sm font-semibold text-white group-hover:text-primary transition-all">More options</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-all">More options</h3>
                   {showAssetGroupMoreOptions ? (
-                    <ChevronUp className="h-4 w-4 text-primary" />
+                    <ChevronUp className="h-4 w-4 text-blue-600" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-200" />
+                    <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-900" />
                   )}
                 </div>
 
                 {showAssetGroupMoreOptions && (
                   <div className="space-y-4 animate-in fade-in duration-200">
                     {/* Display Path */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
-                      <h4 className="text-xs font-bold text-slate-200">Display path</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                      <h4 className="text-xs font-bold text-slate-900">Display path</h4>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-slate-400 font-mono">japatracker-7f759.web.app /</span>
                         <div className="space-y-0.5 flex-1 max-w-[120px]">
@@ -4424,7 +4424,7 @@ export default function CampaignCreatePage() {
                             maxLength={15}
                             value={displayPath1}
                             onChange={(e) => setDisplayPath1(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                           />
                           <span className="text-[10px] text-slate-500 block text-right">{displayPath1.length} / 15</span>
                         </div>
@@ -4435,7 +4435,7 @@ export default function CampaignCreatePage() {
                             maxLength={15}
                             value={displayPath2}
                             onChange={(e) => setDisplayPath2(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                           />
                           <span className="text-[10px] text-slate-500 block text-right">{displayPath2.length} / 15</span>
                         </div>
@@ -4443,16 +4443,16 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* Final URL for Mobile */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
-                      <h4 className="text-xs font-bold text-slate-200">Final URL for mobile</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                      <h4 className="text-xs font-bold text-slate-900">Final URL for mobile</h4>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={useMobileFinalUrl}
                           onChange={(e) => setUseMobileFinalUrl(e.target.checked)}
-                          className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                          className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                         />
-                        <span className="text-xs text-slate-300 font-medium">Use a different final URL for mobile</span>
+                        <span className="text-xs text-slate-700 font-medium">Use a different final URL for mobile</span>
                       </label>
                       {useMobileFinalUrl && (
                         <div className="pt-1 animate-in fade-in duration-200">
@@ -4461,15 +4461,15 @@ export default function CampaignCreatePage() {
                             value={mobileFinalUrl}
                             onChange={(e) => setMobileFinalUrl(e.target.value)}
                             placeholder="Final URL for mobile (e.g. https://m.yourwebsite.com)"
-                            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                            className="w-full max-w-md bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                       )}
                     </div>
 
                     {/* Asset Group URL Options */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
-                      <h4 className="text-xs font-bold text-slate-200">Asset group URL options</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                      <h4 className="text-xs font-bold text-slate-900">Asset group URL options</h4>
                       <div className="space-y-3">
                         <div className="space-y-1">
                           <label className="block text-slate-400 text-[11px]">Tracking template</label>
@@ -4478,7 +4478,7 @@ export default function CampaignCreatePage() {
                             value={assetGroupTrackingTemplate}
                             onChange={(e) => setAssetGroupTrackingTemplate(e.target.value)}
                             placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         <div className="space-y-1">
@@ -4488,7 +4488,7 @@ export default function CampaignCreatePage() {
                             value={assetGroupFinalUrlSuffix}
                             onChange={(e) => setAssetGroupFinalUrlSuffix(e.target.value)}
                             placeholder="Example: param1=value1&param2=value2"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         <div className="space-y-2 pt-1">
@@ -4504,7 +4504,7 @@ export default function CampaignCreatePage() {
                                   setAssetGroupCustomParams(newCP);
                                 }}
                                 placeholder="{_Name}"
-                                className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 w-1/3 focus:outline-none focus:border-primary"
+                                className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 w-1/3 focus:outline-none focus:border-blue-500"
                               />
                               <span className="text-slate-400">=</span>
                               <input
@@ -4523,8 +4523,8 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {/* URL Rules */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-                      <h4 className="text-xs font-bold text-slate-200">URL rules</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                      <h4 className="text-xs font-bold text-slate-900">URL rules</h4>
                       <p className="text-xs text-slate-400">
                         Create URL rules or specify which URLs from page feeds to use for your ads
                       </p>
@@ -4535,12 +4535,12 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Call to action */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-3">
-              <h2 className="text-base font-semibold text-white">Call to action</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3">
+              <h2 className="text-base font-semibold text-slate-900">Call to action</h2>
               <select
                 value={callToAction}
                 onChange={(e) => setCallToAction(e.target.value)}
-                className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                className="w-full max-w-xs bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
               >
                 <option value="AUTOMATIC">Automated</option>
                 <option value="APPLY_NOW">Apply now</option>
@@ -4550,8 +4550,8 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Asset optimization Drawer Bar */}
-            <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900 flex items-center justify-between text-xs text-slate-300">
-              <span className="font-semibold text-white">Asset optimization</span>
+            <div className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between text-xs text-slate-700">
+              <span className="font-semibold text-slate-900">Asset optimization</span>
               <span className="text-slate-400">Text customization, final URL expansion, and 2 more are turned on</span>
               <ChevronDown className="h-4 w-4 text-slate-400" />
             </div>
@@ -4559,56 +4559,56 @@ export default function CampaignCreatePage() {
             {/* Signals Card (Search Themes & Audience Signals) */}
             <div className="space-y-6 pt-4">
               <div>
-                <h2 className="text-xl font-semibold text-white">Signals</h2>
+                <h2 className="text-xl font-semibold text-slate-900">Signals</h2>
                 <p className="text-xs text-slate-400 mt-1">
                   Signals provide valuable information about the people you want to reach. They help guide who sees your ads on Google Search, YouTube, and more.
                 </p>
               </div>
 
               {/* Search Themes */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-sm font-semibold text-white">Search themes</h3>
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Search themes</h3>
                   <ChevronDown className="h-4 w-4 text-slate-400" />
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-300 flex items-center gap-1.5">
+                  <p className="text-xs text-slate-700 flex items-center gap-1.5">
                     What are some words or phrases people use when searching for your products or services?
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                   </p>
                   <input
                     type="text"
                     placeholder="Add search themes (up to 50)"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               {/* Audience Signal */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-5">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-sm font-semibold text-white">Audience signal</h3>
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Audience signal</h3>
                   <ChevronDown className="h-4 w-4 text-slate-400" />
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
-                  <p className="text-xs text-slate-300 flex items-center gap-1.5">
+                  <p className="text-xs text-slate-700 flex items-center gap-1.5">
                     Reach the right customers faster across Google with an audience signal.
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                   </p>
                   <button
                     onClick={() => setShowSavedAudienceModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-750 transition-all shrink-0 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 transition-all shrink-0 cursor-pointer"
                   >
                     Add saved audience signal
                   </button>
                 </div>
 
                 {/* Your Data Sub-card */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                    <h4 className="text-xs font-bold text-slate-200">Your data</h4>
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="text-xs font-bold text-slate-900">Your data</h4>
                     <ChevronDown className="h-4 w-4 text-slate-400" />
                   </div>
                   
@@ -4622,34 +4622,34 @@ export default function CampaignCreatePage() {
                     <input
                       type="text"
                       placeholder="Add your data"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
 
                 {/* Additional Signals Accordion */}
-                <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
                   <div
                     onClick={() => setShowAdditionalSignalsAccordion(prev => !prev)}
-                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-900 transition-all"
+                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-white transition-all"
                   >
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                      <Settings className="h-4 w-4 text-primary" />
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
+                      <Settings className="h-4 w-4 text-blue-600" />
                       <span>Additional signals</span>
                     </div>
                     {showAdditionalSignalsAccordion ? (
-                      <ChevronUp className="h-4 w-4 text-primary" />
+                      <ChevronUp className="h-4 w-4 text-blue-600" />
                     ) : (
                       <ChevronDown className="h-4 w-4 text-slate-400" />
                     )}
                   </div>
 
                   {showAdditionalSignalsAccordion && (
-                    <div className="p-4 pt-0 space-y-4 border-t border-slate-800/80 animate-in fade-in duration-200 text-xs">
+                    <div className="p-4 pt-0 space-y-4 border-t border-slate-200 animate-in fade-in duration-200 text-xs">
                       {/* Interests & detailed demographics */}
-                      <div className="p-4 rounded-xl border border-slate-800/80 bg-slate-900/60 space-y-2.5">
+                      <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
                         <div>
-                          <h4 className="font-bold text-slate-200 text-xs">Interests & detailed demographics</h4>
+                          <h4 className="font-bold text-slate-900 text-xs">Interests & detailed demographics</h4>
                           <p className="text-[11px] text-slate-400 mt-0.5">
                             Add any interests, detailed demographics, or life events related to your customers
                           </p>
@@ -4661,15 +4661,15 @@ export default function CampaignCreatePage() {
                             value={additionalInterestsInput}
                             onChange={(e) => setAdditionalInterestsInput(e.target.value)}
                             placeholder="Add in-market segments, life events, and more"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                       </div>
 
                       {/* Demographics */}
-                      <div className="p-4 rounded-xl border border-slate-800/80 bg-slate-900/60 flex items-center justify-between">
+                      <div className="p-4 rounded-xl border border-slate-200 bg-white flex items-center justify-between">
                         <div>
-                          <h4 className="font-bold text-slate-200 text-xs">Demographics</h4>
+                          <h4 className="font-bold text-slate-900 text-xs">Demographics</h4>
                           <p className="text-[11px] text-emerald-400 font-medium mt-0.5">All demographics (recommended)</p>
                         </div>
                         <ChevronDown className="h-4 w-4 text-slate-400" />
@@ -4679,9 +4679,9 @@ export default function CampaignCreatePage() {
                 </div>
 
                 {/* Audience Name (Optional) Card */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-slate-200 text-xs">Audience name</h4>
+                    <h4 className="font-bold text-slate-900 text-xs">Audience name</h4>
                     <span className="text-[11px] text-slate-400">Add a name for your audience to save it to your library (optional)</span>
                   </div>
                   <input
@@ -4689,7 +4689,7 @@ export default function CampaignCreatePage() {
                     value={audienceName}
                     onChange={(e) => setAudienceName(e.target.value)}
                     placeholder="Enter audience name"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -4697,42 +4697,42 @@ export default function CampaignCreatePage() {
           </main>
 
           {/* Right Preview Sidebar */}
-          <aside className="w-80 border-l border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/40 hidden lg:block">
+          <aside className="w-80 border-l border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/40 hidden lg:block">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-200">Ad strength</span>
+                <span className="font-semibold text-slate-900">Ad strength</span>
                 <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
               </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 w-full rounded-full"></div>
               </div>
               <p className="text-right text-xs font-bold text-emerald-400">Excellent</p>
             </div>
 
             {/* Live Search Ad Preview Box */}
-            <div className="space-y-3 pt-4 border-t border-slate-800">
-              <h3 className="text-xs font-semibold text-slate-200 flex items-center justify-between">
+            <div className="space-y-3 pt-4 border-t border-slate-200">
+              <h3 className="text-xs font-semibold text-slate-900 flex items-center justify-between">
                 <span>Search ad preview</span>
                 <span className="text-[10px] text-slate-500 font-normal">Google Search</span>
               </h3>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900 text-xs space-y-2 shadow-lg">
+              <div className="p-4 rounded-xl border border-slate-200 bg-white text-xs space-y-2 shadow-lg">
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                  <span className="font-bold text-slate-200">Sponsored</span>
+                  <span className="font-bold text-slate-900">Sponsored</span>
                   <span>•</span>
-                  <span className="text-slate-300 font-mono truncate">{assetFinalUrl}</span>
+                  <span className="text-slate-700 font-mono truncate">{assetFinalUrl}</span>
                 </div>
 
                 <div className="text-sm font-semibold text-blue-400 leading-snug hover:underline cursor-pointer">
                   {headlines[0]} | {headlines[1]}
                 </div>
 
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-slate-700 leading-relaxed">
                   {descriptions[0]}
                 </p>
 
                 {sitelinks.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/60 text-[10px]">
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-[10px]">
                     <span className="text-blue-400 hover:underline">{sitelinks[0].title}</span>
                     <span className="text-blue-400 hover:underline">{sitelinks[1].title}</span>
                   </div>
@@ -4748,42 +4748,42 @@ export default function CampaignCreatePage() {
       ) : wizardStep === "BUDGET" ? (
         <div className="flex-1 flex w-full pb-20">
           {/* Left Sub-Navigation Sidebar */}
-          <aside className="w-64 border-r border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/50 hidden md:block">
+          <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("ASSET_GROUP")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Asset group
               </div>
 
               <div className="space-y-1">
-                <div className="flex items-center gap-2 font-bold text-primary">
-                  <div className="w-4 h-4 rounded-full border border-primary flex items-center justify-center text-[10px]">4</div>
+                <div className="flex items-center gap-2 font-bold text-blue-600">
+                  <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">4</div>
                   Budget
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-800 pl-3 py-1">
-                  <p className="text-primary font-semibold">Budget</p>
+                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                  <p className="text-blue-600 font-semibold">Budget</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 text-slate-500 font-medium opacity-60">
-                <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px]">5</div>
+                <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">5</div>
                 Summary
               </div>
             </nav>
@@ -4792,15 +4792,15 @@ export default function CampaignCreatePage() {
           {/* Budget Main Content */}
           <main className="flex-1 p-6 md:p-10 space-y-8 max-w-4xl">
             <div>
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Budget</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Budget</h1>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                 Decide how much you want to spend.
               </p>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Budget</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Budget</h2>
                 <ChevronDown className="h-4 w-4 text-slate-400" />
               </div>
 
@@ -4812,7 +4812,7 @@ export default function CampaignCreatePage() {
               </div>
 
               <div className="space-y-4">
-                <label className="block text-xs font-semibold text-slate-200">Select budget type</label>
+                <label className="block text-xs font-semibold text-slate-900">Select budget type</label>
 
                 {/* 1. Average Daily Budget */}
                 <div className="space-y-3">
@@ -4822,10 +4822,10 @@ export default function CampaignCreatePage() {
                       name="budgetTypeRadio"
                       checked={budgetType === "DAILY"}
                       onChange={() => setBudgetType("DAILY")}
-                      className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                      className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                     />
                     <div className="space-y-0.5">
-                      <span className="text-xs font-semibold text-slate-200 block">Average daily budget</span>
+                      <span className="text-xs font-semibold text-slate-900 block">Average daily budget</span>
                       <span className="text-[11px] text-slate-400 block">Set your average daily budget for this campaign</span>
                     </div>
                   </label>
@@ -4834,10 +4834,10 @@ export default function CampaignCreatePage() {
                     <div className="ml-7 space-y-3 animate-in fade-in duration-200">
                       
                       {/* Option A: ₹6,097.08 */}
-                      <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
                         <label
                           onClick={() => setSelectedPresetBudget("6097.08")}
-                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-900/50"
+                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white"
                         >
                           <div className="flex items-center gap-3">
                             <input
@@ -4845,10 +4845,10 @@ export default function CampaignCreatePage() {
                               name="presetBudgetRadio"
                               checked={selectedPresetBudget === "6097.08"}
                               onChange={() => setSelectedPresetBudget("6097.08")}
-                              className="text-primary focus:ring-primary h-4 w-4"
+                              className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
                             <div>
-                              <span className="text-xs font-bold text-slate-100">₹6,097.08</span>
+                              <span className="text-xs font-bold text-slate-900">₹6,097.08</span>
                               {selectedPresetBudget === "6097.08" && (
                                 <span className="text-[11px] text-slate-400 block font-normal">Average daily budget</span>
                               )}
@@ -4858,19 +4858,19 @@ export default function CampaignCreatePage() {
                         </label>
 
                         {selectedPresetBudget === "6097.08" && (
-                          <div className="p-4 border-t border-slate-800 bg-slate-900/40 space-y-2 animate-in fade-in duration-200">
+                          <div className="p-4 border-t border-slate-200 bg-white space-y-2 animate-in fade-in duration-200">
                             <div className="grid grid-cols-3 gap-4 text-center">
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
-                                <span className="text-xs font-bold text-white">35</span>
+                                <span className="text-xs font-bold text-slate-900">35</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
-                                <span className="text-xs font-bold text-white">₹1,188.85</span>
+                                <span className="text-xs font-bold text-slate-900">₹1,188.85</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly cost</span>
-                                <span className="text-xs font-bold text-white">₹42,679.56</span>
+                                <span className="text-xs font-bold text-slate-900">₹42,679.56</span>
                               </div>
                             </div>
                           </div>
@@ -4878,10 +4878,10 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Option B: ₹5,080.90 Recommended */}
-                      <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
                         <label
                           onClick={() => setSelectedPresetBudget("5080.90")}
-                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-900/50"
+                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white"
                         >
                           <div className="flex items-center gap-3">
                             <input
@@ -4889,11 +4889,11 @@ export default function CampaignCreatePage() {
                               name="presetBudgetRadio"
                               checked={selectedPresetBudget === "5080.90"}
                               onChange={() => setSelectedPresetBudget("5080.90")}
-                              className="text-primary focus:ring-primary h-4 w-4"
+                              className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-slate-100">₹5,080.90</span>
+                                <span className="text-xs font-bold text-slate-900">₹5,080.90</span>
                                 <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-semibold text-[10px]">Recommended</span>
                               </div>
                               {selectedPresetBudget === "5080.90" && (
@@ -4905,22 +4905,22 @@ export default function CampaignCreatePage() {
                         </label>
 
                         {selectedPresetBudget === "5080.90" && (
-                          <div className="p-4 border-t border-slate-800 bg-slate-900/40 space-y-3 animate-in fade-in duration-200">
+                          <div className="p-4 border-t border-slate-200 bg-white space-y-3 animate-in fade-in duration-200">
                             <div className="grid grid-cols-3 gap-4 text-center">
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
-                                <span className="text-xs font-bold text-white">32</span>
+                                <span className="text-xs font-bold text-slate-900">32</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
-                                <span className="text-xs font-bold text-white">₹1,084.34</span>
+                                <span className="text-xs font-bold text-slate-900">₹1,084.34</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly cost</span>
-                                <span className="text-xs font-bold text-white">₹35,566.30</span>
+                                <span className="text-xs font-bold text-slate-900">₹35,566.30</span>
                               </div>
                             </div>
-                            <p className="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-800/60">
+                            <p className="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-200">
                               Recommended because of your campaign settings, such as bidding, targeting and ads, as well as the budgets of similar advertisers.
                             </p>
                           </div>
@@ -4928,10 +4928,10 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Option C: ₹4,064.72 */}
-                      <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
                         <label
                           onClick={() => setSelectedPresetBudget("4064.72")}
-                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-900/50"
+                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white"
                         >
                           <div className="flex items-center gap-3">
                             <input
@@ -4939,10 +4939,10 @@ export default function CampaignCreatePage() {
                               name="presetBudgetRadio"
                               checked={selectedPresetBudget === "4064.72"}
                               onChange={() => setSelectedPresetBudget("4064.72")}
-                              className="text-primary focus:ring-primary h-4 w-4"
+                              className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
                             <div>
-                              <span className="text-xs font-bold text-slate-100">₹4,064.72</span>
+                              <span className="text-xs font-bold text-slate-900">₹4,064.72</span>
                               {selectedPresetBudget === "4064.72" && (
                                 <span className="text-[11px] text-slate-400 block font-normal">Average daily budget</span>
                               )}
@@ -4952,19 +4952,19 @@ export default function CampaignCreatePage() {
                         </label>
 
                         {selectedPresetBudget === "4064.72" && (
-                          <div className="p-4 border-t border-slate-800 bg-slate-900/40 space-y-2 animate-in fade-in duration-200">
+                          <div className="p-4 border-t border-slate-200 bg-white space-y-2 animate-in fade-in duration-200">
                             <div className="grid grid-cols-3 gap-4 text-center">
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
-                                <span className="text-xs font-bold text-white">29</span>
+                                <span className="text-xs font-bold text-slate-900">29</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
-                                <span className="text-xs font-bold text-white">₹971.09</span>
+                                <span className="text-xs font-bold text-slate-900">₹971.09</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly cost</span>
-                                <span className="text-xs font-bold text-white">₹28,453.04</span>
+                                <span className="text-xs font-bold text-slate-900">₹28,453.04</span>
                               </div>
                             </div>
                           </div>
@@ -4972,10 +4972,10 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Option D: Set custom budget */}
-                      <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
                         <label
                           onClick={() => setSelectedPresetBudget("CUSTOM")}
-                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-900/50"
+                          className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white"
                         >
                           <div className="flex items-center gap-3">
                             <input
@@ -4983,40 +4983,40 @@ export default function CampaignCreatePage() {
                               name="presetBudgetRadio"
                               checked={selectedPresetBudget === "CUSTOM"}
                               onChange={() => setSelectedPresetBudget("CUSTOM")}
-                              className="text-primary focus:ring-primary h-4 w-4"
+                              className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
-                            <span className="text-xs font-semibold text-slate-200">Set custom budget</span>
+                            <span className="text-xs font-semibold text-slate-900">Set custom budget</span>
                           </div>
                           <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${selectedPresetBudget === "CUSTOM" ? "rotate-180" : ""}`} />
                         </label>
 
                         {selectedPresetBudget === "CUSTOM" && (
-                          <div className="p-4 border-t border-slate-800 bg-slate-900/40 space-y-4 animate-in fade-in duration-200">
+                          <div className="p-4 border-t border-slate-200 bg-white space-y-4 animate-in fade-in duration-200">
                             <div className="space-y-1.5">
-                              <label className="block text-xs font-semibold text-slate-300">Set your average daily budget for this campaign</label>
+                              <label className="block text-xs font-semibold text-slate-700">Set your average daily budget for this campaign</label>
                               <div className="relative w-64">
                                 <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-semibold">₹</span>
                                 <input
                                   type="text"
                                   value={customBudgetValue}
                                   onChange={(e) => setCustomBudgetValue(e.target.value)}
-                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                                 />
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-4 text-center border-t border-slate-800/60 pt-3">
+                            <div className="grid grid-cols-3 gap-4 text-center border-t border-slate-200 pt-3">
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
-                                <span className="text-xs font-bold text-white">29</span>
+                                <span className="text-xs font-bold text-slate-900">29</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
-                                <span className="text-xs font-bold text-white">₹971.09</span>
+                                <span className="text-xs font-bold text-slate-900">₹971.09</span>
                               </div>
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Weekly cost</span>
-                                <span className="text-xs font-bold text-white">₹28,453.04</span>
+                                <span className="text-xs font-bold text-slate-900">₹28,453.04</span>
                               </div>
                             </div>
                           </div>
@@ -5034,24 +5034,24 @@ export default function CampaignCreatePage() {
                       )}
 
                       <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                        For the month, you won't pay more than your daily budget times the average number of days in a month. Some days you might spend less than your daily budget, and on others you might spend up to twice as much. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                        For the month, you won't pay more than your daily budget times the average number of days in a month. Some days you might spend less than your daily budget, and on others you might spend up to twice as much. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a>
                       </p>
                     </div>
                   )}
                 </div>
 
                 {/* 2. Campaign Total Budget */}
-                <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="space-y-3 pt-2 border-t border-slate-200">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="radio"
                       name="budgetTypeRadio"
                       checked={budgetType === "TOTAL"}
                       onChange={() => setBudgetType("TOTAL")}
-                      className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                      className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                     />
                     <div className="space-y-0.5">
-                      <span className="text-xs font-semibold text-slate-200 block">Campaign total budget</span>
+                      <span className="text-xs font-semibold text-slate-900 block">Campaign total budget</span>
                       <span className="text-[11px] text-slate-400 block">Set a budget for the duration of your campaign</span>
                     </div>
                   </label>
@@ -5066,15 +5066,15 @@ export default function CampaignCreatePage() {
                             value={customBudgetValue}
                             onChange={(e) => setCustomBudgetValue(e.target.value)}
                             placeholder="Enter amount"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                           />
                         </div>
                       </div>
 
                       {/* Campaign dates */}
-                      <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                      <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                         <div>
-                          <h4 className="text-xs font-semibold text-white">Campaign dates</h4>
+                          <h4 className="text-xs font-semibold text-slate-900">Campaign dates</h4>
                           <p className="text-[11px] text-slate-400 mt-0.5">
                             To set a campaign total budget add the dates of your campaign
                           </p>
@@ -5082,12 +5082,12 @@ export default function CampaignCreatePage() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-1">
                           <div className="space-y-1">
-                            <label className="block text-[11px] font-semibold text-slate-300">Start date</label>
+                            <label className="block text-[11px] font-semibold text-slate-700">Start date</label>
                             <input
                               type="date"
                               value={startDateValue}
                               onChange={(e) => setStartDateValue(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                             />
                             <p className="text-[10px] text-slate-400 font-mono pt-0.5">
                               {new Date(startDateValue || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -5095,7 +5095,7 @@ export default function CampaignCreatePage() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="block text-[11px] font-semibold text-slate-300">End date</label>
+                            <label className="block text-[11px] font-semibold text-slate-700">End date</label>
                             <input
                               type="date"
                               value={endDateValue}
@@ -5103,7 +5103,7 @@ export default function CampaignCreatePage() {
                                 setEndDateValue(e.target.value);
                                 setEndDateMode("SELECT");
                               }}
-                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                             />
                             <p className="text-[10px] text-slate-400 pt-0.5">
                               {endDateMode === "NONE" ? "Select a date" : new Date(endDateValue).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -5122,42 +5122,42 @@ export default function CampaignCreatePage() {
       ) : wizardStep === "SUMMARY" ? (
         <div className="flex-1 flex w-full pb-20">
           {/* Left Sub-Navigation Sidebar */}
-          <aside className="w-64 border-r border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/50 hidden md:block">
+          <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("ASSET_GROUP")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Asset group
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-200" onClick={() => setWizardStep("BUDGET")}>
+              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BUDGET")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Budget
               </div>
 
               <div className="space-y-1">
-                <div className="flex items-center gap-2 font-bold text-primary">
-                  <div className="w-4 h-4 rounded-full border border-primary flex items-center justify-center text-[10px]">5</div>
+                <div className="flex items-center gap-2 font-bold text-blue-600">
+                  <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">5</div>
                   Summary
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-800 pl-3 py-1">
-                  <p className="text-primary font-semibold">Overview</p>
+                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                  <p className="text-blue-600 font-semibold">Overview</p>
                 </div>
               </div>
             </nav>
@@ -5170,22 +5170,22 @@ export default function CampaignCreatePage() {
                 <CheckCircle className="h-4 w-4 text-emerald-400" />
                 Your campaign is ready to publish
               </div>
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Summary</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Summary</h1>
               <p className="text-xs text-slate-400 mt-1">Review your campaign details before publishing</p>
             </div>
 
             {/* Recommendations Banner */}
-            <div className="p-4 rounded-2xl border border-primary/20 bg-slate-900/90 space-y-2">
+            <div className="p-4 rounded-2xl border border-blue-500/20 bg-white space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-200">Recommendations</span>
+                <span className="text-xs font-bold text-slate-900">Recommendations</span>
                 <span className="text-[11px] text-slate-500 font-mono">1 / 1</span>
               </div>
               <p className="text-xs text-slate-400">Apply these recommendations to optimize campaign performance</p>
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs mt-2">
-                <span className="font-semibold text-slate-200">Add an audience signal for faster optimization</span>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs mt-2">
+                <span className="font-semibold text-slate-900">Add an audience signal for faster optimization</span>
                 <button
                   onClick={() => setWizardStep("ASSET_GROUP")}
-                  className="text-xs text-primary font-bold hover:underline cursor-pointer"
+                  className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
                 >
                   Fix it
                 </button>
@@ -5193,12 +5193,12 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Overview Section */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Overview</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Overview</h2>
                 <button
                   onClick={() => setIsEditingOverview(prev => !prev)}
-                  className="text-xs text-primary font-semibold hover:underline cursor-pointer"
+                  className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
                   {isEditingOverview ? "Done" : "Edit"}
                 </button>
@@ -5212,7 +5212,7 @@ export default function CampaignCreatePage() {
                       type="text"
                       value={campaignName}
                       onChange={(e) => setCampaignName(e.target.value)}
-                      className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <div className="space-y-1">
@@ -5225,7 +5225,7 @@ export default function CampaignCreatePage() {
                         setWebsiteVisitsUrl(e.target.value);
                       }}
                       placeholder="https://yourwebsite.com"
-                      className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -5233,24 +5233,24 @@ export default function CampaignCreatePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
                   <div className="space-y-1">
                     <span className="text-slate-400">Campaign name</span>
-                    <p className="font-semibold text-slate-100 text-sm">{campaignName || "Sales-Performance Max-1"}</p>
+                    <p className="font-semibold text-slate-900 text-sm">{campaignName || "Sales-Performance Max-1"}</p>
                   </div>
 
                   <div className="space-y-1">
                     <span className="text-slate-400">Campaign type</span>
-                    <p className="font-semibold text-slate-100">Performance Max</p>
+                    <p className="font-semibold text-slate-900">Performance Max</p>
                   </div>
 
                   <div className="space-y-1">
                     <span className="text-slate-400">Goal</span>
-                    <p className="font-semibold text-slate-100">
+                    <p className="font-semibold text-slate-900">
                       {conversionGoals.length > 0 ? conversionGoals.map(g => g.name).join(", ") : "Phone call leads"}
                     </p>
                   </div>
 
                   <div className="space-y-1">
                     <span className="text-slate-400">Business details</span>
-                    <p className="font-semibold text-slate-100 truncate">
+                    <p className="font-semibold text-slate-900 truncate">
                       Website: {assetFinalUrl.trim() || websiteVisitsUrl.trim() || "None specified"}
                     </p>
                   </div>
@@ -5259,12 +5259,12 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Bidding Summary */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Bidding</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Bidding</h2>
                 <button
                   onClick={() => setIsEditingBidding(prev => !prev)}
-                  className="text-xs text-primary font-semibold hover:underline cursor-pointer"
+                  className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
                   {isEditingBidding ? "Done" : "Edit"}
                 </button>
@@ -5277,7 +5277,7 @@ export default function CampaignCreatePage() {
                     <select
                       value={biddingFocus}
                       onChange={(e) => setBiddingFocus(e.target.value as any)}
-                      className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full max-w-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     >
                       <option value="Conversions">Maximize conversions</option>
                       <option value="Conversion value">Maximize conversion value</option>
@@ -5288,42 +5288,42 @@ export default function CampaignCreatePage() {
                       type="checkbox"
                       checked={onlyNewCustomers}
                       onChange={(e) => setOnlyNewCustomers(e.target.checked)}
-                      className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                      className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                     />
-                    <span className="text-slate-300">Only bid for new customers</span>
+                    <span className="text-slate-700">Only bid for new customers</span>
                   </label>
                 </div>
               ) : (
                 <div className="space-y-3 text-xs">
                   <div className="space-y-1">
                     <span className="text-slate-400">Bidding strategy</span>
-                    <p className="font-semibold text-slate-100">
+                    <p className="font-semibold text-slate-900">
                       {biddingFocus === "Conversions" ? "Maximize conversions" : "Maximize conversion value"}
                     </p>
                   </div>
 
-                  <div className="space-y-1 border-t border-slate-800/60 pt-2">
+                  <div className="space-y-1 border-t border-slate-200 pt-2">
                     <span className="text-slate-400">Customer acquisition</span>
-                    <p className="font-semibold text-slate-100">
+                    <p className="font-semibold text-slate-900">
                       {onlyNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
                     </p>
                   </div>
 
-                  <div className="space-y-1 border-t border-slate-800/60 pt-2">
+                  <div className="space-y-1 border-t border-slate-200 pt-2">
                     <span className="text-slate-400">Customer retention</span>
-                    <p className="font-semibold text-slate-100">Do not adjust bidding to re-engage lapsed customers</p>
+                    <p className="font-semibold text-slate-900">Do not adjust bidding to re-engage lapsed customers</p>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Campaign Settings Summary */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Campaign settings</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Campaign settings</h2>
                 <button
                   onClick={() => setIsEditingSettings(prev => !prev)}
-                  className="text-xs text-primary font-semibold hover:underline cursor-pointer"
+                  className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
                   {isEditingSettings ? "Done" : "Edit"}
                 </button>
@@ -5336,7 +5336,7 @@ export default function CampaignCreatePage() {
                     <select
                       value={locationOption}
                       onChange={(e) => setLocationOption(e.target.value as any)}
-                      className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full max-w-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     >
                       <option value="ALL">All countries and territories</option>
                       <option value="INDIA">India</option>
@@ -5348,33 +5348,33 @@ export default function CampaignCreatePage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                   <div className="space-y-1">
                     <span className="text-slate-400">Locations</span>
-                    <p className="font-semibold text-slate-100">
+                    <p className="font-semibold text-slate-900">
                       {locationOption === "ALL" ? "All countries and territories" : locationOption === "INDIA" ? "India" : "Selected location"}
                     </p>
                   </div>
 
                   <div className="space-y-1">
                     <span className="text-slate-400">Languages</span>
-                    <p className="font-semibold text-slate-100">
+                    <p className="font-semibold text-slate-900">
                       {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "English"}
                     </p>
                   </div>
 
                   <div className="space-y-1">
                     <span className="text-slate-400">EU political ads</span>
-                    <p className="font-semibold text-slate-100">Doesn't have EU political ads</p>
+                    <p className="font-semibold text-slate-900">Doesn't have EU political ads</p>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Asset Group Summary */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Asset group</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Asset group</h2>
                 <button
                   onClick={() => setIsEditingAssetGroup(prev => !prev)}
-                  className="text-xs text-primary font-semibold hover:underline cursor-pointer"
+                  className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
                   {isEditingAssetGroup ? "Done" : "Edit"}
                 </button>
@@ -5388,7 +5388,7 @@ export default function CampaignCreatePage() {
                       type="text"
                       value={assetGroupName}
                       onChange={(e) => setAssetGroupName(e.target.value)}
-                      className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -5396,35 +5396,35 @@ export default function CampaignCreatePage() {
                 <div className="space-y-3 text-xs">
                   <div className="space-y-1">
                     <span className="text-slate-400">Asset group name</span>
-                    <p className="font-semibold text-slate-100">{assetGroupName || "Asset Group 1"}</p>
+                    <p className="font-semibold text-slate-900">{assetGroupName || "Asset Group 1"}</p>
                   </div>
 
-                  <div className="space-y-1 border-t border-slate-800/60 pt-2">
+                  <div className="space-y-1 border-t border-slate-200 pt-2">
                     <span className="text-slate-400">Assets</span>
-                    <p className="font-semibold text-slate-100">
+                    <p className="font-semibold text-slate-900">
                       {headlines.filter(h => h.trim()).length} headlines, {longHeadlines.filter(lh => lh.trim()).length} long headlines, {descriptions.filter(d => d.trim()).length} descriptions, {uploadedImages.length} images, {sitelinks.length} sitelinks
                     </p>
                   </div>
 
-                  <div className="space-y-1 border-t border-slate-800/60 pt-2">
+                  <div className="space-y-1 border-t border-slate-200 pt-2">
                     <span className="text-slate-400">Asset optimization</span>
-                    <p className="font-semibold text-slate-100">Text customization, final URL expansion, and 2 more are turned on</p>
+                    <p className="font-semibold text-slate-900">Text customization, final URL expansion, and 2 more are turned on</p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 border-t border-slate-800/60 pt-2">
+                  <div className="grid grid-cols-2 gap-4 border-t border-slate-200 pt-2">
                     <div className="space-y-1">
                       <span className="text-slate-400">Search themes</span>
-                      <p className="font-medium text-slate-200">
+                      <p className="font-medium text-slate-900">
                         {searchThemes.length > 0 ? searchThemes.join(", ") : "No themes added"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <span className="text-slate-400">Audience</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-100">
+                        <span className="font-semibold text-slate-900">
                           {audienceName || modalAudienceName || "Custom Audience Signal"}
                         </span>
-                        <button onClick={() => setWizardStep("ASSET_GROUP")} className="text-primary font-semibold hover:underline">Edit</button>
+                        <button onClick={() => setWizardStep("ASSET_GROUP")} className="text-blue-600 font-semibold hover:underline">Edit</button>
                       </div>
                     </div>
                   </div>
@@ -5433,12 +5433,12 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Budget Summary */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white">Budget</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h2 className="text-base font-semibold text-slate-900">Budget</h2>
                 <button
                   onClick={() => setIsEditingBudget(prev => !prev)}
-                  className="text-xs text-primary font-semibold hover:underline cursor-pointer"
+                  className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                 >
                   {isEditingBudget ? "Done" : "Edit"}
                 </button>
@@ -5456,14 +5456,14 @@ export default function CampaignCreatePage() {
                         setCustomBudgetValue(e.target.value);
                       }}
                       placeholder="e.g. 5080.90"
-                      className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full max-w-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
               ) : (
                 <div className="space-y-1 text-xs">
                   <span className="text-slate-400">{budgetType === "DAILY" ? "Average Daily Budget" : "Campaign Total Budget"}</span>
-                  <p className="font-bold text-primary text-base">
+                  <p className="font-bold text-blue-600 text-base">
                     ₹{selectedPresetBudget === "CUSTOM" ? customBudgetValue : selectedPresetBudget} {budgetType === "DAILY" ? "/ day" : "total"}
                   </p>
                 </div>
@@ -5473,33 +5473,33 @@ export default function CampaignCreatePage() {
           </main>
 
           {/* Right Summary Sidebar with Weekly Performance Estimates */}
-          <aside className="w-72 border-l border-slate-800 p-6 space-y-6 shrink-0 bg-slate-950/40 hidden lg:block">
+          <aside className="w-72 border-l border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/40 hidden lg:block">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-200">Optimization score</span>
+                <span className="font-semibold text-slate-900">Optimization score</span>
                 <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
               </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-primary w-full rounded-full"></div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-600 text-white w-full rounded-full"></div>
               </div>
-              <p className="text-right text-xs font-bold text-primary">100%</p>
+              <p className="text-right text-xs font-bold text-blue-600">100%</p>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900 space-y-3">
-              <h3 className="text-xs font-semibold text-slate-200">Weekly performance</h3>
+            <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
+              <h3 className="text-xs font-semibold text-slate-900">Weekly performance</h3>
 
               <div className="space-y-3 pt-2 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Weekly conv.</span>
-                  <span className="font-bold text-white">16</span>
+                  <span className="font-bold text-slate-900">16</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Cost / Conv.</span>
-                  <span className="font-bold text-white">₹664.50</span>
+                  <span className="font-bold text-slate-900">₹664.50</span>
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                   <span className="text-slate-400">Weekly cost</span>
-                  <span className="font-bold text-primary">₹10,897.81</span>
+                  <span className="font-bold text-blue-600">₹10,897.81</span>
                 </div>
               </div>
             </div>
@@ -5510,7 +5510,7 @@ export default function CampaignCreatePage() {
 
         {/* Step Header */}
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-white tracking-tight">What's your campaign objective?</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">What's your campaign objective?</h1>
           <p className="text-sm text-slate-400">
             Select an objective to tailor your experience to the goals and settings that will work best for your campaign
           </p>
@@ -5533,17 +5533,17 @@ export default function CampaignCreatePage() {
                     setSelectedType(""); // Reset campaign type on objective change
                   }}
                   className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between min-h-[120px] ${isSelected
-                      ? "bg-primary/10 border-primary shadow-md shadow-primary/10 ring-1 ring-primary"
-                      : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-850"
+                      ? "bg-blue-600 text-white/10 border-blue-500 shadow-md shadow-primary/10 ring-1 ring-primary"
+                      : "bg-white border-slate-200 hover:border-slate-200 hover:bg-slate-50"
                     }`}
                 >
                   {isSelected && (
-                    <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                      <Check className="h-3 w-3 text-slate-950 stroke-[3]" />
+                    <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                      <Check className="h-3 w-3 text-white stroke-[3]" />
                     </div>
                   )}
                   <div>
-                    <h3 className={`text-sm font-semibold mb-1 pr-5 ${isSelected ? "text-primary" : "text-slate-100"}`}>
+                    <h3 className={`text-sm font-semibold mb-1 pr-5 ${isSelected ? "text-blue-600" : "text-slate-900"}`}>
                       {obj.title}
                     </h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
@@ -5563,14 +5563,14 @@ export default function CampaignCreatePage() {
 
         {/* Dynamic Section for Objectives */}
         {(selectedObjective === "SALES" || selectedObjective === "LEADS" || selectedObjective === "WEBSITE_TRAFFIC" || selectedObjective === "APP_PROMOTION" || selectedObjective === "AWARENESS" || selectedObjective === "LOCAL" || selectedObjective === "NO_GUIDANCE") && (
-          <div className="space-y-6 pt-4 border-t border-slate-800/80 animate-in fade-in duration-300">
+          <div className="space-y-6 pt-4 border-t border-slate-200 animate-in fade-in duration-300">
 
             {/* Conversion Goals Section (shown for Sales, Leads, Traffic) */}
             {(selectedObjective === "SALES" || selectedObjective === "LEADS" || selectedObjective === "WEBSITE_TRAFFIC") && (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-base font-semibold text-white">
+                    <h2 className="text-base font-semibold text-slate-900">
                       Use these conversion goals to improve {selectedObjective === "SALES" ? "Sales" : selectedObjective === "LEADS" ? "Leads" : "Website traffic"}
                     </h2>
                     <p className="text-xs text-slate-400 mt-1">
@@ -5579,7 +5579,7 @@ export default function CampaignCreatePage() {
                   </div>
                   <button
                     onClick={() => setShowAddGoalModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 text-xs font-semibold transition-all shrink-0 ml-4"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 hover:bg-blue-600 text-white/20 text-xs font-semibold transition-all shrink-0 ml-4"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Add goal
@@ -5587,8 +5587,8 @@ export default function CampaignCreatePage() {
                 </div>
 
                 {/* Goal List Table/Card */}
-                <div className="border border-slate-800 rounded-lg overflow-visible bg-slate-950">
-                  <div className="grid grid-cols-12 px-4 py-2.5 bg-slate-900/80 text-xs font-semibold text-slate-400 border-b border-slate-800">
+                <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
+                  <div className="grid grid-cols-12 px-4 py-2.5 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
                     <div className="col-span-5">Conversion Goals</div>
                     <div className="col-span-3">Conversion Source</div>
                     <div className="col-span-2 text-right">Conversion Actions</div>
@@ -5599,9 +5599,9 @@ export default function CampaignCreatePage() {
                     const GoalIcon = goal.icon || PhoneCall;
                     const isMenuOpen = openGoalMenuId === goal.id;
                     return (
-                      <div key={goal.id} className="grid grid-cols-12 px-4 py-3 text-sm text-slate-200 border-b border-slate-800/50 items-center last:border-b-0 hover:bg-slate-800/20 relative">
-                        <div className="col-span-5 font-medium text-slate-100 flex items-center gap-2">
-                          <GoalIcon className="h-4 w-4 text-primary shrink-0" />
+                      <div key={goal.id} className="grid grid-cols-12 px-4 py-3 text-sm text-slate-900 border-b border-slate-200 items-center last:border-b-0 hover:bg-slate-100/20 relative">
+                        <div className="col-span-5 font-medium text-slate-900 flex items-center gap-2">
+                          <GoalIcon className="h-4 w-4 text-blue-600 shrink-0" />
                           {goal.name}
                         </div>
                         <div className="col-span-3 text-xs text-slate-400">{goal.source}</div>
@@ -5609,18 +5609,18 @@ export default function CampaignCreatePage() {
                         <div className="col-span-2 text-right relative">
                           <button
                             onClick={() => setOpenGoalMenuId(isMenuOpen ? null : goal.id)}
-                            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs"
+                            className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
                           >
                             More actions ▾
                           </button>
                           {isMenuOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl z-30 py-1 text-left">
+                            <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-1 text-left">
                               <button
                                 onClick={() => {
                                   setConversionGoals(prev => prev.filter(g => g.id !== goal.id));
                                   setOpenGoalMenuId(null);
                                 }}
-                                className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-slate-800 flex items-center gap-2 text-left"
+                                className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-slate-100 flex items-center gap-2 text-left"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                                 Remove Goal
@@ -5637,11 +5637,11 @@ export default function CampaignCreatePage() {
 
             {/* Modal: Add Additional Conversion Goals */}
             {showAddGoalModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-base font-semibold text-white">Add conversion goal</h3>
-                    <button onClick={() => setShowAddGoalModal(false)} className="text-slate-400 hover:text-white p-1">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm">
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <h3 className="text-base font-semibold text-slate-900">Add conversion goal</h3>
+                    <button onClick={() => setShowAddGoalModal(false)} className="text-slate-400 hover:text-slate-900 p-1">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -5657,13 +5657,13 @@ export default function CampaignCreatePage() {
                       return (
                         <div
                           key={addGoal.id}
-                          className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isAlreadyAdded ? "bg-slate-950 border-slate-800 opacity-60" : "bg-slate-800/60 border-slate-700 hover:border-slate-600"
+                          className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isAlreadyAdded ? "bg-slate-50 border-slate-200 opacity-60" : "bg-slate-100 border-slate-200 hover:border-slate-600"
                             }`}
                         >
                           <div className="flex items-center gap-3">
-                            <AddIcon className="h-4 w-4 text-primary" />
+                            <AddIcon className="h-4 w-4 text-blue-600" />
                             <div>
-                              <p className="text-sm font-medium text-slate-100">{addGoal.name}</p>
+                              <p className="text-sm font-medium text-slate-900">{addGoal.name}</p>
                               <p className="text-xs text-slate-400">{addGoal.source}</p>
                             </div>
                           </div>
@@ -5674,8 +5674,8 @@ export default function CampaignCreatePage() {
                               setShowAddGoalModal(false);
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isAlreadyAdded
-                                ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                                : "bg-primary text-slate-950 hover:bg-secondary"
+                                ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                                : "bg-blue-600 text-white hover:bg-secondary"
                               }`}
                           >
                             {isAlreadyAdded ? "Added" : "Add Goal"}
@@ -5688,7 +5688,7 @@ export default function CampaignCreatePage() {
                   <div className="flex justify-end pt-2">
                     <button
                       onClick={() => setShowAddGoalModal(false)}
-                      className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white"
+                      className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-900"
                     >
                       Close
                     </button>
@@ -5699,9 +5699,9 @@ export default function CampaignCreatePage() {
 
             {/* Video Goal Chooser for AWARENESS objective */}
             {selectedObjective === "AWARENESS" && (
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
                 <div>
-                  <h2 className="text-base font-semibold text-white">Choose a campaign goal</h2>
+                  <h2 className="text-base font-semibold text-slate-900">Choose a campaign goal</h2>
                   <p className="text-xs text-slate-400 mt-1">Each goal determines which metrics the campaign is optimized to deliver.</p>
                 </div>
 
@@ -5739,30 +5739,30 @@ export default function CampaignCreatePage() {
                           setSelectedType(""); // Reset selected campaign type when video goal changes
                         }}
                         className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between ${isSel
-                            ? "bg-primary/10 border-primary shadow-md ring-1 ring-primary"
-                            : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                            ? "bg-blue-600 text-white/10 border-blue-500 shadow-md ring-1 ring-primary"
+                            : "bg-slate-50 border-slate-200 hover:border-slate-200"
                           }`}
                       >
                         {isSel && (
-                          <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                            <Check className="h-3 w-3 text-slate-950 stroke-[3]" />
+                          <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white stroke-[3]" />
                           </div>
                         )}
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className={`text-sm font-semibold ${isSel ? "text-primary" : "text-slate-100"}`}>
+                            <h3 className={`text-sm font-semibold ${isSel ? "text-blue-600" : "text-slate-900"}`}>
                               {goal.title}
                             </h3>
                             {goal.badge && (
-                              <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold">
+                              <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white/20 text-blue-600 text-[10px] font-bold">
                                 {goal.badge}
                               </span>
                             )}
                           </div>
                           <p className="text-xs text-slate-400 mb-3">{goal.desc}</p>
-                          <div className="space-y-1.5 pt-2 border-t border-slate-800/60 text-[11px] text-slate-400">
-                            <p><strong className="text-slate-300">Good for:</strong> {goal.goodFor}</p>
-                            <p><strong className="text-slate-300">Optimized to get more:</strong> {goal.optimizedFor}</p>
+                          <div className="space-y-1.5 pt-2 border-t border-slate-200 text-[11px] text-slate-400">
+                            <p><strong className="text-slate-700">Good for:</strong> {goal.goodFor}</p>
+                            <p><strong className="text-slate-700">Optimized to get more:</strong> {goal.optimizedFor}</p>
                           </div>
                         </div>
                       </div>
@@ -5852,7 +5852,7 @@ export default function CampaignCreatePage() {
 
                   <div className="space-y-3">
                     <div>
-                      <h2 className="text-base font-semibold text-white">Select a campaign type</h2>
+                      <h2 className="text-base font-semibold text-slate-900">Select a campaign type</h2>
                       <p className="text-xs text-slate-400">Choose how you want to reach potential buyers</p>
                     </div>
 
@@ -5865,20 +5865,20 @@ export default function CampaignCreatePage() {
                             key={type.id}
                             onClick={() => setSelectedType(type.id)}
                             className={`relative cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between ${isSelected
-                                ? "bg-primary/10 border-primary ring-1 ring-primary"
-                                : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-850"
+                                ? "bg-blue-600 text-white/10 border-blue-500 ring-1 ring-primary"
+                                : "bg-white border-slate-200 hover:border-slate-200 hover:bg-slate-50"
                               }`}
                           >
                             {isSelected && (
-                              <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                                <Check className="h-3 w-3 text-slate-950 stroke-[3]" />
+                              <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                                <Check className="h-3 w-3 text-white stroke-[3]" />
                               </div>
                             )}
                             <div>
-                              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
+                              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white/10 text-blue-600 flex items-center justify-center mb-3">
                                 <Icon className="h-4 w-4" />
                               </div>
-                              <h3 className={`text-sm font-semibold mb-1 ${isSelected ? "text-primary" : "text-slate-100"}`}>
+                              <h3 className={`text-sm font-semibold mb-1 ${isSelected ? "text-blue-600" : "text-slate-900"}`}>
                                 {type.title}
                               </h3>
                               <p className="text-xs text-slate-400 leading-relaxed">
@@ -5893,7 +5893,7 @@ export default function CampaignCreatePage() {
                     {selectedObjective === "LOCAL" && (
                       <p className="text-xs text-slate-400 leading-relaxed pt-1">
                         Performance Max has replaced Local campaigns. Performance Max brings you the same optimization benefits, including store visits, call clicks, and directions to help you meet your offline goals.{" "}
-                        <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
+                        <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a>
                       </p>
                     )}
                   </div>
@@ -5902,46 +5902,46 @@ export default function CampaignCreatePage() {
 
                   {/* 1. PERFORMANCE MAX */}
                   {selectedType === "PERFORMANCE_MAX" && (
-                    <div className="mt-6 p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 animate-in fade-in duration-200">
+                    <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-5 animate-in fade-in duration-200">
                       <div className="space-y-1">
-                        <h3 className="text-sm font-semibold text-white">Would you like to resume from an existing campaign draft?</h3>
+                        <h3 className="text-sm font-semibold text-slate-900">Would you like to resume from an existing campaign draft?</h3>
                         <p className="text-xs text-slate-400">
                           Your account has existing campaign drafts with the same campaign type, allowing you to continue where you last left off setting up your campaign
                         </p>
                       </div>
 
-                      <div className="border border-slate-800 rounded-xl p-4 bg-slate-950 flex items-center justify-between">
+                      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <p className="text-sm font-semibold text-slate-200">{prefix}-Performance Max-4</p>
+                          <p className="text-sm font-semibold text-slate-900">{prefix}-Performance Max-4</p>
                           <p className="text-xs text-slate-500">Last modified less than a day ago • Performance Max</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => alert(`Resuming draft ${prefix}-Performance Max-4`)}
-                            className="px-3.5 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold text-xs hover:bg-primary/20 transition-all"
+                            className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 font-semibold text-xs hover:bg-blue-600 text-white/20 transition-all"
                           >
                             Continue from draft
                           </button>
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-slate-800 space-y-4">
-                        <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Create a new campaign</h4>
+                      <div className="pt-3 border-t border-slate-200 space-y-4">
+                        <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Create a new campaign</h4>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-300 mb-1.5">Campaign name</label>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
                           <input
                             defaultValue={`${prefix}-Performance Max-5`}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary transition-all font-medium"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="block text-xs font-semibold text-slate-300">Where should people go after clicking your ads?</label>
+                          <label className="block text-xs font-semibold text-slate-700">Where should people go after clicking your ads?</label>
                           <p className="text-xs text-slate-400">
                             Think about the product or service you want to sell and enter the URL you want people to see after clicking your ads. This might be your homepage or a more specific page on your website.
                           </p>
                           <input
                             placeholder="Final URL (e.g. https://yourwebsite.com/product)"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-all mt-2"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all mt-2"
                           />
                         </div>
                       </div>
@@ -5950,34 +5950,34 @@ export default function CampaignCreatePage() {
 
                   {/* 2. SEARCH */}
                   {selectedType === "SEARCH" && (
-                    <div className="mt-6 p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 animate-in fade-in duration-200">
+                    <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-5 animate-in fade-in duration-200">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1.5">Campaign name</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
                         <input
                           key={`${prefix}-Search`}
                           defaultValue={selectedObjective === "NO_GUIDANCE" ? "Search-1" : `${prefix}-Search-1`}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary transition-all font-medium"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
                         />
                       </div>
 
                       {/* Conversion Goals Table for No Guidance */}
                       {selectedObjective === "NO_GUIDANCE" && (
-                        <div className="space-y-3 pt-2 border-t border-slate-800">
+                        <div className="space-y-3 pt-2 border-t border-slate-200">
                           <div className="flex items-start justify-between">
                             <div>
-                              <h4 className="text-xs font-semibold text-slate-300">Use these conversion goals for campaign performance optimization</h4>
+                              <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
                               <p className="text-xs text-slate-400 mt-0.5">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
                             </div>
                             <button
                               onClick={() => setShowAddGoalModal(true)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 text-xs font-semibold transition-all shrink-0 ml-4"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 hover:bg-blue-600 text-white/20 text-xs font-semibold transition-all shrink-0 ml-4"
                             >
                               <Plus className="h-3.5 w-3.5" />
                               Add goal
                             </button>
                           </div>
-                          <div className="border border-slate-800 rounded-lg overflow-visible bg-slate-950">
-                            <div className="grid grid-cols-12 px-4 py-2 bg-slate-900/80 text-xs font-semibold text-slate-400 border-b border-slate-800">
+                          <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
+                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
                               <div className="col-span-5">Conversion Goals</div>
                               <div className="col-span-3">Conversion Source</div>
                               <div className="col-span-2 text-right">Conversion Actions</div>
@@ -5987,9 +5987,9 @@ export default function CampaignCreatePage() {
                               const GoalIcon = goal.icon || PhoneCall;
                               const isMenuOpen = openGoalMenuId === `noguidance-${goal.id}`;
                               return (
-                                <div key={goal.id} className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-200 border-b border-slate-800/50 items-center last:border-b-0 hover:bg-slate-800/20 relative">
-                                  <div className="col-span-5 font-medium text-slate-100 flex items-center gap-2">
-                                    <GoalIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <div key={goal.id} className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-900 border-b border-slate-200 items-center last:border-b-0 hover:bg-slate-100/20 relative">
+                                  <div className="col-span-5 font-medium text-slate-900 flex items-center gap-2">
+                                    <GoalIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                                     {goal.name}
                                   </div>
                                   <div className="col-span-3 text-slate-400">{goal.source}</div>
@@ -5997,18 +5997,18 @@ export default function CampaignCreatePage() {
                                   <div className="col-span-2 text-right relative">
                                     <button
                                       onClick={() => setOpenGoalMenuId(isMenuOpen ? null : `noguidance-${goal.id}`)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs"
+                                      className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
                                     >
                                       More actions ▾
                                     </button>
                                     {isMenuOpen && (
-                                      <div className="absolute right-0 top-full mt-1 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl z-30 py-1 text-left">
+                                      <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-1 text-left">
                                         <button
                                           onClick={() => {
                                             setConversionGoals(prev => prev.filter(g => g.id !== goal.id));
                                             setOpenGoalMenuId(null);
                                           }}
-                                          className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-slate-800 flex items-center gap-2 text-left"
+                                          className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-slate-100 flex items-center gap-2 text-left"
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
                                           Remove Goal
@@ -6024,8 +6024,8 @@ export default function CampaignCreatePage() {
                       )}
 
                       {selectedObjective !== "NO_GUIDANCE" && (
-                        <div className="space-y-3 pt-2 border-t border-slate-800">
-                          <label className="block text-xs font-semibold text-slate-300">Select the ways you'd like to reach your goal</label>
+                        <div className="space-y-3 pt-2 border-t border-slate-200">
+                          <label className="block text-xs font-semibold text-slate-700">Select the ways you'd like to reach your goal</label>
                           <div className="space-y-2">
                             {[
                               { id: "website_visits", label: "Website visits", placeholder: "Your business's website (e.g. https://yourwebsite.com)" },
@@ -6036,7 +6036,7 @@ export default function CampaignCreatePage() {
                             ].map((way) => {
                               const isChecked = selectedReachGoals.includes(way.id);
                               return (
-                                <label key={way.id} className={`flex flex-col p-3.5 rounded-xl border transition-all ${isChecked ? "bg-slate-900/90 border-primary/60" : "bg-slate-950 border-slate-800 hover:border-slate-700"}`}>
+                                <label key={way.id} className={`flex flex-col p-3.5 rounded-xl border transition-all ${isChecked ? "bg-white border-blue-500/60" : "bg-slate-50 border-slate-200 hover:border-slate-200"}`}>
                                   <div className="flex items-center gap-3 cursor-pointer">
                                     <input
                                       type="checkbox"
@@ -6048,13 +6048,13 @@ export default function CampaignCreatePage() {
                                           setSelectedReachGoals(prev => prev.filter(id => id !== way.id));
                                         }
                                       }}
-                                      className="rounded bg-slate-900 border-slate-700 text-primary focus:ring-primary h-4 w-4"
+                                      className="rounded bg-white border-slate-200 text-blue-600 focus:ring-blue-500 h-4 w-4"
                                     />
-                                    <span className="text-xs font-semibold text-slate-200">{way.label}</span>
+                                    <span className="text-xs font-semibold text-slate-900">{way.label}</span>
                                   </div>
                                   {isChecked && way.countrySelect && (
                                     <div className="mt-2.5 ml-7 grid grid-cols-1 sm:grid-cols-3 gap-2 animate-in fade-in duration-200">
-                                      <select className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-primary">
+                                      <select className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500">
                                         <option value="IN">India (+91)</option>
                                         <option value="US">United States (+1)</option>
                                         <option value="GB">United Kingdom (+44)</option>
@@ -6062,7 +6062,7 @@ export default function CampaignCreatePage() {
                                       </select>
                                       <input
                                         placeholder={way.placeholder}
-                                        className="sm:col-span-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                                        className="sm:col-span-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                                       />
                                     </div>
                                   )}
@@ -6075,7 +6075,7 @@ export default function CampaignCreatePage() {
                                           if (way.id === "website_visits") setWebsiteVisitsUrl(e.target.value);
                                         }}
                                         placeholder={way.placeholder}
-                                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-medium"
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-medium"
                                       />
                                     </div>
                                   )}
@@ -6093,9 +6093,9 @@ export default function CampaignCreatePage() {
 
                   {/* 3. DEMAND GEN */}
                   {selectedType === "DEMAND_GEN" && (
-                    <div className="mt-6 p-4 rounded-xl border border-slate-800 bg-slate-900/90 text-xs text-slate-300 space-y-2 animate-in fade-in duration-200 shadow-md">
-                      <p className="leading-relaxed text-slate-300">
-                        Capturing engagement and action across YouTube, including Shorts, Discover, and Gmail, Demand Gen campaigns are ideal for social advertisers who want to serve visually-appealing, multi-format ads on Google's most impactful surfaces available to any advertiser. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">See how it works</a>
+                    <div className="mt-6 p-4 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 space-y-2 animate-in fade-in duration-200 shadow-md">
+                      <p className="leading-relaxed text-slate-700">
+                        Capturing engagement and action across YouTube, including Shorts, Discover, and Gmail, Demand Gen campaigns are ideal for social advertisers who want to serve visually-appealing, multi-format ads on Google's most impactful surfaces available to any advertiser. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">See how it works</a>
                       </p>
                     </div>
                   )}
@@ -6112,9 +6112,9 @@ export default function CampaignCreatePage() {
                         </div>
                       </div>
 
-                      <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 text-xs text-slate-300 shadow-lg">
+                      <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 text-xs text-slate-700 shadow-lg">
                         <p className="leading-relaxed">
-                          Click <strong className="text-white">Continue</strong> at the bottom right to open the new page for your Video Ad Group settings (Ad group name, Locations, Languages, Channels, Audience, Optimized targeting, and URL options).
+                          Click <strong className="text-slate-900">Continue</strong> at the bottom right to open the new page for your Video Ad Group settings (Ad group name, Locations, Languages, Channels, Audience, Optimized targeting, and URL options).
                         </p>
                       </div>
                     </div>
@@ -6122,34 +6122,34 @@ export default function CampaignCreatePage() {
 
                   {/* 5. DISPLAY */}
                   {selectedType === "DISPLAY" && (
-                    <div className="mt-6 p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 animate-in fade-in duration-200">
+                    <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-5 animate-in fade-in duration-200">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1.5">Campaign name</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
                         <input
                           key={`${prefix}-Display`}
                           defaultValue={selectedObjective === "NO_GUIDANCE" ? "Display-1" : `${prefix}-Display-1`}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary transition-all font-medium"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
                         />
                       </div>
 
                       {/* Conversion Goals Table for No Guidance */}
                       {selectedObjective === "NO_GUIDANCE" && (
-                        <div className="space-y-3 pt-2 border-t border-slate-800">
+                        <div className="space-y-3 pt-2 border-t border-slate-200">
                           <div className="flex items-start justify-between">
                             <div>
-                              <h4 className="text-xs font-semibold text-slate-300">Use these conversion goals for campaign performance optimization</h4>
+                              <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
                               <p className="text-xs text-slate-400 mt-0.5">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
                             </div>
                             <button
                               onClick={() => setShowAddGoalModal(true)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 text-xs font-semibold transition-all shrink-0 ml-4"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white/10 border border-blue-500/30 text-blue-600 hover:bg-blue-600 text-white/20 text-xs font-semibold transition-all shrink-0 ml-4"
                             >
                               <Plus className="h-3.5 w-3.5" />
                               Add goal
                             </button>
                           </div>
-                          <div className="border border-slate-800 rounded-lg overflow-visible bg-slate-950">
-                            <div className="grid grid-cols-12 px-4 py-2 bg-slate-900/80 text-xs font-semibold text-slate-400 border-b border-slate-800">
+                          <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
+                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
                               <div className="col-span-5">Conversion Goals</div>
                               <div className="col-span-3">Conversion Source</div>
                               <div className="col-span-2 text-right">Conversion Actions</div>
@@ -6159,9 +6159,9 @@ export default function CampaignCreatePage() {
                               const GoalIcon = goal.icon || PhoneCall;
                               const isMenuOpen = openGoalMenuId === `noguidance-${goal.id}`;
                               return (
-                                <div key={goal.id} className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-200 border-b border-slate-800/50 items-center last:border-b-0 hover:bg-slate-800/20 relative">
-                                  <div className="col-span-5 font-medium text-slate-100 flex items-center gap-2">
-                                    <GoalIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <div key={goal.id} className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-900 border-b border-slate-200 items-center last:border-b-0 hover:bg-slate-100/20 relative">
+                                  <div className="col-span-5 font-medium text-slate-900 flex items-center gap-2">
+                                    <GoalIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                                     {goal.name}
                                   </div>
                                   <div className="col-span-3 text-slate-400">{goal.source}</div>
@@ -6169,18 +6169,18 @@ export default function CampaignCreatePage() {
                                   <div className="col-span-2 text-right relative">
                                     <button
                                       onClick={() => setOpenGoalMenuId(isMenuOpen ? null : `noguidance-${goal.id}`)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs"
+                                      className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
                                     >
                                       More actions ▾
                                     </button>
                                     {isMenuOpen && (
-                                      <div className="absolute right-0 top-full mt-1 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl z-30 py-1 text-left">
+                                      <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-1 text-left">
                                         <button
                                           onClick={() => {
                                             setConversionGoals(prev => prev.filter(g => g.id !== goal.id));
                                             setOpenGoalMenuId(null);
                                           }}
-                                          className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-slate-800 flex items-center gap-2 text-left"
+                                          className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-slate-100 flex items-center gap-2 text-left"
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
                                           Remove Goal
@@ -6196,11 +6196,11 @@ export default function CampaignCreatePage() {
                       )}
 
                       {selectedObjective !== "NO_GUIDANCE" && (
-                        <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                          <label className="block text-xs font-semibold text-slate-300">This is the web page people will go to after clicking your ad</label>
+                        <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                          <label className="block text-xs font-semibold text-slate-700">This is the web page people will go to after clicking your ad</label>
                           <input
                             placeholder="Your business's website (e.g. https://yourwebsite.com)"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-all"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
                           />
                         </div>
                       )}
@@ -6209,31 +6209,31 @@ export default function CampaignCreatePage() {
 
                   {/* 6. SHOPPING */}
                   {selectedType === "SHOPPING" && (
-                    <div className="mt-6 p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 animate-in fade-in duration-200">
+                    <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-5 animate-in fade-in duration-200">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1.5">Campaign name</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
                         <input
                           key={`${prefix}-Shopping`}
                           defaultValue={selectedObjective === "NO_GUIDANCE" ? "Shopping-1" : `${prefix}-Shopping-1`}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary transition-all font-medium"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
                         />
                       </div>
 
                       {/* Conversion Goals Table for No Guidance */}
                       {selectedObjective === "NO_GUIDANCE" ? (
-                        <div className="space-y-3 pt-2 border-t border-slate-800">
-                          <h4 className="text-xs font-semibold text-slate-300">Use these conversion goals for campaign performance optimization</h4>
+                        <div className="space-y-3 pt-2 border-t border-slate-200">
+                          <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
                           <p className="text-xs text-slate-400">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
-                          <div className="border border-slate-800 rounded-lg overflow-visible bg-slate-950">
-                            <div className="grid grid-cols-12 px-4 py-2 bg-slate-900/80 text-xs font-semibold text-slate-400 border-b border-slate-800">
+                          <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
+                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
                               <div className="col-span-5">Conversion Goals</div>
                               <div className="col-span-3">Conversion Source</div>
                               <div className="col-span-2 text-right">Conversion Actions</div>
                               <div className="col-span-2 text-right">More actions</div>
                             </div>
-                            <div className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-200 items-center">
-                              <div className="col-span-5 font-medium text-slate-100 flex items-center gap-2">
-                                <PhoneCall className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <div className="grid grid-cols-12 px-4 py-2.5 text-xs text-slate-900 items-center">
+                              <div className="col-span-5 font-medium text-slate-900 flex items-center gap-2">
+                                <PhoneCall className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                                 Phone call leads (account default)
                               </div>
                               <div className="col-span-3 text-slate-400">Call from Ads</div>
@@ -6243,9 +6243,9 @@ export default function CampaignCreatePage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-                          <h4 className="text-xs font-semibold text-slate-200 flex items-center gap-2">
-                            <ShoppingBag className="h-4 w-4 text-primary" />
+                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                          <h4 className="text-xs font-semibold text-slate-900 flex items-center gap-2">
+                            <ShoppingBag className="h-4 w-4 text-blue-600" />
                             Add products to this campaign
                           </h4>
                           <p className="text-xs text-slate-400 leading-relaxed">
@@ -6258,20 +6258,20 @@ export default function CampaignCreatePage() {
 
                   {/* 7. APP */}
                   {selectedType === "APP" && (
-                    <div className="mt-6 p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 animate-in fade-in duration-200">
+                    <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-6 animate-in fade-in duration-200">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1.5">Campaign name</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
                         <input
                           defaultValue={selectedObjective === "NO_GUIDANCE" ? "App-1" : "App promotion-App-1"}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary transition-all font-medium"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
                         />
                       </div>
 
                       {/* Subtype Selection */}
-                      <div className="space-y-3 pt-2 border-t border-slate-800">
+                      <div className="space-y-3 pt-2 border-t border-slate-200">
                         <div className="flex items-center justify-between">
-                          <label className="block text-xs font-semibold text-slate-300">Select a campaign subtype</label>
-                          <a href="#" onClick={e => e.preventDefault()} className="text-xs text-primary font-semibold hover:underline">Learn more</a>
+                          <label className="block text-xs font-semibold text-slate-700">Select a campaign subtype</label>
+                          <a href="#" onClick={e => e.preventDefault()} className="text-xs text-blue-600 font-semibold hover:underline">Learn more</a>
                         </div>
                         <div className="space-y-2">
                           {[
@@ -6282,7 +6282,7 @@ export default function CampaignCreatePage() {
                             <label
                               key={sub.id}
                               onClick={() => setAppSubtype(sub.id as any)}
-                              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${appSubtype === sub.id ? "border-primary bg-primary/5" : "border-slate-800 bg-slate-950 hover:border-slate-700"
+                              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${appSubtype === sub.id ? "border-blue-500 bg-blue-600 text-white/5" : "border-slate-200 bg-slate-50 hover:border-slate-200"
                                 }`}
                             >
                               <input
@@ -6290,10 +6290,10 @@ export default function CampaignCreatePage() {
                                 name="appSubtype"
                                 checked={appSubtype === sub.id}
                                 onChange={() => setAppSubtype(sub.id as any)}
-                                className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
+                                className="mt-0.5 text-blue-600 focus:ring-blue-500 h-4 w-4"
                               />
                               <div>
-                                <p className="text-xs font-semibold text-slate-200">{sub.title}</p>
+                                <p className="text-xs font-semibold text-slate-900">{sub.title}</p>
                                 <p className="text-[11px] text-slate-400 mt-0.5">{sub.desc}</p>
                               </div>
                             </label>
@@ -6302,16 +6302,16 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* Platform Selection */}
-                      <div className="space-y-2 pt-2 border-t border-slate-800">
-                        <label className="block text-xs font-semibold text-slate-300">Select your mobile app's platform</label>
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                        <label className="block text-xs font-semibold text-slate-700">Select your mobile app's platform</label>
                         <div className="flex items-center gap-6">
-                          <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
-                            <input type="radio" name="platform" defaultChecked className="text-primary focus:ring-primary h-4 w-4" />
+                          <label className="flex items-center gap-2 text-xs text-slate-900 cursor-pointer">
+                            <input type="radio" name="platform" defaultChecked className="text-blue-600 focus:ring-blue-500 h-4 w-4" />
                             Android
                           </label>
                           {appSubtype !== "preregistration" && (
-                            <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
-                              <input type="radio" name="platform" className="text-primary focus:ring-primary h-4 w-4" />
+                            <label className="flex items-center gap-2 text-xs text-slate-900 cursor-pointer">
+                              <input type="radio" name="platform" className="text-blue-600 focus:ring-blue-500 h-4 w-4" />
                               iOS
                             </label>
                           )}
@@ -6319,15 +6319,15 @@ export default function CampaignCreatePage() {
                       </div>
 
                       {/* App Lookup */}
-                      <div className="space-y-2 pt-2 border-t border-slate-800">
-                        <label className="block text-xs font-semibold text-slate-300">
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                        <label className="block text-xs font-semibold text-slate-700">
                           {appSubtype === "preregistration"
                             ? "Look up your app that's eligible for pre-registration"
                             : "Look up your app"}
                         </label>
                         <input
                           placeholder="Enter the app name, package name, publisher, or Play Store URL"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
                         />
                         <p className="text-[11px] text-slate-500 pt-1">
                           If you cannot find your app, please see these steps
@@ -6347,7 +6347,7 @@ export default function CampaignCreatePage() {
       )}
 
       {/* ── Fixed Footer Action Bar ──────────────────────────────────── */}
-      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center justify-between z-40">
+      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-40">
         <button
           onClick={() => {
             if (wizardStep === "SUMMARY") {
@@ -6364,7 +6364,7 @@ export default function CampaignCreatePage() {
               router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
             }
           }}
-          className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+          className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
         >
           {wizardStep === "OBJECTIVE" ? "Cancel" : "Back"}
         </button>
@@ -6421,7 +6421,7 @@ export default function CampaignCreatePage() {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    orgId: "demo-org-123",
+                    orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
                     customerId: customerId || "6587355041",
                     campaignName: `${OBJECTIVES.find(o => o.id === selectedObjective)?.title || "Sales"}-${selectedType === "PERFORMANCE_MAX" ? "Performance Max" : selectedType || "Performance Max"}-5`,
                     budget: activeBudgetValue,
@@ -6446,8 +6446,8 @@ export default function CampaignCreatePage() {
           }}
           className={`px-6 py-2.5 text-xs font-semibold rounded-lg flex items-center gap-2 transition-all ${
             (wizardStep !== "OBJECTIVE" || (selectedObjective && selectedType)) && !isPublishing
-              ? "bg-primary text-slate-950 hover:bg-secondary font-bold shadow-md shadow-primary/20 cursor-pointer"
-              : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50"
+              ? "bg-blue-600 text-white hover:bg-secondary font-bold shadow-md shadow-primary/20 cursor-pointer"
+              : "bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-200"
           }`}
         >
           {isPublishing ? (
@@ -6463,32 +6463,32 @@ export default function CampaignCreatePage() {
 
       {/* ── New account-level brand list Modal ────────────────────────────── */}
       {showBrandModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">New account-level brand list</h3>
+                <h3 className="text-base font-semibold text-slate-900">New account-level brand list</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Brand lists let you choose whether your ads show on searches that mention specific brands</p>
               </div>
-              <button onClick={() => setShowBrandModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowBrandModal(false)} className="text-slate-400 hover:text-slate-900">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">List name</label>
+                <label className="block text-xs font-semibold text-slate-700">List name</label>
                 <input
                   type="text"
                   value={brandListName}
                   onChange={(e) => setBrandListName(e.target.value)}
                   placeholder="Enter list name"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">Brands</label>
+                <label className="block text-xs font-semibold text-slate-700">Brands</label>
                 <p className="text-[11px] text-slate-400">Add brands to your list</p>
                 <div className="flex items-center gap-2">
                   <input
@@ -6496,7 +6496,7 @@ export default function CampaignCreatePage() {
                     value={brandSearchInput}
                     onChange={(e) => setBrandSearchInput(e.target.value)}
                     placeholder="Enter a brand (e.g. Nike, Apple, Samsung)"
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     onClick={() => {
@@ -6505,7 +6505,7 @@ export default function CampaignCreatePage() {
                         setBrandSearchInput("");
                       }
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-primary text-slate-950 font-semibold text-xs hover:bg-secondary cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-blue-600 text-white font-semibold text-xs hover:bg-secondary cursor-pointer"
                   >
                     Add
                   </button>
@@ -6514,7 +6514,7 @@ export default function CampaignCreatePage() {
                 {brandListItems.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
                     {brandListItems.map((b, i) => (
-                      <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-200">
+                      <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs text-slate-900">
                         {b}
                         <button onClick={() => setBrandListItems(prev => prev.filter((_, idx) => idx !== i))}>
                           <X className="h-3 w-3 hover:text-rose-400" />
@@ -6526,10 +6526,10 @@ export default function CampaignCreatePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
               <button
                 onClick={() => setShowBrandModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-850"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -6540,7 +6540,7 @@ export default function CampaignCreatePage() {
                   }
                   setShowBrandModal(false);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-secondary cursor-pointer"
               >
                 Save
               </button>
@@ -6551,35 +6551,35 @@ export default function CampaignCreatePage() {
       {/* ── Add Brand Guidelines Modal Overlay ───────────────────────── */}
       {showAddBrandModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowAddBrandModal(false)} />
+          <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-sm" onClick={() => setShowAddBrandModal(false)} />
           
-          <div className="relative z-10 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative z-10 bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0 bg-slate-950/50">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-slate-50/50">
               <div>
-                <h3 className="text-lg font-semibold text-white">Add brand guidelines</h3>
+                <h3 className="text-lg font-semibold text-slate-900">Add brand guidelines</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about brand guidelines</a>
+                  Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand guidelines</a>
                 </p>
               </div>
               <button
                 onClick={() => setShowAddBrandModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Modal Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-slate-200">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-slate-900">
               
               {/* Section 1: Brand identity */}
               <div className="space-y-4">
-                <h4 className="font-bold text-slate-100 text-sm border-b border-slate-800 pb-2">Brand identity</h4>
+                <h4 className="font-bold text-slate-900 text-sm border-b border-slate-200 pb-2">Brand identity</h4>
 
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-300">
+                  <label className="block font-semibold text-slate-700">
                     Business name <span className="text-rose-400">*</span>
                   </label>
                   <input
@@ -6588,7 +6588,7 @@ export default function CampaignCreatePage() {
                     onChange={(e) => setBusinessName(e.target.value)}
                     placeholder="Business name"
                     maxLength={25}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                   />
                   <div className="flex justify-between text-[10px] text-slate-500">
                     <span>Required</span>
@@ -6597,9 +6597,9 @@ export default function CampaignCreatePage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-300">Logos ({uploadedLogos.length}/5)</label>
-                  <label className="w-full p-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/60 text-xs font-semibold text-slate-300 hover:border-primary flex items-center justify-center gap-2 transition-all cursor-pointer">
-                    <Plus className="h-4 w-4 text-primary" />
+                  <label className="block font-semibold text-slate-700">Logos ({uploadedLogos.length}/5)</label>
+                  <label className="w-full p-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-xs font-semibold text-slate-700 hover:border-blue-500 flex items-center justify-center gap-2 transition-all cursor-pointer">
+                    <Plus className="h-4 w-4 text-blue-600" />
                     {isUploadingLogo ? "Uploading Logo..." : "+ Add logos"}
                     <input
                       type="file"
@@ -6613,14 +6613,14 @@ export default function CampaignCreatePage() {
               </div>
 
               {/* Section 2: Visual guidelines */}
-              <div className="space-y-4 pt-2 border-t border-slate-800">
+              <div className="space-y-4 pt-2 border-t border-slate-200">
                 <div>
-                  <h4 className="font-bold text-slate-100 text-sm">Visual guidelines</h4>
+                  <h4 className="font-bold text-slate-900 text-sm">Visual guidelines</h4>
                   <p className="text-xs text-slate-400 mt-0.5">Add your brand colors and fonts to help Google AI generate on-brand videos and responsive display ads.</p>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="block font-semibold text-slate-300">Custom colors</label>
+                  <label className="block font-semibold text-slate-700">Custom colors</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="block text-slate-400 text-[11px]">Main color</label>
@@ -6629,7 +6629,7 @@ export default function CampaignCreatePage() {
                         value={mainBrandColor}
                         onChange={(e) => setMainBrandColor(e.target.value)}
                         placeholder="Example: #ffffff"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                     </div>
 
@@ -6640,18 +6640,18 @@ export default function CampaignCreatePage() {
                         value={accentBrandColor}
                         onChange={(e) => setAccentBrandColor(e.target.value)}
                         placeholder="Example: #4285f4"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-1.5 pt-1">
-                  <label className="block font-semibold text-slate-300">Font</label>
+                  <label className="block font-semibold text-slate-700">Font</label>
                   <select
                     value={brandFont}
                     onChange={(e) => setBrandFont(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                   >
                     <option value="Any font">Any font</option>
                     <option value="Roboto">Roboto</option>
@@ -6662,19 +6662,19 @@ export default function CampaignCreatePage() {
               </div>
 
               {/* Section 3: Text guidelines Beta */}
-              <div className="space-y-4 pt-2 border-t border-slate-800">
+              <div className="space-y-4 pt-2 border-t border-slate-200">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-slate-100 text-sm">Text guidelines</h4>
+                  <h4 className="font-bold text-slate-900 text-sm">Text guidelines</h4>
                   <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold text-[10px]">Beta</span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Tell Google AI the rules it needs to follow when it creates relevant, on-brand headlines and descriptions for you. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about text guidelines</a>
+                  Tell Google AI the rules it needs to follow when it creates relevant, on-brand headlines and descriptions for you. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about text guidelines</a>
                 </p>
 
                 {/* Term Exclusions */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="font-semibold text-slate-300">Term exclusions ({termExclusions.length}/25)</label>
+                    <label className="font-semibold text-slate-700">Term exclusions ({termExclusions.length}/25)</label>
                   </div>
                   <input
                     type="text"
@@ -6690,7 +6690,7 @@ export default function CampaignCreatePage() {
                       }
                     }}
                     placeholder="For example: Cheap, free shipping, etc. Press Enter after each word or phrase."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
 
                   {termExclusions.length > 0 && (
@@ -6709,7 +6709,7 @@ export default function CampaignCreatePage() {
 
                 {/* Messaging Restrictions */}
                 <div className="space-y-3 pt-2">
-                  <label className="block font-semibold text-slate-300">Messaging restrictions ({messagingRestrictions.filter(m => m.trim()).length}/40)</label>
+                  <label className="block font-semibold text-slate-700">Messaging restrictions ({messagingRestrictions.filter(m => m.trim()).length}/40)</label>
                   
                   {messagingRestrictions.map((val, idx) => {
                     const placeholders = [
@@ -6733,12 +6733,12 @@ export default function CampaignCreatePage() {
                               setMessagingRestrictions(newRestr);
                             }}
                             placeholder={placeh}
-                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary resize-none"
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
                           />
                           {messagingRestrictions.length > 1 && (
                             <button
                               onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
-                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-all mt-1"
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-100 rounded-lg transition-all mt-1"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -6754,7 +6754,7 @@ export default function CampaignCreatePage() {
                   {messagingRestrictions.length < 40 && (
                     <button
                       onClick={() => setMessagingRestrictions(prev => [...prev, ""])}
-                      className="text-xs text-primary font-semibold hover:underline flex items-center gap-1.5 pt-1 cursor-pointer"
+                      className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1.5 pt-1 cursor-pointer"
                     >
                       <Plus className="h-3.5 w-3.5" /> Add another restriction
                     </button>
@@ -6766,16 +6766,16 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
               <button
                 onClick={() => setShowAddBrandModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-850 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setShowAddBrandModal(false)}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-secondary cursor-pointer"
               >
                 Save
               </button>
@@ -6786,27 +6786,27 @@ export default function CampaignCreatePage() {
       )}
       {/* Saved Audience Signal Modal */}
       {showSavedAudienceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/50 shrink-0">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" /> Create Audience Signal
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/50 shrink-0">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Users className="h-4 w-4 text-blue-600" /> Create Audience Signal
               </h2>
               <button
                 onClick={() => setShowSavedAudienceModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6 overflow-y-auto text-xs text-slate-200">
+            <div className="p-6 space-y-6 overflow-y-auto text-xs text-slate-900">
               {/* Audience Name */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-200 text-xs">Audience name</label>
+                  <label className="font-bold text-slate-900 text-xs">Audience name</label>
                   <span className="text-[10px] text-rose-400 font-semibold uppercase">Required</span>
                 </div>
                 <input
@@ -6814,14 +6814,14 @@ export default function CampaignCreatePage() {
                   value={modalAudienceName}
                   onChange={(e) => setModalAudienceName(e.target.value)}
                   placeholder="Enter audience name"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               {/* Your Data */}
-              <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950 space-y-3">
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                 <div>
-                  <h4 className="font-bold text-slate-200 text-xs">Your data</h4>
+                  <h4 className="font-bold text-slate-900 text-xs">Your data</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">People who have previously interacted with your business</p>
                 </div>
                 <div className="relative">
@@ -6831,15 +6831,15 @@ export default function CampaignCreatePage() {
                     value={modalYourDataSearch}
                     onChange={(e) => setModalYourDataSearch(e.target.value)}
                     placeholder="Add your data"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               {/* Interests & Detailed Demographics */}
-              <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950 space-y-3">
+              <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                 <div>
-                  <h4 className="font-bold text-slate-200 text-xs">Interests & detailed demographics</h4>
+                  <h4 className="font-bold text-slate-900 text-xs">Interests & detailed demographics</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">People based on their interests, life events, or detailed demographics</p>
                 </div>
                 <div className="relative">
@@ -6849,46 +6849,46 @@ export default function CampaignCreatePage() {
                     value={modalInterestsSearch}
                     onChange={(e) => setModalInterestsSearch(e.target.value)}
                     placeholder="Add in-market segments, life events, and more"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               {/* Demographics */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-950 space-y-5">
+              <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-5">
                 <div>
-                  <h4 className="font-bold text-slate-200 text-xs">Demographics</h4>
+                  <h4 className="font-bold text-slate-900 text-xs">Demographics</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">People with the following demographics</p>
                 </div>
 
                 {/* Gender */}
                 <div className="space-y-2">
-                  <label className="block text-[11px] font-semibold text-slate-300">Gender</label>
+                  <label className="block text-[11px] font-semibold text-slate-700">Gender</label>
                   <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                       <input
                         type="checkbox"
                         checked={genderFemale}
                         onChange={(e) => setGenderFemale(e.target.checked)}
-                        className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                       />
                       Female
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                       <input
                         type="checkbox"
                         checked={genderMale}
                         onChange={(e) => setGenderMale(e.target.checked)}
-                        className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                       />
                       Male
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                       <input
                         type="checkbox"
                         checked={genderUnknown}
                         onChange={(e) => setGenderUnknown(e.target.checked)}
-                        className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                       />
                       Unknown
                     </label>
@@ -6897,12 +6897,12 @@ export default function CampaignCreatePage() {
 
                 {/* Age */}
                 <div className="space-y-2">
-                  <label className="block text-[11px] font-semibold text-slate-300">Age</label>
+                  <label className="block text-[11px] font-semibold text-slate-700">Age</label>
                   <div className="flex items-center gap-3">
                     <select
                       value={ageMin}
                       onChange={(e) => setAgeMin(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     >
                       <option value="18">18</option>
                       <option value="25">25</option>
@@ -6914,7 +6914,7 @@ export default function CampaignCreatePage() {
                     <select
                       value={ageMax}
                       onChange={(e) => setAgeMax(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     >
                       <option value="24">24</option>
                       <option value="34">34</option>
@@ -6924,12 +6924,12 @@ export default function CampaignCreatePage() {
                       <option value="65+">65+</option>
                     </select>
 
-                    <label className="flex items-center gap-2 ml-4 cursor-pointer text-xs text-slate-300">
+                    <label className="flex items-center gap-2 ml-4 cursor-pointer text-xs text-slate-700">
                       <input
                         type="checkbox"
                         checked={ageUnknown}
                         onChange={(e) => setAgeUnknown(e.target.checked)}
-                        className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                       />
                       Unknown
                     </label>
@@ -6937,37 +6937,37 @@ export default function CampaignCreatePage() {
                 </div>
 
                 {/* Additional Demographics */}
-                <div className="pt-2 space-y-4 border-t border-slate-800">
-                  <h5 className="font-bold text-slate-300 text-xs">Additional demographics</h5>
+                <div className="pt-2 space-y-4 border-t border-slate-200">
+                  <h5 className="font-bold text-slate-700 text-xs">Additional demographics</h5>
 
                   {/* Parental Status */}
                   <div className="space-y-2">
                     <label className="block text-[11px] font-semibold text-slate-400">Parental status</label>
                     <div className="flex items-center gap-6">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                         <input
                           type="checkbox"
                           checked={parentStatusParent}
                           onChange={(e) => setParentStatusParent(e.target.checked)}
-                          className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                          className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                         />
                         Parent
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                         <input
                           type="checkbox"
                           checked={parentStatusNotParent}
                           onChange={(e) => setParentStatusNotParent(e.target.checked)}
-                          className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                          className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                         />
                         Not a parent
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                         <input
                           type="checkbox"
                           checked={parentStatusUnknown}
                           onChange={(e) => setParentStatusUnknown(e.target.checked)}
-                          className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                          className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                         />
                         Unknown
                       </label>
@@ -6981,7 +6981,7 @@ export default function CampaignCreatePage() {
                       <select
                         value={incomeMin}
                         onChange={(e) => setIncomeMin(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       >
                         <option value="Top 10%">Top 10%</option>
                         <option value="11-20%">11-20%</option>
@@ -6993,7 +6993,7 @@ export default function CampaignCreatePage() {
                       <select
                         value={incomeMax}
                         onChange={(e) => setIncomeMax(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       >
                         <option value="11-20%">11-20%</option>
                         <option value="21-30%">21-30%</option>
@@ -7002,12 +7002,12 @@ export default function CampaignCreatePage() {
                         <option value="Lower 50%">Lower 50%</option>
                       </select>
 
-                      <label className="flex items-center gap-2 ml-4 cursor-pointer text-xs text-slate-300">
+                      <label className="flex items-center gap-2 ml-4 cursor-pointer text-xs text-slate-700">
                         <input
                           type="checkbox"
                           checked={incomeUnknown}
                           onChange={(e) => setIncomeUnknown(e.target.checked)}
-                          className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                          className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4"
                         />
                         Unknown
                       </label>
@@ -7021,10 +7021,10 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
               <button
                 onClick={() => setShowSavedAudienceModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-850 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -7035,7 +7035,7 @@ export default function CampaignCreatePage() {
                   }
                   setShowSavedAudienceModal(false);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-secondary cursor-pointer"
               >
                 Save Audience Signal
               </button>
@@ -7046,20 +7046,20 @@ export default function CampaignCreatePage() {
 
       {/* Modal: New account-level brand list */}
       {showBrandModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden space-y-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden space-y-0">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setShowBrandModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">New account-level brand list</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">New account-level brand list</h2>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Brand lists let you choose whether your ads show on searches that mention specific brands
                   </p>
@@ -7071,19 +7071,19 @@ export default function CampaignCreatePage() {
             <div className="p-6 space-y-5">
               {/* List name */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-200">List name</label>
+                <label className="block text-xs font-semibold text-slate-900">List name</label>
                 <input
                   type="text"
                   value={brandListName}
                   onChange={(e) => setBrandListName(e.target.value)}
                   placeholder="Enter list name"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
 
               {/* Brands Section */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <label className="block text-xs font-semibold text-slate-200">Brands</label>
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <label className="block text-xs font-semibold text-slate-900">Brands</label>
                 <p className="text-[11px] text-slate-400">Add brands to your list</p>
 
                 <div className="relative">
@@ -7099,7 +7099,7 @@ export default function CampaignCreatePage() {
                       }
                     }}
                     placeholder="Enter a brand"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-20 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-20 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     type="button"
@@ -7109,7 +7109,7 @@ export default function CampaignCreatePage() {
                         setBrandSearchInput("");
                       }
                     }}
-                    className="absolute right-2 top-2 px-3 py-1 bg-primary text-slate-950 font-bold text-xs rounded-lg hover:bg-secondary transition-all cursor-pointer"
+                    className="absolute right-2 top-2 px-3 py-1 bg-blue-600 text-white font-bold text-xs rounded-lg hover:bg-secondary transition-all cursor-pointer"
                   >
                     Add
                   </button>
@@ -7118,10 +7118,10 @@ export default function CampaignCreatePage() {
                 {/* Brands Added Tag Cloud */}
                 {brandListItems.length > 0 && (
                   <div className="space-y-1.5 pt-2">
-                    <p className="text-[11px] font-semibold text-slate-300">Added brands ({brandListItems.length}):</p>
+                    <p className="text-[11px] font-semibold text-slate-700">Added brands ({brandListItems.length}):</p>
                     <div className="flex flex-wrap gap-2">
                       {brandListItems.map((b, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-xs text-primary font-medium">
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white/10 border border-blue-500/30 text-xs text-blue-600 font-medium">
                           🛡️ {b}
                           <button onClick={() => setBrandListItems(prev => prev.filter((_, i) => i !== idx))}>
                             <X className="h-3 w-3 hover:text-rose-400" />
@@ -7135,11 +7135,11 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50">
               <button
                 type="button"
                 onClick={() => setShowBrandModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-850 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -7155,7 +7155,7 @@ export default function CampaignCreatePage() {
                   setBrandListName("");
                   setBrandListItems([]);
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-secondary cursor-pointer"
               >
                 Save Brand List
               </button>
@@ -7166,20 +7166,20 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Add calls to your campaign */}
       {showCallsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden space-y-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden space-y-0">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setShowCallsModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Add calls to your campaign</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Add calls to your campaign</h2>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Campaign-level calls
                   </p>
@@ -7193,19 +7193,19 @@ export default function CampaignCreatePage() {
                 Add calls to this campaign. Any calls added here can be used across campaigns.
               </p>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-slate-200">Add new call</h3>
+                  <h3 className="text-xs font-semibold text-slate-900">Add new call</h3>
                   <span className="text-[11px] text-slate-400">Call reporting on, call recording off</span>
                 </div>
 
                 {/* Country */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Country</label>
+                  <label className="block text-xs font-semibold text-slate-700">Country</label>
                   <select
                     value={callsCountry}
                     onChange={(e) => setCallsCountry(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="United States">United States</option>
                     <option value="India">India</option>
@@ -7219,23 +7219,23 @@ export default function CampaignCreatePage() {
 
                 {/* Phone number */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Phone number</label>
+                  <label className="block text-xs font-semibold text-slate-700">Phone number</label>
                   <input
                     type="text"
                     value={callsPhoneNumber}
                     onChange={(e) => setCallsPhoneNumber(e.target.value)}
                     placeholder="Example: (201) 555-0123"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
 
                 {/* Conversion action */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">Conversion action</label>
+                  <label className="block text-xs font-semibold text-slate-700">Conversion action</label>
                   <select
                     value={callsConversionAction}
                     onChange={(e) => setCallsConversionAction(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="Use account settings (Calls from ads)">Use account settings (Calls from ads)</option>
                     <option value="Calls from ads (account default)">Calls from ads (account default)</option>
@@ -7244,11 +7244,11 @@ export default function CampaignCreatePage() {
                 </div>
 
                 {/* Advanced options */}
-                <div className="pt-2 border-t border-slate-800/80">
+                <div className="pt-2 border-t border-slate-200">
                   <button
                     type="button"
                     onClick={() => setShowCallsAdvancedOptions(!showCallsAdvancedOptions)}
-                    className="text-xs text-primary font-semibold hover:underline flex items-center gap-1.5 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1.5 cursor-pointer"
                   >
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showCallsAdvancedOptions ? "rotate-180" : ""}`} />
                     Advanced options
@@ -7257,15 +7257,15 @@ export default function CampaignCreatePage() {
                   {showCallsAdvancedOptions && (
                     <div className="mt-3 space-y-3 pl-2 text-xs text-slate-400 animate-in fade-in duration-200">
                       <div className="space-y-1.5">
-                        <label className="block text-[11px] font-semibold text-slate-300">Device preference</label>
+                        <label className="block text-[11px] font-semibold text-slate-700">Device preference</label>
                         <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" defaultChecked className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4" />
+                          <input type="checkbox" defaultChecked className="rounded bg-white border-slate-200 text-blue-600 h-4 w-4" />
                           <span>Prefer mobile devices</span>
                         </label>
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="block text-[11px] font-semibold text-slate-300">Scheduling</label>
+                        <label className="block text-[11px] font-semibold text-slate-700">Scheduling</label>
                         <p className="text-[10px] text-slate-500">Run call asset only during specific days or business hours</p>
                       </div>
                     </div>
@@ -7275,11 +7275,11 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50">
               <button
                 type="button"
                 onClick={() => setShowCallsModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-850 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
@@ -7292,7 +7292,7 @@ export default function CampaignCreatePage() {
                   setShowCallsModal(false);
                   setCallsPhoneNumber("");
                 }}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-secondary cursor-pointer"
               >
                 Save
               </button>
@@ -7303,19 +7303,19 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Create sitelink */}
       {showSitelinksModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60 shrink-0">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setShowSitelinksModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <X className="h-5 w-5" />
                 </button>
-                <h2 className="text-lg font-semibold text-white">Create sitelink</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Create sitelink</h2>
               </div>
             </div>
 
@@ -7326,9 +7326,9 @@ export default function CampaignCreatePage() {
                 {[1, 2, 3, 4, 5, 6].map((num, idx) => {
                   const item = sitelinkItems[idx] || { text: "", desc1: "", desc2: "", url: "" };
                   return (
-                    <div key={num} className="p-5 rounded-2xl border border-slate-800 bg-slate-950/60 space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <div key={num} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                           Sitelink {num}
                         </h3>
                         <span className="text-[11px] text-slate-400 font-mono">
@@ -7339,7 +7339,7 @@ export default function CampaignCreatePage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                         {/* Sitelink text */}
                         <div className="space-y-1">
-                          <label className="block font-semibold text-slate-300">Sitelink text</label>
+                          <label className="block font-semibold text-slate-700">Sitelink text</label>
                           <input
                             type="text"
                             maxLength={25}
@@ -7350,14 +7350,14 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="Enter sitelink text"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                           <p className="text-[10px] text-slate-500">Text is {item.text.length} characters out of 25</p>
                         </div>
 
                         {/* Final URL */}
                         <div className="space-y-1">
-                          <label className="block font-semibold text-slate-300">Final URL</label>
+                          <label className="block font-semibold text-slate-700">Final URL</label>
                           <input
                             type="text"
                             value={item.url}
@@ -7367,13 +7367,13 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="https://example.com/page"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                           />
                         </div>
 
                         {/* Description line 1 */}
                         <div className="space-y-1">
-                          <label className="block font-semibold text-slate-300">Description line 1 (recommended)</label>
+                          <label className="block font-semibold text-slate-700">Description line 1 (recommended)</label>
                           <input
                             type="text"
                             maxLength={35}
@@ -7384,14 +7384,14 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="Enter description line 1"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                           <p className="text-[10px] text-slate-500">Text is {item.desc1.length} characters out of 35</p>
                         </div>
 
                         {/* Description line 2 */}
                         <div className="space-y-1">
-                          <label className="block font-semibold text-slate-300">Description line 2 (recommended)</label>
+                          <label className="block font-semibold text-slate-700">Description line 2 (recommended)</label>
                           <input
                             type="text"
                             maxLength={35}
@@ -7402,7 +7402,7 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="Enter description line 2"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           />
                           <p className="text-[10px] text-slate-500">Text is {item.desc2.length} characters out of 35</p>
                         </div>
@@ -7413,49 +7413,49 @@ export default function CampaignCreatePage() {
               </div>
 
               {/* Sitelink URL options */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-950/60 space-y-4">
-                <h3 className="text-xs font-semibold text-white border-b border-slate-800 pb-2">
+              <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-4">
+                <h3 className="text-xs font-semibold text-slate-900 border-b border-slate-200 pb-2">
                   Sitelink URL options
                 </h3>
 
                 <div className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Tracking template</label>
+                    <label className="block font-semibold text-slate-700">Tracking template</label>
                     <input
                       type="text"
                       value={sitelinkTrackingTemplate}
                       onChange={(e) => setSitelinkTrackingTemplate(e.target.value)}
                       placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Final URL suffix</label>
+                    <label className="block font-semibold text-slate-700">Final URL suffix</label>
                     <input
                       type="text"
                       value={sitelinkFinalUrlSuffix}
                       onChange={(e) => setSitelinkFinalUrlSuffix(e.target.value)}
                       placeholder="Example: param1=value1&param2=value2"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Custom parameter</label>
+                    <label className="block font-semibold text-slate-700">Custom parameter</label>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-slate-400">{`{_`}</span>
                       <input
                         type="text"
                         placeholder="Name"
-                        className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                       <span className="font-mono text-slate-400">{`}`}</span>
                       <span className="font-mono text-slate-400">=</span>
                       <input
                         type="text"
                         placeholder="Value"
-                        className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -7463,46 +7463,46 @@ export default function CampaignCreatePage() {
               </div>
 
               {/* Advanced options & Asset scheduling */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-950/60 space-y-4">
-                <h3 className="text-xs font-semibold text-white border-b border-slate-800 pb-2">
+              <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-4">
+                <h3 className="text-xs font-semibold text-slate-900 border-b border-slate-200 pb-2">
                   Advanced options - Asset scheduling
                 </h3>
                 <p className="text-xs text-slate-400">Select when your assets will be eligible to show</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Start date</label>
+                    <label className="block font-semibold text-slate-700">Start date</label>
                     <input
                       type="date"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">End date</label>
+                    <label className="block font-semibold text-slate-700">End date</label>
                     <input
                       type="date"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 focus:outline-none focus:border-primary cursor-pointer"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2 pt-2 text-xs">
-                  <label className="block font-semibold text-slate-300">Days and hours</label>
+                  <label className="block font-semibold text-slate-700">Days and hours</label>
                   <div className="flex items-center gap-3">
-                    <select className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-primary cursor-pointer">
+                    <select className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer">
                       <option value="ALL">All days</option>
                       <option value="WEEKDAYS">Mondays to Fridays</option>
                       <option value="WEEKENDS">Saturdays and Sundays</option>
                     </select>
 
-                    <select className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-primary cursor-pointer">
+                    <select className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer">
                       <option value="00:00">12:00 AM</option>
                       <option value="08:00">08:00 AM</option>
                       <option value="09:00">09:00 AM</option>
                     </select>
                     <span className="text-slate-400">to</span>
-                    <select className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-primary cursor-pointer">
+                    <select className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer">
                       <option value="00:00">12:00 AM</option>
                       <option value="17:00">05:00 PM</option>
                       <option value="23:59">11:59 PM</option>
@@ -7520,18 +7520,18 @@ export default function CampaignCreatePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowSitelinksModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-850 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => setShowSitelinksModal(false)}
-                className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs hover:bg-secondary cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-secondary cursor-pointer"
               >
                 Save Sitelinks
               </button>
@@ -7542,15 +7542,15 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Promotions */}
       {showPromotionsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60 shrink-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowPromotionsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                <button type="button" onClick={() => setShowPromotionsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Add promotions to your campaign</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Add promotions to your campaign</h2>
                   <p className="text-xs text-slate-400">Campaign-level promotions</p>
                 </div>
               </div>
@@ -7559,13 +7559,13 @@ export default function CampaignCreatePage() {
             <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs">
               <p className="text-slate-400">Add promotions to this campaign. Any promotions added here can be used across campaigns.</p>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
-                <h3 className="font-semibold text-white">Add new promotion</h3>
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
+                <h3 className="font-semibold text-slate-900">Add new promotion</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Occasion</label>
-                    <select value={promoOccasion} onChange={(e) => setPromoOccasion(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Occasion</label>
+                    <select value={promoOccasion} onChange={(e) => setPromoOccasion(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="None">None</option>
                       <option value="New Year's">New Year's</option>
                       <option value="Valentine's Day">Valentine's Day</option>
@@ -7582,8 +7582,8 @@ export default function CampaignCreatePage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Language</label>
-                    <select value={promoLanguage} onChange={(e) => setPromoLanguage(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Language</label>
+                    <select value={promoLanguage} onChange={(e) => setPromoLanguage(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="English">English</option>
                     </select>
                   </div>
@@ -7591,8 +7591,8 @@ export default function CampaignCreatePage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Currency</label>
-                    <select value={promoCurrency} onChange={(e) => setPromoCurrency(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Currency</label>
+                    <select value={promoCurrency} onChange={(e) => setPromoCurrency(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="USD">USD ($)</option>
                       <option value="INR">INR (₹)</option>
                       <option value="EUR">EUR (€)</option>
@@ -7600,8 +7600,8 @@ export default function CampaignCreatePage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Promotion type</label>
-                    <select value={promoType} onChange={(e) => setPromoType(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Promotion type</label>
+                    <select value={promoType} onChange={(e) => setPromoType(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="Monetary discount">Monetary discount</option>
                       <option value="Percent discount">Percent discount</option>
                       <option value="Up to monetary discount">Up to monetary discount</option>
@@ -7611,57 +7611,57 @@ export default function CampaignCreatePage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Item</label>
+                  <label className="block font-semibold text-slate-700">Item</label>
                   <input
                     type="text"
                     maxLength={20}
                     value={promoItem}
                     onChange={(e) => setPromoItem(e.target.value)}
                     placeholder="Item name"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-500"
                   />
                   <p className="text-[10px] text-slate-500">Text is {promoItem.length} characters out of 20</p>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Final URL</label>
+                  <label className="block font-semibold text-slate-700">Final URL</label>
                   <input
                     type="text"
                     value={promoFinalUrl}
                     onChange={(e) => setPromoFinalUrl(e.target.value)}
                     placeholder="https://example.com/promo"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100 placeholder-slate-500 font-mono"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-500 font-mono"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Promotion details</label>
-                  <select value={promoDetails} onChange={(e) => setPromoDetails(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                  <label className="block font-semibold text-slate-700">Promotion details</label>
+                  <select value={promoDetails} onChange={(e) => setPromoDetails(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                     <option value="None">None</option>
                     <option value="On orders over">On orders over</option>
                     <option value="Promo code">Promo code</option>
                   </select>
                 </div>
 
-                <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <h4 className="font-semibold text-slate-300">Displayed promotion dates</h4>
+                <div className="pt-2 border-t border-slate-200 space-y-2">
+                  <h4 className="font-semibold text-slate-700">Displayed promotion dates</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] text-slate-400">Start date</label>
-                      <input type="date" value={promoStartDate} onChange={(e) => setPromoStartDate(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-100" />
+                      <input type="date" value={promoStartDate} onChange={(e) => setPromoStartDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                     </div>
                     <div>
                       <label className="block text-[11px] text-slate-400">End date</label>
-                      <input type="date" value={promoEndDate} onChange={(e) => setPromoEndDate(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-100" />
+                      <input type="date" value={promoEndDate} onChange={(e) => setPromoEndDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
-              <button type="button" onClick={() => setShowPromotionsModal(false)} className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">Cancel</button>
-              <button type="button" onClick={() => { if (promoItem) setPromotionsList(prev => [...prev, promoItem]); setShowPromotionsModal(false); }} className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs">Save</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
+              <button type="button" onClick={() => setShowPromotionsModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">Cancel</button>
+              <button type="button" onClick={() => { if (promoItem) setPromotionsList(prev => [...prev, promoItem]); setShowPromotionsModal(false); }} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Save</button>
             </div>
           </div>
         </div>
@@ -7669,15 +7669,15 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Prices */}
       {showPricesModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60 shrink-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowPricesModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                <button type="button" onClick={() => setShowPricesModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Add prices to your campaign</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Add prices to your campaign</h2>
                   <p className="text-xs text-slate-400">Campaign-level prices</p>
                 </div>
               </div>
@@ -7686,18 +7686,18 @@ export default function CampaignCreatePage() {
             <div className="p-6 space-y-4 text-xs">
               <p className="text-slate-400">Add prices to this campaign. Any prices added here can be used across campaigns.</p>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
-                <h3 className="font-semibold text-white">Add new price</h3>
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
+                <h3 className="font-semibold text-slate-900">Add new price</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-300">Language</label>
-                    <select value={priceLanguage} onChange={(e) => setPriceLanguage(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Language</label>
+                    <select value={priceLanguage} onChange={(e) => setPriceLanguage(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="English">English</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-300">Type</label>
-                    <select value={priceType} onChange={(e) => setPriceType(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Type</label>
+                    <select value={priceType} onChange={(e) => setPriceType(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="Brands">Brands</option>
                       <option value="Events">Events</option>
                       <option value="Locations">Locations</option>
@@ -7713,15 +7713,15 @@ export default function CampaignCreatePage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-300">Currency</label>
-                    <select value={priceCurrency} onChange={(e) => setPriceCurrency(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Currency</label>
+                    <select value={priceCurrency} onChange={(e) => setPriceCurrency(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="USD">USD ($)</option>
                       <option value="INR">INR (₹)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-300">Price qualifier</label>
-                    <select value={priceQualifier} onChange={(e) => setPriceQualifier(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                    <label className="block font-semibold text-slate-700">Price qualifier</label>
+                    <select value={priceQualifier} onChange={(e) => setPriceQualifier(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                       <option value="No qualifier">No qualifier</option>
                       <option value="From">From</option>
                       <option value="Up to">Up to</option>
@@ -7732,9 +7732,9 @@ export default function CampaignCreatePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
-              <button type="button" onClick={() => setShowPricesModal(false)} className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">Cancel</button>
-              <button type="button" onClick={() => { setPricesList(prev => [...prev, `${priceType} (${priceCurrency})`]); setShowPricesModal(false); }} className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs">Save</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
+              <button type="button" onClick={() => setShowPricesModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">Cancel</button>
+              <button type="button" onClick={() => { setPricesList(prev => [...prev, `${priceType} (${priceCurrency})`]); setShowPricesModal(false); }} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Save</button>
             </div>
           </div>
         </div>
@@ -7742,15 +7742,15 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Messages */}
       {showMessagesModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60 shrink-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowMessagesModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                <button type="button" onClick={() => setShowMessagesModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Add messages to your campaign</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Add messages to your campaign</h2>
                   <p className="text-xs text-slate-400">Campaign-level messages</p>
                 </div>
               </div>
@@ -7758,18 +7758,18 @@ export default function CampaignCreatePage() {
 
             <div className="p-6 space-y-4 text-xs">
               <p className="text-slate-400">Add messages to this campaign. Any messages added here can be used across campaigns.</p>
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
-                <h3 className="font-semibold text-white">Set up your message asset</h3>
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
+                <h3 className="font-semibold text-slate-900">Set up your message asset</h3>
                 <p className="text-slate-400">Select message platform</p>
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
+                <div className="p-3 rounded-xl bg-white border border-slate-200 text-slate-700">
                   Optimize your campaign for message ads. This will add a leads from messages conversion action to your campaign. Learn more about conversions
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
-              <button type="button" onClick={() => setShowMessagesModal(false)} className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">Cancel</button>
-              <button type="button" onClick={() => { setMessagesList(prev => [...prev, "WhatsApp / SMS Message"]); setShowMessagesModal(false); }} className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs">Save</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
+              <button type="button" onClick={() => setShowMessagesModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">Cancel</button>
+              <button type="button" onClick={() => { setMessagesList(prev => [...prev, "WhatsApp / SMS Message"]); setShowMessagesModal(false); }} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Save</button>
             </div>
           </div>
         </div>
@@ -7777,21 +7777,21 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Structured Snippets */}
       {showSnippetsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60 shrink-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowSnippetsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                <button type="button" onClick={() => setShowSnippetsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
-                <h2 className="text-lg font-semibold text-white">Create structured snippet</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Create structured snippet</h2>
               </div>
             </div>
 
             <div className="p-6 space-y-4 text-xs">
               <div className="space-y-1">
-                <label className="block font-semibold text-slate-300">Header</label>
-                <select value={snippetHeader} onChange={(e) => setSnippetHeader(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100">
+                <label className="block font-semibold text-slate-700">Header</label>
+                <select value={snippetHeader} onChange={(e) => setSnippetHeader(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900">
                   <option value="Select header type">Select header type</option>
                   <option value="Amenities">Amenities</option>
                   <option value="Brands">Brands</option>
@@ -7810,7 +7810,7 @@ export default function CampaignCreatePage() {
               </div>
 
               <div className="space-y-3 pt-2">
-                <label className="block font-semibold text-slate-300">Values</label>
+                <label className="block font-semibold text-slate-700">Values</label>
                 {[0, 1, 2].map((idx) => (
                   <div key={idx} className="space-y-1">
                     <label className="block text-[11px] text-slate-400">Value {idx + 1}</label>
@@ -7824,7 +7824,7 @@ export default function CampaignCreatePage() {
                         setSnippetValues(newV);
                       }}
                       placeholder={`Value ${idx + 1}`}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900"
                     />
                     <p className="text-[10px] text-slate-500">Text is {(snippetValues[idx] || "").length} characters out of 25</p>
                   </div>
@@ -7832,9 +7832,9 @@ export default function CampaignCreatePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
-              <button type="button" onClick={() => setShowSnippetsModal(false)} className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">Cancel</button>
-              <button type="button" onClick={() => { if (snippetHeader !== "Select header type") setSnippetsList(prev => [...prev, `${snippetHeader}: ${snippetValues.filter(Boolean).join(", ")}`]); setShowSnippetsModal(false); }} className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs">Save</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
+              <button type="button" onClick={() => setShowSnippetsModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">Cancel</button>
+              <button type="button" onClick={() => { if (snippetHeader !== "Select header type") setSnippetsList(prev => [...prev, `${snippetHeader}: ${snippetValues.filter(Boolean).join(", ")}`]); setShowSnippetsModal(false); }} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Save</button>
             </div>
           </div>
         </div>
@@ -7842,15 +7842,15 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Lead Forms */}
       {showLeadFormsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-3xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60 shrink-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowLeadFormsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                <button type="button" onClick={() => setShowLeadFormsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Add a lead form to your campaign</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Add a lead form to your campaign</h2>
                   <p className="text-xs text-slate-400">Campaign-level lead forms</p>
                 </div>
               </div>
@@ -7859,34 +7859,34 @@ export default function CampaignCreatePage() {
             <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
               <p className="text-slate-400">Add lead forms to this campaign. Any lead forms added here can be used across campaigns.</p>
 
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-950/60 space-y-4">
-                <h3 className="font-semibold text-white">Create your lead form</h3>
+              <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-4">
+                <h3 className="font-semibold text-slate-900">Create your lead form</h3>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Headline</label>
-                  <input type="text" maxLength={30} value={leadHeadline} onChange={(e) => setLeadHeadline(e.target.value)} placeholder="Headline" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100" />
+                  <label className="block font-semibold text-slate-700">Headline</label>
+                  <input type="text" maxLength={30} value={leadHeadline} onChange={(e) => setLeadHeadline(e.target.value)} placeholder="Headline" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900" />
                   <p className="text-[10px] text-slate-500">Text is {leadHeadline.length} characters out of 30</p>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Business name</label>
-                  <input type="text" maxLength={25} value={leadBusinessName} onChange={(e) => setLeadBusinessName(e.target.value)} placeholder="Business name" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100" />
+                  <label className="block font-semibold text-slate-700">Business name</label>
+                  <input type="text" maxLength={25} value={leadBusinessName} onChange={(e) => setLeadBusinessName(e.target.value)} placeholder="Business name" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900" />
                   <p className="text-[10px] text-slate-500">Text is {leadBusinessName.length} characters out of 25</p>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Description</label>
-                  <textarea rows={2} maxLength={200} value={leadDescription} onChange={(e) => setLeadDescription(e.target.value)} placeholder="Description" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-100" />
+                  <label className="block font-semibold text-slate-700">Description</label>
+                  <textarea rows={2} maxLength={200} value={leadDescription} onChange={(e) => setLeadDescription(e.target.value)} placeholder="Description" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900" />
                   <p className="text-[10px] text-slate-500">Text is {leadDescription.length} characters out of 200</p>
                 </div>
 
                 {/* Pre-filled questions */}
-                <div className="space-y-2 pt-2 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Contact information</h4>
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Contact information</h4>
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
                     {["Name", "Email", "Phone number", "Country", "City", "Zip/Postal code", "State/Province", "Street address"].map((q) => (
                       <label key={q} className="flex items-center gap-2">
-                        <input type="checkbox" defaultChecked className="rounded bg-slate-900 border-slate-700 text-primary h-3.5 w-3.5" />
+                        <input type="checkbox" defaultChecked className="rounded bg-white border-slate-200 text-blue-600 h-3.5 w-3.5" />
                         <span>{q} (Pre-filled)</span>
                       </label>
                     ))}
@@ -7894,27 +7894,27 @@ export default function CampaignCreatePage() {
                 </div>
 
                 {/* Form Submission Message */}
-                <div className="space-y-3 pt-3 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Create form submission message</h4>
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Create form submission message</h4>
                   <div className="space-y-1">
                     <label className="block text-slate-400">Headline</label>
-                    <input type="text" maxLength={30} value={leadThankYouHeadline} onChange={(e) => setLeadThankYouHeadline(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-100" />
+                    <input type="text" maxLength={30} value={leadThankYouHeadline} onChange={(e) => setLeadThankYouHeadline(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                   </div>
                   <div className="space-y-1">
                     <label className="block text-slate-400">Description</label>
-                    <textarea rows={2} maxLength={200} value={leadThankYouDesc} onChange={(e) => setLeadThankYouDesc(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-slate-100" />
+                    <textarea rows={2} maxLength={200} value={leadThankYouDesc} onChange={(e) => setLeadThankYouDesc(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-[11px]">
+                <div className="p-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-[11px]">
                   Optimize your campaign for lead form submissions. This will add a submit lead form conversion action to your campaign.
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
-              <button type="button" onClick={() => setShowLeadFormsModal(false)} className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">Cancel</button>
-              <button type="button" onClick={() => { if (leadHeadline) setLeadFormsList(prev => [...prev, leadHeadline]); setShowLeadFormsModal(false); }} className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs">Save Lead Form</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
+              <button type="button" onClick={() => setShowLeadFormsModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">Cancel</button>
+              <button type="button" onClick={() => { if (leadHeadline) setLeadFormsList(prev => [...prev, leadHeadline]); setShowLeadFormsModal(false); }} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Save Lead Form</button>
             </div>
           </div>
         </div>
@@ -7922,15 +7922,15 @@ export default function CampaignCreatePage() {
 
       {/* Modal: Apps */}
       {showAppsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-950/60 shrink-0">
+        <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowAppsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                <button type="button" onClick={() => setShowAppsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Add apps to your campaign</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Add apps to your campaign</h2>
                   <p className="text-xs text-slate-400">Campaign-level apps</p>
                 </div>
               </div>
@@ -7939,52 +7939,52 @@ export default function CampaignCreatePage() {
             <div className="p-6 space-y-4 text-xs">
               <p className="text-slate-400">Add apps to this campaign. Any apps added here can be used across campaigns.</p>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
-                <h3 className="font-semibold text-white">Add new app</h3>
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
+                <h3 className="font-semibold text-slate-900">Add new app</h3>
 
                 <div className="space-y-1.5">
-                  <label className="block font-semibold text-slate-300">Select your mobile app's platform</label>
+                  <label className="block font-semibold text-slate-700">Select your mobile app's platform</label>
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="appPlatform" checked={appPlatform === "Android"} onChange={() => setAppPlatform("Android")} className="text-primary focus:ring-primary" />
+                      <input type="radio" name="appPlatform" checked={appPlatform === "Android"} onChange={() => setAppPlatform("Android")} className="text-blue-600 focus:ring-blue-500" />
                       <span>Android</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" name="appPlatform" checked={appPlatform === "iOS"} onChange={() => setAppPlatform("iOS")} className="text-primary focus:ring-primary" />
+                      <input type="radio" name="appPlatform" checked={appPlatform === "iOS"} onChange={() => setAppPlatform("iOS")} className="text-blue-600 focus:ring-blue-500" />
                       <span>iOS</span>
                     </label>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Look up your app</label>
+                  <label className="block font-semibold text-slate-700">Look up your app</label>
                   <input
                     type="text"
                     value={appNameInput}
                     onChange={(e) => setAppNameInput(e.target.value)}
                     placeholder="Enter the app name, package name, or publisher"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Link text</label>
+                  <label className="block font-semibold text-slate-700">Link text</label>
                   <input
                     type="text"
                     maxLength={25}
                     value={appLinkText}
                     onChange={(e) => setAppLinkText(e.target.value)}
                     placeholder="Download App"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 placeholder-slate-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500"
                   />
                   <p className="text-[10px] text-slate-500">Text is {appLinkText.length} characters out of 25</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-950/50 shrink-0">
-              <button type="button" onClick={() => setShowAppsModal(false)} className="px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">Cancel</button>
-              <button type="button" onClick={() => setShowAppsModal(false)} className="px-5 py-2 rounded-xl bg-primary text-slate-950 font-bold text-xs">Save</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
+              <button type="button" onClick={() => setShowAppsModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">Cancel</button>
+              <button type="button" onClick={() => setShowAppsModal(false)} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Save</button>
             </div>
           </div>
         </div>

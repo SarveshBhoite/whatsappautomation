@@ -41,7 +41,7 @@ export interface StructuredAIResponse {
 }
 
 export class LinkedInAIService {
-  private static MODEL_NAME = "llama-3.3-70b-versatile";
+  private static MODEL_NAME = "openai/gpt-oss-120b";
 
   /**
    * Helper to construct CRM & Jisnu Context from recent AI history
@@ -186,7 +186,7 @@ You MUST respond with valid JSON matching EXACTLY this structure:
   }
 
   /**
-   * Core Groq API LLM Dispatcher using exact model: llama-3.3-70b-versatile
+   * Core Groq API LLM Dispatcher using exact model: openai/gpt-oss-120b
    */
   private static async callLLM(
     prompt: string,
@@ -488,6 +488,34 @@ ${cleanContent}
       mode: "Templates",
       hashtags: [],
       cta: "",
+      score: structured.score
+    };
+  }
+
+  /**
+   * Account-Specific Content Idea Suggestions
+   */
+  public static async generateIdeas(organizationId: string, headline: string, companyName: string) {
+    const prompt = `Generate 5 high-converting, viral LinkedIn post ideas tailored specifically for:
+Professional Headline: "${headline}"
+Company / Brand: "${companyName}"
+
+For each idea, provide:
+1. Catchy Hook (Opening line)
+2. Content Angle / Story Framework
+3. Target Audience Takeaway
+4. Recommended CTA & 3 Hashtags
+
+Return the 5 ideas formatted cleanly.`;
+
+    const { structured, model } = await this.callLLM(prompt, organizationId, "generate");
+
+    return {
+      success: true,
+      ideas: structured.response,
+      text: structured.response,
+      model,
+      hashtags: structured.hashtags,
       score: structured.score
     };
   }

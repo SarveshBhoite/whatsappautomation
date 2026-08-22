@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Mail,
   Bot,
@@ -29,12 +29,22 @@ import {
   ArrowRight,
   Search,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Menu,
+  X,
+  ArrowLeft
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 interface GmailAttachment {
   id: string;
@@ -122,8 +132,14 @@ const getAvatarColor = (initials: string) => {
 const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?: string | null }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Sanitize htmlContent to strip out inline script tags before injecting into sandboxed iframe
+  const sanitizedHtml = useMemo(() => {
+    if (!htmlContent) return "";
+    return htmlContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  }, [htmlContent]);
+
   useEffect(() => {
-    if (iframeRef.current && htmlContent) {
+    if (iframeRef.current && sanitizedHtml) {
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       if (doc) {
         doc.open();
@@ -145,10 +161,10 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
             }
             table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
             td, th { word-break: break-word !important; }
-            a { color: #55e6c1; text-decoration: underline; word-break: break-all; }
+            a { color: #059669; text-decoration: underline; word-break: break-all; }
             img, video, iframe { max-width: 100% !important; height: auto !important; border-radius: 8px; }
             blockquote {
-              border-left: 3px solid #334155;
+              border-left: 3px solid #cbd5e1;
               padding-left: 12px;
               color: #64748b;
               margin: 12px 0;
@@ -157,7 +173,7 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
           </style>
         `;
         const head = `<head><base target="_blank">${baseStyle}</head>`;
-        doc.write(`${head}<body>${htmlContent}</body>`);
+        doc.write(`${head}<body>${sanitizedHtml}</body>`);
         doc.close();
 
         const adjustHeight = () => {
@@ -182,9 +198,9 @@ const EmailRenderer = ({ content, htmlContent }: { content: string; htmlContent?
         return () => clearTimeout(timeout);
       }
     }
-  }, [htmlContent]);
+  }, [sanitizedHtml]);
 
-  if (htmlContent) {
+  if (sanitizedHtml) {
     return (
       <iframe
         ref={iframeRef}
@@ -279,7 +295,9 @@ export default function GmailDashboard() {
   // Navigation Tab: "MAIL" | "SETTINGS" | "CAMPAIGNS"
   const [activeTab, setActiveTab] = useState<"MAIL" | "SETTINGS" | "CAMPAIGNS">("MAIL");
   const [selectedLabel, setSelectedLabel] = useState("INBOX");
+  const [inboxCategory, setInboxCategory] = useState<"PRIMARY" | "PROMOTIONS" | "SOCIAL" | "UPDATES" | "ALL">("PRIMARY");
   const [searchTerm, setSearchTerm] = useState("");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Bulk Email Campaign State
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -335,7 +353,7 @@ export default function GmailDashboard() {
     try {
       // Get threads list for current label immediately from local DB
       const threadsRes = await fetch(`${BACKEND_URL}/api/gmail/threads?label=${label}`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
 
       if (threadsRes.ok) {
@@ -357,7 +375,7 @@ export default function GmailDashboard() {
 
       // Non-blocking fetch of config & rules
       fetch(`${BACKEND_URL}/api/gmail/config`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       }).then(res => res.ok ? res.json() : null).then(configData => {
         if (configData) {
           setAutoReplyEnabled(configData.autoReplyEnabled);
@@ -378,7 +396,7 @@ export default function GmailDashboard() {
   const fetchRules = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/rules`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -392,15 +410,23 @@ export default function GmailDashboard() {
   // Toggle Star on a thread
   const handleToggleStar = async (threadId: string, currentStarred: boolean) => {
     const nextStarred = !currentStarred;
-    setThreads(prev => prev.map(t => t.threadId === threadId ? { ...t, isStarred: nextStarred } : t));
-    if (selectedThread?.threadId === threadId) {
-      setSelectedThread(prev => prev ? { ...prev, isStarred: nextStarred } : null);
+    if (selectedLabel === "STARRED" && !nextStarred) {
+      // If currently on STARRED tab and unstarring, remove from list immediately
+      setThreads(prev => prev.filter(t => t.threadId !== threadId));
+      if (selectedThread?.threadId === threadId) {
+        setSelectedThread(null);
+      }
+    } else {
+      setThreads(prev => prev.map(t => t.threadId === threadId ? { ...t, isStarred: nextStarred } : t));
+      if (selectedThread?.threadId === threadId) {
+        setSelectedThread(prev => prev ? { ...prev, isStarred: nextStarred } : null);
+      }
     }
 
     try {
       await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}/star`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-organization-id": DEFAULT_ORG_ID },
+        headers: { "Content-Type": "application/json", "x-organization-id": getOrgId() },
         body: JSON.stringify({ isStarred: nextStarred })
       });
     } catch (err) {
@@ -419,7 +445,7 @@ export default function GmailDashboard() {
     try {
       await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}/spam`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-organization-id": DEFAULT_ORG_ID },
+        headers: { "Content-Type": "application/json", "x-organization-id": getOrgId() },
         body: JSON.stringify({ isSpam: nextSpam })
       });
     } catch (err) {
@@ -437,7 +463,7 @@ export default function GmailDashboard() {
     try {
       await fetch(`${BACKEND_URL}/api/gmail/threads/${threadId}`, {
         method: "DELETE",
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
     } catch (err) {
       console.error("Failed to delete thread:", err);
@@ -448,7 +474,7 @@ export default function GmailDashboard() {
   const fetchCampaigns = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -462,7 +488,7 @@ export default function GmailDashboard() {
   const fetchTemplates = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/templates`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -486,7 +512,7 @@ export default function GmailDashboard() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/gmail/campaigns/extract-file`, {
         method: "POST",
-        headers: { "x-organization-id": DEFAULT_ORG_ID },
+        headers: { "x-organization-id": getOrgId() },
         body: formData
       });
 
@@ -526,7 +552,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           name: campaignName,
@@ -565,7 +591,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ action })
       });
@@ -588,7 +614,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           name: templateName,
@@ -618,7 +644,10 @@ export default function GmailDashboard() {
 
     socket.on("connect", () => {
       console.log("Gmail socket connected");
-      socket.emit("join-org", DEFAULT_ORG_ID);
+      const org = getOrgId();
+      if (org) {
+        socket.emit("join-org", org);
+      }
     });
 
     socket.on("gmail-updated", () => {
@@ -675,7 +704,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ label: selectedLabel })
       });
@@ -701,7 +730,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           autoReplyEnabled,
@@ -732,7 +761,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           threadId: selectedThread.threadId,
@@ -763,7 +792,7 @@ export default function GmailDashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           threadId: selectedThread.threadId
@@ -805,7 +834,7 @@ export default function GmailDashboard() {
       const res = await fetch(`${BACKEND_URL}/api/gmail/rules`, {
         method: "POST",
         headers: {
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: formData
       });
@@ -833,7 +862,7 @@ export default function GmailDashboard() {
       const res = await fetch(`${BACKEND_URL}/api/gmail/rules/${id}`, {
         method: "DELETE",
         headers: {
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         }
       });
       if (res.ok) {
@@ -851,39 +880,54 @@ export default function GmailDashboard() {
 
   // OAuth Authentication Redirect
   const handleConnectGmail = () => {
-    window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${DEFAULT_ORG_ID}&redirect=/gmail`;
+    const org = getOrgId();
+    if (!org) {
+      alert("Please log in to your organization account to connect Gmail.");
+      window.location.href = "/login";
+      return;
+    }
+    window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${encodeURIComponent(org)}&redirect=/gmail`;
   };
 
-  // Filter threads by search term
+  // Filter threads by search term and inbox category
   const filteredThreads = threads.filter(thread => {
     const search = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = 
       thread.subject.toLowerCase().includes(search) ||
       thread.sender.toLowerCase().includes(search) ||
-      thread.snippet.toLowerCase().includes(search)
-    );
+      thread.snippet.toLowerCase().includes(search);
+
+    if (!matchesSearch) return false;
+
+    // If viewing non-Inbox label (e.g. STARRED, SENT, SPAM, TRASH), show all matching search
+    if (selectedLabel !== "INBOX") return true;
+
+    // Detect category from sender/subject for Inbox categorization
+    const senderLower = thread.sender.toLowerCase();
+    const subjectLower = thread.subject.toLowerCase();
+    const isSocial = senderLower.includes("linkedin") || senderLower.includes("facebook") || senderLower.includes("twitter") || senderLower.includes("instagram") || senderLower.includes("pinterest") || senderLower.includes("github");
+    const isPromo = senderLower.includes("flipboard") || senderLower.includes("newsletter") || senderLower.includes("promo") || senderLower.includes("marketing") || senderLower.includes("deal") || senderLower.includes("discount");
+    const isUpdates = senderLower.includes("workindia") || senderLower.includes("notification") || senderLower.includes("alert") || senderLower.includes("support") || senderLower.includes("ys buzz");
+
+    if (inboxCategory === "PRIMARY") {
+      // Primary inbox (exclude obvious social & promo digests)
+      return !isSocial && !isPromo;
+    } else if (inboxCategory === "SOCIAL") {
+      return isSocial;
+    } else if (inboxCategory === "PROMOTIONS") {
+      return isPromo;
+    } else if (inboxCategory === "UPDATES") {
+      return isUpdates;
+    }
+
+    return true;
   });
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans select-none antialiased">
       
-      {/* Global CSS for custom animations and scrollbars */}
+      {/* Global CSS for custom animations */}
       <style jsx global>{`
-        ::-webkit-scrollbar {
-          width: 5px;
-          height: 5px;
-        }
-        ::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.3);
-        }
-        ::-webkit-scrollbar-thumb {
-          background: rgba(148, 163, 184, 0.15);
-          border-radius: 99px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: rgba(148, 163, 184, 0.3);
-        }
-        
         .glow-pulse {
           box-shadow: 0 0 15px rgba(var(--primary), 0.15);
           animation: pulse 2s infinite alternate;
@@ -908,22 +952,40 @@ export default function GmailDashboard() {
         }
       `}</style>
 
+      {/* Mobile Drawer Backdrop */}
+      {mobileSidebarOpen && (
+        <div 
+          onClick={() => setMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden"
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="w-64 border-r border-slate-200 bg-white backdrop-blur-xl flex flex-col justify-between shrink-0 z-25">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-slate-200 bg-white backdrop-blur-xl flex flex-col justify-between shrink-0 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${
+        mobileSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+      }`}>
         <div className="flex flex-col gap-6 p-5">
-          {/* Logo Brand Header */}
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-sky-500 p-0.5 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <div className="h-full w-full rounded-[14px] bg-white flex items-center justify-center">
-                <Mail className="h-5 w-5 text-emerald-600" />
+          {/* Logo Brand Header & Close button on mobile */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-sky-500 p-0.5 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <div className="h-full w-full rounded-[14px] bg-white flex items-center justify-center">
+                  <Mail className="h-5 w-5 text-emerald-600" />
+                </div>
+              </div>
+              <div>
+                <span className="font-extrabold text-sm tracking-tight text-slate-900">
+                  Gmail Portal
+                </span>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Automation Hub</p>
               </div>
             </div>
-            <div>
-              <span className="font-extrabold text-sm tracking-tight text-slate-900">
-                Gmail Portal
-              </span>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Automation Hub</p>
-            </div>
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="lg:hidden p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
           {/* Mailboxes Group */}
@@ -937,7 +999,10 @@ export default function GmailDashboard() {
               return (
                 <button
                   key={lbl.id}
-                  onClick={() => handleLabelChange(lbl.id)}
+                  onClick={() => {
+                    handleLabelChange(lbl.id);
+                    setMobileSidebarOpen(false);
+                  }}
                   className={`flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
                     isSelected
                       ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
@@ -964,7 +1029,10 @@ export default function GmailDashboard() {
               Campaigns & Automation
             </span>
             <button
-              onClick={() => setActiveTab("CAMPAIGNS")}
+              onClick={() => {
+                setActiveTab("CAMPAIGNS");
+                setMobileSidebarOpen(false);
+              }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
                 activeTab === "CAMPAIGNS"
                   ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
@@ -975,7 +1043,10 @@ export default function GmailDashboard() {
               <span>Bulk Email Campaign</span>
             </button>
             <button
-              onClick={handleOpenSettings}
+              onClick={() => {
+                handleOpenSettings();
+                setMobileSidebarOpen(false);
+              }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-200 group ${
                 activeTab === "SETTINGS"
                   ? "bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm"
@@ -1008,16 +1079,23 @@ export default function GmailDashboard() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
         
         {/* Header Section */}
-        <header className="h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 shrink-0 z-10">
-          <div className="flex items-center gap-4">
-            <div className="h-11 w-11 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shadow-sm">
-              <Mail className="h-5 w-5 text-emerald-600" />
+        <header className="h-16 lg:h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-4 lg:px-8 shrink-0 z-10">
+          <div className="flex items-center gap-3 lg:gap-4">
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700"
+              title="Open Navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="h-9 w-9 lg:h-11 lg:w-11 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shadow-sm">
+              <Mail className="h-4 w-4 lg:h-5 lg:w-5 text-emerald-600" />
             </div>
             <div>
-              <h1 className="font-black text-lg tracking-tight text-slate-900">
+              <h1 className="font-black text-sm lg:text-lg tracking-tight text-slate-900 truncate max-w-[160px] sm:max-w-xs md:max-w-md">
                 {activeTab === "CAMPAIGNS" ? "Bulk Email Campaigns" : activeTab === "SETTINGS" ? "Automation Configuration" : `Mailbox: ${selectedLabel}`}
               </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[10px] lg:text-[11px] text-slate-500 mt-0.5 hidden sm:block">
                 {activeTab === "CAMPAIGNS"
                   ? "Extract recipients from Excel/CSV/PDF & send personalized email campaigns"
                   : activeTab === "SETTINGS" 
@@ -1027,24 +1105,24 @@ export default function GmailDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 lg:gap-3">
             <button
               onClick={handleSyncInbox}
               disabled={syncing || !connectedEmail}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition duration-200 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 lg:px-4 lg:py-2.5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition duration-200 disabled:opacity-50"
             >
-              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin text-emerald-600" : ""}`} />
-              {syncing ? "Syncing Inbox..." : "Sync Inbox"}
+              <RefreshCw className={`h-3.5 w-3.5 lg:h-4 lg:w-4 ${syncing ? "animate-spin text-emerald-600" : ""}`} />
+              <span className="hidden sm:inline">{syncing ? "Syncing..." : "Sync Inbox"}</span>
             </button>
             <button
               onClick={handleConnectGmail}
-              className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition shadow-md ${
+              className={`px-3 py-2 lg:px-5 lg:py-2.5 rounded-2xl text-xs font-bold transition shadow-md ${
                 connectedEmail 
                   ? "bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700"
                   : "bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-emerald-500/20"
               }`}
             >
-              {connectedEmail ? "Reconnect Account" : "Connect Gmail"}
+              {connectedEmail ? "Reconnect" : "Connect"}
             </button>
           </div>
         </header>
@@ -1059,11 +1137,26 @@ export default function GmailDashboard() {
 
         {/* Content Tabs Switch */}
         {loading && threads.length === 0 && rules.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4">
-            <div className="h-12 w-12 rounded-2xl border border-primary/25 bg-primary/5 flex items-center justify-center animate-pulse">
-              <RefreshCw className="h-6 w-6 text-primary animate-spin" />
+          <div className="flex-1 p-6 space-y-6 bg-slate-50 animate-pulse overflow-hidden">
+            <div className="flex gap-4">
+              <div className="w-80 bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                <div className="h-8 bg-slate-100 rounded-xl" />
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 w-28 bg-slate-200 rounded" />
+                      <div className="h-3 w-12 bg-slate-100 rounded" />
+                    </div>
+                    <div className="h-3 w-40 bg-slate-100 rounded" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xs">
+                <div className="h-6 w-48 bg-slate-200 rounded" />
+                <div className="h-4 w-32 bg-slate-100 rounded" />
+                <div className="h-40 bg-slate-50 border border-slate-100 rounded-xl mt-6" />
+              </div>
             </div>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Syncing workspace records...</p>
           </div>
         ) : !connectedEmail ? (
           /* Empty / Unconnected State Graphic */
@@ -1576,10 +1669,12 @@ export default function GmailDashboard() {
           <div className="flex-1 flex overflow-hidden">
             
             {/* Conversation Threads Pane */}
-            <div className="w-85 border-r border-slate-200 flex flex-col shrink-0 bg-white overflow-hidden">
+            <div className={`w-full md:w-85 border-r border-slate-200 flex flex-col shrink-0 bg-white overflow-hidden ${
+              selectedThread ? "hidden md:flex" : "flex"
+            }`}>
               
-              {/* Search Bar Block */}
-              <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-3 shrink-0">
+              {/* Search Bar & Inbox Categories Bar */}
+              <div className="p-3.5 border-b border-slate-200 bg-slate-50 flex flex-col gap-2.5 shrink-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <input
@@ -1590,6 +1685,31 @@ export default function GmailDashboard() {
                     className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors shadow-sm"
                   />
                 </div>
+
+                {/* Gmail Primary / Social / Promotions Subtabs for Inbox */}
+                {selectedLabel === "INBOX" && (
+                  <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl">
+                    {[
+                      { id: "PRIMARY", label: "Primary" },
+                      { id: "SOCIAL", label: "Social" },
+                      { id: "PROMOTIONS", label: "Promos" },
+                      { id: "UPDATES", label: "Updates" },
+                      { id: "ALL", label: "All" }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setInboxCategory(cat.id as any)}
+                        className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                          inboxCategory === cat.id
+                            ? "bg-white text-emerald-700 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Scrollable Conversation List */}
@@ -1692,17 +1812,28 @@ export default function GmailDashboard() {
             </div>
 
             {/* Email Message Detail Flow and Reader Pane */}
-            <div className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-y-auto no-scrollbar p-8">
+            <div className={`flex-1 flex flex-col min-w-0 bg-slate-50 overflow-y-auto no-scrollbar p-4 lg:p-8 ${
+              selectedThread ? "flex" : "hidden md:flex"
+            }`}>
               {selectedThread ? (
                 <div className="max-w-4xl w-full mx-auto flex flex-col gap-6 min-w-0">
                   
-                  {/* Selected Subject Header with Actions */}
-                  <div className="border-b border-slate-200 pb-5 min-w-0 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <h2 className="text-xl font-bold text-slate-900 truncate tracking-tight">{selectedThread.subject}</h2>
-                      <p className="text-xs text-slate-500 mt-1 truncate">
-                        From: <span className="text-slate-700 font-semibold">{selectedThread.sender}</span>
-                      </p>
+                  {/* Selected Subject Header with Actions & Mobile Back Button */}
+                  <div className="border-b border-slate-200 pb-5 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="min-w-0 flex items-start gap-3">
+                      <button
+                        onClick={() => setSelectedThread(null)}
+                        className="md:hidden p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shrink-0"
+                        title="Back to Conversations"
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </button>
+                      <div className="min-w-0">
+                        <h2 className="text-lg lg:text-xl font-bold text-slate-900 truncate tracking-tight">{selectedThread.subject}</h2>
+                        <p className="text-xs text-slate-500 mt-1 truncate">
+                          From: <span className="text-slate-700 font-semibold">{selectedThread.sender}</span>
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">

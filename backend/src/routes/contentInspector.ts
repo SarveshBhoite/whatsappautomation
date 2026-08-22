@@ -167,7 +167,7 @@ Provide your evaluation strictly as a valid JSON object matching this schema:
   const response = await axios.post(
     "https://api.groq.com/openai/v1/chat/completions",
     {
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -340,7 +340,7 @@ ${text.slice(0, 6000)}
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [
           { role: "system", content: "You are a master human editor and copywriter." },
           { role: "user", content: prompt }

@@ -134,19 +134,19 @@ async function main() {
                 id: "seo_result_media_1",
                 type: "mediaNode",
                 position: { x: 350, y: 990 },
-                data: { label: "SEO Result - Data Engineering", mediaType: "image", mediaUrl: "/uploads/seo_result_1.jpg", caption: "📊 Proof 1: Google Page 1 Rank #1 for 'best data engineering course in pune'" }
+                data: { label: "SEO Result - Data Engineering", mediaType: "image", mediaUrl: "https://ik.imagekit.io/automationjds/seo_result_1.jpg", caption: "📊 Proof 1: Google Page 1 Rank #1 for 'best data engineering course in pune'" }
             },
             {
                 id: "seo_result_media_2",
                 type: "mediaNode",
                 position: { x: 350, y: 1160 },
-                data: { label: "SEO Result - Occupational Therapy", mediaType: "image", mediaUrl: "/uploads/seo_result_2.jpg", caption: "📍 Proof 2: Google Local Map Pack Rank #1 for 'occupational therapy in wakad'" }
+                data: { label: "SEO Result - Occupational Therapy", mediaType: "image", mediaUrl: "https://ik.imagekit.io/automationjds/seo_result_2.jpg", caption: "📍 Proof 2: Google Local Map Pack Rank #1 for 'occupational therapy in wakad'" }
             },
             {
                 id: "seo_result_media_3",
                 type: "mediaNode",
                 position: { x: 350, y: 1330 },
-                data: { label: "SEO Result - Kids Therapy Clinic", mediaType: "image", mediaUrl: "/uploads/seo_result_3.jpg", caption: "⭐ Proof 3: Top Ranked Local Business for 'kids therapy clinic nearby wakad'" }
+                data: { label: "SEO Result - Kids Therapy Clinic", mediaType: "image", mediaUrl: "https://ik.imagekit.io/automationjds/seo_result_3.jpg", caption: "⭐ Proof 3: Top Ranked Local Business for 'kids therapy clinic nearby wakad'" }
             },
             {
                 id: "seo_action_btns",

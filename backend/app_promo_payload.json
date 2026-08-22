@@ -1,0 +1,21 @@
+{
+  "name": "Live APP PROMOTION Campaign - App Installs Test",
+  "objective": "OUTCOME_APP_PROMOTION",
+  "buyingType": "AUCTION",
+  "dailyBudget": 500,
+  "adSetName": "Android App Installs Ad Set",
+  "destinationType": "APP",
+  "optimizationGoal": "APP_INSTALLS",
+  "objectStoreUrl": "https://play.google.com/store/apps/details?id=com.whatsapp",
+  "creativeHeadline": "Download WhatsApp Automation App Today!",
+  "creativeBody": "Boost your business messaging efficiency by 10x with automated replies.",
+  "creativeMediaUrl": "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800",
+  "targeting": {
+    "countries": ["IN"],
+    "cities": ["Mumbai", "Bengaluru", "Pune"],
+    "ageMin": 18,
+    "ageMax": 65,
+    "genders": [],
+    "languages": ["English", "Hindi"]
+  }
+}

@@ -11,7 +11,7 @@ interface RefreshProfileButtonProps {
 }
 
 export function RefreshProfileButton({
-  organizationId = "demo-org-123",
+  organizationId = "",
   onSuccess,
   onError,
   className

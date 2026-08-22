@@ -11,7 +11,7 @@ interface DisconnectButtonProps {
 }
 
 export function DisconnectButton({
-  organizationId = "demo-org-123",
+  organizationId = "",
   onSuccess,
   onError,
   className

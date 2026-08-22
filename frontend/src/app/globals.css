@@ -1,26 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  /* Brand Theme Colors (Dark Mode) from jisnusite */
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.98 0 0);
+  /* Brand Theme Colors extracted from logo (icon.jpeg) */
+  --brand-blue: #0284C7;
+  --brand-blue-deep: #0369A1;
+  --brand-blue-royal: #0F52BA;
+  --brand-cyan: #38BDF8;
+  --brand-green: #059669;
+  --brand-green-light: #10B981;
+  --brand-orange: #EA580C;
+  --brand-orange-light: #F97316;
 
-  --card: oklch(0.15 0 0);
-  --card-foreground: oklch(0.98 0 0);
+  /* Default Light Theme Surface & Text */
+  --background: #F8FAFC;
+  --foreground: #0F172A;
 
-  /* Brand Teal/Cyan Accent Colors */
-  --primary: oklch(0.55 0.14 195);      /* Deep Teal */
-  --secondary: oklch(0.7 0.16 190);    /* Cyan */
-  --accent: oklch(0.72 0.17 185);       /* Aqua */
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
 
-  --muted: oklch(0.3 0 0);
-  --muted-foreground: oklch(0.7 0 0);
+  --primary: #0284C7;
+  --primary-foreground: #FFFFFF;
 
-  --border: oklch(0.25 0.01 199);
-  --input: oklch(0.2 0.01 199);
-  --ring: oklch(0.55 0.14 195);
-  
-  --radius: 0.75rem;
+  --secondary: #0EA5E9;
+  --secondary-foreground: #FFFFFF;
+
+  --accent: #F97316;
+  --accent-foreground: #FFFFFF;
+
+  --success: #059669;
+  --success-foreground: #FFFFFF;
+
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #0284C7;
+
+  --radius: 1rem;
 }
 
 @theme {
@@ -30,140 +47,203 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Map standard slate colors to brand dark equivalents to instantly style page.tsx layout */
-  --color-slate-950: var(--background);
-  --color-slate-900: var(--card);
-  --color-slate-850: oklch(0.18 0.01 199);
-  --color-slate-800: var(--border);
-  --color-slate-700: oklch(0.28 0.01 199);
-  --color-slate-600: oklch(0.34 0.01 199);
-  --color-slate-500: oklch(0.48 0.01 199);
-  --color-slate-400: var(--muted-foreground);
-  --color-slate-300: oklch(0.8 0 0);
-  --color-slate-200: var(--foreground);
-  --color-slate-100: oklch(0.99 0 0);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-deep: var(--brand-blue-deep);
+  --color-brand-blue-royal: var(--brand-blue-royal);
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-green: var(--brand-green);
+  --color-brand-green-light: var(--brand-green-light);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-orange-light: var(--brand-orange-light);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior: none;
 }
 
 /* Custom Selection styling matching brand */
 ::selection {
-  background: var(--primary);
-  color: var(--background);
+  background: #E0F2FE;
+  color: #0369A1;
 }
 
-/* Smooth scrollbars */
-.scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-.scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 999px;
+/* Mesh Canvas & Grid Texture */
+.bg-mesh-canvas {
+  background-color: #F8FAFC;
+  background-image: 
+    radial-gradient(at 15% 10%, rgba(2, 132, 199, 0.08) 0px, transparent 50%),
+    radial-gradient(at 85% 15%, rgba(249, 115, 22, 0.07) 0px, transparent 50%),
+    radial-gradient(at 50% 60%, rgba(5, 150, 105, 0.05) 0px, transparent 60%),
+    radial-gradient(at 80% 85%, rgba(2, 132, 199, 0.06) 0px, transparent 50%);
 }
 
-/* Hide scrollbar utility */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(226, 232, 240, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(226, 232, 240, 0.6) 1px, transparent 1px);
 }
+
+.bg-dot-pattern {
+  background-image: radial-gradient(rgba(203, 213, 225, 0.8) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* High-craft Bento Glass Cards */
+.bento-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.5rem;
+  box-shadow: 
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 8px 24px -4px rgba(15, 23, 42, 0.06),
+    0 20px 48px -12px rgba(15, 23, 42, 0.04);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bento-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(203, 213, 225, 1);
+  box-shadow: 
+    0 2px 4px rgba(15, 23, 42, 0.04),
+    0 16px 36px -6px rgba(15, 23, 42, 0.09),
+    0 32px 64px -16px rgba(15, 23, 42, 0.06);
+}
+
+/* Inner Glow Stroke */
+.bento-glow-border {
+  position: relative;
+}
+.bento-glow-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(226, 232, 240, 0.4), rgba(2, 132, 199, 0.2));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Interactive Pill Active State */
+.pill-active-blue {
+  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+.pill-active-orange {
+  background: linear-gradient(135deg, #EA580C 0%, #F97316 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+}
+
+.pill-active-green {
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+/* Animations */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes flowLine {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-float {
+  animation: floatSlow 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: floatSlow 6s ease-in-out 3s infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 3s ease-in-out infinite;
+}
+
+/* Universal Invisible Scrollbars: fully scrollable everywhere, but completely hidden visually */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+html, body {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Scrollbar utility classes (hidden across all devices/browsers) */
+.scrollbar-none,
+.scrollbar-thin,
 .no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
-/* Mobile safe area */
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+.scrollbar-none::-webkit-scrollbar,
+.scrollbar-thin::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
-.safe-top {
-  padding-top: env(safe-area-inset-top);
-}
-
-/* Slide-in animations */
-@keyframes slideInRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
-}
-@keyframes slideInLeft {
-  from { transform: translateX(-100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fadeIn { animation: fadeIn 0.18s ease-out both; }
-.animate-slideInRight { animation: slideInRight 0.22s ease-out both; }
-.animate-slideInLeft { animation: slideInLeft 0.22s ease-out both; }
-.animate-slideUp { animation: slideUp 0.22s ease-out both; }
-
-/* Prevent layout shift from mobile keyboard */
-@media (max-width: 640px) {
-  html, body {
-    height: 100%;
-    overflow: hidden;
-  }
-}
-
-/* Print / PDF Export Styling */
-@media print {
-  aside, nav, header, button, form, .no-print {
-    display: none !important;
-  }
-  html, body, main {
-    background: #ffffff !important;
-    color: #0f172a !important;
-    overflow: visible !important;
-    height: auto !important;
-    width: 100% !important;
-  }
-  div, section, article {
-    box-shadow: none !important;
-    break-inside: avoid;
-  }
-  .bg-slate-900, .bg-slate-950, .bg-slate-950\/40, .bg-slate-900\/80, .bg-slate-900\/60 {
-    background: #ffffff !important;
-    color: #0f172a !important;
-    border-color: #cbd5e1 !important;
-  }
-  .text-slate-100, .text-slate-200, .text-slate-300, .text-slate-400 {
-    color: #0f172a !important;
-  }
-  .text-emerald-400 {
-    color: #047857 !important;
-  }
-  .text-amber-400 {
-    color: #b45309 !important;
-  }
-  .text-red-400 {
-    color: #b91c1c !important;
-  }
-}
-

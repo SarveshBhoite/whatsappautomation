@@ -164,10 +164,13 @@ Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. W
    - Converse naturally like a top-performing Senior Growth Consultant closing web & digital marketing deals on WhatsApp.
    - Build value around our core services (High-Performance Next.js Web Portals, Rank #1 Google SEO, Meta/Google Ads).
    - When the customer shows interest in custom pricing, starting a project, or getting a quote, naturally close the conversation: "I'd love to schedule a quick 10-minute strategy call with our team. May I have your Full Name, Phone Number, and Email so I can lock in your slot?"
-6. **Job Applicant & Career Inquiries**:
-   - Be warm, encouraging, and professional with job seekers.
-   - Share open positions (Full-Stack Web Developers, Performance Marketers, UI/UX, Sales Executives) and internships.
-   - Ask for their Full Name, Phone Number, Email, Qualification/Years of Experience, and Resume Link (LinkedIn/Drive) — ask one thing at a time, naturally across the conversation.
+6. **JOB APPLICANT & CAREER INQUIRIES (CRITICAL CONTINUITY RULE)**:
+   - Check the recent chat history carefully! If the customer previously mentioned applying for a job, looking for a job, interviewing, or has shared their resume (e.g. mentions "job", "apply", "resume", "cv", "hiring", "interview", or uploaded a document/PDF resume), THE ENTIRE CONVERSATION IS A JOB APPLICATION.
+   - **CRITICAL STICKINESS RULE**: STAY STICKY IN THE JOB APPLICANT FLOW! DO NOT SWITCH TO SELLING COMPANY SERVICES TO A JOB APPLICANT!
+   - If the candidate mentions terms like "Digital Marketing", "Meta Ads", "Google Ads", "Web Development", "Python", "SEO", etc., treat these strictly as THE JOB POSITION / ROLE THEY ARE APPLYING FOR (e.g., "Got it! You are applying for the Digital Marketing / Meta Ads role."), NOT as services they want to purchase!
+   - **ALWAYS ACKNOWLEDGE RESUME & CONFIRM CALL BACK**: Once they share their resume or specify the position, acknowledge warmly in the customer's detected language (English, Hindi, Hinglish, Marathi, etc.) and state clearly that HR will review their application and call them:
+     - Example (Hinglish/Hindi): "Aapki application aur resume mil gayi hai, thank you! Humari HR team aapki application review karegi aur aapko jaldi call karegi."
+     - Example (English): "Thank you for sharing your resume and details for the Digital Marketing / Meta Ads role! Our HR team will review your application and call you shortly with an update."
 7. **AUTOMATIC MULTILINGUAL MATCHING & CONTINUITY (CRITICAL RULE)**:
    - Detect the language of the customer's incoming message (e.g., Hindi, Marathi, Telugu, Tamil, Kannada, Gujarati, Hinglish, English, etc.).
    - Respond strictly in the EXACT SAME LANGUAGE as the user!
@@ -202,7 +205,7 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
@@ -413,9 +416,14 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     if (isLeadExpressingInterest) {
       const leadData = parsedResult?.capturedLead || {};
       
+      // Check if conversation history is a job application
+      const isJobCandidateContext = recentMessages.some(m => /\b(job|career|resume|cv|hiring|vacancy|interview|apply|applying)\b/i.test(m.content));
+
       // Determine precise topic
       let topicSummary = leadData.topic || "";
-      if (!topicSummary || topicSummary === "extracted_topic_or_null") {
+      if (isJobCandidateContext) {
+        topicSummary = `Job Candidate / Hiring Inquiry (${customerQuery.slice(0, 50)})`;
+      } else if (!topicSummary || topicSummary === "extracted_topic_or_null") {
         if (/\b(website|web app|web dev|web design|landing page)\b/i.test(customerQuery)) topicSummary = "Website Development";
         else if (/\b(android app|ios app|mobile app|flutter|react native)\b/i.test(customerQuery)) topicSummary = "Mobile App Development";
         else if (/\b(seo|google ranking|search engine)\b/i.test(customerQuery)) topicSummary = "SEO & Google Ranking";
@@ -471,5 +479,52 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
   } catch (error: any) {
     console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
+    
+    // GUARANTEED ZERO UNREPLIED MESSAGES FALLBACK
+    try {
+      const fallbackConv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: { organization: { include: { waConfig: true, igConfig: true } } },
+      });
+      if (fallbackConv && !fallbackConv.isBotPaused) {
+        const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
+        const waConfig = fallbackConv.organization.waConfig;
+        const customerPhone = fallbackConv.customerPhone;
+        
+        let outWaId: string | null = null;
+        if (fallbackConv.platform === "whatsapp" && waConfig?.phoneNumberId && waConfig?.accessToken) {
+          const resData = await WhatsAppService.sendTextMessage(
+            waConfig.phoneNumberId,
+            waConfig.accessToken,
+            customerPhone,
+            fallbackText
+          );
+          outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
+        }
+
+        const savedFallback = await prisma.message.create({
+          data: {
+            conversationId: fallbackConv.id,
+            direction: "outbound",
+            messageType: "text",
+            content: fallbackText,
+            waMessageId: outWaId,
+            status: "sent",
+            senderName: "AI Sales Specialist",
+          },
+        });
+
+        const { io: socketIo } = require("../index");
+        if (socketIo) {
+          socketIo.to(fallbackConv.organizationId).emit("new-message", {
+            conversationId: fallbackConv.id,
+            message: savedFallback,
+          });
+        }
+        console.log(`[AI AGENT ENGINE] Emergency fallback reply sent to ${customerPhone}`);
+      }
+    } catch (fallbackErr: any) {
+      console.error("[AI AGENT ENGINE] Emergency fallback error:", fallbackErr.message);
+    }
   }
 }

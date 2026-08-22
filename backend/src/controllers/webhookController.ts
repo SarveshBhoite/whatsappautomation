@@ -11,18 +11,32 @@ const processedComments = new Set<string>();
 export const verifyWebhook = async (req: Request, res: Response) => {
   try {
     const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
+    const token = req.query["hub.verify_token"] as string;
     const challenge = req.query["hub.challenge"];
 
-    const verifyToken = process.env.WEBHOOK_VERIFY_TOKEN || "my_secure_verify_token_123";
+    const envVerifyToken = process.env.WEBHOOK_VERIFY_TOKEN || "my_secure_verify_token_123";
 
-    if (mode === "subscribe" && token === verifyToken) {
-      console.log("Meta Webhook verified successfully.");
-      return res.status(200).send(challenge);
-    } else {
-      console.warn("Meta Webhook verification failed. Tokens mismatch.");
+    if (mode === "subscribe") {
+      if (token === envVerifyToken) {
+        console.log("[WEBHOOK VERIFY] Meta Webhook verified successfully via ENV token.");
+        return res.status(200).send(challenge);
+      }
+
+      // Check if token matches any organization WhatsAppConfig or InstagramConfig
+      const matchingWaConfig = await prisma.whatsAppConfig.findFirst({
+        where: { webhookVerifyToken: token }
+      });
+
+      if (matchingWaConfig) {
+        console.log(`[WEBHOOK VERIFY] Meta Webhook verified successfully for Org: ${matchingWaConfig.organizationId}`);
+        return res.status(200).send(challenge);
+      }
+
+      console.warn(`[WEBHOOK VERIFY] Meta Webhook verification failed. Token received: "${token}" did not match.`);
       return res.sendStatus(403);
     }
+
+    return res.sendStatus(400);
   } catch (error) {
     console.error("Error in webhook verification:", error);
     return res.sendStatus(500);
@@ -163,9 +177,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
         messageType = "text";
       } else if (message.attachments && message.attachments.length > 0) {
         const attachment = message.attachments[0];
-        messageType = attachment.type;
+        messageType = attachment.type || "file";
+
+        // Normalize Instagram attachment types
         if (messageType === "file") {
           messageType = "document";
+        } else if (messageType === "ig_reel" || messageType === "reel" || messageType === "share") {
+          messageType = "video";
+        } else if (messageType === "story_mention") {
+          messageType = "image";
         }
         
         const mediaUrl = attachment.payload?.url || "";
@@ -347,24 +367,30 @@ export const handleWebhook = async (req: Request, res: Response) => {
         const type = message.type;
         const context = message.context; // Meta context block for quotes: { id, from }
         
-        const referral = message.referral; // Meta Ads Referral object when customer clicks an Ad
-        
+        const referral = message.referral; // Meta Ads Click referral: { source_url, source_type, source_id, headline, body, media_type, image_url, video_url }
+        let referralText = "";
+        if (referral) {
+          const headline = referral.headline || "";
+          const bodyText = referral.body || "";
+          referralText = `[Customer clicked Meta Ad: "${headline || bodyText || referral.source_url || 'Meta Ad'}"] `;
+          console.log(`[META ADS REFERRAL DETECTED] Headline: "${headline}", Body: "${bodyText}"`);
+        }
         let content = "";
         let mimeType: string | undefined = undefined;
 
         // Extract message content cleanly based on Meta type
         if (type === "text") {
-          content = message.text?.body || "";
+          content = (referralText ? referralText : "") + (message.text?.body || "");
         } else if (type === "button") {
-          content = message.button?.text || message.button?.payload || "";
+          content = (referralText ? referralText : "") + (message.button?.text || message.button?.payload || "");
         } else if (type === "interactive") {
           const interactiveType = message.interactive?.type;
           if (interactiveType === "button_reply") {
-            content = message.interactive.button_reply?.id || message.interactive.button_reply?.title || "";
+            content = (referralText ? referralText : "") + (message.interactive.button_reply?.id || message.interactive.button_reply?.title || "");
           } else if (interactiveType === "list_reply") {
-            content = message.interactive.list_reply?.id || message.interactive.list_reply?.title || "";
+            content = (referralText ? referralText : "") + (message.interactive.list_reply?.id || message.interactive.list_reply?.title || "");
           } else {
-            content = "Interactive response";
+            content = (referralText ? referralText : "") + "Interactive response";
           }
         } else if (type === "location") {
           const loc = message.location;

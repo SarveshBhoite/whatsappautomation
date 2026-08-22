@@ -22,9 +22,18 @@ import {
   Plus
 } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 export default function WhatsAppBulkBroadcastPage() {
   const [phoneNumbersText, setPhoneNumbersText] = useState<string>("");
@@ -34,7 +43,7 @@ export default function WhatsAppBulkBroadcastPage() {
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
-      headers: { "x-organization-id": DEFAULT_ORG_ID }
+      headers: { "x-organization-id": getOrgId() }
     })
       .then((r) => r.json())
       .then((d) => {
@@ -51,31 +60,52 @@ export default function WhatsAppBulkBroadcastPage() {
     "Hello! 🚀 Welcome to JISNU Digital Solutions. Check out our latest services, offers, and digital marketing brochures today!"
   );
   const [mediaUrl, setMediaUrl] = useState<string>("");
-  const [sending, setSending] = useState<boolean>(false);
-  const [uploadingMedia, setUploadingMedia] = useState<boolean>(false);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
+  const [uploadingMedia, setUploadingMedia] = useState<boolean>(false);
 
+  const [sending, setSending] = useState<boolean>(false);
   const [result, setResult] = useState<{
-    success?: boolean;
+    success: boolean;
     totalSent?: number;
     totalFailed?: number;
-    details?: any[];
     error?: string;
   } | null>(null);
 
+  // Parse phone numbers from multi-line text or comma-separated list
   const parsedRecipients = phoneNumbersText
-    .split("\n")
-    .map((line) => {
-      const parts = line.split(",").map((p) => p.trim());
-      if (parts.length >= 2 && isNaN(Number(parts[0]))) {
-        return { name: parts[0], phone: parts[1].replace(/[^\d+]/g, "").trim() };
-      } else if (parts.length >= 2 && isNaN(Number(parts[1]))) {
-        return { name: parts[1], phone: parts[0].replace(/[^\d+]/g, "").trim() };
-      } else {
-        return { name: "", phone: line.replace(/[^\d+]/g, "").trim() };
+    .split(/[\n,]+/)
+    .map((num) => num.trim())
+    .filter((num) => num.length >= 8);
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (!content) return;
+
+      const lines = content.split(/\r?\n/);
+      const extracted: string[] = [];
+
+      for (const line of lines) {
+        const parts = line.split(/[;,	]/);
+        for (const part of parts) {
+          const cleaned = part.replace(/\D/g, "");
+          if (cleaned.length >= 9 && cleaned.length <= 15) {
+            extracted.push(cleaned);
+          }
+        }
       }
-    })
-    .filter((r) => r.phone.length >= 8);
+
+      if (extracted.length > 0) {
+        const unique = Array.from(new Set(extracted));
+        setPhoneNumbersText((prev) => (prev ? `${prev}\n${unique.join("\n")}` : unique.join("\n")));
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleMediaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,67 +115,32 @@ export default function WhatsAppBulkBroadcastPage() {
     setUploadedFileName(file.name);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = (event.target?.result as string).split(",")[1];
-        if (!base64Data) return;
+      const formData = new FormData();
+      formData.append("file", file);
 
-        const res = await fetch(`${BACKEND_URL}/api/admin/upload`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-organization-id": DEFAULT_ORG_ID,
-          },
-          body: JSON.stringify({
-            fileBase64: base64Data,
-            filename: file.name,
-          }),
-        });
+      const res = await fetch(`${BACKEND_URL}/api/messages/upload-media`, {
+        method: "POST",
+        body: formData,
+      });
 
+      if (res.ok) {
         const data = await res.json();
-        if (res.ok && data.url) {
-          setMediaUrl(data.url);
-        } else {
-          alert("File upload failed: " + (data.error || "Unknown error"));
-        }
-        setUploadingMedia(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (err: any) {
-      alert("Error uploading file: " + err.message);
+        setMediaUrl(data.url);
+      } else {
+        alert("Media upload failed. Please try again.");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Error uploading media file.");
+    } finally {
       setUploadingMedia(false);
     }
-  };
-
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        const lines = content
-          .split(/[\r\n]+/)
-          .map((line) => line.split(",")[0].replace(/[^\d+]/g, "").trim())
-          .filter((num) => num.length >= 8);
-
-        if (lines.length > 0) {
-          setPhoneNumbersText(lines.join("\n"));
-        }
-      }
-    };
-    reader.readAsText(file);
   };
 
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (parsedRecipients.length === 0) {
-      alert("Please enter at least one valid phone number.");
-      return;
-    }
-    if (!messageText.trim()) {
-      alert("Please enter a message content for your broadcast.");
+      alert("Please provide at least one valid phone number.");
       return;
     }
 
@@ -153,33 +148,39 @@ export default function WhatsAppBulkBroadcastPage() {
     setResult(null);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/bulk-broadcast`, {
+      const payload: any = {
+        organizationId: getOrgId(),
+        recipients: parsedRecipients,
+        sendType,
+        message: messageText,
+        mediaUrl: mediaUrl.trim() || undefined,
+        fileName: uploadedFileName || undefined
+      };
+
+      if (sendType === "template") {
+        payload.templateName = selectedTemplate;
+      }
+
+      const res = await fetch(`${BACKEND_URL}/api/messages/broadcast`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID,
+          "x-organization-id": getOrgId()
         },
-        body: JSON.stringify({
-          recipients: parsedRecipients,
-          messageText,
-          mediaUrl: mediaUrl.trim() || undefined,
-          templateName: selectedTemplate,
-          sendType,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.success) {
         setResult({
           success: true,
-          totalSent: data.totalSent,
-          totalFailed: data.totalFailed,
-          details: data.details,
+          totalSent: data.totalSent || parsedRecipients.length,
+          totalFailed: data.totalFailed || 0,
         });
       } else {
         setResult({
           success: false,
-          error: data.error || "Failed to deliver broadcast campaign.",
+          error: data.error || data.message || "Failed to send bulk broadcast.",
         });
       }
     } catch (err: any) {
@@ -193,63 +194,60 @@ export default function WhatsAppBulkBroadcastPage() {
   };
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div className="flex-1 bg-slate-50 text-slate-900 flex flex-col font-sans overflow-hidden">
       {/* Top Header Bar */}
-      <header className="h-16 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-20">
+      <header className="h-16 border-b border-slate-200/90 bg-white px-6 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-md shadow-emerald-500/5">
+          <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 shadow-2xs">
             <Send className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-base font-extrabold text-slate-100 flex items-center gap-2 tracking-tight">
+            <h1 className="text-base font-extrabold text-slate-900 flex items-center gap-2 tracking-tight">
               WhatsApp Bulk Broadcast Campaign
-              <span className="text-[10px] bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-mono font-semibold flex items-center gap-1 shadow-sm">
-                <Zap className="h-3 w-3 fill-emerald-400" /> Cloud API Engine
-              </span>
+              <Badge variant="success" className="text-[10px] font-mono">
+                <Zap className="h-3 w-3 fill-emerald-600 mr-1" /> Cloud API Engine
+              </Badge>
             </h1>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Send mass promotional messages, PDF brochures, and image campaigns to thousands of leads
             </p>
           </div>
         </div>
 
-        <Link
-          href="/whatsapp"
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-black/20"
-        >
-          View Inbox <ArrowRight className="h-3.5 w-3.5 text-emerald-400" />
+        <Link href="/whatsapp">
+          <Button variant="outline" size="sm" className="border-slate-200 text-slate-700">
+            View Inbox <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
+          </Button>
         </Link>
       </header>
 
       {/* Main Page Content */}
-      <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 scrollbar-thin scrollbar-none">
+      <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
         
         {/* Banner Hero Card */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900/90 to-emerald-950/30 border border-slate-800/80 rounded-3xl p-6 md:p-7 shadow-2xl backdrop-blur-xl">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -z-10 pointer-events-none" />
-          
+        <div className="relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-emerald-50/50 border border-emerald-200/80 rounded-3xl p-6 md:p-7 shadow-sm">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
             <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold font-mono">
-                <Sparkles className="h-3.5 w-3.5" /> High-Throughput Campaign Manager
-              </div>
-              <h2 className="text-xl font-extrabold text-slate-100 tracking-tight">
-                Mass WhatsApp Marketing & Outreach
+              <Badge variant="success" className="text-xs font-bold mb-1">
+                <Sparkles className="h-3.5 w-3.5 mr-1" /> High-Throughput Campaign Manager
+              </Badge>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                Mass WhatsApp Marketing &amp; Outreach
               </h2>
-              <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
-                Paste recipient numbers or upload your lead CSV file. Each target receives your marketing message & PDF brochure directly in their WhatsApp chat while logging automatically in your CRM inbox.
+              <p className="text-xs text-slate-600 max-w-3xl leading-relaxed">
+                Paste recipient numbers or upload your lead CSV file. Each target receives your marketing message &amp; PDF brochure directly in their WhatsApp chat while logging automatically in your CRM inbox.
               </p>
             </div>
 
-            <div className="flex items-center gap-4 bg-slate-950/70 backdrop-blur-md px-5 py-3 rounded-2xl border border-slate-800 shrink-0 shadow-inner">
-              <div className="text-center border-r border-slate-800 pr-4">
-                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Recipients</div>
-                <div className="text-lg font-black text-emerald-400 font-mono">{parsedRecipients.length}</div>
+            <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-2xl border border-emerald-100 shrink-0 shadow-xs">
+              <div className="text-center border-r border-slate-100 pr-4">
+                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Recipients</div>
+                <div className="text-lg font-black text-emerald-700 font-mono">{parsedRecipients.length}</div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Pacing Rate</div>
-                <div className="text-xs font-bold text-slate-200 font-mono mt-1 flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> 500ms / msg
+                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Pacing Rate</div>
+                <div className="text-xs font-bold text-slate-800 font-mono mt-1 flex items-center gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> 500ms / msg
                 </div>
               </div>
             </div>
@@ -260,15 +258,15 @@ export default function WhatsAppBulkBroadcastPage() {
         <form onSubmit={handleSendBroadcast} className="grid grid-cols-1 md:grid-cols-12 gap-6">
           
           {/* Left Column: Recipient Numbers */}
-          <div className="md:col-span-5 bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 shadow-xl backdrop-blur-md flex flex-col justify-between space-y-4">
+          <div className="md:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col justify-between space-y-4">
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-3.5">
-                <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <Users className="h-4 w-4 text-emerald-400" /> Recipient Numbers
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <Users className="h-4 w-4 text-emerald-600" /> Recipient Numbers
                 </label>
 
-                <label className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
-                  <FileSpreadsheet className="h-3.5 w-3.5" /> Upload CSV
+                <label className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Upload CSV
                   <input
                     type="file"
                     accept=".csv,.txt"
@@ -278,8 +276,8 @@ export default function WhatsAppBulkBroadcastPage() {
                 </label>
               </div>
 
-              <p className="text-[11px] text-slate-400 leading-normal">
-                Enter numbers (one per line, e.g. <code className="text-emerald-400 font-mono">919876543210</code> or <code className="text-emerald-400 font-mono">John, 919876543210</code>):
+              <p className="text-[11px] text-slate-500 leading-normal">
+                Enter numbers (one per line, e.g. <code className="text-emerald-700 font-mono font-bold">919876543210</code> or <code className="text-emerald-700 font-mono font-bold">John, 919876543210</code>):
               </p>
 
               <textarea
@@ -287,35 +285,35 @@ export default function WhatsAppBulkBroadcastPage() {
                 value={phoneNumbersText}
                 onChange={(e) => setPhoneNumbersText(e.target.value)}
                 placeholder="John, 919876543210&#10;Sarah, 919123456789"
-                className="w-full bg-slate-950/90 border border-slate-800 rounded-2xl p-4 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none shadow-inner"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-mono text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all resize-none shadow-inner"
               />
             </div>
 
-            <div className="bg-slate-950/60 border border-slate-800/60 rounded-2xl p-3.5 flex items-center justify-between text-xs text-slate-400 font-mono">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between text-xs text-slate-600 font-mono">
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Valid Numbers Ready:
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Valid Numbers Ready:
               </span>
-              <span className="font-extrabold text-slate-100 text-sm bg-slate-900 px-3 py-0.5 rounded-xl border border-slate-800">
+              <span className="font-extrabold text-slate-900 text-sm bg-white px-3 py-0.5 rounded-xl border border-slate-200 shadow-2xs">
                 {parsedRecipients.length}
               </span>
             </div>
           </div>
 
           {/* Right Column: Broadcast Content & Media */}
-          <div className="md:col-span-7 bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 shadow-xl backdrop-blur-md space-y-6">
+          <div className="md:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
             
-            <div className="border-b border-slate-800/80 pb-3.5 flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-emerald-400" /> Broadcast Message & Meta Template
+            <div className="border-b border-slate-100 pb-3.5 flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-emerald-600" /> Broadcast Message &amp; Meta Template
               </label>
-              <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
+              <Badge variant="success" className="text-[10px] font-mono">
                 Approved Templates
-              </span>
+              </Badge>
             </div>
 
-            {/* Mode Switcher: Meta Template vs Custom CRM Portal Message */}
+            {/* Mode Switcher: Meta Template vs Custom CRM Message */}
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-300">
+              <label className="block text-xs font-bold text-slate-700">
                 Campaign Message Type
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -324,17 +322,17 @@ export default function WhatsAppBulkBroadcastPage() {
                   onClick={() => setSendType("template")}
                   className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     sendType === "template"
-                      ? "bg-emerald-500/10 border-emerald-500/50 text-slate-100 ring-1 ring-emerald-500/20"
-                      : "bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-700"
+                      ? "bg-emerald-50 border-emerald-400 text-slate-900 ring-2 ring-emerald-500/20"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-emerald-400" /> Meta Template
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Meta Template
                     </span>
-                    {sendType === "template" && <Check className="h-4 w-4 text-emerald-400" />}
+                    {sendType === "template" && <Check className="h-4 w-4 text-emerald-600" />}
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                  <p className="text-[10px] text-slate-500 mt-1 leading-tight">
                     Required for 500+ cold leads (Bypasses 24-hr policy)
                   </p>
                 </button>
@@ -344,18 +342,18 @@ export default function WhatsAppBulkBroadcastPage() {
                   onClick={() => setSendType("custom")}
                   className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     sendType === "custom"
-                      ? "bg-blue-500/10 border-blue-500/50 text-slate-100 ring-1 ring-blue-500/20"
-                      : "bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-700"
+                      ? "bg-sky-50 border-sky-400 text-slate-900 ring-2 ring-sky-500/20"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-blue-400" /> Custom CRM Message
+                      <FileText className="h-3.5 w-3.5 text-brand-blue" /> Custom CRM Message
                     </span>
-                    {sendType === "custom" && <Check className="h-4 w-4 text-blue-400" />}
+                    {sendType === "custom" && <Check className="h-4 w-4 text-brand-blue" />}
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">
-                    Custom text & attached PDF brochures/Images
+                  <p className="text-[10px] text-slate-500 mt-1 leading-tight">
+                    Custom text &amp; attached PDF brochures/Images
                   </p>
                 </button>
               </div>
@@ -365,12 +363,12 @@ export default function WhatsAppBulkBroadcastPage() {
             {sendType === "template" && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-300">
+                  <label className="block text-xs font-bold text-slate-700">
                     Select Approved Meta WhatsApp Template
                   </label>
                   <Link
                     href="/whatsapp/templates"
-                    className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 hover:underline"
+                    className="text-[11px] text-purple-700 hover:text-purple-900 font-semibold flex items-center gap-1 hover:underline"
                   >
                     <Plus className="h-3 w-3" /> Create New Template
                   </Link>
@@ -378,7 +376,7 @@ export default function WhatsAppBulkBroadcastPage() {
                 <select
                   value={selectedTemplate}
                   onChange={(e) => setSelectedTemplate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 font-mono font-semibold"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono font-semibold shadow-2xs"
                 >
                   {fetchedTemplates.length > 0 ? (
                     fetchedTemplates.map((t) => (
@@ -405,25 +403,25 @@ export default function WhatsAppBulkBroadcastPage() {
 
             {/* Message Input */}
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-300">
-                Message Body (Supports Emojis & Formatting)
+              <label className="block text-xs font-bold text-slate-700">
+                Message Body (Supports Emojis &amp; Formatting)
               </label>
               <textarea
                 rows={5}
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 placeholder="Type your promotional message or announcement..."
-                className="w-full bg-slate-950/90 border border-slate-800 rounded-2xl p-4 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/20 transition-all resize-none shadow-inner leading-relaxed"
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all resize-none shadow-inner leading-relaxed"
               />
             </div>
 
             {/* Attachment Box */}
-            <div className="space-y-3 bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
-              <label className="block text-xs font-bold text-slate-200 flex items-center justify-between">
+            <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+              <label className="block text-xs font-bold text-slate-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-blue-400" /> Attachment (PDF Brochure or Image)
+                  <FileText className="h-4 w-4 text-brand-blue" /> Attachment (PDF Brochure or Image)
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] text-slate-500 font-mono bg-white border border-slate-200 px-2 py-0.5 rounded-full">
                   .PDF, .JPG, .PNG
                 </span>
               </label>
@@ -434,10 +432,10 @@ export default function WhatsAppBulkBroadcastPage() {
                   value={mediaUrl}
                   onChange={(e) => setMediaUrl(e.target.value)}
                   placeholder="https://example.com/company-brochure.pdf (or select file)"
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500/60 transition-all font-mono shadow-inner"
+                  className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-emerald-500 transition-all font-mono shadow-2xs"
                 />
 
-                <label className="px-4 py-2.5 bg-gradient-to-r from-slate-800 to-slate-850 hover:from-slate-750 hover:to-slate-800 border border-slate-700 text-slate-100 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-md">
+                <label className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-sm">
                   <Upload className="h-3.5 w-3.5 text-emerald-400" />
                   {uploadingMedia ? "Uploading..." : "Select File"}
                   <input
@@ -450,19 +448,19 @@ export default function WhatsAppBulkBroadcastPage() {
               </div>
 
               {mediaUrl && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-slate-200 flex items-center justify-between font-mono">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-slate-800 flex items-center justify-between font-mono">
                   <span className="truncate max-w-md flex items-center gap-2">
                     {mediaUrl.toLowerCase().endsWith(".pdf") || mediaUrl.toLowerCase().includes("pdf") ? (
-                      <FileText className="h-4 w-4 text-rose-400 shrink-0" />
+                      <FileText className="h-4 w-4 text-rose-500 shrink-0" />
                     ) : (
-                      <ImageIcon className="h-4 w-4 text-purple-400 shrink-0" />
+                      <ImageIcon className="h-4 w-4 text-purple-600 shrink-0" />
                     )}
                     {uploadedFileName ? `Attached: ${uploadedFileName}` : mediaUrl}
                   </span>
                   <button
                     type="button"
                     onClick={() => { setMediaUrl(""); setUploadedFileName(""); }}
-                    className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer hover:bg-rose-500/10 rounded-lg transition-colors"
+                    className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer hover:bg-rose-100 rounded-lg transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -473,25 +471,27 @@ export default function WhatsAppBulkBroadcastPage() {
                 <button
                   type="button"
                   onClick={() => { setMediaUrl("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"); setUploadedFileName("Sample_Brochure.pdf"); }}
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-850 text-slate-300 text-[11px] font-medium rounded-xl border border-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-medium rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  <FileText className="h-3 w-3 text-rose-400" /> Sample PDF Brochure
+                  <FileText className="h-3 w-3 text-rose-500" /> Sample PDF Brochure
                 </button>
                 <button
                   type="button"
                   onClick={() => { setMediaUrl("https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"); setUploadedFileName("Banner_Image.jpg"); }}
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-850 text-slate-300 text-[11px] font-medium rounded-xl border border-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-medium rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
-                  <ImageIcon className="h-3 w-3 text-purple-400" /> Sample Banner Image
+                  <ImageIcon className="h-3 w-3 text-purple-600" /> Sample Banner Image
                 </button>
               </div>
             </div>
 
             {/* Submit Button */}
-            <button
+            <Button
               type="submit"
               disabled={sending || parsedRecipients.length === 0}
-              className="w-full py-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+              variant="default"
+              size="lg"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20"
             >
               {sending ? (
                 <>
@@ -499,32 +499,32 @@ export default function WhatsAppBulkBroadcastPage() {
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4 fill-slate-950" /> Launch Bulk Campaign to {parsedRecipients.length} Recipients
+                  <Send className="h-4 w-4 fill-white" /> Launch Bulk Campaign to {parsedRecipients.length} Recipients
                 </>
               )}
-            </button>
+            </Button>
 
             {/* Campaign Execution Results */}
             {result && (
               <div
-                className={`p-4.5 rounded-2xl border text-xs space-y-2 backdrop-blur-md shadow-xl ${
+                className={`p-4.5 rounded-2xl border text-xs space-y-2 shadow-sm ${
                   result.success
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                    : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                    : "bg-rose-50 border-rose-300 text-rose-900"
                 }`}
               >
                 {result.success ? (
                   <>
-                    <div className="flex items-center gap-2 font-extrabold text-emerald-400 text-sm">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" /> Broadcast Campaign Dispatched Successfully!
+                    <div className="flex items-center gap-2 font-extrabold text-emerald-800 text-sm">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" /> Broadcast Campaign Dispatched Successfully!
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-normal">
-                      Dispatched to <span className="font-bold text-emerald-400">{result.totalSent}</span> recipients. (Failed: {result.totalFailed})
+                    <p className="text-[11px] text-slate-600 leading-normal">
+                      Dispatched to <span className="font-bold text-emerald-700">{result.totalSent}</span> recipients. (Failed: {result.totalFailed})
                     </p>
                   </>
                 ) : (
-                  <div className="flex items-center gap-2 font-bold text-rose-400">
-                    <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" /> {result.error}
+                  <div className="flex items-center gap-2 font-bold text-rose-700">
+                    <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" /> {result.error}
                   </div>
                 )}
               </div>
