@@ -264,7 +264,15 @@ router.get("/campaigns", async (req, res) => {
       orderBy: { createdAt: "desc" }
     });
 
-    if (!customerId) return res.status(200).json(localCampaigns);
+    const serializeCamp = (c: any) => ({
+      ...c,
+      amountMicros: c.amountMicros != null ? Number(c.amountMicros) : 0,
+      costMicros: c.costMicros != null ? Number(c.costMicros) : 0,
+      impressions: c.impressions != null ? Number(c.impressions) : 0,
+      clicks: c.clicks != null ? Number(c.clicks) : 0
+    });
+
+    if (!customerId) return res.status(200).json(localCampaigns.map(serializeCamp));
 
     try {
       const livePerformance = await GoogleAdsService.getCampaignPerformance(orgId, customerId);
@@ -309,13 +317,30 @@ router.get("/campaigns", async (req, res) => {
 
       const combined = localCampaigns.map(lc => {
         const lm = livePerformance.find((lp: any) => String(lp.id) === lc.googleAdsCampaignId);
-        return { ...lc, live: lm || null, impressions: lm?.impressions || 0, clicks: lm?.clicks || 0, ctr: lm?.ctr || "0%", conversions: lm?.conversions || 0, cost: lm?.cost || "0.00", avgCpc: lm?.avgCpc || "0.00" };
+        return {
+          ...serializeCamp(lc),
+          live: lm || null,
+          impressions: lm?.impressions || 0,
+          clicks: lm?.clicks || 0,
+          ctr: lm?.ctr || "0%",
+          conversions: lm?.conversions || 0,
+          cost: lm?.cost || "0.00",
+          avgCpc: lm?.avgCpc || "0.00"
+        };
       });
 
       res.status(200).json(combined);
     } catch (apiErr: any) {
       console.warn("Live data unavailable, returning local:", apiErr.message);
-      res.status(200).json(localCampaigns.map(lc => ({ ...lc, live: null, impressions: 0, clicks: 0, ctr: "0%", conversions: 0, cost: "0.00" })));
+      res.status(200).json(localCampaigns.map(lc => ({
+        ...serializeCamp(lc),
+        live: null,
+        impressions: 0,
+        clicks: 0,
+        ctr: "0%",
+        conversions: 0,
+        cost: "0.00"
+      })));
     }
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -751,11 +776,14 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
       customerId = "1234567890",
       campaignName = "Performance Max-1",
       finalUrl = "https://www.example.com",
+      businessName = "",
       biddingFocus = "Maximize conversions",
       targetCpa = 25,
       targetRoas = 200,
       onlyNewCustomers = false,
       reengageLapsedCustomers = false,
+      startDate,
+      endDate,
       locations = ["India"],
       locationOption = "PRESENCE_OR_INTEREST",
       languages = ["English"],
@@ -765,41 +793,201 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
       longHeadlines = [],
       descriptions = [],
       images = [],
+      logos = [],
       searchThemes = [],
       audienceSignal = "",
+      adSchedule,
       budgetType = "DAILY",
-      dailyBudget = 1000
+      dailyBudget = 1000,
+      trackingTemplate,
+      finalUrlSuffix,
+      customParameters,
+      displayPath1,
+      displayPath2,
+      enableFinalUrlExpansion,
+      sitelinks,
+      callouts,
+      callAsset,
+      structuredSnippets,
+      promotions,
+      prices,
+      finalMobileUrls,
+      assetGroupTrackingTemplate,
+      assetGroupCustomParameters,
+      leadForm,
+      locationTargetingType,
+      brandGuidelinesEnabled,
+      brandColors,
+      brandExclusions,
+      urlRulesList,
+      assetOptimizations,
+      youtubeVideos,
+      messagingRestrictions,
+      ga4Property,
+      messageAsset,
+      pageFeeds,
+      merchantCenter,
+      storeLocations,
+      dynamicAdsFeed,
+      valueRules,
+      thirdPartyMeasurement,
+      audienceExclusions,
+      ytUserSegment,
+      assetSchedules,
+      promoTerms,
+      leadFormWebhook
     } = req.body;
 
     if (!finalUrl) {
       return res.status(400).json({ error: "Final URL is required." });
     }
-    if (!headlines || headlines.length === 0 || !headlines[0]) {
-      return res.status(400).json({ error: "At least 1 headline is required." });
+    const validHeadlines = (headlines || []).filter((h: any) => typeof h === "string" && h.trim());
+    if (validHeadlines.length < 3) {
+      return res.status(400).json({ error: "Performance Max requires at least 3 headlines." });
+    }
+    const validLongHeadlines = (longHeadlines || []).filter((lh: any) => typeof lh === "string" && lh.trim());
+    if (validLongHeadlines.length < 1) {
+      return res.status(400).json({ error: "Performance Max requires at least 1 long headline." });
+    }
+    const validDescriptions = (descriptions || []).filter((d: any) => typeof d === "string" && d.trim());
+    if (validDescriptions.length < 2) {
+      return res.status(400).json({ error: "Performance Max requires at least 2 descriptions." });
+    }
+    if (!startDate || typeof startDate !== "string" || !startDate.trim()) {
+      return res.status(400).json({ error: "Start Date (startDate) is required in YYYY-MM-DD format." });
+    }
+    if (!endDate || typeof endDate !== "string" || !endDate.trim()) {
+      return res.status(400).json({ error: "End Date (endDate) is required in YYYY-MM-DD format." });
+    }
+    const parsedStart = new Date(startDate.trim());
+    const parsedEnd = new Date(endDate.trim());
+    if (isNaN(parsedStart.getTime())) {
+      return res.status(400).json({ error: "Invalid Start Date format. Expected valid date (YYYY-MM-DD)." });
+    }
+    if (isNaN(parsedEnd.getTime())) {
+      return res.status(400).json({ error: "Invalid End Date format. Expected valid date (YYYY-MM-DD)." });
+    }
+    if (parsedEnd < parsedStart) {
+      return res.status(400).json({ error: "End Date cannot be earlier than Start Date." });
     }
 
     const advertisingChannelType = "PERFORMANCE_MAX";
     const amountMicros = Math.round(Number(dailyBudget) * 1_000_000);
     const targetCpaMicros = targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined;
 
-    let apiResult: any = { campaignId: `pmax-noguidance-${Date.now()}`, budgetResourceName: `customers/${customerId}/campaignBudgets/${Date.now()}` };
-    try {
-      if (GoogleAdsService.createNoGuidancePMaxCampaign) {
-        apiResult = await GoogleAdsService.createNoGuidancePMaxCampaign(orgId, customerId, {
-          campaignName,
-          finalUrl,
-          amountMicros,
-          biddingFocus,
-          targetCpaMicros,
-          headlines,
-          longHeadlines,
-          descriptions,
-          images
+    const validSearchThemes = Array.isArray(searchThemes)
+      ? searchThemes.filter((t: any) => typeof t === "string" && t.trim()).map((t: string) => t.trim())
+      : [];
+
+    let structuredAudienceSignal: any = undefined;
+    if (audienceSignal) {
+      const cidClean = customerId.replace(/-/g, "").trim();
+
+      if (typeof audienceSignal === "object" && audienceSignal !== null) {
+        const typeUpper = (audienceSignal.type || "").trim().toUpperCase();
+        if (typeUpper !== "AUDIENCE") {
+          return res.status(400).json({
+            error: `AUDIENCE signal must reference a valid Google Ads Audience resource belonging to customer ${cidClean}. Unsupported type: "${audienceSignal.type}".`
+          });
+        }
+        if (!audienceSignal.resourceName || !audienceSignal.resourceName.trim()) {
+          return res.status(400).json({ error: "Audience Signal resourceName is required." });
+        }
+        const resName = audienceSignal.resourceName.trim();
+        if (!resName.startsWith(`customers/${cidClean}/audiences/`)) {
+          return res.status(400).json({
+            error: `AUDIENCE signal must reference a valid Google Ads Audience resource belonging to customer ${cidClean}. Provided: "${resName}".`
+          });
+        }
+        structuredAudienceSignal = {
+          resourceName: resName,
+          name: (audienceSignal.name || "").trim() || "Audience Signal",
+          type: "AUDIENCE"
+        };
+      } else if (typeof audienceSignal === "string" && audienceSignal.trim()) {
+        const str = audienceSignal.trim();
+        if (str.startsWith(`customers/${cidClean}/audiences/`)) {
+          structuredAudienceSignal = {
+            resourceName: str,
+            name: "Audience Signal",
+            type: "AUDIENCE"
+          };
+        } else {
+          return res.status(400).json({
+            error: `AUDIENCE signal must reference a valid Google Ads Audience resource belonging to customer ${cidClean}. Provided: "${str}".`
+          });
+        }
+      } else {
+        return res.status(400).json({
+          error: `AUDIENCE signal must reference a valid Google Ads Audience resource belonging to customer ${cidClean}.`
         });
       }
-    } catch (apiErr: any) {
-      console.warn("[Google Ads API fallback for No Guidance Performance Max]:", apiErr.message);
     }
+
+    // Validate Ad Schedule
+    let normalizedSchedule: Array<{ day: string; start: string; end: string }> | undefined = undefined;
+    if (adSchedule !== undefined && adSchedule !== null) {
+      if (!Array.isArray(adSchedule)) {
+        return res.status(400).json({ error: "adSchedule must be an array of schedule items." });
+      }
+      try {
+        const normList = GoogleAdsService.normalizeAdSchedules(adSchedule);
+        normalizedSchedule = normList.map(n => ({
+          day: n.day,
+          start: `${String(n.startHour).padStart(2, "0")}:${n.startMinute === "ZERO" ? "00" : n.startMinute === "FIFTEEN" ? "15" : n.startMinute === "THIRTY" ? "30" : "45"}`,
+          end: n.endHour === 24 ? "24:00" : `${String(n.endHour).padStart(2, "0")}:${n.endMinute === "ZERO" ? "00" : n.endMinute === "FIFTEEN" ? "15" : n.endMinute === "THIRTY" ? "30" : "45"}`
+        }));
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+
+    const apiResult = await GoogleAdsService.createNoGuidancePMaxCampaign(orgId, customerId, {
+      campaignName,
+      assetGroupName: assetGroupName || `${campaignName} Asset Group 1`,
+      finalUrl,
+      businessName: businessName.trim(),
+      amountMicros,
+      biddingFocus,
+      targetCpaMicros,
+      targetRoas: targetRoas ? Number(targetRoas) : undefined,
+      startDate: startDate.trim(),
+      endDate: endDate.trim(),
+      headlines: validHeadlines,
+      longHeadlines: validLongHeadlines,
+      descriptions: validDescriptions,
+      images,
+      logos,
+      searchThemes: validSearchThemes,
+      audienceSignal: structuredAudienceSignal,
+      locations,
+      languages,
+      adSchedule: adSchedule && Array.isArray(adSchedule) ? adSchedule : undefined,
+      euPolitical,
+      trackingTemplate,
+      finalUrlSuffix,
+      customParameters,
+      urlExpansionOptOut: enableFinalUrlExpansion === false ? true : false,
+      path1: displayPath1,
+      path2: displayPath2,
+      sitelinks,
+      callouts,
+      callAsset,
+      structuredSnippets,
+      promotions,
+      prices,
+      finalMobileUrls,
+      assetGroupTrackingTemplate,
+      assetGroupCustomParameters,
+      positiveGeoTargetType: locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+      brandGuidelinesEnabled: brandGuidelinesEnabled === true ? true : false
+    });
+
+    const persistedAudienceSignal = structuredAudienceSignal ? {
+      name: structuredAudienceSignal.name,
+      resourceName: structuredAudienceSignal.resourceName,
+      type: "AUDIENCE"
+    } : null;
 
     const localCampaign = await prisma.googleAdCampaign.create({
       data: {
@@ -811,11 +999,63 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
         biddingStrategy: biddingFocus === "Target CPA" ? "TARGET_CPA" : biddingFocus === "Target ROAS" ? "TARGET_ROAS" : "MAXIMIZE_CONVERSIONS",
         budget: Number(dailyBudget),
         budgetResourceName: apiResult.budgetResourceName || null,
+        startDate: parsedStart,
+        endDate: parsedEnd,
         status: "PAUSED",
         finalUrl,
         headlines,
         descriptions,
-        geoTargets: locations,
+        geoTargets: {
+          locations: locations || ["India"],
+          languages: languages || ["English"],
+          searchThemes: validSearchThemes,
+          audienceSignal: persistedAudienceSignal,
+          adSchedule: normalizedSchedule || null,
+          euPolitical: euPolitical === "YES" ? "CONTAINS_EU_POLITICAL_ADVERTISING" : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+          trackingTemplate: trackingTemplate || null,
+          finalUrlSuffix: finalUrlSuffix || null,
+          customParameters: customParameters || null,
+          displayPath1: displayPath1 || null,
+          displayPath2: displayPath2 || null,
+          urlExpansionOptOut: enableFinalUrlExpansion === false ? true : false,
+          sitelinks: sitelinks || null,
+          callouts: callouts || null,
+          callAsset: callAsset || null,
+          structuredSnippets: structuredSnippets || null,
+          promotions: promotions || null,
+          prices: prices || null,
+          finalMobileUrls: finalMobileUrls || null,
+          assetGroupTrackingTemplate: assetGroupTrackingTemplate || null,
+          assetGroupCustomParameters: assetGroupCustomParameters || null,
+          leadForm: leadForm || null,
+          locationTargetingType: locationTargetingType || "PRESENCE_INTEREST",
+          positiveGeoTargetType: locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+          brandGuidelinesEnabled: brandGuidelinesEnabled === true ? true : false,
+          brandColors: brandColors || null,
+          brandExclusions: brandExclusions || null,
+          urlRulesList: urlRulesList || null,
+          assetOptimizations: assetOptimizations || null,
+          youtubeVideos: youtubeVideos || null,
+          messagingRestrictions: messagingRestrictions || null,
+          ga4Property: ga4Property || null,
+          messageAsset: messageAsset || null,
+          pageFeeds: pageFeeds || null,
+          merchantCenter: merchantCenter || null,
+          storeLocations: storeLocations || null,
+          dynamicAdsFeed: dynamicAdsFeed || null,
+          valueRules: valueRules || null,
+          thirdPartyMeasurement: thirdPartyMeasurement || null,
+          audienceExclusions: audienceExclusions || null,
+          ytUserSegment: ytUserSegment || null,
+          assetSchedules: assetSchedules || null,
+          targetRoas: targetRoas || null,
+          promoTerms: promoTerms || null,
+          leadFormWebhook: leadFormWebhook || null
+        },
+        languages: languages || ["English"],
+        searchThemes: validSearchThemes,
+        audienceSignal: persistedAudienceSignal,
+        adSchedule: (normalizedSchedule || null) as any,
         advertisingChannelType: "PERFORMANCE_MAX",
         amountMicros: BigInt(amountMicros),
         costMicros: BigInt(0),
@@ -849,9 +1089,22 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
       }
     });
 
+    const serializedCampaign = {
+      ...localCampaign,
+      languages: languages || ["English"],
+      searchThemes: validSearchThemes,
+      audienceSignal: persistedAudienceSignal,
+      adSchedule: normalizedSchedule || null,
+      amountMicros: Number(localCampaign.amountMicros),
+      costMicros: Number(localCampaign.costMicros),
+      impressions: Number(localCampaign.impressions),
+      clicks: Number(localCampaign.clicks)
+    };
+
     res.status(201).json({
-      message: "Performance Max Campaign created successfully without guidance (Paused)",
-      campaign: localCampaign,
+      message: "Performance Max Campaign created successfully (Paused)",
+      campaign: serializedCampaign,
+      resourceNames: apiResult,
       backendMapping: {
         advertising_channel_type: advertisingChannelType,
         bidding_focus: biddingFocus,
@@ -859,7 +1112,7 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
       }
     });
   } catch (error: any) {
-    console.error("No Guidance Performance Max creation error:", error?.response?.data || error.message);
+    console.error("Performance Max creation error:", error?.response?.data || error.message);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
   }
 });

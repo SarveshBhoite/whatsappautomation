@@ -16,6 +16,9 @@ export default function SalesPerformanceMaxPage() {
 
   // Wizard Step State: "BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
+  const [campaignName, setCampaignName] = useState<string>("Sales-Performance Max-1");
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Step 1: Bidding State
   const [isBiddingOpen, setIsBiddingOpen] = useState(false);
@@ -440,17 +443,9 @@ export default function SalesPerformanceMaxPage() {
   // Signals State
   const [searchThemes, setSearchThemes] = useState<string[]>([]);
   const [searchThemeInput, setSearchThemeInput] = useState<string>("");
-  const [audienceName, setAudienceName] = useState<string>("");
-
-  // Audience Signal states
-  const [savedAudienceSignal, setSavedAudienceSignal] = useState<{
-    name: string;
-    hasYourData: boolean;
-    hasInterests: boolean;
-    demographicsCount: number;
-  } | null>(null);
-
-  const [audienceNameInput, setAudienceNameInput] = useState<string>("");
+  const [audienceList, setAudienceList] = useState<Array<{ id: string; name: string; resourceName: string; type: string }>>([]);
+  const [isLoadingAudiences, setIsLoadingAudiences] = useState<boolean>(false);
+  const [selectedAudienceResource, setSelectedAudienceResource] = useState<{ resourceName: string; name: string; type: string } | null>(null);
   const [selectedDataSegments, setSelectedDataSegments] = useState<string[]>([]);
   const [interestsInput, setInterestsInput] = useState<string>("");
   const [demoGenders, setDemoGenders] = useState<string[]>(["Female", "Male", "Unknown"]);
@@ -469,6 +464,32 @@ export default function SalesPerformanceMaxPage() {
   const [ytSelectedChannel, setYtSelectedChannel] = useState<string>("");
   const [ytPrefill, setYtPrefill] = useState<"prefill" | "empty">("prefill");
   const [ytDescription, setYtDescription] = useState<string>("");
+
+  // Step 0: Campaign Construction & Feeds State
+  const [merchantCenterEnabled, setMerchantCenterEnabled] = useState<boolean>(false);
+  const [merchantCenterId, setMerchantCenterId] = useState<string>("");
+  const [feedLabel, setFeedLabel] = useState<string>("");
+  const [storeLocationsEnabled, setStoreLocationsEnabled] = useState<boolean>(false);
+  const [businessProfileLocationFilter, setBusinessProfileLocationFilter] = useState<string>("ALL");
+  const [dynamicAdsFeedEnabled, setDynamicAdsFeedEnabled] = useState<boolean>(false);
+  const [dynamicFeedId, setDynamicFeedId] = useState<string>("");
+
+  // Value Rules State (Bidding Step)
+  const [isConversionValueRulesOpen, setIsConversionValueRulesOpen] = useState<boolean>(false);
+  const [valueRuleType, setValueRuleType] = useState<"NONE" | "AUDIENCE" | "DEVICE" | "GEO">("NONE");
+  const [valueRuleOperation, setValueRuleOperation] = useState<"MULTIPLY" | "ADD">("MULTIPLY");
+  const [valueRuleValue, setValueRuleValue] = useState<string>("1.2");
+  const [valueRuleConditionValue, setValueRuleConditionValue] = useState<string>("");
+
+  // Third-Party Measurement State (More Settings)
+  const [thirdPartyMeasurementEnabled, setThirdPartyMeasurementEnabled] = useState<boolean>(false);
+  const [thirdPartyVendor, setThirdPartyVendor] = useState<string>("NONE");
+  const [thirdPartyAccountId, setThirdPartyAccountId] = useState<string>("");
+
+  // Page Feeds State (More Settings)
+  const [pageFeedUrls, setPageFeedUrls] = useState<Array<{ id: string; url: string; label: string }>>([]);
+  const [newPageFeedUrlInput, setNewPageFeedUrlInput] = useState<string>("");
+  const [newPageFeedLabelInput, setNewPageFeedLabelInput] = useState<string>("");
 
   // GA4 states
   const [ga4Property, setGa4Property] = useState<string>("");
@@ -493,6 +514,19 @@ export default function SalesPerformanceMaxPage() {
         })
         .catch(() => {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
+        });
+
+      setIsLoadingAudiences(true);
+      fetch(`${BACKEND}/api/ads/audiences?orgId=${orgId}&customerId=${customerId}`)
+        .then(r => r.json())
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data.value || []);
+          setAudienceList(list);
+          setIsLoadingAudiences(false);
+        })
+        .catch(() => {
+          setAudienceList([]);
+          setIsLoadingAudiences(false);
         });
     }
   }, [customerId]);
@@ -827,41 +861,175 @@ export default function SalesPerformanceMaxPage() {
                   </p>
                 </div>
 
-                {/* Customer Retention */}
+                {/* Conversion Value Rules Card */}
                 <div className="pt-4 border-t border-slate-800 space-y-3">
-                  <h3 className="font-semibold text-slate-200">Customer retention</h3>
-                  <div className="space-y-2">
-                    <label
-                      onClick={() => {
-                        setAdjustLapsedCustomers(true);
-                      }}
-                      className="flex items-center gap-3 cursor-not-allowed group w-fit"
-                    >
-                      <input
-                        type="checkbox"
-                        disabled
-                        checked={false}
-                        className="rounded bg-slate-950 border-slate-700 text-slate-600 h-4 w-4 cursor-not-allowed disabled:opacity-60"
-                      />
-                      <span className="text-slate-400 group-hover:text-slate-300 font-medium">
-                        Adjust your bidding to help re-engage lapsed customers
-                      </span>
-                    </label>
+                  <div 
+                    className="flex justify-between items-center cursor-pointer"
+                    onClick={() => setIsConversionValueRulesOpen(!isConversionValueRulesOpen)}
+                  >
+                    <div>
+                      <h3 className="font-semibold text-slate-200">Value rules</h3>
+                      <p className="text-[11px] text-slate-400">Adjust conversion values when additional conditions apply to your audience, device, or location.</p>
+                    </div>
+                    <button className="text-slate-400 hover:text-white p-1">
+                      {isConversionValueRulesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  </div>
 
-                    {adjustLapsedCustomers && (
-                      <div className="flex items-center gap-2 p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs animate-in fade-in duration-150">
-                        <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-                        <span>You can’t bid higher for lapsed customers because you don’t have a purchase goal in your account.</span>
+                  {isConversionValueRulesOpen && (
+                    <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3 animate-in fade-in duration-150">
+                      <div className="space-y-1">
+                        <label className="block text-slate-300 font-semibold">Rule Condition Type</label>
+                        <select 
+                          value={valueRuleType} 
+                          onChange={(e) => setValueRuleType(e.target.value as any)}
+                          className="w-full max-w-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                        >
+                          <option value="NONE">No value rule</option>
+                          <option value="AUDIENCE">Audience (User List)</option>
+                          <option value="DEVICE">Device (Mobile / Desktop)</option>
+                          <option value="GEO">Geographic Location</option>
+                        </select>
                       </div>
-                    )}
-                  </div>
-                  <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-[11px] leading-relaxed space-y-1">
-                    <p>You can’t bid higher for lapsed customers because you don’t have a purchase goal in your account. Add a purchase goal to run campaigns that bid higher for specific customer types.</p>
-                    <p className="text-slate-400 pt-1">By default, your campaign does not adjust bidding to re-engage lapsed customers. However, you can configure your customer acquisition settings to optimize for winning back lapsed customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a></p>
-                  </div>
+
+                      {valueRuleType !== "NONE" && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400">Condition Target</label>
+                            <input 
+                              type="text" 
+                              value={valueRuleConditionValue}
+                              onChange={(e) => setValueRuleConditionValue(e.target.value)}
+                              placeholder={valueRuleType === "AUDIENCE" ? "High Value Audience" : valueRuleType === "DEVICE" ? "Mobile" : "Metro Cities"}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400">Operation</label>
+                            <select 
+                              value={valueRuleOperation}
+                              onChange={(e) => setValueRuleOperation(e.target.value as any)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                            >
+                              <option value="MULTIPLY">Multiply value (×)</option>
+                              <option value="ADD">Add to value (+)</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400">Value Adjustment</label>
+                            <input 
+                              type="number" 
+                              step="0.1"
+                              value={valueRuleValue}
+                              onChange={(e) => setValueRuleValue(e.target.value)}
+                              placeholder="1.2"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 </>
                 )}
+              </div>
+
+              {/* Merchant Center, Store Locations & Dynamic Ads Feed Card */}
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
+                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Feeds & Business Accounts</h2>
+                <div className="space-y-4">
+                  {/* Merchant Center */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={merchantCenterEnabled}
+                        onChange={(e) => setMerchantCenterEnabled(e.target.checked)}
+                        className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                      />
+                      <span className="font-semibold text-slate-200">Advertise products from a Merchant Center account</span>
+                    </label>
+                    {merchantCenterEnabled && (
+                      <div className="ml-6 p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3 animate-in fade-in duration-150">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400 font-medium">Merchant Center Account ID</label>
+                            <input 
+                              type="text" 
+                              value={merchantCenterId}
+                              onChange={(e) => setMerchantCenterId(e.target.value)}
+                              placeholder="e.g. 123456789"
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 font-mono"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400 font-medium">Feed Label / Country Filter</label>
+                            <input 
+                              type="text" 
+                              value={feedLabel}
+                              onChange={(e) => setFeedLabel(e.target.value)}
+                              placeholder="e.g. IN or US"
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Store Locations */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={storeLocationsEnabled}
+                        onChange={(e) => setStoreLocationsEnabled(e.target.checked)}
+                        className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                      />
+                      <span className="font-semibold text-slate-200">Use all store locations from Google Business Profile</span>
+                    </label>
+                    {storeLocationsEnabled && (
+                      <div className="ml-6 p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2 animate-in fade-in duration-150">
+                        <label className="block text-[11px] text-slate-400 font-medium">Location Group Filter</label>
+                        <select 
+                          value={businessProfileLocationFilter}
+                          onChange={(e) => setBusinessProfileLocationFilter(e.target.value)}
+                          className="w-full max-w-xs bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100"
+                        >
+                          <option value="ALL">All locations in account</option>
+                          <option value="MAIN_BRANCHES">Main store branches</option>
+                          <option value="RETAIL_STORES">Retail outlets</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dynamic Ads Feed */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={dynamicAdsFeedEnabled}
+                        onChange={(e) => setDynamicAdsFeedEnabled(e.target.checked)}
+                        className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                      />
+                      <span className="font-semibold text-slate-200">Attach a Dynamic ads feed (Business Data)</span>
+                    </label>
+                    {dynamicAdsFeedEnabled && (
+                      <div className="ml-6 p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2 animate-in fade-in duration-150">
+                        <label className="block text-[11px] text-slate-400 font-medium">Business Data Feed ID / Name</label>
+                        <input 
+                          type="text" 
+                          value={dynamicFeedId}
+                          onChange={(e) => setDynamicFeedId(e.target.value)}
+                          placeholder="e.g. Real Estate Feed 2027"
+                          className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1317,12 +1485,140 @@ export default function SalesPerformanceMaxPage() {
                         <span className="font-bold text-slate-200">Page feeds</span>
                         <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-800 hover:bg-slate-750 text-primary font-bold rounded-lg">Save</button>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds. Learn more about page feeds</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds.</p>
+                      
+                      {/* Page Feed URL Adder */}
+                      <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400">Feed Landing Page URL</label>
+                            <input 
+                              type="url"
+                              value={newPageFeedUrlInput}
+                              onChange={(e) => setNewPageFeedUrlInput(e.target.value)}
+                              placeholder="https://example.com/category"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-slate-400">Custom Label (Optional)</label>
+                            <div className="flex gap-2">
+                              <input 
+                                type="text"
+                                value={newPageFeedLabelInput}
+                                onChange={(e) => setNewPageFeedLabelInput(e.target.value)}
+                                placeholder="e.g. holiday-promo"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (newPageFeedUrlInput.trim()) {
+                                    setPageFeedUrls(prev => [
+                                      ...prev, 
+                                      { id: Date.now().toString(), url: newPageFeedUrlInput.trim(), label: newPageFeedLabelInput.trim() }
+                                    ]);
+                                    setNewPageFeedUrlInput("");
+                                    setNewPageFeedLabelInput("");
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-primary text-slate-950 font-bold rounded-lg hover:bg-secondary cursor-pointer shrink-0"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {pageFeedUrls.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-slate-800">
+                            <span className="text-[11px] text-slate-400 font-semibold">Configured Page Feeds:</span>
+                            <div className="space-y-1.5">
+                              {pageFeedUrls.map((pf, idx) => (
+                                <div key={pf.id || idx} className="flex items-center justify-between p-2 bg-slate-900 rounded-lg border border-slate-800 text-xs">
+                                  <div className="flex items-center gap-2 truncate pr-2">
+                                    <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    <span className="text-slate-200 font-mono truncate">{pf.url}</span>
+                                    {pf.label && (
+                                      <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] shrink-0 font-semibold">{pf.label}</span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPageFeedUrls(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-slate-400 hover:text-rose-400 p-1"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div onClick={() => setActiveEditSetting("PAGE_FEEDS")} className="p-4 hover:bg-slate-900/60 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
                       <div className="w-1/3 text-slate-400 font-semibold">Page feeds</div>
-                      <div className="w-2/3 text-slate-200 font-bold pr-8">No page feeds added</div>
+                      <div className="w-2/3 text-slate-200 font-bold pr-8">{pageFeedUrls.length > 0 ? `${pageFeedUrls.length} page feeds configured` : "No page feeds added"}</div>
+                      <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
+                    </div>
+                  )}
+
+                  {/* Third-Party Measurement Row */}
+                  {activeEditSetting === "THIRD_PARTY_MEASUREMENT" ? (
+                    <div className="p-6 bg-slate-900/90 space-y-4 animate-in fade-in duration-150 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span className="font-bold text-slate-200">Third-party measurement</span>
+                        <button type="button" onClick={() => setActiveEditSetting(null)} className="px-3 py-1 bg-slate-800 hover:bg-slate-750 text-primary font-bold rounded-lg">Save</button>
+                      </div>
+                      <p className="text-[11px] text-slate-400">Connect third-party verification and measurement providers to verify ad viewability, brand safety, and campaign metrics.</p>
+                      <div className="space-y-3 pt-1">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={thirdPartyMeasurementEnabled}
+                            onChange={(e) => setThirdPartyMeasurementEnabled(e.target.checked)}
+                            className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                          />
+                          <span className="font-semibold text-slate-200">Enable third-party measurement vendor tracking</span>
+                        </label>
+                        {thirdPartyMeasurementEnabled && (
+                          <div className="ml-6 p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3 animate-in fade-in duration-150">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-400 font-medium">Measurement Provider</label>
+                                <select 
+                                  value={thirdPartyVendor}
+                                  onChange={(e) => setThirdPartyVendor(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100"
+                                >
+                                  <option value="NONE">Select vendor</option>
+                                  <option value="INTEGRAL_AD_SCIENCE">Integral Ad Science (IAS)</option>
+                                  <option value="DOUBLE_VERIFY">DoubleVerify</option>
+                                  <option value="ORACLE_MOAT">Oracle Moat</option>
+                                  <option value="COMSCORE">Comscore</option>
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-400 font-medium">Vendor Client / Account ID</label>
+                                <input 
+                                  type="text"
+                                  value={thirdPartyAccountId}
+                                  onChange={(e) => setThirdPartyAccountId(e.target.value)}
+                                  placeholder="e.g. DV-1234567"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 font-mono"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div onClick={() => setActiveEditSetting("THIRD_PARTY_MEASUREMENT")} className="p-4 hover:bg-slate-900/60 flex items-center justify-between gap-4 cursor-pointer group transition-all text-xs">
+                      <div className="w-1/3 text-slate-400 font-semibold">Third-party measurement</div>
+                      <div className="w-2/3 text-slate-200 font-bold pr-8">{thirdPartyMeasurementEnabled && thirdPartyVendor !== "NONE" ? `${thirdPartyVendor} active` : "None configured"}</div>
                       <Edit3 className="h-4 w-4 text-slate-500 group-hover:text-primary transition-all shrink-0" />
                     </div>
                   )}
@@ -2719,41 +3015,32 @@ export default function SalesPerformanceMaxPage() {
                       <h3 className="font-semibold text-slate-300">Audience signal</h3>
                       <button
                         type="button"
-                        onClick={() => {
-                          setAudienceNameInput("");
-                          setDemoGenders(["Female", "Male", "Unknown"]);
-                          setDemoAges(["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"]);
-                          setDemoParental(["Parent", "Not a parent", "Unknown"]);
-                          setDemoIncome(["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"]);
-                          setSelectedDataSegments([]);
-                          setActiveModal("AUDIENCE_SIGNAL");
-                        }}
+                        onClick={() => setActiveModal("AUDIENCE_SIGNAL")}
                         className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-semibold border border-slate-700 cursor-pointer"
                       >
-                        {savedAudienceSignal ? "Edit audience signal" : "+ Add audience signal"}
+                        {selectedAudienceResource ? "Change audience signal" : "+ Select audience signal"}
                       </button>
                     </div>
 
-                    {savedAudienceSignal ? (
+                    {selectedAudienceResource ? (
                       <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-800 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-white text-xs">{savedAudienceSignal.name}</span>
+                          <span className="font-bold text-white text-xs">{selectedAudienceResource.name}</span>
                           <button
                             type="button"
-                            onClick={() => setSavedAudienceSignal(null)}
+                            onClick={() => setSelectedAudienceResource(null)}
                             className="text-slate-500 hover:text-red-400 text-[11px] font-semibold"
                           >
                             Remove
                           </button>
                         </div>
                         <div className="flex flex-wrap gap-2 text-[10px] text-slate-400">
-                          {savedAudienceSignal.hasYourData && <span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-primary">Your Data</span>}
-                          {savedAudienceSignal.hasInterests && <span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-slate-300">Interests & Demographics</span>}
-                          <span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-slate-400">Demographics: {savedAudienceSignal.demographicsCount} targeted</span>
+                          <span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-primary">AUDIENCE</span>
+                          <span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-slate-300">{selectedAudienceResource.resourceName}</span>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-[11px] text-slate-400 italic">No audience signal added yet. Adding an audience signal helps search and automation tools find conversions faster.</p>
+                      <p className="text-[11px] text-slate-400 italic">No audience signal selected (optional). You can select an existing Google Ads Audience resource to guide campaign targeting.</p>
                     )}
                   </div>
                 </div>
@@ -2882,19 +3169,31 @@ export default function SalesPerformanceMaxPage() {
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <h1 className="text-2xl font-semibold text-white tracking-tight">Your campaign is almost ready to publish</h1>
 
-              {/* Issues Card */}
-              <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-xl">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-rose-400" />
-                  <h2 className="text-sm font-bold text-rose-200">Issues</h2>
+              {/* Submission Error Card */}
+              {submitError && (
+                <div className="p-4 rounded-2xl border border-rose-500/50 bg-rose-500/10 text-rose-300 flex items-start gap-3 shadow-xl">
+                  <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-rose-200 text-xs">Failed to publish campaign</p>
+                    <p className="text-[11px] text-rose-300 leading-relaxed">{submitError}</p>
+                  </div>
                 </div>
-                <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
-                <ul className="space-y-1.5 list-disc list-inside text-[11px] text-rose-300">
-                  <li><strong>Add a budget:</strong> To publish your campaign, enter a budget</li>
-                  <li><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</li>
-                  <li><strong>Budget:</strong> Value is required</li>
-                </ul>
-              </div>
+              )}
+
+              {/* Issues Card */}
+              {(!dailyBudgetValue || !finalUrl) && (
+                <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-xl">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-rose-400" />
+                    <h2 className="text-sm font-bold text-rose-200">Issues</h2>
+                  </div>
+                  <p className="font-semibold text-rose-200">Fix these issues to run your campaign</p>
+                  <ul className="space-y-1.5 list-disc list-inside text-[11px] text-rose-300">
+                    {!dailyBudgetValue && <li><strong>Add a budget:</strong> Value is required</li>}
+                    {!finalUrl && <li><strong>Final URL:</strong> Enter a valid URL (ex. https://www.example.com)</li>}
+                  </ul>
+                </div>
+              )}
 
               {/* Recommendations Card */}
               <div className="p-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2 shadow-xl">
@@ -2920,7 +3219,12 @@ export default function SalesPerformanceMaxPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <span className="text-slate-400 block text-[11px]">Campaign name</span>
-                    <span className="font-bold text-slate-100 text-sm">Sales-Performance Max-16</span>
+                    <input
+                      type="text"
+                      value={campaignName}
+                      onChange={(e) => setCampaignName(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-100 font-bold text-xs mt-1 w-full focus:outline-none focus:border-primary"
+                    />
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[11px]">Campaign type</span>
@@ -2928,7 +3232,7 @@ export default function SalesPerformanceMaxPage() {
                   </div>
                   <div className="md:col-span-2">
                     <span className="text-slate-400 block text-[11px]">Goal</span>
-                    <span className="font-bold text-slate-100">Downloads, Phone call leads</span>
+                    <span className="font-bold text-slate-100">Sales (Downloads, Phone call leads)</span>
                   </div>
                 </div>
               </div>
@@ -3033,7 +3337,7 @@ export default function SalesPerformanceMaxPage() {
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[11px]">Audience</span>
-                      <span className="text-slate-400 italic">{audienceName || "No signal provided"}</span>
+                      <span className="text-slate-400 italic">{selectedAudienceResource?.name || "No signal provided"}</span>
                     </div>
                   </div>
                 </div>
@@ -3097,18 +3401,172 @@ export default function SalesPerformanceMaxPage() {
             </button>
           ) : (
             <button
+              disabled={isSubmitting}
               onClick={async () => {
-                if (!dailyBudgetValue) {
-                  alert("Please fix issues before publishing: Add a budget (Value is required)");
+                setSubmitError(null);
+
+                if (!dailyBudgetValue || isNaN(Number(dailyBudgetValue)) || Number(dailyBudgetValue) <= 0) {
+                  setSubmitError("Please provide a valid average daily budget amount.");
                   return;
                 }
-                alert(`Sales Performance Max campaign "Sales-Performance Max-9" published successfully!`);
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                if (!finalUrl || !finalUrl.trim().startsWith("http")) {
+                  setSubmitError("Please provide a valid Final URL (e.g. https://www.example.com).");
+                  return;
+                }
+                const validHeadlines = headlines.filter(h => h && h.trim());
+                if (validHeadlines.length === 0) {
+                  setSubmitError("Please provide at least 1 headline in the Asset Group.");
+                  return;
+                }
+
+                setIsSubmitting(true);
+                try {
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                  const targetCpaNum = setTargetCpa && targetCpaValue ? Number(targetCpaValue) : undefined;
+                  const targetRoasNum = biddingFocus.includes("ROAS") || biddingFocus.includes("conversion value") ? Number(targetRoasValue) : undefined;
+
+                  const payload = {
+                    customerId: customerId || "1234567890",
+                    campaignName: campaignName || "Sales-Performance Max-1",
+                    finalUrl: finalUrl.trim(),
+                    businessName: businessName.trim() || undefined,
+                    biddingFocus: biddingFocus,
+                    targetCpa: targetCpaNum,
+                    targetRoas: targetRoasNum,
+                    onlyNewCustomers: onlyBidNewCustomers,
+                    reengageLapsedCustomers: adjustLapsedCustomers,
+                    startDate: startDate || undefined,
+                    endDate: endDate || undefined,
+                    locations: selectedLocation === "INDIA" ? ["India"] : selectedLocation === "CUSTOM" ? (customLocationInput ? [customLocationInput] : ["India"]) : ["All countries"],
+                    languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+                    euPolitical: euPoliticalAds,
+                    assetGroupName: assetGroupName || `${campaignName} Asset Group 1`,
+                    headlines: validHeadlines,
+                    longHeadlines: longHeadlines.filter(lh => lh && lh.trim()),
+                    descriptions: descriptions.filter(d => d && d.trim()),
+                    images: uploadedImages,
+                    logos: brandLogos,
+                    searchThemes: searchThemes,
+                    audienceSignal: selectedAudienceResource ? {
+                      resourceName: selectedAudienceResource.resourceName,
+                      name: selectedAudienceResource.name,
+                      type: "AUDIENCE"
+                    } : null,
+                    ctaOption: ctaOption || "Automated (recommended)",
+                    displayPath1: displayPath1.trim() || undefined,
+                    displayPath2: displayPath2.trim() || undefined,
+                    enableFinalUrlExpansion: enableFinalUrlExpansion,
+                    brandGuidelinesEnabled: false,
+                    brandColors: { mainColor, accentColor, font: selectedFont },
+                    deviceSettings: devicesSelection,
+                    trackingTemplate: trackingTemplate.trim() || undefined,
+                    finalUrlSuffix: finalUrlSuffix.trim() || undefined,
+                    customParameters: customParameters.filter(p => p.name.trim() && p.value.trim()),
+                    sitelinks: savedSitelinks.length > 0 ? savedSitelinks : undefined,
+                    callouts: savedCallouts.length > 0 ? savedCallouts : undefined,
+                    callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined,
+                    structuredSnippets: savedSnippets.length > 0 ? savedSnippets : undefined,
+                    promotions: savedPromotions.length > 0 ? savedPromotions.map(p => ({
+                      promotionTarget: p.item,
+                      percentOff: Number(p.discount) || undefined,
+                      occasion: p.occasion !== "None" ? p.occasion : undefined,
+                      finalUrl: p.url || finalUrl
+                    })) : undefined,
+                    prices: savedPrices.length >= 3 ? savedPrices.map(p => ({
+                      header: p.type,
+                      description: "Service plan",
+                      amountMicros: Number(p.price) * 1_000_000,
+                      currencyCode: "INR",
+                      finalUrl: finalUrl
+                    })) : undefined,
+                    finalMobileUrls: useDiffMobileUrl && mobileFinalUrl ? [mobileFinalUrl.trim()] : undefined,
+                    assetGroupTrackingTemplate: assetGroupTrackingTemplate.trim() || undefined,
+                    assetGroupCustomParameters: assetGroupCustomParameters.filter(p => p.name.trim() && p.value.trim()),
+                    leadForm: lfHeadline ? {
+                      headline: lfHeadline,
+                      businessName: lfBusinessName || businessName,
+                      description: lfDescription,
+                      privacyPolicyUrl: lfPrivacyPolicyUrl
+                    } : undefined,
+                    locationTargetingType: locationTargetingType,
+                    brandExclusions: selectedBrandsList.map(b => b.name),
+                    urlRulesList: urlRulesList.length > 0 ? urlRulesList : undefined,
+                    assetOptimizations: {
+                      enableTextCustomization,
+                      enableImageEnhancement,
+                      enableLandingPageImages,
+                      enableVideoEnhancement
+                    },
+                    youtubeVideos: uploadedVideos.length > 0 ? uploadedVideos : undefined,
+                    messagingRestrictions: messagingRestrictions.filter(m => m.trim()),
+                    ga4Property: ga4Property ? { propertyId: ga4Property, importMetrics: ga4ImportMetrics, importAudiences: ga4ImportAudiences } : undefined,
+                    pageFeeds: pageFeedUrls.length > 0 ? pageFeedUrls.map(pf => ({ url: pf.url, label: pf.label || undefined })) : [],
+                    merchantCenter: merchantCenterEnabled && merchantCenterId ? {
+                      merchantCenterId: merchantCenterId.trim(),
+                      feedLabel: feedLabel.trim() || undefined
+                    } : undefined,
+                    storeLocations: storeLocationsEnabled ? {
+                      enabled: true,
+                      locationFilter: businessProfileLocationFilter
+                    } : undefined,
+                    dynamicAdsFeed: dynamicAdsFeedEnabled && dynamicFeedId ? {
+                      feedId: dynamicFeedId.trim()
+                    } : undefined,
+                    valueRules: valueRuleType !== "NONE" ? {
+                      type: valueRuleType,
+                      conditionValue: valueRuleConditionValue.trim() || undefined,
+                      operation: valueRuleOperation,
+                      value: Number(valueRuleValue) || 1.0
+                    } : undefined,
+                    thirdPartyMeasurement: thirdPartyMeasurementEnabled && thirdPartyVendor !== "NONE" ? {
+                      vendor: thirdPartyVendor,
+                      accountId: thirdPartyAccountId.trim() || undefined
+                    } : undefined,
+                    audienceExclusions: selectedDataExclusions,
+                    ytUserSegment: ytSegmentName ? { name: ytSegmentName, type: ytSegmentType, channel: ytSelectedChannel } : undefined,
+                    assetSchedules: assetSchedules,
+                    promoTerms: promoTermsConditions ? { terms: promoTermsConditions, link: promoAdditionalTermsLink } : undefined,
+                    leadFormWebhook: lfWebhookUrl ? { url: lfWebhookUrl, key: lfWebhookKey } : undefined,
+                    adSchedule: adScheduleList,
+                    budgetType: budgetType,
+                    dailyBudget: Number(dailyBudgetValue)
+                  };
+
+                  const res = await fetch(`${BACKEND}/api/ads/campaigns/create-noguidance-pmax-campaign`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-organization-id": "demo-org-123"
+                    },
+                    body: JSON.stringify(payload)
+                  });
+
+                  const data = await res.json();
+                  if (!res.ok) {
+                    throw new Error(data.error || "Failed to publish Sales Performance Max campaign.");
+                  }
+
+                  router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                } catch (err: any) {
+                  console.error("Sales PMax campaign submission error:", err);
+                  setSubmitError(err.message || "An unexpected error occurred while publishing.");
+                } finally {
+                  setIsSubmitting(false);
+                }
               }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >
-              Save & Publish
-              <Check className="h-4 w-4" />
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  Save & Publish
+                  <Check className="h-4 w-4" />
+                </>
+              )}
             </button>
           )}
         </div>
@@ -5655,216 +6113,62 @@ export default function SalesPerformanceMaxPage() {
               </div>
             )}
 
-            {/* Main Modal Content: AUDIENCE SIGNAL BUILDER */}
-            {subModal === null && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                
-                {/* Your data segment selector */}
-                <div className="space-y-3">
-                  <div>
-                    <span className="font-bold text-slate-200 block text-xs">Your data</span>
-                    <p className="text-[11px] text-slate-400 leading-normal">First-party data can help us reach your customers</p>
+            {/* Main Modal Content: GOOGLE ADS AUDIENCES SELECTOR */}
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div>
+                <span className="font-bold text-slate-200 block text-xs">Google Ads Audience</span>
+                <p className="text-[11px] text-slate-400 leading-normal">Select an existing Google Ads Audience resource to guide your Performance Max campaign targeting.</p>
+              </div>
+
+              <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800 space-y-3">
+                {isLoadingAudiences ? (
+                  <div className="py-6 text-center text-xs text-slate-400">Loading Google Ads Audiences...</div>
+                ) : audienceList.length === 0 ? (
+                  <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2 text-center">
+                    <p className="text-xs text-amber-400 font-medium">No Google Ads Audiences found for this account.</p>
+                    <p className="text-[11px] text-slate-400">Create an Audience in Google Ads Audience Manager first, then refresh this list. Audience Signal is optional and can be skipped.</p>
                   </div>
-
-                  <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800 space-y-3">
-                    <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                      <button
-                        type="button"
-                        onClick={() => setDataTab("search")}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg ${dataTab === "search" ? "bg-primary text-slate-950" : "text-slate-400 hover:text-white"}`}
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {audienceList.map((aud) => (
+                      <label
+                        key={aud.resourceName}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                          selectedAudienceResource?.resourceName === aud.resourceName
+                            ? "bg-primary/10 border-primary text-white"
+                            : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700"
+                        }`}
                       >
-                        Search
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDataTab("browse")}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg ${dataTab === "browse" ? "bg-primary text-slate-950" : "text-slate-400 hover:text-white"}`}
-                      >
-                        Browse
-                      </button>
-                    </div>
-
-                    {dataTab === "search" ? (
-                      <div className="space-y-2">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-xs block">{aud.name}</span>
+                          <span className="text-[10px] text-slate-500 font-mono block">{aud.resourceName}</span>
+                        </div>
                         <input
-                          type="text"
-                          placeholder="Search your data segments..."
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs"
+                          type="radio"
+                          name="selectedAudience"
+                          checked={selectedAudienceResource?.resourceName === aud.resourceName}
+                          onChange={() => setSelectedAudienceResource({ resourceName: aud.resourceName, name: aud.name, type: "AUDIENCE" })}
+                          className="text-primary h-4 w-4"
                         />
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Google-engaged audiences - for Account 6587355041</span>
-                        {["Website visitors", "All converters"].map(item => (
-                          <label key={item} className="flex items-center gap-2.5 cursor-pointer py-0.5">
-                            <input
-                              type="checkbox"
-                              checked={selectedDataSegments.includes(item)}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setSelectedDataSegments(prev => checked ? [...prev, item] : prev.filter(x => x !== item));
-                              }}
-                              className="rounded text-primary h-3.5 w-3.5"
-                            />
-                            <span className="text-xs text-slate-300">{item}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
-                      <span className="text-[10px] text-slate-500">Add custom segments from GA4, YouTube, or visitor lists.</span>
-                      <button
-                        type="button"
-                        onClick={() => setSubModal("NEW_SEGMENT")}
-                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold text-[11px] cursor-pointer"
-                      >
-                        Add your data
-                      </button>
-                    </div>
-
-                    {selectedDataSegments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {selectedDataSegments.map(item => (
-                          <span key={item} className="inline-flex items-center gap-1 bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-200">
-                            {item}
-                            <button
-                              type="button"
-                              onClick={() => setSelectedDataSegments(prev => prev.filter(x => x !== item))}
-                              className="text-slate-500 hover:text-red-400 ml-1"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                      </label>
+                    ))}
                   </div>
-                </div>
+                )}
+              </div>
 
-                {/* Interests & Detailed Demographics */}
-                <div className="pt-2 border-t border-slate-800/60 space-y-2">
-                  <div>
-                    <span className="font-bold text-slate-200 block text-xs">Interests & detailed demographics</span>
-                    <p className="text-[11px] text-slate-400">Add any interests, detailed demographics, or life events related to your customers</p>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Add in-market segments, life events, and more"
-                    value={interestsInput}
-                    onChange={(e) => setInterestsInput(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100"
-                  />
-                </div>
-
-                {/* Demographics Checklist Grid */}
-                <div className="pt-2 border-t border-slate-800/60 space-y-3">
-                  <div>
-                    <span className="font-bold text-slate-200 block text-xs">Demographics</span>
-                    <p className="text-[11px] text-slate-400">People with the following demographics</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 bg-slate-950/20 p-4 rounded-xl border border-slate-800/60">
-                    {/* Gender */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-300 block text-[11px]">Gender</span>
-                      {["Female", "Male", "Unknown"].map(g => (
-                        <label key={g} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoGenders.includes(g)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoGenders(prev => checked ? [...prev, g] : prev.filter(x => x !== g));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-300">{g}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Age */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-300 block text-[11px]">Age</span>
-                      {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map(a => (
-                        <label key={a} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoAges.includes(a)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoAges(prev => checked ? [...prev, a] : prev.filter(x => x !== a));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-300">{a}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 bg-slate-950/20 p-4 rounded-xl border border-slate-800/60">
-                    {/* Parental Status */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-300 block text-[11px]">Parental status</span>
-                      {["Parent", "Not a parent", "Unknown"].map(p => (
-                        <label key={p} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoParental.includes(p)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoParental(prev => checked ? [...prev, p] : prev.filter(x => x !== p));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-300">{p}</span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {/* Household Income */}
-                    <div className="space-y-1.5">
-                      <span className="font-semibold text-slate-300 block text-[11px]">Household income</span>
-                      {["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"].map(i => (
-                        <label key={i} className="flex items-center gap-2 cursor-pointer py-0.5">
-                          <input
-                            type="checkbox"
-                            checked={demoIncome.includes(i)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDemoIncome(prev => checked ? [...prev, i] : prev.filter(x => x !== i));
-                            }}
-                            className="rounded text-primary h-3.5 w-3.5"
-                          />
-                          <span className="text-xs text-slate-300">{i}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-slate-500 italic leading-relaxed">
-                    Note: Household income targeting is only available in select countries.{" "}
-                    <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>Learn more</a>
-                  </p>
-                </div>
-
-                {/* Audience Name at bottom (Optional) */}
-                <div className="pt-2 border-t border-slate-800/60 space-y-1">
-                  <label className="text-[11px] text-slate-400 block font-medium">Audience name</label>
-                  <p className="text-[11px] text-slate-500">Add a name for your audience to save it to your library (optional)</p>
-                  <input
-                    type="text"
-                    placeholder="Enter audience name"
-                    value={audienceNameInput}
-                    onChange={(e) => setAudienceNameInput(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100"
-                  />
-                </div>
-
-                {/* Footer Buttons */}
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              {/* Footer Buttons */}
+              <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAudienceResource(null);
+                    setActiveModal(null);
+                  }}
+                  className="text-slate-400 hover:text-red-400 text-xs font-semibold"
+                >
+                  Clear Selection
+                </button>
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
@@ -5874,23 +6178,14 @@ export default function SalesPerformanceMaxPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      const finalName = audienceNameInput.trim() || "Audience Signal";
-                      setSavedAudienceSignal({
-                        name: finalName,
-                        hasYourData: selectedDataSegments.length > 0,
-                        hasInterests: !!interestsInput,
-                        demographicsCount: demoGenders.length + demoAges.length + demoParental.length + demoIncome.length
-                      });
-                      setActiveModal(null);
-                    }}
+                    onClick={() => setActiveModal(null)}
                     className="px-5 py-2 bg-primary text-slate-950 rounded-xl font-bold hover:bg-secondary cursor-pointer"
                   >
-                    Save Audience Signal
+                    Done
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

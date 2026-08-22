@@ -507,6 +507,10 @@ model GoogleAdCampaign {
   finalUrl               String?
   keywords               Json?
   geoTargets             Json?
+  languages              Json?
+  searchThemes           Json?
+  audienceSignal         Json?
+  adSchedule             Json?
   advertisingChannelType String       @default("SEARCH")
   amountMicros           BigInt       @default(0)
   impressions            BigInt       @default(0)
