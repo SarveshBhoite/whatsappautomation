@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-const DEFAULT_ORG_ID = "demo-org-123";
 
 /**
  * Next.js App Router API Route: GET /api/linkedin/auth
@@ -9,7 +8,10 @@ const DEFAULT_ORG_ID = "demo-org-123";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const orgId = searchParams.get("orgId") || DEFAULT_ORG_ID;
+    const orgId = searchParams.get("orgId") || "";
+    if (!orgId) {
+      return NextResponse.json({ error: "Missing required orgId parameter" }, { status: 400 });
+    }
     const redirectPath = searchParams.get("redirect") || "/linkedin";
 
     const clientId = (

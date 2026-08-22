@@ -1,273 +1,422 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  Megaphone, ShieldCheck, Zap, MessageSquare, Star,
-  ArrowRight, Globe, BarChart2, Bot, Lock, RefreshCw, LayoutDashboard
+  ShieldCheck,
+  Zap,
+  ArrowRight,
+  Sparkles,
+  Lock,
+  RefreshCw,
+  Star,
+  CheckCircle2,
+  Layers
 } from "lucide-react";
+import HeroShowcase from "@/components/home/HeroShowcase";
+import WorkflowPipeline from "@/components/home/WorkflowPipeline";
+import AllModulesGrid from "@/components/home/AllModulesGrid";
+import BentoFeatures from "@/components/home/BentoFeatures";
+import ComparisonMatrix from "@/components/home/ComparisonMatrix";
+import RoiCalculator from "@/components/home/RoiCalculator";
+import FaqAccordion from "@/components/home/FaqAccordion";
+import BottomCta from "@/components/home/BottomCta";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
-/* ── Page-level SEO metadata (overrides root layout for this route) ── */
+/* ── Page-level SEO metadata ── */
 export const metadata: Metadata = {
-  title: "Jisnu CRM – WhatsApp, Google Ads & Google Business Automation",
+  title: "Jisnu CRM – Unified WhatsApp, Ads & Google Business Automation",
   description:
-    "Jisnu CRM is an all-in-one customer relationship management platform. " +
-    "Connect your WhatsApp Business API, Google Ads accounts, and Google Business " +
-    "Profile to automate marketing, manage campaigns, sync reviews, and grow your business.",
+    "Jisnu CRM is a complete omnichannel customer growth platform. " +
+    "Connect official WhatsApp Business Cloud API, Google Ads, Meta Ads, and " +
+    "Google Business Profile to automate replies, manage campaigns, and scale revenue.",
   openGraph: {
-    title: "Jisnu CRM – All-in-One Marketing Automation Platform",
+    title: "Jisnu CRM – Omnichannel Marketing Automation Platform",
     description:
-      "Manage WhatsApp broadcasts, Google Ads campaigns, and Google My Business " +
-      "reviews from a single, secure dashboard.",
+      "Manage WhatsApp broadcasts, Google Ads, and Google Business Profile " +
+      "reviews from one secure, unified command center.",
     siteName: "Jisnu CRM",
     type: "website",
   },
 };
 
-/* ── Feature cards data ─────────────────────────────────────────────── */
-const features = [
-  {
-    icon: MessageSquare,
-    color: "emerald",
-    title: "WhatsApp Automation",
-    description:
-      "Connect your WhatsApp Business API to run automated flows, broadcast " +
-      "promotional messages, and manage multi-agent live-support chats — all from " +
-      "a unified inbox.",
-  },
-  {
-    icon: Megaphone,
-    color: "primary",
-    title: "Google Ads Management",
-    description:
-      "Securely link your Google Ads account using OAuth 2.0. View campaigns, " +
-      "manage ad groups and budgets, get AI-generated ad copy, and monitor " +
-      "performance — without leaving the CRM.",
-  },
-  {
-    icon: Star,
-    color: "amber",
-    title: "Google Business Reviews",
-    description:
-      "Sync all your Google Business Profile locations, read incoming customer " +
-      "reviews, and configure AI auto-replies to maintain your online reputation " +
-      "on autopilot.",
-  },
-  {
-    icon: Bot,
-    color: "violet",
-    title: "AI-Powered Replies",
-    description:
-      "Leverage built-in AI to draft review responses, generate ad headlines, " +
-      "write WhatsApp message templates, and suggest campaign improvements based " +
-      "on real data.",
-  },
-  {
-    icon: BarChart2,
-    color: "sky",
-    title: "Unified Analytics",
-    description:
-      "Get a bird's-eye view of your marketing performance — WhatsApp delivery " +
-      "rates, ad spend, click-through rates, and review scores in one clean " +
-      "dashboard.",
-  },
-  {
-    icon: Lock,
-    color: "rose",
-    title: "Secure OAuth Connection",
-    description:
-      "We use Google's official OAuth 2.0 protocol to connect your accounts. " +
-      "Jisnu CRM never stores your Google password. You can revoke access at any " +
-      "time from your Google Account settings.",
-  },
-];
-
-const colorMap: Record<string, string> = {
-  emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  primary:  "bg-primary/10 text-primary border-primary/20",
-  amber:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  violet:  "bg-violet-500/10 text-violet-400 border-violet-500/20",
-  sky:     "bg-sky-500/10 text-sky-400 border-sky-500/20",
-  rose:    "bg-rose-500/10 text-rose-400 border-rose-500/20",
-};
-
-/* ── Data usage transparency section ────────────────────────────────── */
+/* ── Data usage transparency cards ── */
 const dataPoints = [
   {
     icon: RefreshCw,
-    title: "What data we access",
-    body: "When you connect a Google account, Jisnu CRM requests read and write access to your Google Ads campaigns, ad groups, and budgets, plus read access to your Google Business Profile reviews and locations.",
+    title: "What Google Data We Access",
+    body: "When you link your Google account, Jisnu CRM requests read and write access strictly for Google Ads campaigns, ad groups, and budgets, as well as read access for Google Business Profile customer reviews and locations.",
   },
   {
     icon: Lock,
-    title: "How we use it",
-    body: "Your data is used exclusively to power the features you see inside the CRM dashboard — displaying campaigns, posting review replies, and running automations you have explicitly configured.",
+    title: "How Your Data Is Used",
+    body: "Your data is used exclusively to power the features you trigger inside the CRM dashboard — displaying campaigns, generating AI draft replies, and running user-configured marketing automations.",
   },
   {
     icon: ShieldCheck,
-    title: "How we protect it",
-    body: "All tokens are stored encrypted and are never shared with third parties. You can disconnect your Google account at any time from the Settings page, which immediately revokes our access.",
+    title: "How We Protect Your Information",
+    body: "All authentication tokens are secured with AES-256 encryption. We never sell or share your data. You can disconnect your Google account anytime with a single click in Settings, instantly revoking access.",
   },
 ];
 
-/* ══════════════════════════════════════════════════════════════════════ */
+/* ── Social Proof Testimonials ── */
+const testimonials = [
+  {
+    quote:
+      "Jisnu CRM cut our lead response time from 3 hours to 4 seconds. The automated WhatsApp flows and AI review replies have noticeably elevated our customer satisfaction score.",
+    name: "Vikram Malhotra",
+    role: "Founder & CEO, Nexa Digital Agency",
+    avatar: "VM",
+  },
+  {
+    quote:
+      "Managing Google Ads and WhatsApp broadcasts from one unified platform is a game-changer. Our team saved over 15 hours a week in manual coordination.",
+    name: "Pooja Sharma",
+    role: "Head of Marketing, BlueOrbit Retail",
+    avatar: "PS",
+  },
+  {
+    quote:
+      "The Google Business review sync with instant AI drafting allows us to maintain a pristine 4.9-star rating across 12 branch locations effortlessly.",
+    name: "Anand Deshmukh",
+    role: "Operations Director, Zenith Healthcare",
+    avatar: "AD",
+  },
+];
+
 export default function LandingPage() {
   return (
-    <div className="h-screen w-screen overflow-y-auto bg-background text-foreground flex flex-col font-sans scrollbar-thin">
+    <div className="min-h-screen w-full overflow-x-hidden bg-mesh-canvas text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900">
 
-      {/* ── Navbar ─────────────────────────────────────────────────── */}
-      <header className="border-b border-border bg-background/85 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl overflow-hidden border border-border shrink-0 shadow-lg shadow-primary/10">
-            <img src="/icon.jpeg" alt="Jisnu CRM Logo" className="h-full w-full object-cover" />
+      {/* ── Sticky Frosted Glass Navbar ─────────────────────────────────── */}
+      <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/85 backdrop-blur-md transition-all">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          {/* Logo & Brand Name */}
+          <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl overflow-hidden border border-slate-200/90 p-0.5 bg-white shadow-2xs group-hover:border-brand-blue/60 transition-colors">
+              <img src="/icon.jpeg" alt="Jisnu CRM Logo" className="h-full w-full object-cover rounded-xl" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-black text-lg sm:text-xl tracking-tight text-slate-900 leading-tight">
+                Jisnu <span className="text-brand-blue">CRM</span>
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Automation
+              </span>
+            </div>
+          </Link>
+
+          {/* Desktop Navigation Links */}
+          <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
+            <a href="#cockpit" className="hover:text-brand-blue transition-colors">
+              Cockpit
+            </a>
+            <a href="#workflow" className="hover:text-brand-blue transition-colors">
+              Workflow
+            </a>
+            <a href="#modules" className="hover:text-brand-blue transition-colors">
+              All 12 Modules
+            </a>
+            <a href="#bento-features" className="hover:text-brand-blue transition-colors">
+              Capabilities
+            </a>
+            <a href="#comparison" className="hover:text-brand-blue transition-colors">
+              Comparison
+            </a>
+            <a href="#calculator" className="hover:text-brand-blue transition-colors">
+              ROI Impact
+            </a>
+          </nav>
+
+          {/* Action CTAs using Clean Shadcn Button components */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/login">
+              <Button variant="ghost" size="sm" className="font-bold text-slate-700">
+                Sign In
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button variant="default" size="default" className="shadow-md shadow-brand-blue/20">
+                Dashboard <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </Button>
+            </Link>
           </div>
-          <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-foreground to-slate-300 bg-clip-text text-transparent">
-            Jisnu CRM
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/login"
-            className="px-4 py-2 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-300 text-sm font-semibold transition-all"
-          >
-            Log In
-          </Link>
-          <Link
-            href="/login"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-bold transition-all shadow-lg shadow-primary/20"
-          >
-            Go to Dashboard <ArrowRight className="h-4 w-4" />
-          </Link>
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 flex flex-col items-center gap-0">
+      {/* ── Main Content Container ──────────────────────────────────── */}
+      <main className="flex-1 flex flex-col items-center w-full px-3.5 sm:px-6 lg:px-8">
 
-        {/* ── Hero Section ───────────────────────────────────────── */}
-        <section className="pt-16 pb-12 flex flex-col items-center text-center gap-6 w-full">
-          <div className="px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold uppercase tracking-wider">
-            ⚡ All-in-One Marketing Automation Platform
+        {/* ── 1. Hero Section ───────────────────────────────────────── */}
+        <section className="w-full pt-10 sm:pt-16 pb-10 sm:pb-12 max-w-7xl mx-auto flex flex-col items-center text-center">
+          {/* Brand Badge */}
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-1.5 rounded-full bg-white border border-slate-200/90 text-slate-800 text-[11px] sm:text-xs font-bold shadow-2xs mb-6 sm:mb-8 max-w-full truncate">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+            <Badge variant="brand" className="text-[10px] py-0 px-2 font-extrabold">NEW</Badge>
+            <span className="text-slate-300">|</span>
+            <span className="truncate">Meta WhatsApp API &amp; Google Ads Command Center</span>
           </div>
 
-          {/* PRIMARY H1 — exact app name required for OAuth verification */}
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight text-slate-100 leading-tight">
-            Jisnu CRM
-          </h1>
+          {/* Main Hero Headline with High-Impact Brand Palette Accent */}
+          <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 leading-[1.12] sm:leading-[1.1]">
+              Scale Every Conversation &amp; Campaign with{" "}
+              <span className="relative inline-block whitespace-nowrap mx-1 group">
+                {/* Brand Multi-Tone Ambient Aura (Brand Blue + Brand Green + Brand Orange) */}
+                <span 
+                  className="absolute -inset-1 sm:-inset-2 rounded-2xl bg-gradient-to-r from-[#0284C7] via-[#059669] to-[#EA580C] opacity-35 blur-xl animate-pulse" 
+                  aria-hidden="true" 
+                />
+                {/* Brand Glass Capsule with Triple Brand Colorway */}
+                <span className="relative inline-flex items-center gap-1 px-3.5 sm:px-5 py-0.5 sm:py-1 rounded-2xl bg-white/95 border border-sky-200/90 shadow-md shadow-sky-500/10 backdrop-blur-md">
+                  <span className="bg-gradient-to-r from-[#0284C7] via-[#0369A1] to-[#0F52BA] bg-clip-text text-transparent font-black">
+                    Jisnu
+                  </span>
+                  <span className="bg-gradient-to-r from-[#059669] via-[#0284C7] to-[#EA580C] bg-clip-text text-transparent font-black tracking-wider">
+                    CRM
+                  </span>
+                </span>
+              </span>
+            </h1>
 
-          {/* ── What is Jisnu CRM? (Above the fold / immediate prominent explanation for OAuth verification) ── */}
-          <div className="rounded-2xl bg-card/60 border border-primary/25 px-8 py-8 text-center max-w-3xl mx-auto shadow-2xl backdrop-blur-md space-y-4 my-2">
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-100 flex items-center justify-center gap-2">
-              <Globe className="h-6 w-6 text-primary" /> What is Jisnu CRM?
-            </h2>
-            <p className="text-slate-300 text-base md:text-lg leading-relaxed font-normal">
-              Jisnu CRM is a complete customer relationship management and marketing automation platform designed for businesses. 
-              It allows users to connect their Google accounts (Google Ads and Google Business Profile) securely through OAuth to manage advertising campaigns, automate customer replies, sync reviews, and grow their business — all from one secure dashboard. 
-              The platform also integrates with the WhatsApp Business API for seamless communication.
+            {/* Responsive Brand Spectrum Slogan Pill */}
+            <div className="mt-5 inline-flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-2xl sm:rounded-full bg-slate-900/95 text-white shadow-xl shadow-sky-900/15 text-[11px] sm:text-sm font-extrabold tracking-wide border border-slate-800/90 max-w-full">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="w-2 h-2 rounded-full bg-[#059669] animate-ping" />
+                <span className="text-slate-100">One Unified Growth Engine</span>
+              </div>
+              <span className="hidden sm:inline text-slate-600 font-normal">|</span>
+              <div className="flex items-center gap-1.5 flex-wrap justify-center text-[10px] sm:text-xs">
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#38BDF8] font-bold border border-white/5">WhatsApp</span>
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#34D399] font-bold border border-white/5">Ads</span>
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#FB923C] font-bold border border-white/5">Reviews</span>
+                <span className="px-2 py-0.5 rounded-md bg-white/5 text-[#C084FC] font-bold border border-white/5">AI Agent</span>
+              </div>
+            </div>
+
+            {/* Subheading */}
+            <p className="mt-4 sm:mt-6 text-sm sm:text-lg lg:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed">
+              Connect your official WhatsApp Business API, Google Ads, Meta Ads, and Google Business Profile.
+              Automate personalized broadcasts, generate AI review responses, and qualify high-intent leads — all from a single, secure platform.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-2">
-            <Link
-              href="/login"
-              className="px-7 py-3.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold transition-all shadow-lg shadow-primary/25 flex items-center gap-2"
-            >
-              Get Started <ArrowRight className="h-4 w-4" />
+          {/* Action Button Row (Shadcn Buttons) */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8 w-full sm:w-auto">
+            <Link href="/login" className="w-full sm:w-auto">
+              <Button variant="default" size="lg" className="w-full sm:w-auto shadow-xl shadow-brand-blue/25">
+                Get Started Free <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
             </Link>
-            <a
-              href="#features"
-              className="px-7 py-3.5 rounded-xl bg-card border border-border hover:bg-slate-800 hover:border-slate-700 text-slate-300 font-semibold transition-all"
-            >
-              Learn More
+            <a href="#cockpit" className="w-full sm:w-auto">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                <Sparkles className="h-4 w-4 text-brand-blue" />
+                Explore Live Cockpit
+              </Button>
             </a>
           </div>
-        </section>
 
-        {/* ── Feature Grid ───────────────────────────────────────── */}
-        <section id="features" className="w-full py-16">
-          <h2 className="text-3xl font-black text-center text-slate-100 mb-2">Platform Features</h2>
-          <p className="text-center text-muted-foreground mb-10 text-sm">
-            Everything you need to run and automate your marketing in one place.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {features.map(({ icon: Icon, color, title, description }) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-border bg-card/40 p-6 flex flex-col gap-3 hover:border-primary/30 transition-all"
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${colorMap[color]}`}>
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="font-bold text-lg text-slate-100">{title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
-              </div>
-            ))}
+          {/* Trust Highlights Strip */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 mt-8 sm:mt-12 w-full max-w-4xl pt-6 sm:pt-8 border-t border-slate-200/80 text-left sm:text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-600">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              Official Meta Cloud API
+            </div>
+            <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-600">
+              <ShieldCheck className="h-3.5 w-3.5 text-brand-blue shrink-0" />
+              Google OAuth 2.0 Verified
+            </div>
+            <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-600">
+              <Lock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+              AES-256 Token Encryption
+            </div>
+            <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-600">
+              <Zap className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+              Sub-5s Instant AI Replies
+            </div>
           </div>
         </section>
 
-        {/* ── Data Usage Transparency ────────────────────────────── */}
-        <section id="data-usage" className="w-full py-16 border-t border-border">
-          <h2 className="text-3xl font-black text-center text-slate-100 mb-2">
-            How We Use Your Google Data
-          </h2>
-          <p className="text-center text-muted-foreground mb-10 text-sm max-w-xl mx-auto">
-            Jisnu CRM requests access to your Google account solely to provide the
-            features described below. We are fully transparent about what data we
-            access and why.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {dataPoints.map(({ icon: Icon, title, body }) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-border bg-card/40 p-6 flex flex-col gap-3"
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center border bg-primary/10 text-primary border-primary/20">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="font-bold text-slate-100">{title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-              </div>
-            ))}
-          </div>
+        {/* ── 2. Live Command Cockpit ───────────────────────────────── */}
+        <section id="cockpit" className="w-full py-6 sm:py-8 max-w-7xl mx-auto">
+          <HeroShowcase />
         </section>
 
-        {/* ── CTA Banner ─────────────────────────────────────────── */}
-        <section className="w-full py-16 text-center">
-          <div className="rounded-2xl border border-primary/30 bg-primary/5 px-8 py-12">
-            <LayoutDashboard className="h-10 w-10 text-primary mx-auto mb-4" />
-            <h2 className="text-3xl font-black text-slate-100 mb-3">
-              Ready to grow with Jisnu CRM?
+        {/* ── 3. Omnichannel Workflow Pipeline (How It Works) ────────── */}
+        <section id="workflow" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
+          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
+            <Badge variant="success" className="mb-3 px-3 py-1 text-xs">
+              <Zap className="h-3.5 w-3.5 text-emerald-600" />
+              Complete 4-Stage Lifecycle
+            </Badge>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              How Jisnu CRM Automates Inbound Leads into 5-Star Reviews
             </h2>
-            <p className="text-muted-foreground max-w-lg mx-auto mb-8">
-              Connect your accounts, automate your marketing, and focus on what
-              matters — building great customer relationships.
+            <p className="mt-2.5 sm:mt-4 text-xs sm:text-base text-slate-600 leading-relaxed">
+              Every step of your customer acquisition, nurturing, booking, and reputation management operates autonomously.
             </p>
-            <Link
-              href="/whatsapp"
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-primary hover:bg-secondary text-background font-bold transition-all shadow-lg shadow-primary/25 text-lg"
-            >
-              Start Free <ArrowRight className="h-5 w-5" />
-            </Link>
           </div>
+          <WorkflowPipeline />
+        </section>
+
+        {/* ── 4. Complete 12-Module Suite Showcase ────────────────────── */}
+        <section id="modules" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
+          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
+            <Badge variant="brand" className="mb-3 px-3 py-1 text-xs">
+              <Layers className="h-3.5 w-3.5 text-brand-blue" />
+              Full Platform Suite
+            </Badge>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              All 12 Growth Modules in One Integrated Platform
+            </h2>
+            <p className="mt-2.5 sm:mt-4 text-xs sm:text-base text-slate-600 leading-relaxed">
+              From WhatsApp broadcasts and Instagram DMs to Google Ads and AI Agents — everything is ready out of the box.
+            </p>
+          </div>
+          <AllModulesGrid />
+        </section>
+
+        {/* ── 5. Bento Features Architecture ────────────────────────── */}
+        <section id="bento-features" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
+          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
+            <Badge variant="brand" className="mb-3 px-3 py-1 text-xs">
+              <Layers className="h-3.5 w-3.5 text-brand-blue" />
+              Engineered for Scalable Performance
+            </Badge>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              High-Precision Capabilities for Growing Teams
+            </h2>
+            <p className="mt-2.5 sm:mt-4 text-xs sm:text-base text-slate-600 leading-relaxed">
+              Designed with bespoke visual hierarchy, real presence routing, and cross-channel attribution.
+            </p>
+          </div>
+          <BentoFeatures />
+        </section>
+
+        {/* ── 6. Workflow Comparison Matrix ─────────────────────────── */}
+        <section id="comparison" className="w-full py-10 sm:py-16 max-w-7xl mx-auto">
+          <ComparisonMatrix />
+        </section>
+
+        {/* ── 7. Interactive ROI Calculator Section ──────────────────── */}
+        <section id="calculator" className="w-full py-10 sm:py-16 max-w-7xl mx-auto">
+          <RoiCalculator />
+        </section>
+
+        {/* ── 8. Google Data Transparency & Security ─────────────────── */}
+        <section id="security" className="w-full py-12 sm:py-20 max-w-7xl mx-auto border-t border-slate-200/70">
+          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
+            <Badge variant="secondary" className="mb-3 px-3 py-1 text-xs">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+              Verified Compliance &amp; Privacy
+            </Badge>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              Transparent Google &amp; Meta OAuth Security
+            </h2>
+            <p className="mt-2 sm:mt-3 text-xs sm:text-base text-slate-600 leading-relaxed">
+              Jisnu CRM adheres strictly to official API security requirements. We maintain clear boundaries regarding data usage so you always retain complete ownership.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            {dataPoints.map((dp, idx) => {
+              const Icon = dp.icon;
+              return (
+                <div
+                  key={idx}
+                  className="bento-card bento-glow-border p-5 sm:p-7 flex flex-col gap-3 sm:gap-4"
+                >
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-brand-blue/10 text-brand-blue border border-brand-blue/20 flex items-center justify-center">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">{dp.title}</h3>
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{dp.body}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── 9. Testimonials / Social Proof ─────────────────────────── */}
+        <section className="w-full py-12 sm:py-16 max-w-7xl mx-auto bento-card bento-glow-border my-6 sm:my-8">
+          <div className="text-center mb-8 sm:mb-12">
+            <div className="flex justify-center text-amber-400 mb-2.5">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="h-4 w-4 sm:h-5 sm:w-5 fill-amber-400" />
+              ))}
+            </div>
+            <h2 className="text-xl sm:text-3xl font-black text-slate-900">
+              Trusted by High-Growth Agencies &amp; Brands
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            {testimonials.map((t, idx) => (
+              <div
+                key={idx}
+                className="p-5 sm:p-6 rounded-2xl bg-slate-50/70 border border-slate-200/80 shadow-2xs flex flex-col justify-between gap-4"
+              >
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed italic">
+                  &quot;{t.quote}&quot;
+                </p>
+                <div className="flex items-center gap-3 pt-3 border-t border-slate-200/60">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-brand-blue/10 text-brand-blue font-bold text-xs flex items-center justify-center">
+                    {t.avatar}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">{t.name}</div>
+                    <div className="text-[10px] sm:text-[11px] text-slate-500">{t.role}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── 10. FAQ Accordion ─────────────────────────────────────── */}
+        <section id="faq" className="w-full py-12 sm:py-20 max-w-7xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
+            <Badge variant="brand" className="text-xs mb-2">Frequently Asked Questions</Badge>
+            <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              Got questions? We have answers.
+            </p>
+          </div>
+          <FaqAccordion />
+        </section>
+
+        {/* ── 11. Launchpad CTA ─────────────────────────────────────── */}
+        <section className="w-full py-10 sm:py-16 max-w-7xl mx-auto">
+          <BottomCta />
         </section>
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="border-t border-border bg-background py-10 px-6 shrink-0">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-sm text-muted-foreground">
-          <div>
-            <p className="font-semibold text-slate-300">Jisnu CRM</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
+      <footer className="w-full border-t border-slate-200 bg-white py-10 sm:py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8 text-sm text-slate-500">
+          {/* Brand Info */}
+          <div className="flex flex-col gap-1.5 text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-2.5">
+              <div className="h-7 w-7 rounded-lg overflow-hidden border border-slate-200">
+                <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
+              </div>
+              <span className="font-extrabold text-base text-slate-900">Jisnu CRM</span>
+            </div>
+            <p className="text-xs text-slate-500">
               © {new Date().getFullYear()} Jisnu CRM. All rights reserved.
             </p>
-            <p className="text-xs text-muted-foreground/60 mt-0.5">
-              WhatsApp, Google Ads &amp; Google Business Profile automation platform.
+            <p className="text-[11px] text-slate-400">
+              WhatsApp Business API, Google Ads &amp; Google Business Profile Automation Suite.
             </p>
           </div>
-          <div className="flex items-center gap-6 font-medium">
-            <Link href="/privacy" className="hover:text-primary transition-colors">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="hover:text-primary transition-colors">
-              Terms of Service
-            </Link>
+
+          {/* Links & Compliance */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-semibold text-xs text-slate-600">
+            <a href="#cockpit" className="hover:text-brand-blue transition-colors">Cockpit</a>
+            <a href="#workflow" className="hover:text-brand-blue transition-colors">Workflow</a>
+            <a href="#modules" className="hover:text-brand-blue transition-colors">Modules</a>
+            <a href="#bento-features" className="hover:text-brand-blue transition-colors">Features</a>
+            <a href="#comparison" className="hover:text-brand-blue transition-colors">Comparison</a>
+            <Link href="/privacy" className="hover:text-brand-blue transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-brand-blue transition-colors">Terms of Service</Link>
           </div>
         </div>
       </footer>

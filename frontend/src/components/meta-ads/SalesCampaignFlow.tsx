@@ -195,42 +195,42 @@ export default function SalesCampaignFlow({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 text-slate-100 overflow-hidden animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-50 text-slate-900 overflow-hidden animate-fadeIn">
       {toastMessage && (
-        <div className="absolute top-4 right-4 z-50 px-4 py-3 rounded-xl bg-slate-900 border border-purple-500/50 text-purple-300 text-xs font-bold shadow-2xl">
+        <div className="absolute top-4 right-4 z-50 px-4 py-3 rounded-2xl bg-white border border-blue-200 text-blue-900 text-xs font-bold shadow-2xl">
           ⚡ {toastMessage}
         </div>
       )}
 
       {/* Header Stepper Navigation */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-900/90 backdrop-blur shrink-0">
+      <header className="flex items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-white shrink-0 shadow-2xs">
         <div className="flex items-center gap-4">
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+          <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer">
             <X className="h-5 w-5" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold uppercase">
                 Step {activeStep} of 4
               </span>
-              <span className="text-xs text-slate-400 font-mono">In Draft • 1 Ad set • 1 Ad</span>
+              <span className="text-xs text-slate-500 font-mono">In Draft • 1 Ad set • 1 Ad</span>
             </div>
-            <h1 className="font-bold text-slate-100 text-sm">{campName}</h1>
+            <h1 className="font-bold text-slate-900 text-sm">{campName}</h1>
           </div>
         </div>
 
         {/* Step Buttons */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-          <button onClick={() => setActiveStep(1)} className="px-3 py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-medium">
+          <button onClick={() => setActiveStep(1)} className="px-3 py-1.5 rounded-lg font-semibold text-slate-600 hover:text-slate-900 cursor-pointer">
             1. Objective
           </button>
-          <button onClick={() => setActiveStep(2)} className={`px-3 py-1.5 rounded-lg font-bold transition-all ${activeStep === 2 ? "bg-purple-500 text-slate-950" : "text-slate-400"}`}>
+          <button onClick={() => setActiveStep(2)} className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${activeStep === 2 ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}>
             2. Campaign Parameters
           </button>
-          <button onClick={() => setActiveStep(3)} className={`px-3 py-1.5 rounded-lg font-bold transition-all ${activeStep === 3 ? "bg-purple-500 text-slate-950" : "text-slate-400"}`}>
+          <button onClick={() => setActiveStep(3)} className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${activeStep === 3 ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}>
             3. Ad Set Level
           </button>
-          <button onClick={() => setActiveStep(4)} className={`px-3 py-1.5 rounded-lg font-bold transition-all ${activeStep === 4 ? "bg-purple-500 text-slate-950" : "text-slate-400"}`}>
+          <button onClick={() => setActiveStep(4)} className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${activeStep === 4 ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"}`}>
             4. Ad Creative & Preview
           </button>
         </div>
@@ -238,37 +238,37 @@ export default function SalesCampaignFlow({
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 max-w-4xl mx-auto border-r border-slate-800">
+        <div className="flex-1 overflow-y-auto p-6 space-y-5 max-w-4xl mx-auto border-r border-slate-200">
 
           {/* STEP 1: OBJECTIVE CHOICE REDIRECT */}
           {activeStep === 1 && (
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
-              <Tag className="h-10 w-10 text-purple-400 mx-auto" />
-              <h3 className="text-base font-bold text-slate-100">Step 1: Choose a Campaign Objective</h3>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Selected: <span className="text-purple-400 font-bold">Sales (OUTCOME_SALES)</span>
+            <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center space-y-4 shadow-2xs">
+              <Tag className="h-10 w-10 text-blue-600 mx-auto" />
+              <h3 className="text-base font-bold text-slate-900">Step 1: Choose a Campaign Objective</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                Selected: <span className="text-blue-600 font-bold">Sales (OUTCOME_SALES)</span>
               </p>
 
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-left space-y-2 max-w-lg mx-auto">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2 max-w-lg mx-auto">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                    <Zap className="h-4 w-4 text-purple-400" /> Sales Preview
+                  <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-blue-600" /> Sales Preview
                   </h4>
                   <a
                     href="https://www.facebook.com/business/help/1438417719786914"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[11px] text-purple-400 hover:underline flex items-center gap-1"
+                    className="text-[11px] text-blue-600 hover:underline font-bold flex items-center gap-1"
                   >
                     About campaign objectives <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
-                <p className="text-xs text-slate-300">
+                <p className="text-xs text-slate-700">
                   Find people likely to purchase your products or services online or via direct messaging.
                 </p>
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {["Conversions", "Catalog sales", "Messenger, Instagram and WhatsApp", "Calls"].map((tag) => (
-                    <span key={tag} className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[10px] font-semibold">
+                    <span key={tag} className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
                       {tag}
                     </span>
                   ))}
@@ -276,12 +276,12 @@ export default function SalesCampaignFlow({
               </div>
 
               <div className="flex justify-center gap-3 pt-2">
-                <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
                   Cancel
                 </button>
                 <button
                   onClick={() => setActiveStep(2)}
-                  className="px-6 py-2.5 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs shadow-lg"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm cursor-pointer"
                 >
                   Continue → Step 2
                 </button>
@@ -292,63 +292,66 @@ export default function SalesCampaignFlow({
           {/* STEP 2: NEW SALES CAMPAIGN */}
           {activeStep === 2 && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950 border border-slate-800">
+              <div className="flex items-center justify-between p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
                 <div>
                   <button
                     type="button"
                     onClick={() => setActiveStep(1)}
-                    className="text-xs text-purple-400 hover:underline font-semibold flex items-center gap-1 mb-1"
+                    className="text-xs text-blue-600 hover:underline font-bold flex items-center gap-1 mb-1 cursor-pointer"
                   >
                     ← Change Objective
                   </button>
-                  <h3 className="font-bold text-slate-100 text-sm">New Sales campaign</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">1 Ad set • 1 Ad</p>
+                  <h3 className="font-bold text-slate-900 text-sm">New Sales campaign</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">1 Ad set • 1 Ad</p>
                 </div>
-                <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-semibold">Step 2 of 4</span>
+                <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold">Step 2 of 4</span>
               </div>
 
               {/* 1. Campaign Name */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">Campaign name *</label>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                <label className="block text-xs font-bold text-slate-700">Campaign name *</label>
                 <input
                   type="text"
                   required
                   value={campName}
                   onChange={(e) => setCampName(e.target.value)}
                   placeholder="New Sales campaign"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-purple-500"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
                 <button
                   type="button"
                   onClick={() => setSalesShowMoreNameOptions(!salesShowMoreNameOptions)}
-                  className="text-xs text-purple-400 hover:underline font-semibold"
+                  className="text-xs text-blue-600 hover:underline font-bold cursor-pointer"
                 >
                   {salesShowMoreNameOptions ? "Hide details" : "Show more options ▾"}
                 </button>
               </div>
 
               {/* 2. Live video ad toggle */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-200 text-xs">Live video ad</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Suggested settings for live video product sales.</p>
+                    <h4 className="font-bold text-slate-900 text-xs">Live video ad</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Suggested settings for live video product sales.</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={liveVideoAd}
-                    onChange={(e) => setLiveVideoAd(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={liveVideoAd}
+                      onChange={(e) => setLiveVideoAd(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
 
                 {liveVideoAd && (
-                  <div className="pt-2 border-t border-slate-800">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Live video location</label>
+                  <div className="pt-3 border-t border-slate-100">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Live video location</label>
                     <select
                       value={liveVideoLocation}
                       onChange={(e) => setLiveVideoLocation(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="FACEBOOK">Facebook</option>
                       <option value="INSTAGRAM">Instagram</option>
@@ -360,142 +363,148 @@ export default function SalesCampaignFlow({
               </div>
 
               {/* 3. Campaign details */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Campaign details</h4>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Campaign details</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">Buying type</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Buying type</label>
                     <select
                       value={buyingType}
                       onChange={(e) => setBuyingType(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="AUCTION">Auction</option>
                       <option value="RESERVED">Reservation</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">Campaign objective</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Campaign objective</label>
                     <input
                       type="text"
                       disabled
                       value="Sales"
-                      className="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2 text-xs text-purple-400 font-bold"
+                      className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-blue-700 font-bold"
                     />
                   </div>
                 </div>
               </div>
 
               {/* 4. Advantage+ catalogue ads toggle */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-slate-200 text-xs">Advantage+ catalogue ads</h4>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${salesAdvantageCatalogue ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400"}`}>
+                      <h4 className="font-bold text-slate-900 text-xs">Advantage+ catalogue ads</h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${salesAdvantageCatalogue ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
                         {salesAdvantageCatalogue ? "On" : "Off"}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Use dynamic product ads from your Meta product catalog.</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Use dynamic product ads from your Meta product catalog.</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={salesAdvantageCatalogue}
-                    onChange={(e) => setSalesAdvantageCatalogue(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={salesAdvantageCatalogue}
+                      onChange={(e) => setSalesAdvantageCatalogue(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
               </div>
 
               {/* 5. Budget (Advantage+ toggle & strategy) */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-slate-200 text-xs">Budget</h4>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${salesAdvantagePlus ? "bg-purple-500/20 text-purple-400" : "bg-slate-800 text-slate-400"}`}>
+                    <h4 className="font-bold text-slate-900 text-xs">Budget</h4>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${salesAdvantagePlus ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
                       {salesAdvantagePlus ? "Advantage+ on" : "Advantage+ off"}
                     </span>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={salesAdvantagePlus}
-                    onChange={(e) => setSalesAdvantagePlus(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={salesAdvantagePlus}
+                      onChange={(e) => setSalesAdvantagePlus(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
 
                 <div className="space-y-2">
                   <div
                     onClick={() => setBudgetStrategy("CAMPAIGN")}
-                    className={`p-3 rounded-xl border cursor-pointer flex items-start gap-3 ${
-                      budgetStrategy === "CAMPAIGN" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    className={`p-3.5 rounded-2xl border cursor-pointer flex items-start gap-3 transition-all ${
+                      budgetStrategy === "CAMPAIGN" ? "bg-blue-50/70 border-blue-500 text-slate-900 shadow-2xs ring-1 ring-blue-500/20" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
                     }`}
                   >
-                    <input type="radio" checked={budgetStrategy === "CAMPAIGN"} readOnly className="mt-1 h-4 w-4 text-purple-500" />
+                    <input type="radio" checked={budgetStrategy === "CAMPAIGN"} readOnly className="mt-1 h-4 w-4 accent-blue-600" />
                     <div>
-                      <p className="text-xs font-bold">Campaign budget (Advantage+ budget)</p>
-                      <p className="text-[11px] text-slate-400">Automatically distribute your budget to best opportunities.</p>
+                      <p className="text-xs font-bold text-slate-900">Campaign budget (Advantage+ budget)</p>
+                      <p className="text-[11px] text-slate-500">Automatically distribute your budget to best opportunities.</p>
                     </div>
                   </div>
 
                   <div
                     onClick={() => setBudgetStrategy("ADSET")}
-                    className={`p-3 rounded-xl border cursor-pointer flex items-start gap-3 ${
-                      budgetStrategy === "ADSET" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    className={`p-3.5 rounded-2xl border cursor-pointer flex items-start gap-3 transition-all ${
+                      budgetStrategy === "ADSET" ? "bg-blue-50/70 border-blue-500 text-slate-900 shadow-2xs ring-1 ring-blue-500/20" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
                     }`}
                   >
-                    <input type="radio" checked={budgetStrategy === "ADSET"} readOnly className="mt-1 h-4 w-4 text-purple-500" />
+                    <input type="radio" checked={budgetStrategy === "ADSET"} readOnly className="mt-1 h-4 w-4 accent-blue-600" />
                     <div>
-                      <p className="text-xs font-bold">Ad set budget</p>
-                      <p className="text-[11px] text-slate-400">Set different strategies per ad set.</p>
+                      <p className="text-xs font-bold text-slate-900">Ad set budget</p>
+                      <p className="text-[11px] text-slate-500">Set different strategies per ad set.</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">Budget mode</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Budget mode</label>
                     <select
                       value={budgetMode}
                       onChange={(e: any) => setBudgetMode(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="DAILY">Daily budget</option>
                       <option value="LIFETIME">Lifetime budget</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">Amount (₹ INR)</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Amount (₹ INR)</label>
                     <input
                       type="number"
                       value={dailyBudget}
                       onChange={(e) => setDailyBudget(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
 
                 {/* Spend Info Box */}
-                <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs text-slate-300">
-                  <p>Average per day: <span className="text-purple-400 font-bold">₹{dailyBudget}</span></p>
-                  <p className="text-[11px] text-slate-400">
-                    Max daily: <span className="font-semibold text-slate-200">₹{(Number(dailyBudget) * 1.75).toFixed(0)}</span> | Max weekly: <span className="font-semibold text-slate-200">₹{(Number(dailyBudget) * 7).toFixed(0)}</span>.{" "}
-                    <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-purple-400 hover:underline">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-700">
+                  <p>Average per day: <span className="text-blue-600 font-bold">₹{dailyBudget}</span></p>
+                  <p className="text-[11px] text-slate-500">
+                    Max daily: <span className="font-semibold text-slate-800">₹{(Number(dailyBudget) * 1.75).toFixed(0)}</span> | Max weekly: <span className="font-semibold text-slate-800">₹{(Number(dailyBudget) * 7).toFixed(0)}</span>.{" "}
+                    <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-blue-600 font-bold hover:underline">
                       About daily budget
                     </a>
                   </p>
-                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-semibold flex items-center gap-1.5">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
                     <span>⚠ spending may exceed ₹{dailyBudget} the first few days</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Campaign bid strategy</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Campaign bid strategy</label>
                   <select
                     value={salesBidStrategy}
                     onChange={(e) => setSalesBidStrategy(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                   >
                     <option value="HIGHEST_VOLUME">Highest volume</option>
                     <option value="COST_CAP">Cost per result goal</option>
@@ -505,52 +514,55 @@ export default function SalesCampaignFlow({
               </div>
 
               {/* 6. Budget scheduling */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-200 text-xs">Budget scheduling</h4>
-                    <p className="text-[11px] text-slate-400">Increase budget on specific days/times.</p>
+                    <h4 className="font-bold text-slate-900 text-xs">Budget scheduling</h4>
+                    <p className="text-[11px] text-slate-500">Increase budget on specific days/times.</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={salesBudgetScheduling}
-                    onChange={(e) => setSalesBudgetScheduling(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={salesBudgetScheduling}
+                      onChange={(e) => setSalesBudgetScheduling(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
               </div>
 
               {/* 7 & 8. Frequency & A/B test */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs">Campaign frequency control</h4>
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs">
+                  <h4 className="font-bold text-slate-900 text-xs">Campaign frequency control</h4>
                   <input
                     type="checkbox"
                     checked={frequencyControl}
                     onChange={(e) => setFrequencyControl(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
+                    className="accent-blue-600 h-4 w-4"
                   />
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-                  <h4 className="font-bold text-slate-200 text-xs">A/B test</h4>
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs">
+                  <h4 className="font-bold text-slate-900 text-xs">A/B test</h4>
                   <input
                     type="checkbox"
                     checked={abTestEnabled}
                     onChange={(e) => setAbTestEnabled(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
+                    className="accent-blue-600 h-4 w-4"
                   />
                 </div>
               </div>
 
               {abTestEnabled && (
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 animate-fadeIn">
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 animate-fadeIn shadow-2xs">
                   <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1">What would you like to test?</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">What would you like to test?</label>
                     <select
                       value={abTestVariable}
                       onChange={(e) => setAbTestVariable(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="CREATIVE">Creative</option>
                       <option value="AUDIENCE">Audience</option>
@@ -560,11 +572,11 @@ export default function SalesCampaignFlow({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1">How long should the test run?</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">How long should the test run?</label>
                     <select
                       value={abTestDuration}
                       onChange={(e) => setAbTestDuration(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="7_DAYS">7 days</option>
                       <option value="3_DAYS">3 days</option>
@@ -576,12 +588,12 @@ export default function SalesCampaignFlow({
               )}
 
               {/* 9. Special Ad Categories */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <h4 className="font-bold text-slate-200 text-xs">Special Ad Categories</h4>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Special Ad Categories</h4>
                 <select
                   value={specialAdCategory}
                   onChange={(e) => setSpecialAdCategory(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="NONE">Declare category if applicable</option>
                   <option value="FINANCIAL">Financial products and services</option>
@@ -592,26 +604,26 @@ export default function SalesCampaignFlow({
               </div>
 
               {/* 10. Audience Radios */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <h4 className="font-bold text-slate-200 text-xs">Audience targeting strategy</h4>
-                <div className="flex gap-4 text-xs">
-                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Audience targeting strategy</h4>
+                <div className="flex gap-4 text-xs font-medium">
+                  <label className="flex items-center gap-2 text-slate-700 cursor-pointer">
                     <input
                       type="radio"
                       name="salesAud"
                       checked={audienceTargetType === "ENGAGED"}
                       onChange={() => setAudienceTargetType("ENGAGED")}
-                      className="accent-purple-500"
+                      className="accent-blue-600"
                     />
                     Engaged audience
                   </label>
-                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                  <label className="flex items-center gap-2 text-slate-700 cursor-pointer">
                     <input
                       type="radio"
                       name="salesAud"
                       checked={audienceTargetType === "EXISTING"}
                       onChange={() => setAudienceTargetType("EXISTING")}
-                      className="accent-purple-500"
+                      className="accent-blue-600"
                     />
                     Existing customers
                   </label>
@@ -619,26 +631,26 @@ export default function SalesCampaignFlow({
               </div>
 
               {/* 11. Campaign Score */}
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center font-bold text-xs">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center font-bold text-xs">
                     66
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-200 text-xs">Campaign score</h4>
-                    <p className="text-[11px] text-slate-400">Sales campaign configuration ready.</p>
+                    <h4 className="font-bold text-slate-900 text-xs">Campaign score</h4>
+                    <p className="text-[11px] text-slate-500">Sales campaign configuration ready.</p>
                   </div>
                 </div>
-                <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                <span className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                   <Check className="h-3 w-3" /> All edits saved
                 </span>
               </div>
 
               <div className="flex justify-between pt-2">
-                <button onClick={() => setActiveStep(1)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                <button onClick={() => setActiveStep(1)} className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
                   ← Back to Step 1
                 </button>
-                <button onClick={() => setActiveStep(3)} className="px-6 py-2.5 rounded-xl bg-purple-500 text-slate-950 text-xs font-bold shadow-lg">
+                <button onClick={() => setActiveStep(3)} className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer">
                   Continue to Step 3: Ad Set →
                 </button>
               </div>
@@ -648,60 +660,60 @@ export default function SalesCampaignFlow({
           {/* STEP 3: NEW SALES AD SET */}
           {activeStep === 3 && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                <span className="px-2.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-1 shadow-2xs">
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold uppercase">
                   Step 3 of 4
                 </span>
-                <h3 className="font-bold text-slate-100 text-sm pt-1">New Sales campaign → New Sales ad set</h3>
-                <p className="text-xs text-slate-400">Configure customer lifecycle, pixel event tracking, and placements.</p>
+                <h3 className="font-bold text-slate-900 text-sm pt-1">New Sales campaign → New Sales ad set</h3>
+                <p className="text-xs text-slate-500">Configure customer lifecycle, pixel event tracking, and placements.</p>
               </div>
 
               {/* 1. Ad set name */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">Ad set name *</label>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                <label className="block text-xs font-bold text-slate-700">Ad set name *</label>
                 <input
                   type="text"
                   required
                   value={adSetName}
                   onChange={(e) => setAdSetName(e.target.value)}
                   placeholder="New Sales ad set"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
               {/* 2. Customer life cycle strategy */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Customer life cycle strategy</h4>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Customer life cycle strategy</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div
                     onClick={() => setSalesLifecycleStrategy("ALL_AUDIENCES")}
-                    className={`p-3 rounded-xl border cursor-pointer ${
-                      salesLifecycleStrategy === "ALL_AUDIENCES" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                      salesLifecycleStrategy === "ALL_AUDIENCES" ? "bg-blue-50/70 border-blue-500 text-slate-900 shadow-2xs ring-1 ring-blue-500/20" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
                     }`}
                   >
-                    <p className="text-xs font-bold">ALL_AUDIENCES</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Get conversions from all audiences</p>
+                    <p className="text-xs font-bold text-slate-900">ALL_AUDIENCES</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Get conversions from all audiences</p>
                   </div>
 
                   <div
                     onClick={() => setSalesLifecycleStrategy("HIGH_VALUE")}
-                    className={`p-3 rounded-xl border cursor-pointer ${
-                      salesLifecycleStrategy === "HIGH_VALUE" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-900 border-slate-800 text-slate-400"
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                      salesLifecycleStrategy === "HIGH_VALUE" ? "bg-blue-50/70 border-blue-500 text-slate-900 shadow-2xs ring-1 ring-blue-500/20" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
                     }`}
                   >
-                    <p className="text-xs font-bold">HIGH_VALUE</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Target high-value customers (Prioritise repeat purchases)</p>
+                    <p className="text-xs font-bold text-slate-900">HIGH_VALUE</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Target high-value customers (Prioritise repeat purchases)</p>
                   </div>
                 </div>
               </div>
 
               {/* 3. Conversion & Event Modal Trigger */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Conversion Location</h4>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Conversion Location</h4>
                 <select
                   value={salesConversionLocation}
                   onChange={(e: any) => setSalesConversionLocation(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-bold"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="WEBSITE">Website</option>
                   <option value="APP">App</option>
@@ -710,15 +722,15 @@ export default function SalesCampaignFlow({
                   <option value="CALLS">Calls</option>
                 </select>
 
-                <div className="pt-2 flex items-center justify-between border-t border-slate-800">
+                <div className="pt-3 flex items-center justify-between border-t border-slate-100">
                   <div>
-                    <span className="text-xs font-bold text-slate-200">Conversion Event: </span>
-                    <span className="text-xs font-mono text-purple-400 font-bold">{conversionEvent}</span>
+                    <span className="text-xs font-bold text-slate-700">Conversion Event: </span>
+                    <span className="text-xs font-mono text-blue-600 font-bold">{conversionEvent}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowEventModal(true)}
-                    className="px-3 py-1 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/30 text-xs font-bold"
+                    className="px-3.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold cursor-pointer hover:bg-blue-100"
                   >
                     Set up conversion event
                   </button>
@@ -726,11 +738,11 @@ export default function SalesCampaignFlow({
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Performance goal</label>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Performance goal</label>
                     <select
                       value={salesPerformanceGoal}
                       onChange={(e) => setSalesPerformanceGoal(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="MAXIMIZE_CONVERSIONS">Maximise number of conversions</option>
                       <option value="MAXIMIZE_VALUE">Maximise value of conversions</option>
@@ -740,11 +752,11 @@ export default function SalesCampaignFlow({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Attribution / delivery</label>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Attribution / delivery</label>
                     <select
                       value={attributionModel}
                       onChange={(e) => setAttributionModel(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="STANDARD">Standard (7-day click or 1-day view)</option>
                       <option value="1_DAY_CLICK">1-day click</option>
@@ -754,70 +766,76 @@ export default function SalesCampaignFlow({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Cost per result goal</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Cost per result goal</label>
                   <input
                     type="text"
                     value={costPerResult}
                     onChange={(e) => setCostPerResult(e.target.value)}
                     placeholder="None"
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               {/* 4. Audience definition */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Audience definition</h4>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Audience definition</h4>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Locations (Inclusion)</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Locations (Inclusion)</label>
                   <input
                     type="text"
                     value={locationInclusion}
                     onChange={(e) => setLocationInclusion(e.target.value)}
                     placeholder="India..."
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
-                <div className="pt-2 flex items-center justify-between border-t border-slate-800">
-                  <h4 className="font-bold text-slate-200 text-xs">Estimated audience size toggle</h4>
-                  <input
-                    type="checkbox"
-                    checked={salesShowEstimatedAudienceSize}
-                    onChange={(e) => setSalesShowEstimatedAudienceSize(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
+                <div className="pt-3 flex items-center justify-between border-t border-slate-100">
+                  <h4 className="font-bold text-slate-900 text-xs">Estimated audience size toggle</h4>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={salesShowEstimatedAudienceSize}
+                      onChange={(e) => setSalesShowEstimatedAudienceSize(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
               </div>
 
               {/* 5-8. Regulatory, Placements & Brand Safety */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <label className="flex items-center gap-3 text-xs text-slate-300 cursor-pointer">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                <label className="flex items-center gap-3 text-xs text-slate-700 cursor-pointer font-medium">
                   <input
                     type="checkbox"
                     checked={securitiesDeclared}
                     onChange={(e) => setSecuritiesDeclared(e.target.checked)}
-                    className="h-4 w-4 rounded bg-slate-900 border-slate-700 text-purple-500 shrink-0"
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 shrink-0"
                   />
                   <span>Policy and regulatory requirements (India) compliance verified.</span>
                 </label>
 
-                <div className="pt-2 flex items-center justify-between border-t border-slate-800">
-                  <h4 className="font-bold text-slate-200 text-xs">Advantage+ placements</h4>
-                  <input
-                    type="checkbox"
-                    checked={advantagePlacements}
-                    onChange={(e) => setAdvantagePlacements(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
+                <div className="pt-3 flex items-center justify-between border-t border-slate-100">
+                  <h4 className="font-bold text-slate-900 text-xs">Advantage+ placements</h4>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={advantagePlacements}
+                      onChange={(e) => setAdvantagePlacements(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
               </div>
 
               <div className="flex justify-between pt-2">
-                <button onClick={() => setActiveStep(2)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                <button onClick={() => setActiveStep(2)} className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
                   ← Back to Step 2
                 </button>
-                <button onClick={() => setActiveStep(4)} className="px-6 py-2.5 rounded-xl bg-purple-500 text-slate-950 text-xs font-bold shadow-lg">
+                <button onClick={() => setActiveStep(4)} className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer">
                   Continue to Step 4: Ad Creative & Preview →
                 </button>
               </div>
@@ -827,18 +845,18 @@ export default function SalesCampaignFlow({
           {/* STEP 4: NEW SALES AD */}
           {activeStep === 4 && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="px-2.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-mono font-bold uppercase">
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold uppercase">
                     Step 4 of 4
                   </span>
-                  <h3 className="font-bold text-slate-100 text-sm mt-1">New Sales campaign → New Sales ad set → New Sales ad</h3>
+                  <h3 className="font-bold text-slate-900 text-sm mt-1">New Sales campaign → New Sales ad set → New Sales ad</h3>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setShowPromoModal(true)}
-                    className="px-3 py-1 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-bold"
+                    className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100 cursor-pointer"
                   >
                     🏷️ Manage Promo Codes
                   </button>
@@ -846,22 +864,22 @@ export default function SalesCampaignFlow({
               </div>
 
               {/* 1. Ad Name */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <label className="block text-xs font-semibold text-slate-300">Ad name *</label>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 shadow-2xs">
+                <label className="block text-xs font-bold text-slate-700">Ad name *</label>
                 <input
                   type="text"
                   required
                   value={adName}
                   onChange={(e) => setAdName(e.target.value)}
                   placeholder="New Sales ad"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
               {/* 2. Ad Setup / Creative Source */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Ad setup / Creative source</h4>
-                <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Ad setup / Creative source</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
                   {[
                     { id: "CREATE_NEW", label: "Create new ad" },
                     { id: "USE_EXISTING", label: "Use existing post" },
@@ -874,7 +892,7 @@ export default function SalesCampaignFlow({
                       key={s.id}
                       type="button"
                       onClick={() => setCreativeSource(s.id as any)}
-                      className={`p-2.5 rounded-xl border text-left font-bold ${creativeSource === s.id ? "bg-purple-500/10 border-purple-500/60 text-purple-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}
+                      className={`p-3 rounded-2xl border text-left font-bold transition-all cursor-pointer ${creativeSource === s.id ? "bg-blue-50/70 border-blue-500 text-slate-900 ring-1 ring-blue-500/20 shadow-2xs" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"}`}
                     >
                       {s.label}
                     </button>
@@ -883,33 +901,36 @@ export default function SalesCampaignFlow({
               </div>
 
               {/* 3. Partnership Ad Toggle */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-200 text-xs">Partnership ad</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Run sales ads with creators or partner brands.</p>
+                    <h4 className="font-bold text-slate-900 text-xs">Partnership ad</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Run sales ads with creators or partner brands.</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={partnershipAd}
-                    onChange={(e) => setPartnershipAd(e.target.checked)}
-                    className="accent-purple-500 h-4 w-4"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                    <input
+                      type="checkbox"
+                      checked={partnershipAd}
+                      onChange={(e) => setPartnershipAd(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
 
                 {partnershipAd && (
-                  <div className="flex gap-2 pt-2 border-t border-slate-800">
+                  <div className="flex gap-2 pt-3 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => setShowPartnershipModal(true)}
-                      className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 text-xs font-bold"
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold cursor-pointer"
                     >
                       Enter ad code or post info
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowPartnershipModal(true)}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold"
+                      className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
                     >
                       Select partnership
                     </button>
@@ -918,15 +939,15 @@ export default function SalesCampaignFlow({
               </div>
 
               {/* 4. Identity */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Identity</h4>
-                <div className="grid grid-cols-3 gap-3 text-xs">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Identity</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Facebook Page *</label>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Facebook Page *</label>
                     <select
                       value={facebookPageId}
                       onChange={(e) => setFacebookPageId(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-slate-100 font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                     >
                       {fetchedPages.map((p) => (
                         <option key={p.id} value={p.id}>📄 {p.name}</option>
@@ -934,64 +955,64 @@ export default function SalesCampaignFlow({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Instagram Profile</label>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Instagram Profile</label>
                     <input
                       type="text"
                       value={instagramAccount}
                       onChange={(e) => setInstagramAccount(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-slate-100 font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">WhatsApp Phone Number</label>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">WhatsApp Phone Number</label>
                     <input
                       type="text"
                       value={whatsappPhone}
                       onChange={(e) => setWhatsappPhone(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-slate-100 font-semibold"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
               </div>
 
               {/* 5. Creative */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Creative</h4>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Creative</h4>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Headline</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Headline</label>
                   <input
                     type="text"
                     value={headline}
                     onChange={(e) => setHeadline(e.target.value)}
                     placeholder="Exclusive Sales — Up to 50% OFF!"
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Body Text</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Body Text</label>
                   <textarea
                     value={primaryText}
                     onChange={(e) => setPrimaryText(e.target.value)}
                     placeholder="Shop our best-selling products today. Fast shipping and instant WhatsApp customer support."
                     rows={2}
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Media URL</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Media URL</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={mediaUrl}
                       onChange={(e) => setMediaUrl(e.target.value)}
-                      className="flex-1 bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-blue-500"
                     />
                     <button
                       type="button"
                       onClick={() => showToast("Fetched media from Meta Library!")}
-                      className="px-3 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs font-bold shrink-0"
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold shrink-0 cursor-pointer"
                     >
                       Fetch Meta Library
                     </button>
@@ -999,54 +1020,54 @@ export default function SalesCampaignFlow({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Partner Text</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Partner Text</label>
                   <textarea
                     value={partnerText}
                     onChange={(e) => setPartnerText(e.target.value)}
                     placeholder="Add text from your partner..."
                     rows={2}
-                    className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-100"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:bg-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               {/* 7. Tracking */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <h4 className="font-bold text-slate-200 text-xs">Tracking</h4>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
+                <h4 className="font-bold text-slate-900 text-xs">Tracking</h4>
                 <div className="space-y-2 text-xs">
-                  <p className="text-slate-300">Website Pixel ID: <span className="font-mono text-purple-400 font-bold">{pixelId}</span></p>
+                  <p className="text-slate-700">Website Pixel ID: <span className="font-mono text-blue-600 font-bold">{pixelId}</span></p>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400 font-mono text-[11px]">key1=value1&amp;key2=value2 → utm_source={utmSource}&amp;utm_medium={utmMedium}&amp;utm_campaign={utmCampaign}</span>
+                    <span className="text-slate-500 font-mono text-[11px]">key1=value1&amp;key2=value2 → utm_source={utmSource}&amp;utm_medium={utmMedium}&amp;utm_campaign={utmCampaign}</span>
                     <button
                       type="button"
                       onClick={() => setShowUtmModal(true)}
-                      className="text-xs font-bold text-purple-400 hover:underline"
+                      className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
                     >
                       Build a URL parameter
                     </button>
                   </div>
-                  <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-[10px] text-purple-400 hover:underline block pt-1">
+                  <a href="https://www.facebook.com/business/help" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 font-bold hover:underline block pt-1">
                     About third-party reporting
                   </a>
                 </div>
               </div>
 
               {/* 10. Legal */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs text-slate-400">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-2 text-xs text-slate-500 shadow-2xs">
                 <p>By clicking Publish Campaign Live, you agree to Meta's Sales &amp; E-Commerce Terms.</p>
-                <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                   <Check className="h-3 w-3" /> All edits saved
                 </span>
               </div>
 
               <div className="flex justify-between pt-2">
-                <button onClick={() => setActiveStep(3)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+                <button onClick={() => setActiveStep(3)} className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
                   ← Back to Step 3
                 </button>
                 <button
                   onClick={handlePublish}
                   disabled={publishing}
-                  className="px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-xl flex items-center gap-2"
+                  className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Publish Campaign Live 🚀"}
                 </button>
@@ -1057,41 +1078,41 @@ export default function SalesCampaignFlow({
         </div>
 
         {/* Right Live Ad Preview Panel */}
-        <div className="w-80 bg-slate-950 p-5 space-y-4 shrink-0 hidden lg:block border-l border-slate-800">
-          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+        <div className="w-80 bg-slate-50 p-5 space-y-4 shrink-0 hidden lg:block border-l border-slate-200">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                <Eye className="h-4 w-4 text-purple-400" /> Ad preview
+              <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                <Eye className="h-4 w-4 text-blue-600" /> Ad preview
               </h4>
-              <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">Event: {conversionEvent}</span>
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">Event: {conversionEvent}</span>
             </div>
 
             {/* Mobile Product Card Mockup */}
-            <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden space-y-2 p-3">
+            <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden space-y-2.5 p-3.5 shadow-sm">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold">
+                <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center text-xs font-bold border border-blue-200">
                   🛍️
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-200">JISNU Official Store</p>
+                  <p className="text-xs font-bold text-slate-900">JISNU Official Store</p>
                   <p className="text-[10px] text-slate-400">Sponsored • Code: {promoMode === "MANUAL" ? manualPromoCode : "AUTO"}</p>
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-300 leading-tight">{primaryText}</p>
+              <p className="text-[11px] text-slate-700 leading-relaxed">{primaryText}</p>
 
               {mediaUrl && (
-                <div className="rounded-lg overflow-hidden border border-slate-800 bg-slate-900 h-36">
+                <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-36">
                   <img src={mediaUrl} alt="Sales Banner" className="w-full h-full object-cover" />
                 </div>
               )}
 
-              <div className="p-2 bg-slate-900 rounded-lg flex items-center justify-between">
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold text-slate-100 truncate max-w-[150px]">{headline}</p>
-                  <p className="text-[9px] text-slate-400 truncate max-w-[150px]">Special Discount Applied</p>
+                  <p className="text-[11px] font-bold text-slate-900 truncate max-w-[150px]">{headline}</p>
+                  <p className="text-[9px] text-slate-500 truncate max-w-[150px]">Special Discount Applied</p>
                 </div>
-                <button className="px-3 py-1 rounded-md bg-purple-500 text-slate-950 text-[10px] font-bold">
+                <button className="px-3 py-1 rounded-lg bg-blue-600 text-white text-[10px] font-bold shadow-2xs">
                   Shop Now
                 </button>
               </div>
@@ -1102,10 +1123,10 @@ export default function SalesCampaignFlow({
 
       {/* Sales Modals */}
       {showEventModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Set up conversion event</h3>
-            <p className="text-xs text-slate-400">Configure web purchase, checkout, or lead events for your pixel dataset.</p>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+            <h3 className="font-bold text-slate-900 text-sm">Set up conversion event</h3>
+            <p className="text-xs text-slate-500">Configure web purchase, checkout, or lead events for your pixel dataset.</p>
             <div className="space-y-2">
               {[
                 { id: "PURCHASE", label: "Purchase", desc: "Completed payment on website" },
@@ -1117,19 +1138,19 @@ export default function SalesCampaignFlow({
                 <div
                   key={ev.id}
                   onClick={() => setConversionEvent(ev.id)}
-                  className={`p-3 rounded-xl border cursor-pointer ${conversionEvent === ev.id ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${conversionEvent === ev.id ? "bg-blue-50/70 border-blue-500 text-slate-900 ring-1 ring-blue-500/20 shadow-2xs" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"}`}
                 >
-                  <p className="text-xs font-bold text-purple-400">{ev.label}</p>
-                  <p className="text-[10px] text-slate-400">{ev.desc}</p>
+                  <p className="text-xs font-bold text-blue-700">{ev.label}</p>
+                  <p className="text-[10px] text-slate-500">{ev.desc}</p>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-sky-400 italic">💡 Meta AI automatically optimizes delivery for users with high purchase intent.</p>
+            <p className="text-[10px] text-blue-600 italic">💡 Meta AI automatically optimizes delivery for users with high purchase intent.</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowEventModal(false)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+              <button onClick={() => setShowEventModal(false)} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
                 Cancel
               </button>
-              <button onClick={() => setShowEventModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
+              <button onClick={() => setShowEventModal(false)} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-sm">
                 Save Conversion Event
               </button>
             </div>
@@ -1138,24 +1159,24 @@ export default function SalesCampaignFlow({
       )}
 
       {showPromoModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Manage promo codes</h3>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+            <h3 className="font-bold text-slate-900 text-sm">Manage promo codes</h3>
             <div className="space-y-3">
               <div
                 onClick={() => setPromoMode("AUTO")}
-                className={`p-3 rounded-xl border cursor-pointer ${promoMode === "AUTO" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${promoMode === "AUTO" ? "bg-blue-50/70 border-blue-500 text-slate-900 ring-1 ring-blue-500/20 shadow-2xs" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"}`}
               >
-                <p className="text-xs font-bold text-slate-100">Automatically source promo codes (AUTO)</p>
-                <p className="text-[10px] text-slate-400">Meta will detect active website promotion codes automatically.</p>
+                <p className="text-xs font-bold text-slate-900">Automatically source promo codes (AUTO)</p>
+                <p className="text-[10px] text-slate-500">Meta will detect active website promotion codes automatically.</p>
               </div>
 
               <div
                 onClick={() => setPromoMode("MANUAL")}
-                className={`p-3 rounded-xl border cursor-pointer ${promoMode === "MANUAL" ? "bg-purple-500/10 border-purple-500/50 text-slate-100" : "bg-slate-950 border-slate-800 text-slate-400"}`}
+                className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${promoMode === "MANUAL" ? "bg-blue-50/70 border-blue-500 text-slate-900 ring-1 ring-blue-500/20 shadow-2xs" : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"}`}
               >
-                <p className="text-xs font-bold text-slate-100">Manually add promo codes (MANUAL)</p>
-                <p className="text-[10px] text-slate-400">Enter custom coupon code e.g. SAVE20, WELCOME10.</p>
+                <p className="text-xs font-bold text-slate-900">Manually add promo codes (MANUAL)</p>
+                <p className="text-[10px] text-slate-500">Enter custom coupon code e.g. SAVE20, WELCOME10.</p>
               </div>
             </div>
 
@@ -1165,11 +1186,11 @@ export default function SalesCampaignFlow({
                 value={manualPromoCode}
                 onChange={(e) => setManualPromoCode(e.target.value)}
                 placeholder="e.g. SAVE20, WELCOME10"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-purple-400 font-bold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-blue-600 font-bold focus:bg-white focus:outline-none focus:border-blue-500"
               />
             )}
             <div className="flex justify-end">
-              <button onClick={() => setShowPromoModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
+              <button onClick={() => setShowPromoModal(false)} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-sm">
                 Save
               </button>
             </div>
@@ -1178,29 +1199,29 @@ export default function SalesCampaignFlow({
       )}
 
       {showUtmModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Build a URL parameter</h3>
-            <p className="text-xs text-slate-400">Add tracking parameters to measure traffic source and campaign effectiveness.</p>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+            <h3 className="font-bold text-slate-900 text-sm">Build a URL parameter</h3>
+            <p className="text-xs text-slate-500">Add tracking parameters to measure traffic source and campaign effectiveness.</p>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-400 mb-1">Campaign Source (utm_source)</label>
-                <input type="text" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} placeholder="facebook_ad" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
+                <label className="block font-bold text-slate-700 mb-1">Campaign Source (utm_source)</label>
+                <input type="text" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} placeholder="facebook_ad" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="block font-semibold text-slate-400 mb-1">Campaign Medium (utm_medium)</label>
-                <input type="text" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} placeholder="cpc_sales" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
+                <label className="block font-bold text-slate-700 mb-1">Campaign Medium (utm_medium)</label>
+                <input type="text" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} placeholder="cpc_sales" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="block font-semibold text-slate-400 mb-1">Campaign Name (utm_campaign)</label>
-                <input type="text" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} placeholder="summer_sales_2026" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100" />
+                <label className="block font-bold text-slate-700 mb-1">Campaign Name (utm_campaign)</label>
+                <input type="text" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} placeholder="summer_sales_2026" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500" />
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowUtmModal(false)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">
+              <button onClick={() => setShowUtmModal(false)} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">
                 Cancel
               </button>
-              <button onClick={() => setShowUtmModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
+              <button onClick={() => setShowUtmModal(false)} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-sm">
                 Apply Parameters
               </button>
             </div>
@@ -1209,18 +1230,18 @@ export default function SalesCampaignFlow({
       )}
 
       {showPartnershipModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="font-bold text-slate-100 text-sm">Enter partnership ad code, post ID or post URL</h3>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+            <h3 className="font-bold text-slate-900 text-sm">Enter partnership ad code, post ID or post URL</h3>
             <input
               type="text"
               value={partnershipCode}
               onChange={(e) => setPartnershipCode(e.target.value)}
               placeholder="SALES-PARTNER-123"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-blue-500"
             />
             <div className="flex justify-end">
-              <button onClick={() => setShowPartnershipModal(false)} className="px-4 py-2 rounded-xl bg-purple-500 text-slate-950 font-bold text-xs">
+              <button onClick={() => setShowPartnershipModal(false)} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-sm">
                 Save Partnership Code
               </button>
             </div>

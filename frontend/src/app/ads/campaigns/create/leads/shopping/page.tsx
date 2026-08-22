@@ -31,7 +31,7 @@ export default function LeadsShoppingPage() {
 
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
@@ -216,7 +216,7 @@ export default function LeadsShoppingPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  orgId: "demo-org-123",
+                  orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "",
                   customerId: customerId || "6587355041",
                   campaignName: campaignName || "Leads-Shopping-1",
                   channelType: "SHOPPING",

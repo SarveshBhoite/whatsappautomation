@@ -79,28 +79,28 @@ export default function CreateCampaignModal({
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
 
-      {/* Main Modal */}
-      <div className="relative z-10 bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] w-full max-w-3xl overflow-hidden animate-fadeIn">
+      {/* Main Modal (Clean Light Theme) */}
+      <div className="relative z-10 bg-white border border-slate-200 rounded-3xl shadow-2xl flex flex-col max-h-[92vh] w-full max-w-3xl overflow-hidden animate-fadeIn">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950 shrink-0">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-white shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold">
                 Step 1 of 2
               </span>
-              <h3 className="font-bold text-slate-100 text-sm">Step 1: Choose a Campaign Objective</h3>
+              <h3 className="font-bold text-slate-900 text-base">Step 1: Choose a Campaign Objective</h3>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Select your campaign outcome. Parameters in Step 2 will adapt specifically to your chosen objective.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -110,7 +110,7 @@ export default function CreateCampaignModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Objective Cards */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {OBJECTIVES.map((obj) => {
                 const Icon = obj.icon;
                 const isSelected = campObjective === obj.id;
@@ -118,16 +118,23 @@ export default function CreateCampaignModal({
                   <div
                     key={obj.id}
                     onClick={() => setCampObjective(obj.id)}
-                    className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    className={`flex items-start gap-3.5 p-4 rounded-2xl border transition-all cursor-pointer ${
                       isSelected
-                        ? "border-sky-500 bg-sky-500/10 text-slate-100 ring-1 ring-sky-500/30"
-                        : "border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                        ? "border-blue-600 bg-blue-50/70 text-slate-900 ring-2 ring-blue-500/20 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${isSelected ? "text-sky-400" : "text-slate-500"}`} />
+                    <div className={`p-2 rounded-xl shrink-0 transition-colors ${
+                      isSelected ? "bg-blue-600 text-white shadow-xs" : "bg-white text-slate-500 border border-slate-200"
+                    }`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-slate-200">{obj.name}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{obj.desc}</p>
+                      <div className="flex items-center justify-between">
+                        <p className={`text-xs font-bold ${isSelected ? "text-blue-950" : "text-slate-900"}`}>{obj.name}</p>
+                        {isSelected && <Check className="h-4 w-4 text-blue-600 stroke-[2.5]" />}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{obj.desc}</p>
                     </div>
                   </div>
                 );
@@ -135,23 +142,23 @@ export default function CreateCampaignModal({
             </div>
 
             {/* Dynamic Preview Card (Right Side) */}
-            <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between space-y-4">
+            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-4">
               <div>
-                <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center mb-3 border border-sky-500/20">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-3 shadow-xs">
                   <Target className="h-5 w-5" />
                 </div>
-                <h5 className="font-bold text-slate-100 text-sm">
+                <h5 className="font-bold text-slate-900 text-sm">
                   {selectedObj.previewTitle}
                 </h5>
-                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
                   {selectedObj.previewDesc}
                 </p>
 
                 <div className="mt-4 space-y-2">
-                  <p className="text-[11px] font-semibold text-slate-300">Good for:</p>
+                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Good for:</p>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedObj.tags.map((tag) => (
-                      <span key={tag} className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700/60 text-[11px] text-slate-300">
+                      <span key={tag} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-medium text-slate-700 shadow-2xs">
                         {tag}
                       </span>
                     ))}
@@ -163,20 +170,20 @@ export default function CreateCampaignModal({
                 href="https://www.facebook.com/business/help/1438417719785200"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-sky-400 hover:underline flex items-center gap-1 font-medium"
+                className="text-xs text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 font-bold"
               >
-                About campaign objectives <ArrowUpRight className="h-3 w-3" />
+                About campaign objectives <ArrowUpRight className="h-3.5 w-3.5" />
               </a>
             </div>
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800 bg-slate-950 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-white shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 transition-all"
+            className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -184,7 +191,7 @@ export default function CreateCampaignModal({
           <button
             type="button"
             onClick={() => onContinue(campObjective)}
-            className="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition-all shadow-lg flex items-center gap-1.5"
+            className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
           >
             Continue to {selectedObj.name} Setup →
           </button>

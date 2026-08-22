@@ -124,9 +124,29 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
   try {
     let token = await getGmailAccessToken(orgId);
 
-    let query = `in:${label.toLowerCase()}`;
-    if (label.toUpperCase() === "STARRED") {
+    let query = "";
+    const upperLabel = label.toUpperCase();
+    if (upperLabel === "STARRED") {
       query = "is:starred";
+    } else if (upperLabel === "SPAM") {
+      query = "in:spam";
+    } else if (upperLabel === "TRASH") {
+      query = "in:trash";
+    } else if (upperLabel === "SENT") {
+      query = "in:sent";
+    } else if (upperLabel === "ALL") {
+      query = "";
+    } else {
+      // INBOX: fetch actual inbox emails
+      query = "in:inbox";
+    }
+
+    // When syncing STARRED folder specifically, reset isStarred flag first so unstarred emails are pruned
+    if (upperLabel === "STARRED") {
+      await prisma.gmailThread.updateMany({
+        where: { organizationId: orgId },
+        data: { isStarred: false }
+      });
     }
 
     let listRes;
@@ -134,10 +154,11 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
       listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
         headers: { Authorization: `Bearer ${token}` },
         params: { 
-          maxResults: 50, 
-          q: query,
+          maxResults: 30, 
+          ...(query ? { q: query } : {}),
           includeSpamTrash: true
-        }
+        },
+        timeout: 15000
       });
     } catch (err: any) {
       if (err?.response?.status === 401) {
@@ -146,10 +167,11 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
         listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
           headers: { Authorization: `Bearer ${token}` },
           params: { 
-            maxResults: 50, 
-            q: query,
+            maxResults: 30, 
+            ...(query ? { q: query } : {}),
             includeSpamTrash: true
-          }
+          },
+          timeout: 15000
         });
       } else {
         throw err;
@@ -158,14 +180,30 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
 
     const threads = listRes.data.threads || [];
     let syncedCount = 0;
+    console.log(`[GMAIL SERVICE] Fetched ${threads.length} threads for label '${label}'. Processing...`);
+
+    const config = await prisma.gmailConfig.findUnique({
+      where: { organizationId: orgId }
+    });
+    const userEmail = config?.emailAddress?.toLowerCase() || "";
+    const activeRules = (config && config.autoReplyEnabled)
+      ? await prisma.gmailAutoReplyRule.findMany({ where: { organizationId: orgId, isActive: true } })
+      : [];
 
     for (const t of threads) {
       const threadId = t.id;
 
       // Fetch full thread details
-      const threadRes = await axios.get(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      let threadRes;
+      try {
+        threadRes = await axios.get(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 15000
+        });
+      } catch (threadErr: any) {
+        console.warn(`[GMAIL SERVICE] Could not fetch thread ${threadId}:`, threadErr.message);
+        continue;
+      }
 
       const threadData = threadRes.data;
       const gmailMessages = threadData.messages || [];
@@ -191,14 +229,29 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
         actualEmailDate = new Date(dateHeader);
       }
 
-      // Upsert thread locally with exact email timestamp
+      // Determine label IDs
+      const allLabelIds: string[] = Array.from(new Set(gmailMessages.flatMap((m: any) => m.labelIds || [])));
+      const isStarred = (upperLabel === "STARRED") || (lastMsg.labelIds || []).includes("STARRED") || gmailMessages.some((m: any) => (m.labelIds || []).includes("STARRED"));
+      const isSpam = allLabelIds.includes("SPAM");
+      const isTrash = allLabelIds.includes("TRASH");
+      const isSent = allLabelIds.includes("SENT") && !allLabelIds.includes("INBOX");
+      
+      let effectiveLabel = label;
+      if (isTrash) effectiveLabel = "TRASH";
+      else if (isSpam) effectiveLabel = "SPAM";
+      else if (isSent) effectiveLabel = "SENT";
+      else if (allLabelIds.includes("INBOX")) effectiveLabel = "INBOX";
+
+      // Upsert thread locally with exact email timestamp and flags
       const localThread = await prisma.gmailThread.upsert({
         where: { threadId },
         update: {
           subject,
           sender,
           snippet,
-          label,
+          label: effectiveLabel,
+          isStarred,
+          isSpam,
           updatedAt: actualEmailDate,
         },
         create: {
@@ -207,7 +260,9 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           subject,
           sender,
           snippet,
-          label,
+          label: effectiveLabel,
+          isStarred,
+          isSpam,
           status: "UNREPLIED",
           createdAt: actualEmailDate,
           updatedAt: actualEmailDate,
@@ -238,35 +293,33 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           const parsed = parseGmailMessage(msg.payload);
           const body = parsed.text || parsed.html || msg.snippet || "";
 
-          // Determine direction by checking if sender matches user's connected Gmail address
-          const config = await prisma.gmailConfig.findUnique({
-            where: { organizationId: orgId }
-          });
-          const userEmail = config?.emailAddress?.toLowerCase() || "";
-          
           const msgFrom = msgHeaders.find((h: any) => h.name.toLowerCase() === "from")?.value || "";
           const isInbound = userEmail ? !msgFrom.toLowerCase().includes(userEmail) : true;
           const direction = isInbound ? "inbound" : "outbound";
 
-          // Save the message with exact email sent date
-          await prisma.gmailMessage.create({
+          // Save the message with exact email sent date using localThread.id (UUID)
+          const savedMessage = await prisma.gmailMessage.create({
             data: {
-              threadId,
+              threadId: localThread.id,
               messageId,
               direction,
               content: body,
+              bodyText: parsed.text || null,
+              bodyHtml: parsed.html || null,
               htmlContent: parsed.html || null,
               sender: msgFrom,
               createdAt: msgDate,
+              internalDate: msgDate,
+              organizationId: orgId,
             }
           });
 
-          // Save attachments
+          // Save attachments using savedMessage.id (UUID)
           if (parsed.attachments && parsed.attachments.length > 0) {
             for (const att of parsed.attachments) {
               await prisma.gmailAttachment.create({
                 data: {
-                  messageId,
+                  messageId: savedMessage.id,
                   attachmentId: att.attachmentId,
                   filename: att.filename,
                   mimeType: att.mimeType,
@@ -277,63 +330,59 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           }
 
           // Only auto-reply if autoReplyEnabled is explicitly turned ON
-          if (isInbound) {
-            if (config && config.autoReplyEnabled) {
-              try {
-                // Fetch active rules for the organization
-                const rules = await prisma.gmailAutoReplyRule.findMany({
-                  where: { organizationId: orgId, isActive: true }
-                });
-
-                // Check if any rule keyword matches the email body or subject
-                const lowerContent = body.toLowerCase();
-                const lowerSubject = subject.toLowerCase();
+          if (isInbound && activeRules.length > 0) {
+            try {
+              const lowerContent = body.toLowerCase();
+              const lowerSubject = subject.toLowerCase();
+              
+              const matchedRule = activeRules.find(rule => {
+                const kw = rule.keyword.trim().toLowerCase();
+                if (!kw) return false;
                 
-                const matchedRule = rules.find(rule => {
-                  const kw = rule.keyword.trim().toLowerCase();
-                  if (!kw) return false;
-                  
-                  // Match full phrase OR any space-separated token in the phrase
-                  if (lowerContent.includes(kw) || lowerSubject.includes(kw)) return true;
-                  const tokens = kw.split(/\s+/).filter(t => t.length > 2);
-                  return tokens.some(token => lowerContent.includes(token) || lowerSubject.includes(token));
-                });
+                // Match full phrase OR any space-separated token in the phrase
+                if (lowerContent.includes(kw) || lowerSubject.includes(kw)) return true;
+                const tokens = kw.split(/\s+/).filter(t => t.length > 2);
+                return tokens.some(token => lowerContent.includes(token) || lowerSubject.includes(token));
+              });
 
-                if (matchedRule) {
-                  const replyText = matchedRule.replyText;
-                  const ruleAny = matchedRule as any;
-                  const attachment = ruleAny.fileUrl && ruleAny.fileName ? {
-                    fileUrl: ruleAny.fileUrl,
-                    fileName: ruleAny.fileName,
-                    mimeType: ruleAny.mimeType || undefined
-                  } : undefined;
-                  
-                  await sendGmailReply(orgId, threadId, replyText || "", attachment);
-                  
-                  await prisma.gmailThread.update({
-                    where: { threadId },
-                    data: { status: "REPLIED" }
-                  });
-                }
-              } catch (aiErr: any) {
-                console.error(`[GMAIL SERVICE] Auto-reply failed for message ${messageId}:`, aiErr.message);
+              if (matchedRule) {
+                const replyText = matchedRule.replyText;
+                const ruleAny = matchedRule as any;
+                const attachment = ruleAny.fileUrl && ruleAny.fileName ? {
+                  fileUrl: ruleAny.fileUrl,
+                  fileName: ruleAny.fileName,
+                  mimeType: ruleAny.mimeType || undefined
+                } : undefined;
+                
+                await sendGmailReply(orgId, threadId, replyText || "", attachment);
+                
+                await prisma.gmailThread.update({
+                  where: { threadId },
+                  data: { status: "REPLIED" }
+                });
               }
+            } catch (aiErr: any) {
+              console.error(`[GMAIL SERVICE] Auto-reply failed for message ${messageId}:`, aiErr.message);
             }
           }
-
-          syncedCount++;
         }
       }
+
+      syncedCount++;
     }
 
-    if (syncedCount > 0 && io) {
-      // Notify client app over WebSockets of new emails/replies
-      io.to(orgId).emit("gmail-updated", { syncedCount });
+    // Broadcast update via WebSocket
+    if (io) {
+      io.to(`org:${orgId}`).emit("gmail-threads-synced", {
+        organizationId: orgId,
+        syncedCount,
+        label,
+      });
     }
 
-    return { syncedCount };
+    return { syncedCount, total: threads.length };
   } catch (err: any) {
-    console.error("[GMAIL SERVICE] Error syncing threads:", err.message);
+    console.error("[GMAIL SERVICE] Error syncing threads:", err?.response?.data || err.message);
     throw err;
   }
 }
@@ -516,15 +565,25 @@ export async function sendGmailReply(
     );
 
     // Store the reply message locally
-    await prisma.gmailMessage.create({
-      data: {
-        threadId,
-        messageId: sendRes.data.id,
-        direction: "outbound",
-        content: attachment?.fileName ? `${replyContent}\n\n[Attachment: ${attachment.fileName}]` : replyContent,
-        sender: "Me (CRM Auto-Reply)",
-      }
+    const targetThread = await prisma.gmailThread.findUnique({
+      where: { threadId }
     });
+
+    if (targetThread) {
+      await prisma.gmailMessage.create({
+        data: {
+          threadId: targetThread.id,
+          messageId: sendRes.data.id,
+          direction: "outbound",
+          content: attachment?.fileName ? `${replyContent}\n\n[Attachment: ${attachment.fileName}]` : replyContent,
+          bodyText: replyContent,
+          sender: "Me (CRM Auto-Reply)",
+          organizationId: orgId,
+          createdAt: new Date(),
+          internalDate: new Date(),
+        }
+      });
+    }
 
     return sendRes.data;
   } catch (err: any) {
@@ -639,7 +698,7 @@ export async function sendSingleBulkEmail(
 
   // Store thread locally so it appears inside the dashboard Inbox / Sent section
   try {
-    await prisma.gmailThread.upsert({
+    const upsertedThread = await prisma.gmailThread.upsert({
       where: { threadId: sentThreadId },
       update: {
         subject,
@@ -661,12 +720,15 @@ export async function sendSingleBulkEmail(
 
     await prisma.gmailMessage.create({
       data: {
-        threadId: sentThreadId,
+        threadId: upsertedThread.id,
         messageId: sentMessageId,
         direction: "outbound",
         content: bodyText,
+        bodyText: bodyText,
         sender: "Me (Bulk Campaign)",
-        createdAt: new Date()
+        organizationId: orgId,
+        createdAt: new Date(),
+        internalDate: new Date(),
       }
     });
   } catch (dbErr: any) {

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { FileText, Send, Trash2, Edit3, Copy, RefreshCw, Sparkles } from "lucide-react";
+import { FileText, Send, Trash2, Edit3, Copy, RefreshCw, Eye, X, Image as ImageIcon, Video as VideoIcon, ChevronDown, ChevronUp } from "lucide-react";
+import { MediaPreview, detectMediaType } from "./MediaPreview";
 
 export interface DraftItem {
   id: string;
@@ -29,6 +30,12 @@ export function DraftLibrary({
   onEditDraft
 }: DraftLibraryProps) {
   const [actionId, setActionId] = useState<string | null>(null);
+  const [previewDraft, setPreviewDraft] = useState<DraftItem | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedItems((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const handleDeleteDraft = async (id: string) => {
     if (!confirm("Are you sure you want to delete this draft?")) return;
@@ -95,82 +102,199 @@ export function DraftLibrary({
   };
 
   return (
-    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4 font-sans">
-      <div className="flex items-center justify-between border-b border-slate-850 pb-3">
-        <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-2">
-          <FileText className="h-4 w-4 text-blue-400" /> Draft Library ({drafts.length})
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 font-sans text-slate-900">
+      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
+          <FileText className="h-4 w-4 text-[#0A66C2]" /> Draft Library ({drafts.length})
         </h3>
         {onRefresh && (
           <button
             type="button"
             onClick={onRefresh}
-            className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-blue-400" : ""}`} /> Refresh Drafts
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-blue-600" : ""}`} /> Refresh Drafts
           </button>
         )}
       </div>
 
       {drafts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {drafts.map((draft) => (
-            <div key={draft.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 shadow-sm flex flex-col justify-between">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="font-semibold text-slate-300">Draft</span>
-                  <span className="font-mono">{new Date(draft.updatedAt).toLocaleDateString()}</span>
-                </div>
-                <p className="text-xs text-slate-200 line-clamp-3 leading-relaxed">{draft.summary}</p>
-              </div>
+          {drafts.map((draft) => {
+            const isExpanded = Boolean(expandedItems[draft.id]);
+            const hasMedia = Boolean(draft.mediaUrl && draft.mediaUrl.trim().length > 0);
+            const mediaType = detectMediaType(draft.mediaUrl);
 
-              <div className="flex items-center justify-between border-t border-slate-850 pt-2.5">
-                <div className="flex items-center gap-1.5">
-                  {onEditDraft && (
+            return (
+              <div
+                key={draft.id}
+                className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        Draft
+                      </span>
+                      {hasMedia && (
+                        <span className="font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          {mediaType === "IMAGE" ? <ImageIcon className="h-3 w-3" /> : mediaType === "VIDEO" ? <VideoIcon className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+                          {mediaType}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono">{new Date(draft.updatedAt).toLocaleDateString()}</span>
+                  </div>
+
+                  <div
+                    onClick={() => toggleExpand(draft.id)}
+                    className="cursor-pointer group"
+                    title="Click to expand text"
+                  >
+                    <p className={`text-xs text-slate-800 leading-relaxed ${isExpanded ? "whitespace-pre-wrap" : "line-clamp-3"}`}>
+                      {draft.summary}
+                    </p>
+                    {draft.summary.length > 100 && (
+                      <button
+                        type="button"
+                        className="text-[11px] font-bold text-[#0A66C2] group-hover:underline flex items-center gap-1 pt-1"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <ChevronUp className="h-3 w-3" /> Show Less
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-3 w-3" /> Show Full Text
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {hasMedia && (
+                    <div className="pt-2">
+                      <MediaPreview mediaUrl={draft.mediaUrl} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-200 pt-2.5">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => onEditDraft(draft)}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-all cursor-pointer"
-                      title="Edit Draft"
+                      onClick={() => setPreviewDraft(draft)}
+                      className="p-1.5 rounded-lg bg-white hover:bg-slate-100 text-[#0A66C2] border border-slate-200 text-xs transition-all cursor-pointer shadow-xs"
+                      title="Preview Draft"
                     >
-                      <Edit3 className="h-3.5 w-3.5" />
+                      <Eye className="h-3.5 w-3.5" />
                     </button>
-                  )}
+                    {onEditDraft && (
+                      <button
+                        type="button"
+                        onClick={() => onEditDraft(draft)}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs transition-all cursor-pointer"
+                        title="Edit Draft in Composer"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicateDraft(draft)}
+                      disabled={actionId === draft.id}
+                      className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs transition-all cursor-pointer disabled:opacity-50"
+                      title="Duplicate Draft"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDraft(draft.id)}
+                      disabled={actionId === draft.id}
+                      className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs transition-all cursor-pointer disabled:opacity-50"
+                      title="Delete Draft"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => handleDuplicateDraft(draft)}
+                    onClick={() => handlePublishNow(draft)}
                     disabled={actionId === draft.id}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-all cursor-pointer"
-                    title="Duplicate Draft"
+                    className="px-3 py-1.5 rounded-xl bg-[#0A66C2] hover:bg-[#084e96] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-md shadow-blue-600/20"
                   >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteDraft(draft.id)}
-                    disabled={actionId === draft.id}
-                    className="p-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 text-xs transition-all cursor-pointer"
-                    title="Delete Draft"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Send className="h-3.5 w-3.5" /> Publish
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => handlePublishNow(draft)}
-                  disabled={actionId === draft.id}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Send className="h-3.5 w-3.5" /> Publish
-                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
-        <div className="p-10 text-center text-xs text-slate-400 border border-dashed border-slate-800 rounded-xl bg-slate-900/30 flex flex-col items-center gap-2">
-          <FileText className="h-8 w-8 text-slate-600" />
-          <span>No post drafts saved in library.</span>
+        <div className="p-12 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center gap-3 bg-slate-50/60">
+          <FileText className="h-10 w-10 text-slate-400" />
+          <span className="font-semibold text-slate-800 text-sm">No saved drafts in your library.</span>
+          <p className="text-xs text-slate-500 max-w-md leading-relaxed">
+            Write a post in the composer and click <strong>Save Draft</strong> to store your work-in-progress content.
+          </p>
+        </div>
+      )}
+
+      {/* Interactive Draft Preview Modal */}
+      {previewDraft && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800 uppercase tracking-wider">
+                <Eye className="h-4 w-4 text-[#0A66C2]" /> LinkedIn Draft Preview
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewDraft(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-900 leading-relaxed whitespace-pre-wrap">
+                {previewDraft.summary}
+              </div>
+
+              {previewDraft.mediaUrl && (
+                <div className="space-y-1 pt-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Attached Media Asset
+                  </span>
+                  <MediaPreview mediaUrl={previewDraft.mediaUrl} />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+              <button
+                type="button"
+                onClick={() => setPreviewDraft(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+              >
+                Close Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = previewDraft;
+                  setPreviewDraft(null);
+                  handlePublishNow(d);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#0A66C2] hover:bg-[#084e96] text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
+              >
+                <Send className="h-3.5 w-3.5" /> Publish Immediately
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

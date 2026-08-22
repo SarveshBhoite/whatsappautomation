@@ -30,7 +30,9 @@ import {
   ArrowLeft,
   Star,
   RefreshCw,
-  Store
+  Store,
+  Menu,
+  X
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -285,13 +287,13 @@ const MediaNodeComponent = ({ data }: any) => {
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
   }
-  return DEFAULT_ORG_ID;
+  return "";
 };
 
 // TS Interfaces
@@ -365,6 +367,7 @@ export default function Dashboard() {
   
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -532,6 +535,7 @@ export default function Dashboard() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Settings States
   const [config, setConfig] = useState<WhatsAppConfig>({
@@ -796,6 +800,8 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
+    } finally {
+      setLoadingConversations(false);
     }
   };
 
@@ -889,8 +895,10 @@ export default function Dashboard() {
   };
 
   const fetchGoogleConfig = async () => {
+    const org = getOrgId();
+    if (!org) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${encodeURIComponent(org)}`);
       if (!res.ok) return;
       const data = await res.json();
       if (!data) return;
@@ -917,6 +925,11 @@ export default function Dashboard() {
 
   const saveGoogleConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    const org = getOrgId();
+    if (!org) {
+      alert("Please log in to your organization.");
+      return;
+    }
     setGoogleSaveStatus("saving");
     try {
       // Clean inputs to remove any accidental prefixes
@@ -932,10 +945,10 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": org
         },
         body: JSON.stringify({ 
-          orgId: DEFAULT_ORG_ID, 
+          orgId: org, 
           ...googleConfig,
           googleLocationId: finalLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId
@@ -969,9 +982,14 @@ export default function Dashboard() {
   };
 
   const handleGoogleOAuthConnect = () => {
+    const org = getOrgId();
+    if (!org) {
+      alert("Please log in to your organization.");
+      return;
+    }
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${DEFAULT_ORG_ID}`;
+      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${encodeURIComponent(org)}`;
     }
   };
 
@@ -1163,31 +1181,111 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-900 text-slate-100 font-sans">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
+      {/* Mobile Drawer Backdrop */}
+      {mobileDrawerOpen && (
+        <div 
+          onClick={() => setMobileDrawerOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 sm:hidden"
+        />
+      )}
+
+      {/* Mobile Slide-out Drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 shadow-2xl flex flex-col justify-between p-5 transform transition-transform duration-300 ease-in-out sm:hidden ${
+        mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="font-extrabold text-sm text-slate-900 tracking-tight">WhatsApp Suite</span>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Cloud API</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1">
+              Modules & Tools
+            </span>
+            {[
+              { id: "chats_whatsapp", label: "WhatsApp Chats", icon: MessageCircle, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+              { id: "bulk_broadcast", label: "Bulk Broadcast", icon: Send, color: "text-teal-600", activeBg: "bg-teal-50 text-teal-800 border-teal-200" },
+              { id: "meta_templates", label: "Meta Templates", icon: FileText, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
+              { id: "flows", label: "Flow Builder", icon: GitMerge, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200", onClick: () => { setActiveTab("flows"); setSelectedPlatform("whatsapp"); } },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isSelected = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.onClick) item.onClick();
+                    else setActiveTab(item.id as any);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? `${item.activeBg} border shadow-xs`
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 ${item.color}`} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Meta Cloud API Connected</span>
+        </div>
+      </aside>
+
       {/* TOP SECTION NAVIGATION HEADER */}
-      <header className="px-6 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+      <header className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => setMobileDrawerOpen(true)}
+            className="sm:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 shrink-0"
+            title="Open Menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+
+          <div className="h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
             <MessageSquare className="h-4 w-4" />
           </div>
-          <div>
-            <h1 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
-              WhatsApp Suite
-              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono lowercase">
-                official cloud api
+          <div className="min-w-0">
+            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 truncate">
+              <span>WhatsApp Suite</span>
+              <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-mono lowercase font-bold shrink-0">
+                cloud api
               </span>
             </h1>
           </div>
         </div>
 
-        {/* Section Tabs */}
-        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 gap-1 text-xs">
+        {/* Section Tabs - Hidden on mobile, shown on desktop */}
+        <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs shrink-0">
           <button
             onClick={() => setActiveTab("chats_whatsapp")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "chats_whatsapp"
-                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-emerald-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
             <MessageCircle className="h-3.5 w-3.5" /> WhatsApp Chats
@@ -1195,10 +1293,10 @@ export default function Dashboard() {
 
           <button
             onClick={() => setActiveTab("bulk_broadcast")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "bulk_broadcast"
-                ? "bg-teal-500/15 text-teal-400 border border-teal-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-teal-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
             <Send className="h-3.5 w-3.5" /> Bulk Broadcast
@@ -1217,10 +1315,10 @@ export default function Dashboard() {
 
           <button
             onClick={() => setActiveTab("meta_templates")}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "meta_templates"
-                ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-purple-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
             <FileText className="h-3.5 w-3.5" /> Meta Templates
@@ -1231,10 +1329,10 @@ export default function Dashboard() {
               setActiveTab("flows");
               setSelectedPlatform("whatsapp");
             }}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "flows"
-                ? "bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                ? "bg-white text-brand-blue border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
             <GitMerge className="h-3.5 w-3.5" /> Flow Builder
@@ -1243,7 +1341,7 @@ export default function Dashboard() {
       </header>
 
       {/* 2. MAIN CONTENT BODY */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
@@ -1259,27 +1357,39 @@ export default function Dashboard() {
 
           return (
             <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar ΓÇö full screen on mobile when no chat open, fixed width on desktop */}
+              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
               <div className={`${
                 mobileChatOpen ? "hidden" : "flex"
-              } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
-                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                  <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
+              } sm:flex w-full sm:w-80 border-r border-slate-200 bg-white flex-col h-full shrink-0 shadow-xs`}>
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                  <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isInstagramTab ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
                       {filteredConversations.length} active
                     </span>
                   </h2>
                 </div>
                 
                 {/* Conversation items list */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
-                  {filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                  {loadingConversations ? (
+                    <div className="p-3 space-y-3 animate-pulse">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="p-3 bg-slate-50/70 rounded-2xl space-y-2 border border-slate-100">
+                          <div className="flex justify-between items-center">
+                            <div className="h-4 w-28 bg-slate-200 rounded-md" />
+                            <div className="h-3 w-12 bg-slate-100 rounded-md" />
+                          </div>
+                          <div className="h-3 w-40 bg-slate-100 rounded-md" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : filteredConversations.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
                       {isInstagramTab ? (
-                        <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
+                        <Instagram className="h-8 w-8 stroke-1 text-pink-400" />
                       ) : (
-                        <WhatsApp className="h-8 w-8 text-emerald-400/60" />
+                        <WhatsApp className="h-8 w-8 text-emerald-500" />
                       )}
                       <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
                     </div>
@@ -1293,16 +1403,16 @@ export default function Dashboard() {
                         <div
                           key={conv.id}
                           onClick={() => handleSelectConversation(conv)}
-                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-2 ${isSelected ? (isInstagram ? "bg-slate-800/40 border-pink-500" : "bg-slate-800/40 border-emerald-500") : "hover:bg-slate-850/50 border-transparent"}`}
+                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-3 ${isSelected ? (isInstagram ? "bg-pink-50/80 border-pink-500 text-slate-900" : "bg-emerald-50/80 border-emerald-500 text-slate-900") : "hover:bg-slate-50 border-transparent text-slate-700"}`}
                         >
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-1.5 min-w-0">
                               {isInstagram ? (
-                                <Instagram className="h-3.5 w-3.5 text-pink-400 shrink-0" />
+                                <Instagram className="h-3.5 w-3.5 text-pink-600 shrink-0" />
                               ) : (
-                                <WhatsApp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                <WhatsApp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                               )}
-                              <span className="font-semibold text-slate-200 text-sm truncate">
+                              <span className="font-bold text-slate-900 text-sm truncate">
                                 {conv.customerName || conv.customerPhone}
                               </span>
                             </div>
@@ -1315,15 +1425,15 @@ export default function Dashboard() {
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                            <p className="text-xs text-slate-500 truncate max-w-[180px]">
                               {lastMsg?.content || "No messages yet"}
                             </p>
                             {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
+                              <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
                                 <User className="h-2.5 w-2.5" /> Manual
                               </span>
                             ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
                                 <Bot className="h-2.5 w-2.5" /> Auto
                               </span>
                             )}
@@ -1335,41 +1445,41 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Chat Conversation Pane ΓÇö full screen on mobile when chat open */}
+              {/* Chat Conversation Pane — full screen on mobile when chat open */}
               <div className={`${
                 mobileChatOpen ? "flex" : "hidden"
-              } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
+              } sm:flex flex-1 flex-col h-full bg-slate-100/70 relative animate-slideInRight sm:animate-none`}>
                 {activeConv ? (
                   <>
                     {/* Chat header */}
-                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-3 sm:px-6 flex items-center justify-between z-10 gap-2">
+                    <div className="h-16 border-b border-slate-200 bg-white px-3 sm:px-6 flex items-center justify-between z-10 gap-2 shadow-xs">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <button
                           type="button"
                           onClick={() => setMobileChatOpen(false)}
-                          className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 shrink-0 transition-all"
+                          className="sm:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 shrink-0 transition-all"
                         >
                           <ArrowLeft className="h-5 w-5" />
                         </button>
-                        <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700 shrink-0">
+                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-800 font-bold border border-slate-200 shrink-0">
                           {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
                         </div>
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2">
                             {activeConv.platform === "instagram" ? (
-                              <Instagram className="h-4 w-4 text-pink-400 shrink-0" />
+                              <Instagram className="h-4 w-4 text-pink-600 shrink-0" />
                             ) : (
-                              <WhatsApp className="h-4 w-4 text-emerald-400 shrink-0" />
+                              <WhatsApp className="h-4 w-4 text-emerald-600 shrink-0" />
                             )}
-                            <span className="font-semibold text-sm text-slate-200 truncate">
+                            <span className="font-bold text-sm text-slate-900 truncate">
                               {activeConv.customerName || (activeConv.platform === "instagram" ? "Instagram User" : "WhatsApp User")}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-400 flex items-center gap-1 truncate">
+                          <span className="text-xs text-slate-500 flex items-center gap-1 truncate">
                             {activeConv.platform === "instagram" ? (
                               <><span>Instagram ID:</span> {activeConv.customerPhone}</>
                             ) : (
-                              <><Phone className="h-3 w-3 text-slate-500 shrink-0" /> {activeConv.customerPhone}</>
+                              <><Phone className="h-3 w-3 text-slate-400 shrink-0" /> {activeConv.customerPhone}</>
                             )}
                           </span>
                         </div>
@@ -1377,11 +1487,11 @@ export default function Dashboard() {
 
                       {/* Bot active / pause controllers */}
                       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        {/* Bot status badge ΓÇö hidden on very small screens, visible on sm+ */}
-                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${
+                        {/* Bot status badge — hidden on very small screens, visible on sm+ */}
+                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border font-bold transition-all ${
                           activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            ? "bg-amber-50 border-amber-200 text-amber-800" 
+                            : "bg-emerald-50 border-emerald-200 text-emerald-800"
                         }`}>
                           {activeConv.isBotPaused ? (
                             <><User className="h-3.5 w-3.5" /><span>Bot Paused</span></>
@@ -1389,11 +1499,11 @@ export default function Dashboard() {
                             <><Bot className="h-3.5 w-3.5" /><span>Bot Active</span></>
                           )}
                         </div>
-                        {/* Compact bot status icon ΓÇö mobile only */}
+                        {/* Compact bot status icon — mobile only */}
                         <div className={`sm:hidden p-2 rounded-xl border transition-all ${
                           activeConv.isBotPaused 
-                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
-                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            ? "bg-amber-50 border-amber-200 text-amber-800" 
+                            : "bg-emerald-50 border-emerald-200 text-emerald-800"
                         }`}>
                           {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                         </div>
@@ -1401,10 +1511,10 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${
+                          className={`text-xs font-bold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all cursor-pointer shadow-2xs ${
                             activeConv.isBotPaused 
-                              ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" 
-                              : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
+                              ? "bg-emerald-600 border-emerald-700 hover:bg-emerald-500 text-white" 
+                              : "bg-white hover:bg-slate-50 border-slate-200 text-slate-800"
                           }`}
                         >
                           <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
@@ -1414,7 +1524,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-100/60 relative scrollbar-thin">
                       {messages.map((msg, index) => {
                         const isInbound = msg.direction === "inbound";
                         const msgDateHeader = formatDateHeader(msg.createdAt);
@@ -1505,15 +1615,15 @@ export default function Dashboard() {
                               </div>
 
                               {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-xs flex flex-col gap-1 ${
                                 isInbound 
-                                  ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none" 
+                                  ? "bg-white text-slate-900 border border-slate-200/90 rounded-tl-none" 
                                   : activeConv?.platform === "instagram"
-                                    ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                    : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
+                                    ? "bg-gradient-to-r from-pink-500 to-rose-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
+                                    : "bg-[#DCF8C6] text-slate-900 font-medium rounded-tr-none border border-emerald-300/80 shadow-emerald-500/5"
                               }`}>
                                 {msg.senderName && !isInbound && (
-                                  <span className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/80" : "text-slate-800/70"}`}>
+                                  <span className={`text-[9px] uppercase tracking-wider font-bold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/90" : "text-emerald-800"}`}>
                                     {msg.senderName}
                                   </span>
                                 )}
@@ -1522,10 +1632,10 @@ export default function Dashboard() {
                                 {hasQuote && (
                                   <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${
                                     isInbound 
-                                      ? "bg-slate-900/40 border-slate-500 text-slate-400" 
+                                      ? "bg-slate-100 border-slate-400 text-slate-600" 
                                       : activeConv?.platform === "instagram"
-                                        ? "bg-violet-950/40 border-violet-400 text-violet-200"
-                                        : "bg-emerald-600/30 border-emerald-950 text-slate-900"
+                                        ? "bg-violet-950/40 border-violet-400 text-violet-100"
+                                        : "bg-emerald-100/90 border-emerald-600 text-emerald-950 font-medium"
                                   }`}>
                                     {quoteText}
                                   </div>
@@ -1603,8 +1713,8 @@ export default function Dashboard() {
                                     </div>
                                   );
                                 })() : (
-                                  <div className="flex flex-col gap-2">
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
+                                  <div className="flex flex-col gap-2 min-w-0 max-w-full">
+                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere">{messageBody}</p>
                                     
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
@@ -1704,32 +1814,32 @@ export default function Dashboard() {
 
                     {/* Quoted Message Preview Header above input bar */}
                     {quotedMessage && (
-                      <div className="bg-slate-950 border-t border-slate-800 p-2.5 flex justify-between items-center text-[11px] text-slate-300 w-full animate-fadeIn shrink-0">
+                      <div className="bg-slate-50 border-t border-slate-200 p-2.5 flex justify-between items-center text-[11px] text-slate-700 w-full animate-fadeIn shrink-0">
                         <div className="flex flex-col truncate border-l-2 border-emerald-500 pl-2">
-                          <span className="font-bold text-emerald-400 text-[9px] uppercase tracking-wider">
+                          <span className="font-bold text-emerald-700 text-[9px] uppercase tracking-wider">
                             Quoting {quotedMessage.direction === "inbound" ? "Customer" : "Agent/Bot"}
                           </span>
-                          <span className="truncate text-xs text-slate-400 font-sans italic">
+                          <span className="truncate text-xs text-slate-600 font-sans italic">
                             {quotedMessage.content.split("|")[0]}
                           </span>
                         </div>
                         <button 
                           type="button" 
                           onClick={() => setQuotedMessage(null)} 
-                          className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
+                          className="text-slate-400 hover:text-slate-700 font-bold px-2 text-sm cursor-pointer"
                         >
-                          ├ù
+                          ✕
                         </button>
                       </div>
                     )}
 
                     {/* Message input bar */}
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
+                    <form onSubmit={handleSendMessage} className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2.5 sm:gap-3 relative shadow-xs">
                       
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
-                          {["≡ƒÿÇ", "≡ƒÿé", "≡ƒÿì", "≡ƒæì", "≡ƒÖÅ", "≡ƒöÑ", "≡ƒÜÇ", "Γ¥ñ∩╕Å", "≡ƒæÅ", "≡ƒÄë"].map((emoji) => (
+                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50">
+                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
                             <button
                               key={emoji}
                               type="button"
@@ -1737,7 +1847,7 @@ export default function Dashboard() {
                                 setInputText((prev) => prev + emoji);
                                 setShowEmojiPicker(false);
                               }}
-                              className="text-lg hover:scale-125 transition-transform p-1.5"
+                              className="text-lg hover:scale-125 transition-transform p-1.5 cursor-pointer"
                             >
                               {emoji}
                             </button>
@@ -1747,30 +1857,30 @@ export default function Dashboard() {
 
                       {/* MEDIA/PAPERCLIP POPUP */}
                       {showMediaMenu && (
-                        <div className="absolute bottom-16 left-12 bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xl z-50 text-[11px] min-w-[170px]">
+                        <div className="absolute bottom-16 left-12 bg-white border border-slate-200 rounded-2xl p-2.5 flex flex-col gap-1 shadow-xl z-50 text-xs min-w-[190px]">
                           <button
                             type="button"
                             onClick={() => {
                               setShowMediaMenu(false);
                               fileInputRef.current?.click();
                             }}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 cursor-pointer"
+                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
                           >
-                            <Paperclip className="h-4 w-4 text-emerald-400" /> Upload & Send File
+                            <Paperclip className="h-4 w-4 text-emerald-600" /> Upload &amp; Send File
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 border-t border-slate-850 pt-1.5"
+                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold border-t border-slate-100 pt-1.5 cursor-pointer"
                           >
-                            <ImageIcon className="h-4 w-4 text-emerald-400/80" /> Mock Case Study (Image)
+                            <ImageIcon className="h-4 w-4 text-emerald-600" /> Mock Case Study (Image)
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
-                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300"
+                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
                           >
-                            <FileText className="h-4 w-4 text-sky-400/80" /> Mock Portfolio (PDF)
+                            <FileText className="h-4 w-4 text-sky-600" /> Mock Portfolio (PDF)
                           </button>
                         </div>
                       )}
@@ -1789,7 +1899,7 @@ export default function Dashboard() {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
                         }}
-                        className={`p-2 rounded-lg transition-colors ${showEmojiPicker ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showEmojiPicker ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Smile className="h-5 w-5" />
                       </button>
@@ -1799,7 +1909,7 @@ export default function Dashboard() {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
                         }}
-                        className={`p-2 rounded-lg transition-colors ${showMediaMenu ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
+                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showMediaMenu ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
@@ -1809,30 +1919,30 @@ export default function Dashboard() {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         placeholder="Type a message..."
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-all"
                       />
 
                       <button
                         type="submit"
                         disabled={!inputText.trim()}
-                        className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition-all shadow-md shadow-emerald-500/15 disabled:opacity-40 disabled:hover:bg-emerald-500"
+                        className="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all shadow-md shadow-emerald-600/20 disabled:opacity-40 disabled:hover:bg-emerald-600 cursor-pointer"
                       >
-                        <Send className="h-4.5 w-4.5 fill-slate-950" />
+                        <Send className="h-4.5 w-4.5 fill-white" />
                       </button>
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50">
                     <div className="max-w-md flex flex-col items-center gap-4">
-                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-xl border ${isInstagramTab ? "bg-pink-500/10 text-pink-400 border-pink-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}`}>
+                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-sm border ${isInstagramTab ? "bg-pink-50 text-pink-600 border-pink-200" : "bg-emerald-50 text-emerald-600 border-emerald-200"}`}>
                         {isInstagramTab ? (
                           <Instagram className="h-10 w-10 stroke-1" />
                         ) : (
                           <Bot className="h-10 w-10 stroke-1" />
                         )}
                       </div>
-                      <h3 className="text-xl font-bold text-slate-100">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales & Support CRM</h3>
-                      <p className="text-sm text-slate-400">
+                      <h3 className="text-xl font-extrabold text-slate-900">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales &amp; Support CRM</h3>
+                      <p className="text-sm text-slate-500 leading-relaxed">
                         Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
                       </p>
                     </div>

@@ -86,9 +86,42 @@ router.get("/config", async (req: Request, res: Response) => {
       take: 20
     });
 
+    // Real Account-Specific Statistics from DB
+    const [aiHistoryCount, aiPostsCount, publishedPostsCount, draftsCount, scheduledPostsCount] = await Promise.all([
+      prisma.aIContentHistory.count({ where: { organizationId } }),
+      prisma.aIContentHistory.count({ where: { organizationId, mode: { in: ["Post Generator", "generate", "Post", "Rewrite & Polish"] } } }),
+      prisma.linkedInPost.count({ where: { organizationId } }),
+      prisma.linkedInSchedule.count({ where: { organizationId, status: "DRAFT" } }),
+      prisma.linkedInSchedule.count({ where: { organizationId, status: "SCHEDULED" } })
+    ]);
+
+    // Calculate real activity streak from sync logs & posts
+    let activityStreak = 0;
+    try {
+      const recentActivities = await prisma.linkedInSyncLog.findMany({
+        where: { organizationId },
+        orderBy: { timestamp: "desc" },
+        take: 100
+      });
+      const uniqueDays = new Set(
+        recentActivities.map((a: any) => new Date(a.timestamp).toISOString().split("T")[0])
+      );
+      activityStreak = uniqueDays.size;
+    } catch {
+      activityStreak = 1;
+    }
+
     return res.status(200).json({
       ...config,
-      syncLogs
+      syncLogs,
+      stats: {
+        totalAIRequests: aiHistoryCount,
+        aiGeneratedPosts: aiPostsCount,
+        publishedCount: publishedPostsCount,
+        draftsCount: draftsCount,
+        scheduledCount: scheduledPostsCount,
+        activityStreak: activityStreak || (config.accessToken ? 1 : 0)
+      }
     });
   } catch (error: any) {
     console.error("[LINKEDIN] API Error - Fetching config:", error);
@@ -159,7 +192,7 @@ router.get("/posts", async (req: Request, res: Response) => {
       posts = personalPosts.map(p => ({
         id: p.id,
         organizationId: p.organizationId,
-        postId: p.id,
+        postId: p.linkedinPostId || p.id,
         linkedinPostId: p.linkedinPostId,
         authorUrn: p.authorUrn || "",
         author: p.author,
@@ -173,8 +206,8 @@ router.get("/posts", async (req: Request, res: Response) => {
         likesCount: p.likesCount,
         commentsCount: p.commentsCount,
         createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-      })) as any;
+        updatedAt: p.updatedAt
+      }));
     }
 
     return res.status(200).json({
@@ -193,6 +226,34 @@ router.get("/posts", async (req: Request, res: Response) => {
       permissionGranted: false,
       message: "Failed to fetch LinkedIn posts",
       posts: []
+    });
+  }
+});
+
+// POST /api/linkedin/posts/sync-engagement - Fetch real-time likes & comments from LinkedIn API
+router.post("/posts/sync-engagement", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const result = await LinkedInService.syncEngagementForPosts(organizationId);
+
+    // Fetch updated posts
+    const updatedPosts = await prisma.linkedInPost.findMany({
+      where: { organizationId },
+      orderBy: { publishedAt: "desc" }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      updatedCount: result.updatedCount,
+      posts: updatedPosts
+    });
+  } catch (error: any) {
+    const status = error.status || 500;
+    console.error("[LINKEDIN] API Error - Engagement Sync Failed:", error.message);
+    return res.status(status).json({
+      success: false,
+      error: error.message || "Failed to synchronize post engagement."
     });
   }
 });
@@ -235,6 +296,47 @@ router.post("/share", async (req: Request, res: Response) => {
       error: "LinkedIn API Rejected Publication Request",
       details,
       post: error.post || null
+    });
+  }
+});
+
+// DELETE /api/linkedin/posts/:id - Delete post from LinkedIn live feed and CRM database
+router.delete("/posts/:id", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const postId = String(req.params.id);
+
+    if (!postId) {
+      return res.status(400).json({ error: "Post ID parameter is required." });
+    }
+
+    const result = await LinkedInService.deletePublishedPost(organizationId, postId);
+
+    // Socket notification for real-time synchronization across clients
+    try {
+      const { io } = require("../index");
+      if (io) {
+        io.to(organizationId).emit("linkedin-post-deleted", { organizationId, postId });
+        io.to(organizationId).emit("linkedin-sync-completed", { organizationId });
+      }
+    } catch (socketErr: any) {
+      console.warn("[LINKEDIN] Socket notification notice:", socketErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Post deleted successfully from LinkedIn live feed and CRM database.",
+      result
+    });
+  } catch (error: any) {
+    const status = error.response?.status || error.status || 500;
+    const errorDetails = error.response?.data || error.message;
+    console.error(`[LINKEDIN] API Error [HTTP ${status}] - Post deletion failed:`, errorDetails);
+    await LinkedInSyncService.logSyncEvent(getOrgId(req), "API Error", "FAILED", `Post deletion failed: ${errorDetails}`);
+
+    return res.status(status).json({
+      success: false,
+      error: error.message || "Failed to delete post from LinkedIn."
     });
   }
 });
@@ -561,6 +663,91 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
   }
 };
 
+// POST /api/linkedin/link-preview - Extract OpenGraph / metadata for link preview card
+router.post("/link-preview", async (req: Request, res: Response) => {
+  try {
+    const { url } = req.body;
+    if (!url || typeof url !== "string" || !url.startsWith("http")) {
+      return res.status(400).json({ error: "Valid HTTP/HTTPS URL is required." });
+    }
+
+    const axios = require("axios");
+    const response = await axios.get(url, {
+      timeout: 8000,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+
+    const html = response.data;
+    if (typeof html !== "string") {
+      return res.status(200).json({
+        success: true,
+        preview: {
+          url,
+          domain: new URL(url).hostname.replace("www.", ""),
+          title: url,
+          description: "",
+          image: ""
+        }
+      });
+    }
+
+    // Extract OpenGraph tags
+    const getMetaTag = (prop: string) => {
+      const match =
+        html.match(new RegExp(`<meta\\s+(?:property|name)=["'](?:og:)?${prop}["']\\s+content=["']([^"']*)["']`, "i")) ||
+        html.match(new RegExp(`<meta\\s+content=["']([^"']*)["']\\s+(?:property|name)=["'](?:og:)?${prop}["']`, "i"));
+      return match ? match[1] : null;
+    };
+
+    let title = getMetaTag("title") || getMetaTag("twitter:title");
+    if (!title) {
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      title = titleMatch ? titleMatch[1].trim() : "";
+    }
+
+    let description = getMetaTag("description") || getMetaTag("twitter:description");
+    let image = getMetaTag("image") || getMetaTag("twitter:image");
+
+    if (image && !image.startsWith("http")) {
+      try {
+        image = new URL(image, url).href;
+      } catch (e) {}
+    }
+
+    const domain = new URL(url).hostname.replace("www.", "");
+
+    return res.status(200).json({
+      success: true,
+      preview: {
+        url,
+        domain,
+        title: title || domain,
+        description: description || "",
+        image: image || ""
+      }
+    });
+  } catch (err: any) {
+    console.warn("[LINKEDIN] Link preview extraction notice:", err.message);
+    try {
+      const fallbackDomain = new URL(req.body?.url).hostname.replace("www.", "");
+      return res.status(200).json({
+        success: true,
+        preview: {
+          url: req.body?.url,
+          domain: fallbackDomain,
+          title: fallbackDomain,
+          description: "",
+          image: ""
+        }
+      });
+    } catch (e) {
+      return res.status(500).json({ error: "Failed to parse link metadata", details: err.message });
+    }
+  }
+});
+
 // ─── PHASE 2B: DRAFT & SCHEDULED POST API ROUTES ─────────────────────────────
 
 // GET /api/linkedin/drafts - Fetch all drafts
@@ -854,6 +1041,25 @@ router.post("/ai/rewrite", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/linkedin/ai/ideas - Dynamic Account-Specific Content Idea Suggestions
+router.get("/ai/ideas", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const config = await prisma.linkedInConfig.findUnique({
+      where: { organizationId },
+      include: { profile: true }
+    });
+
+    const headline = config?.profile?.headline || config?.headline || "Software & Automation Leader";
+    const companyName = config?.companyName || "Jisnu Digitals";
+
+    const result = await LinkedInAIService.generateIdeas(organizationId, headline, companyName);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to generate ideas", details: err.message });
+  }
+});
+
 // POST /api/linkedin/ai/templates - AI Template Blueprint Generator
 router.post("/ai/templates", async (req: Request, res: Response) => {
   try {
@@ -940,7 +1146,7 @@ router.post("/ai/cta", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/linkedin/ai/chat - Universal CRM AI Assistant
+// POST /api/linkedin/ai/chat - Universal CRM AI Assistant (Intent-Driven Groq llama-3.3-70b-versatile)
 router.post("/ai/chat", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);

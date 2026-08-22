@@ -1,25 +1,68 @@
 "use client";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 
-const FULLSCREEN_ROUTES = ["/", "/login", "/admin", "/privacy", "/terms", "/ads/campaigns/create"];
+const PUBLIC_ROUTES = ["/", "/login", "/admin", "/privacy", "/terms", "/reviews/submit"];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isFullScreen = FULLSCREEN_ROUTES.some(r => pathname === r || pathname.startsWith("/ads/campaigns/create"));
+  const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  if (isFullScreen) {
-    // Render full screen without app sidebar
+  const isPublic = PUBLIC_ROUTES.some(r => pathname === r || pathname.startsWith("/reviews/submit"));
+  const isFullScreen = isPublic || pathname.startsWith("/ads/campaigns/create");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const orgId = localStorage.getItem("organization_id");
+      const userRole = localStorage.getItem("user_role");
+
+      // Super admin can access /admin
+      if (pathname === "/admin") {
+        setCheckingAuth(false);
+        return;
+      }
+
+      // Public landing and auth pages
+      if (isPublic) {
+        setCheckingAuth(false);
+        return;
+      }
+
+      // If accessing inner CRM modules without logged-in org, redirect to /login
+      if (!orgId) {
+        router.replace("/login");
+      } else {
+        setCheckingAuth(false);
+      }
+    }
+  }, [pathname, isPublic, router]);
+
+  if (isPublic) {
+    // Render full screen without app sidebar for landing & auth pages
     return <>{children}</>;
   }
 
+  if (checkingAuth) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 text-slate-500">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+          <span className="text-xs font-semibold">Loading organization session...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans">
+    <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
       <AppSidebar />
       {/* Page content fills the remaining space */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-slate-50 text-slate-900">
         {children}
       </div>
     </div>
   );
 }
+

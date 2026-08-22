@@ -185,9 +185,15 @@ export const handleWebhook = async (req: Request, res: Response) => {
         messageType = "text";
       } else if (message.attachments && message.attachments.length > 0) {
         const attachment = message.attachments[0];
-        messageType = attachment.type;
+        messageType = attachment.type || "file";
+
+        // Normalize Instagram attachment types
         if (messageType === "file") {
           messageType = "document";
+        } else if (messageType === "ig_reel" || messageType === "reel" || messageType === "share") {
+          messageType = "video";
+        } else if (messageType === "story_mention") {
+          messageType = "image";
         }
         
         const mediaUrl = attachment.payload?.url || "";

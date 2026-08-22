@@ -81,7 +81,14 @@ const WhatsApp = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
 );
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    const org = localStorage.getItem("organization_id");
+    if (org) return org;
+  }
+  return "";
+};
 
 interface SelectOption {
   value: string;
@@ -119,14 +126,14 @@ function ShadcnSelect({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-9 w-full items-center justify-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-1 py-2 text-xs font-bold text-slate-200 shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all cursor-pointer text-center select-none"
+        className="flex h-9 w-full items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-bold text-slate-800 shadow-2xs focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition-all cursor-pointer text-center select-none"
       >
         <span className="truncate text-center w-full block ml-2">{selectedOption ? selectedOption.label : placeholder}</span>
-        <ChevronDown className="h-3.5 w-3.5 opacity-55 shrink-0 text-slate-500 mr-1.5" />
+        <ChevronDown className="h-3.5 w-3.5 opacity-55 shrink-0 text-slate-400 mr-1.5" />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-slate-850 bg-slate-955 p-1 text-slate-200 shadow-2xl animate-fadeIn scrollbar-none">
+        <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 text-slate-800 shadow-xl animate-fadeIn scrollbar-none">
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
@@ -137,13 +144,13 @@ function ShadcnSelect({
                   onValueChange(opt.value);
                   setIsOpen(false);
                 }}
-                className={`relative flex w-full cursor-pointer select-none items-center justify-center rounded-lg py-2 text-xs text-slate-350 outline-none transition-colors hover:bg-slate-900 hover:text-slate-100 ${
-                  isSelected ? "bg-slate-900 font-bold text-primary" : ""
+                className={`relative flex w-full cursor-pointer select-none items-center justify-center rounded-lg py-2 text-xs text-slate-650 outline-none transition-colors hover:bg-slate-50 hover:text-slate-900 ${
+                  isSelected ? "bg-teal-50 font-bold text-teal-700" : ""
                 }`}
               >
                 {isSelected && (
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                    <Check className="h-3 w-3 text-primary" />
+                    <Check className="h-3 w-3 text-teal-600" />
                   </span>
                 )}
                 <span className="truncate text-center w-full">{opt.label}</span>
@@ -326,7 +333,7 @@ function PopoverContent({
         marginTop: `${sideOffset}px`,
         zIndex: 50
       }}
-      className={`bg-[#020617] border border-[#1e293b] rounded-xl shadow-2xl overflow-hidden animate-fadeIn ${className}`}
+      className={`bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn ${className}`}
     >
       {children}
     </div>
@@ -336,10 +343,10 @@ function PopoverContent({
 function ScrollArea({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={`overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 ${className}`}
+      className={`overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 ${className}`}
       style={{
         scrollbarWidth: "thin",
-        scrollbarColor: "#334155 #0f172a"
+        scrollbarColor: "#cbd5e1 #f8fafc"
       }}
     >
       {children}
@@ -535,7 +542,7 @@ function CustomGmbTimePicker({ selectedTime, onChange }: CustomGmbTimePickerProp
             onClick={() => setIsOpen(true)}
             onKeyDown={handleKeyDown}
             placeholder="HH:MM"
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer text-center"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 cursor-pointer text-center font-bold shadow-2xs"
           />
         </PopoverTrigger>
         <PopoverContent
@@ -554,10 +561,10 @@ function CustomGmbTimePicker({ selectedTime, onChange }: CustomGmbTimePickerProp
                   type="button"
                   ref={isSelected ? activeItemRef : null}
                   onClick={() => selectTime(time)}
-                  className={`w-full text-center px-4 py-2 text-xs transition-colors cursor-pointer block text-left px-3 py-2 hover:bg-accent ${
+                  className={`w-full text-center px-4 py-2 text-xs transition-colors cursor-pointer block text-left px-3 py-2 ${
                     isSelected
-                      ? "bg-primary/20 text-primary font-bold"
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      ? "bg-teal-50 text-teal-700 font-bold"
+                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
                   {time}
@@ -572,7 +579,7 @@ function CustomGmbTimePicker({ selectedTime, onChange }: CustomGmbTimePickerProp
 }
 
 export default function GmbPerformanceDashboard() {
-  const [orgId, setOrgId] = useState(DEFAULT_ORG_ID);
+  const [orgId, setOrgId] = useState(() => getOrgId());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PerformanceData | null>(null);
@@ -1396,23 +1403,23 @@ export default function GmbPerformanceDashboard() {
             const yVal = Math.round(maxVal * ratio);
             const yPos = paddingTop + chartHeight * (1 - ratio);
             return (
-              <g key={idx} className="opacity-40">
+              <g key={idx} className="opacity-70">
                 <line 
                   x1={paddingLeft} 
                   y1={yPos} 
                   x2={width - paddingRight} 
                   y2={yPos} 
-                  stroke="#334155" 
+                  stroke="#e2e8f0" 
                   strokeWidth={1} 
                   strokeDasharray="4 4" 
                 />
                 <text 
                   x={paddingLeft - 8} 
                   y={yPos + 3} 
-                  fill="#94a3b8" 
+                  fill="#64748b" 
                   fontSize={8} 
                   textAnchor="end"
-                  className="font-medium"
+                  className="font-semibold"
                 >
                   {yVal}
                 </text>
@@ -1426,22 +1433,22 @@ export default function GmbPerformanceDashboard() {
             const xPos = paddingLeft + idx * stepX;
             const displayDate = d.date.substring(5); // MM-DD
             return (
-              <g key={idx} className="opacity-60">
+              <g key={idx} className="opacity-80">
                 <line 
                   x1={xPos} 
                   y1={paddingTop} 
                   x2={xPos} 
                   y2={paddingTop + chartHeight} 
-                  stroke="#1e293b" 
+                  stroke="#e2e8f0" 
                   strokeWidth={1} 
                 />
                 <text 
                   x={xPos} 
                   y={height - 8} 
-                  fill="#94a3b8" 
+                  fill="#64748b" 
                   fontSize={8} 
                   textAnchor="middle"
-                  className="font-medium"
+                  className="font-semibold"
                 >
                   {displayDate}
                 </text>
@@ -1470,7 +1477,7 @@ export default function GmbPerformanceDashboard() {
                 <path 
                   d={areaPath} 
                   fill={color} 
-                  opacity={0.06} 
+                  opacity={0.08} 
                 />
                 {/* Line */}
                 <path 
@@ -1494,8 +1501,8 @@ export default function GmbPerformanceDashboard() {
                       cy={y} 
                       r={3} 
                       fill={color} 
-                      stroke="#0f172a" 
-                      strokeWidth={1} 
+                      stroke="#ffffff" 
+                      strokeWidth={1.5} 
                     />
                   );
                 })}
@@ -1512,7 +1519,7 @@ export default function GmbPerformanceDashboard() {
                 y1={paddingTop}
                 x2={paddingLeft + hoveredIndex * stepX}
                 y2={paddingTop + chartHeight}
-                stroke="#64748b"
+                stroke="#94a3b8"
                 strokeWidth={1.5}
                 strokeDasharray="3 3"
               />
@@ -1530,7 +1537,7 @@ export default function GmbPerformanceDashboard() {
                     r={5.5}
                     fill={colors[metricIdx]}
                     stroke="#ffffff"
-                    strokeWidth={1.5}
+                    strokeWidth={2}
                   />
                 );
               })}
@@ -1560,14 +1567,14 @@ export default function GmbPerformanceDashboard() {
         {/* Hover Tooltip Box Overlay */}
         {hoveredIndex !== null && (
           <div 
-            className="absolute bg-slate-950/95 border border-slate-800 p-2.5 rounded-xl shadow-xl pointer-events-none text-[10px] space-y-1 z-30 text-left font-sans animate-fadeIn"
+            className="absolute bg-white border border-slate-200 p-3 rounded-2xl shadow-xl pointer-events-none text-xs space-y-1.5 z-30 text-left font-sans animate-fadeIn"
             style={{
               left: `${((paddingLeft + hoveredIndex * stepX) / width) * 100}%`,
               top: "-5px",
               transform: "translate(-50%, -100%)",
             }}
           >
-            <div className="font-bold text-slate-300 border-b border-slate-900 pb-1 mb-1.5 whitespace-nowrap">
+            <div className="font-extrabold text-slate-900 border-b border-slate-100 pb-1 mb-1 whitespace-nowrap text-xs">
               {timeline[hoveredIndex].date}
             </div>
             <div className="space-y-1">
@@ -1579,11 +1586,11 @@ export default function GmbPerformanceDashboard() {
                 const val = Number(timeline[hoveredIndex][metric] || 0);
                 return (
                   <div key={metric} className="flex items-center gap-4 justify-between">
-                    <span className="flex items-center gap-1.5 text-slate-400">
-                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors[metricIdx] }} />
+                    <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colors[metricIdx] }} />
                       {label}
                     </span>
-                    <span className="font-bold text-slate-200">{val}</span>
+                    <span className="font-bold text-slate-900">{val}</span>
                   </div>
                 );
               })}
@@ -1595,59 +1602,59 @@ export default function GmbPerformanceDashboard() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-900 text-slate-100 font-sans">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50 text-slate-900 font-sans">
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-8 py-8 space-y-8">
           
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900 pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-6">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-lg">
-                <Store className="h-6 w-6 text-primary" />
+              <div className="h-12 w-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shadow-xs">
+                <Store className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-xl font-black tracking-tight sm:text-2xl">Google Business Profile</h1>
-                <p className="text-xs text-slate-400">
+                <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl text-slate-900">Google Business Profile</h1>
+                <p className="text-xs text-slate-500 font-medium">
                   {data ? `${data.locationName} • GMB Complete Solution` : "Manage and track Google Business profile details"}
                 </p>
               </div>
             </div>
 
             {/* Horizontal Sub-tabs Navigation */}
-            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 shadow-inner gap-1">
+            <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs gap-1">
               <button
                 type="button"
                 onClick={() => setActiveSubTab("performance")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "performance" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "performance" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <TrendingUp className="h-3.5 w-3.5" /> Performance
+                <TrendingUp className="h-3.5 w-3.5 text-teal-600" /> Performance
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("profile")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "profile" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "profile" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <Settings className="h-3.5 w-3.5" /> Profile Details
+                <Settings className="h-3.5 w-3.5 text-teal-600" /> Profile Details
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("posts")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "posts" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "posts" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <Calendar className="h-3.5 w-3.5" /> Updates & Posts
+                <Calendar className="h-3.5 w-3.5 text-teal-600" /> Updates &amp; Posts
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("qa")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "qa" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "qa" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <HelpCircle className="h-3.5 w-3.5" /> Q&A Inbox
+                <HelpCircle className="h-3.5 w-3.5 text-teal-600" /> Q&amp;A Inbox
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSubTab("media")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "media" ? "bg-primary text-slate-950 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${activeSubTab === "media" ? "bg-teal-50 text-teal-700 border border-teal-200 shadow-2xs" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
               >
-                <Camera className="h-3.5 w-3.5" /> Photos Gallery
+                <Camera className="h-3.5 w-3.5 text-teal-600" /> Photos Gallery
               </button>
             </div>
           </div>
@@ -1667,7 +1674,7 @@ export default function GmbPerformanceDashboard() {
             }
 
             return (
-              <div className="bg-slate-900/40 border border-slate-900 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
                 <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Target Period (A)</label>
@@ -1678,7 +1685,7 @@ export default function GmbPerformanceDashboard() {
                         setSelectedAMonth(m);
                         setSelectedAYear(y);
                       }}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-primary transition-all cursor-pointer"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold outline-none focus:border-teal-500 transition-all cursor-pointer shadow-2xs"
                     >
                       {list.map(item => (
                         <option key={`a-${item.value}`} value={item.value}>{item.label}</option>
@@ -1686,7 +1693,7 @@ export default function GmbPerformanceDashboard() {
                     </select>
                   </div>
 
-                  <span className="text-slate-600 text-xs font-bold mt-5">vs</span>
+                  <span className="text-slate-400 text-xs font-extrabold mt-5">vs</span>
 
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Comparison Period (B)</label>
@@ -1697,7 +1704,7 @@ export default function GmbPerformanceDashboard() {
                         setSelectedBMonth(m);
                         setSelectedBYear(y);
                       }}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-primary transition-all cursor-pointer"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold outline-none focus:border-teal-500 transition-all cursor-pointer shadow-2xs"
                     >
                       {list.map(item => (
                         <option key={`b-${item.value}`} value={item.value}>{item.label}</option>
@@ -1708,7 +1715,7 @@ export default function GmbPerformanceDashboard() {
 
                 <button
                   onClick={() => fetchPerformance(selectedAMonth, selectedAYear, selectedBMonth, selectedBYear)}
-                  className="w-full sm:w-auto bg-primary hover:bg-secondary text-slate-950 text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md shrink-0 cursor-pointer"
+                  className="w-full sm:w-auto bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-xs shadow-teal-600/20 shrink-0 cursor-pointer"
                 >
                   Compare Months
                 </button>
@@ -1716,37 +1723,48 @@ export default function GmbPerformanceDashboard() {
             );
           })()}
 
-          {/* LOADING STATE */}
+          {/* LOADING SKELETON STATE */}
           {loading && (
-            <div className="flex-1 flex flex-col items-center justify-center py-20 gap-4">
-              <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-slate-400 animate-pulse">Querying Google Business Profile API...</p>
+            <div className="space-y-6 animate-pulse">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="bg-white border border-slate-200 p-6 rounded-3xl space-y-3 shadow-xs">
+                    <div className="h-3.5 w-24 bg-slate-100 rounded" />
+                    <div className="h-8 w-28 bg-slate-200 rounded-lg" />
+                    <div className="h-3 w-36 bg-slate-100 rounded" />
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+                <div className="h-5 w-40 bg-slate-200 rounded" />
+                <div className="h-48 bg-slate-50 border border-slate-100 rounded-2xl" />
+              </div>
             </div>
           )}
 
           {/* ERROR / UNAUTHORIZED STATE */}
           {!loading && error && (
-            <div className="w-full max-w-2xl mx-auto border border-slate-800 bg-slate-900/40 rounded-3xl p-8 text-center space-y-6">
+            <div className="w-full max-w-2xl mx-auto border border-slate-200 bg-white rounded-3xl p-8 text-center space-y-6 shadow-sm">
               <AlertCircle className="h-16 w-16 text-rose-500 mx-auto stroke-1 animate-bounce" />
               <div className="space-y-2">
-                <h2 className="text-lg font-bold text-slate-100">GMB Integration Connection Required</h2>
-                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                <h2 className="text-lg font-bold text-slate-900">GMB Integration Connection Required</h2>
+                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
                   We could not retrieve GMB stats. This could be because your Google account has not been authorized yet, or the Location ID is incorrect.
                 </p>
-                <div className="bg-slate-950/60 border border-slate-850 p-3 rounded-xl max-w-md mx-auto text-[10px] text-rose-400 font-mono text-left leading-normal">
+                <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-xl max-w-md mx-auto text-xs text-rose-700 font-mono text-left leading-normal font-semibold">
                   Error: {error}
                 </div>
               </div>
               <div className="flex justify-center gap-4">
                 <button 
                   onClick={() => fetchPerformance()}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer border border-slate-200"
                 >
                   Retry Request
                 </button>
                 <Link 
-                  href="/?tab=settings" 
-                  className="bg-primary hover:bg-secondary text-slate-950 text-xs font-bold px-5 py-2.5 rounded-xl transition-all inline-flex items-center gap-1.5"
+                  href="/settings" 
+                  className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all inline-flex items-center gap-1.5 shadow-xs shadow-teal-600/20"
                 >
                   Go to Settings <Settings className="h-3.5 w-3.5" />
                 </Link>
@@ -1766,16 +1784,15 @@ export default function GmbPerformanceDashboard() {
                   const growth = data.growth.totalViews;
                   const isNeg = growth.startsWith("-");
                   return (
-                    <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">
-                      <div className="absolute top-0 right-0 h-24 w-24 bg-primary/5 rounded-full filter blur-xl group-hover:bg-primary/10 transition-all pointer-events-none" />
+                    <div className="bg-white border border-slate-200 p-6 rounded-3xl relative overflow-hidden group hover:border-slate-300 transition-all shadow-xs">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Search & Maps Views</span>
-                        <Eye className="h-4 w-4 text-primary" />
+                        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Search & Maps Views</span>
+                        <Eye className="h-4.5 w-4.5 text-teal-600" />
                       </div>
                       <div className="space-y-1">
-                        <h3 className="text-2xl font-black text-slate-100">{data.summary.totalViews.toLocaleString()}</h3>
-                        <div className={`flex items-center gap-1 text-[10px] font-bold ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
-                          {isNeg ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />} {growth} MoM
+                        <h3 className="text-2xl font-black text-slate-900">{data.summary.totalViews.toLocaleString()}</h3>
+                        <div className={`flex items-center gap-1 text-xs font-bold ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                          {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />} {growth} MoM
                         </div>
                       </div>
                     </div>
@@ -1787,23 +1804,22 @@ export default function GmbPerformanceDashboard() {
                   const growth = data.growth.websiteClicks;
                   const isNeg = growth.startsWith("-");
                   return (
-                    <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">
-                      <div className="absolute top-0 right-0 h-24 w-24 bg-sky-500/5 rounded-full filter blur-xl group-hover:bg-sky-500/10 transition-all pointer-events-none" />
+                    <div className="bg-white border border-slate-200 p-6 rounded-3xl relative overflow-hidden group hover:border-slate-300 transition-all shadow-xs">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Website Clicks</span>
-                        <Globe className="h-4 w-4 text-sky-400" />
+                        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Website Clicks</span>
+                        <Globe className="h-4.5 w-4.5 text-sky-600" />
                       </div>
                       <div className="space-y-1">
-                        <h3 className="text-2xl font-black text-slate-100">
+                        <h3 className="text-2xl font-black text-slate-900">
                           {data.summary.websiteClicks.toLocaleString()}
                         </h3>
                         {data.summary.websiteClicks === 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[9px] text-slate-500 font-medium">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium">
                             <Info className="h-3 w-3" /> Zero clicks recorded
                           </span>
                         ) : (
-                          <div className={`flex items-center gap-1 text-[10px] font-bold ${isNeg ? "text-rose-450" : "text-emerald-400"}`}>
-                            {isNeg ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />} {growth} MoM
+                          <div className={`flex items-center gap-1 text-xs font-bold ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                            {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />} {growth} MoM
                           </div>
                         )}
                       </div>
@@ -1816,21 +1832,20 @@ export default function GmbPerformanceDashboard() {
                   const growth = data.growth.callClicks;
                   const isNeg = growth.startsWith("-");
                   return (
-                    <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">
-                      <div className="absolute top-0 right-0 h-24 w-24 bg-emerald-500/5 rounded-full filter blur-xl group-hover:bg-emerald-500/10 transition-all pointer-events-none" />
+                    <div className="bg-white border border-slate-200 p-6 rounded-3xl relative overflow-hidden group hover:border-slate-300 transition-all shadow-xs">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Call Buttons Clicks</span>
-                        <Phone className="h-4 w-4 text-emerald-400" />
+                        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Call Button Clicks</span>
+                        <Phone className="h-4.5 w-4.5 text-emerald-600" />
                       </div>
                       <div className="space-y-1">
-                        <h3 className="text-2xl font-black text-slate-100">{data.summary.callClicks.toLocaleString()}</h3>
+                        <h3 className="text-2xl font-black text-slate-900">{data.summary.callClicks.toLocaleString()}</h3>
                         {data.summary.callClicks === 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[9px] text-slate-500 font-medium">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium">
                             <Info className="h-3 w-3" /> No phone calls made
                           </span>
                         ) : (
-                          <div className={`flex items-center gap-1 text-[10px] font-bold ${isNeg ? "text-rose-450" : "text-emerald-400"}`}>
-                            {isNeg ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />} {growth} MoM
+                          <div className={`flex items-center gap-1 text-xs font-bold ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                            {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />} {growth} MoM
                           </div>
                         )}
                       </div>
@@ -1843,21 +1858,20 @@ export default function GmbPerformanceDashboard() {
                   const growth = data.growth.directionsRequests;
                   const isNeg = growth.startsWith("-");
                   return (
-                    <div className="bg-slate-900/40 border border-slate-900 p-5 rounded-2xl relative overflow-hidden group hover:border-slate-800 transition-all">
-                      <div className="absolute top-0 right-0 h-24 w-24 bg-amber-500/5 rounded-full filter blur-xl group-hover:bg-amber-500/10 transition-all pointer-events-none" />
+                    <div className="bg-white border border-slate-200 p-6 rounded-3xl relative overflow-hidden group hover:border-slate-300 transition-all shadow-xs">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Direction Requests</span>
-                        <MapPin className="h-4 w-4 text-amber-400" />
+                        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Direction Requests</span>
+                        <MapPin className="h-4.5 w-4.5 text-amber-600" />
                       </div>
                       <div className="space-y-1">
-                        <h3 className="text-2xl font-black text-slate-100">{data.summary.directionsRequests.toLocaleString()}</h3>
+                        <h3 className="text-2xl font-black text-slate-900">{data.summary.directionsRequests.toLocaleString()}</h3>
                         {data.summary.directionsRequests === 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[9px] text-slate-500 font-medium">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium">
                             <Info className="h-3 w-3" /> No requests captured
                           </span>
                         ) : (
-                          <div className={`flex items-center gap-1 text-[10px] font-bold ${isNeg ? "text-rose-450" : "text-emerald-400"}`}>
-                            {isNeg ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />} {growth} MoM
+                          <div className={`flex items-center gap-1 text-xs font-bold ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                            {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />} {growth} MoM
                           </div>
                         )}
                       </div>
@@ -1868,44 +1882,44 @@ export default function GmbPerformanceDashboard() {
 
               {/* Zero Stats Helpful Banner */}
               {(data.summary.websiteClicks === 0 || data.summary.callClicks === 0 || data.summary.directionsRequests === 0) && (
-                <div className="bg-slate-900/20 border border-slate-850 p-4 rounded-xl flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="bg-teal-50/50 border border-teal-200 p-4.5 rounded-2xl flex items-start gap-3 shadow-2xs">
+                  <AlertCircle className="h-5 w-5 text-teal-600 shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <h4 className="text-xs font-semibold text-slate-200">Helpful GMB Note</h4>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Some performance metrics like **Website Clicks** or **Call Clicks** might remain zero if your Google Business listing does not have a website URL or phone number published, or if no customer has selected those buttons on Google Maps during this 30-day window.
+                    <h4 className="text-xs font-bold text-slate-900">Helpful GMB Note</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Some performance metrics like <strong>Website Clicks</strong> or <strong>Call Clicks</strong> might remain zero if your Google Business listing does not have a website URL or phone number published, or if no customer has selected those buttons on Google Maps during this 30-day window.
                     </p>
                   </div>
                 </div>
               )}
 
               {/* 2. Main Performance Time Series Chart */}
-              <div className="bg-slate-900/30 border border-slate-900 rounded-3xl p-6 space-y-6">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-8 space-y-6 shadow-xs">
                 
                 {/* Tab Selector */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-850 pb-4 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4">
                   <div className="space-y-0.5">
-                    <h3 className="text-sm font-bold text-slate-200">GMB Traffic Trends</h3>
-                    <p className="text-[10px] text-slate-500">Daily performance metrics queried from Google</p>
+                    <h3 className="text-base font-extrabold text-slate-900">GMB Traffic Trends</h3>
+                    <p className="text-xs text-slate-500 font-medium">Daily performance metrics queried from Google</p>
                   </div>
 
-                  <div className="flex gap-2 bg-slate-950/60 p-1.5 border border-slate-850 rounded-xl">
+                  <div className="flex gap-1.5 bg-slate-100 p-1 border border-slate-200 rounded-xl">
                     <button
                       onClick={() => setActiveMetricTab("actions")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeMetricTab === "actions" 
-                          ? "bg-primary text-slate-950 shadow-md" 
-                          : "text-slate-400 hover:text-slate-200"
+                          ? "bg-teal-600 text-white shadow-2xs" 
+                          : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       Customer Actions
                     </button>
                     <button
                       onClick={() => setActiveMetricTab("views")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeMetricTab === "views" 
-                          ? "bg-primary text-slate-950 shadow-md" 
-                          : "text-slate-400 hover:text-slate-200"
+                          ? "bg-teal-600 text-white shadow-2xs" 
+                          : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       Daily Views
@@ -1919,73 +1933,73 @@ export default function GmbPerformanceDashboard() {
                     renderSvgAreaChart(
                       data.timeline,
                       ["WEBSITE_CLICKS", "CALL_CLICKS", "BUSINESS_DIRECTION_REQUESTS"],
-                      ["#38bdf8", "#34d399", "#fbbf24"] // Sky, Emerald, Amber colors
+                      ["#0284c7", "#059669", "#d97706"] // Sky, Emerald, Amber colors
                     )
                   ) : (
                     renderSvgAreaChart(
                       data.timeline,
                       ["totalViews"],
-                      ["#14b8a6"] // Teal colors
+                      ["#0d9488"] // Teal colors
                     )
                   )}
                 </div>
 
                 {/* Chart Legend */}
-                <div className="flex flex-wrap items-center justify-center gap-6 pt-2 border-t border-slate-850">
+                <div className="flex flex-wrap items-center justify-center gap-6 pt-2 border-t border-slate-100">
                   {activeMetricTab === "actions" ? (
                     <>
                       <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Website Clicks</span>
+                        <span className="h-2.5 w-2.5 rounded-full bg-sky-600" />
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Website Clicks</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Call Buttons</span>
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Call Buttons</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Direction Requests</span>
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-600" />
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Direction Requests</span>
                       </div>
                     </>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Impressions (Search + Maps)</span>
+                      <span className="h-2.5 w-2.5 rounded-full bg-teal-600" />
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Total Impressions (Search + Maps)</span>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Performance Comparison Table */}
-              <div className="bg-slate-900/30 border border-slate-900 rounded-3xl p-6 space-y-4">
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-8 space-y-4 shadow-xs">
                 <div className="space-y-0.5">
-                  <h3 className="text-sm font-bold text-slate-200">Month-over-Month Performance Comparison</h3>
-                  <p className="text-[10px] text-slate-500">Detailed metrics comparison between the selected months</p>
+                  <h3 className="text-base font-extrabold text-slate-900">Month-over-Month Performance Comparison</h3>
+                  <p className="text-xs text-slate-500 font-medium">Detailed metrics comparison between the selected months</p>
                 </div>
 
                 <div className="overflow-x-auto pt-2">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                        <th className="py-3 px-4">Metric</th>
-                        <th className="py-3 px-4 text-right">{data.range.label}</th>
-                        <th className="py-3 px-4 text-right">{data.range.previousLabel}</th>
-                        <th className="py-3 px-4 text-right">Growth / Change %</th>
+                      <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="py-3.5 px-4 rounded-l-xl">Metric</th>
+                        <th className="py-3.5 px-4 text-right">{data.range.label}</th>
+                        <th className="py-3.5 px-4 text-right">{data.range.previousLabel}</th>
+                        <th className="py-3.5 px-4 text-right rounded-r-xl">Growth / Change %</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-850">
+                    <tbody className="divide-y divide-slate-100">
                       
                       {/* Row 1: Search & Maps Views */}
                       {(() => {
                         const growth = data.growth.totalViews;
                         const isNeg = growth.startsWith("-");
                         return (
-                          <tr className="hover:bg-slate-800/20 transition-colors">
-                            <td className="py-3.5 px-4 font-medium text-slate-250">Search & Maps Views (Impressions)</td>
-                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.totalViews.toLocaleString()}</td>
-                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.totalViews ?? 0).toLocaleString()}</td>
-                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
-                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                          <tr className="hover:bg-slate-50 transition-colors">
+                            <td className="py-4 px-4 font-bold text-slate-800">Search & Maps Views (Impressions)</td>
+                            <td className="py-4 px-4 text-right font-extrabold text-slate-900">{data.summary.totalViews.toLocaleString()}</td>
+                            <td className="py-4 px-4 text-right text-slate-500 font-semibold">{(data.previousSummary?.totalViews ?? 0).toLocaleString()}</td>
+                            <td className={`py-4 px-4 text-right font-extrabold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                              {isNeg ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
                               <span>{growth}</span>
                             </td>
                           </tr>
@@ -1997,12 +2011,12 @@ export default function GmbPerformanceDashboard() {
                         const growth = data.growth.websiteClicks;
                         const isNeg = growth.startsWith("-");
                         return (
-                          <tr className="hover:bg-slate-800/20 transition-colors">
-                            <td className="py-3.5 px-4 font-medium text-slate-250">Website Clicks</td>
-                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.websiteClicks.toLocaleString()}</td>
-                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.websiteClicks ?? 0).toLocaleString()}</td>
-                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
-                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                          <tr className="hover:bg-slate-50 transition-colors">
+                            <td className="py-4 px-4 font-bold text-slate-800">Website Clicks</td>
+                            <td className="py-4 px-4 text-right font-extrabold text-slate-900">{data.summary.websiteClicks.toLocaleString()}</td>
+                            <td className="py-4 px-4 text-right text-slate-500 font-semibold">{(data.previousSummary?.websiteClicks ?? 0).toLocaleString()}</td>
+                            <td className={`py-4 px-4 text-right font-extrabold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                              {isNeg ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
                               <span>{growth}</span>
                             </td>
                           </tr>
@@ -2014,12 +2028,12 @@ export default function GmbPerformanceDashboard() {
                         const growth = data.growth.callClicks;
                         const isNeg = growth.startsWith("-");
                         return (
-                          <tr className="hover:bg-slate-800/20 transition-colors">
-                            <td className="py-3.5 px-4 font-medium text-slate-250">Call Button Clicks</td>
-                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.callClicks.toLocaleString()}</td>
-                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.callClicks ?? 0).toLocaleString()}</td>
-                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
-                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                          <tr className="hover:bg-slate-50 transition-colors">
+                            <td className="py-4 px-4 font-bold text-slate-800">Call Button Clicks</td>
+                            <td className="py-4 px-4 text-right font-extrabold text-slate-900">{data.summary.callClicks.toLocaleString()}</td>
+                            <td className="py-4 px-4 text-right text-slate-500 font-semibold">{(data.previousSummary?.callClicks ?? 0).toLocaleString()}</td>
+                            <td className={`py-4 px-4 text-right font-extrabold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                              {isNeg ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
                               <span>{growth}</span>
                             </td>
                           </tr>
@@ -2031,12 +2045,12 @@ export default function GmbPerformanceDashboard() {
                         const growth = data.growth.directionsRequests;
                         const isNeg = growth.startsWith("-");
                         return (
-                          <tr className="hover:bg-slate-800/20 transition-colors">
-                            <td className="py-3.5 px-4 font-medium text-slate-250">Direction Requests</td>
-                            <td className="py-3.5 px-4 text-right font-semibold text-slate-100">{data.summary.directionsRequests.toLocaleString()}</td>
-                            <td className="py-3.5 px-4 text-right text-slate-400">{(data.previousSummary?.directionsRequests ?? 0).toLocaleString()}</td>
-                            <td className={`py-3.5 px-4 text-right font-bold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-400" : "text-emerald-400"}`}>
-                              {isNeg ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                          <tr className="hover:bg-slate-50 transition-colors">
+                            <td className="py-4 px-4 font-bold text-slate-800">Direction Requests</td>
+                            <td className="py-4 px-4 text-right font-extrabold text-slate-900">{data.summary.directionsRequests.toLocaleString()}</td>
+                            <td className="py-4 px-4 text-right text-slate-500 font-semibold">{(data.previousSummary?.directionsRequests ?? 0).toLocaleString()}</td>
+                            <td className={`py-4 px-4 text-right font-extrabold inline-flex items-center justify-end gap-1 w-full ${isNeg ? "text-rose-600" : "text-emerald-600"}`}>
+                              {isNeg ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
                               <span>{growth}</span>
                             </td>
                           </tr>
@@ -2052,30 +2066,30 @@ export default function GmbPerformanceDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* Box 1: Platform breakdown (Search vs Maps) */}
-                <div className="bg-slate-900/30 border border-slate-900 rounded-3xl p-6 space-y-4">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-8 space-y-4 shadow-xs">
                   <div className="space-y-0.5">
-                    <h4 className="text-xs font-bold text-slate-200">Google Views Breakdown</h4>
-                    <p className="text-[10px] text-slate-500">Impressions split between search platforms</p>
+                    <h4 className="text-sm font-extrabold text-slate-900">Google Views Breakdown</h4>
+                    <p className="text-xs text-slate-500 font-medium">Impressions split between search platforms</p>
                   </div>
 
                   <div className="space-y-4 pt-2">
                     {/* Row 1: Search */}
                     <div className="space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
-                        <Search className="h-3.5 w-3.5 text-primary" /> Google Search
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Search className="h-4 w-4 text-teal-600" /> Google Search
                       </div>
                       
                       {/* Period A */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-400">
+                        <div className="flex justify-between text-xs text-slate-600">
                           <span>{data.range.label}</span>
-                          <span className="font-bold text-slate-200">
+                          <span className="font-extrabold text-slate-900">
                             {data.summary.searchViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.searchViews / data.summary.totalViews) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-primary rounded-full transition-all duration-300"
+                            className="h-full bg-teal-600 rounded-full transition-all duration-300"
                             style={{ width: `${data.summary.totalViews > 0 ? (data.summary.searchViews / data.summary.totalViews) * 100 : 0}%` }}
                           />
                         </div>
@@ -2083,15 +2097,15 @@ export default function GmbPerformanceDashboard() {
 
                       {/* Period B */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-550">
+                        <div className="flex justify-between text-xs text-slate-400 font-medium">
                           <span>{data.range.previousLabel}</span>
-                          <span className="font-bold text-slate-350">
+                          <span className="font-bold text-slate-600">
                             {(data.previousSummary?.searchViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.searchViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-primary/40 rounded-full transition-all duration-300"
+                            className="h-full bg-teal-300 rounded-full transition-all duration-300"
                             style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.searchViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
                           />
                         </div>
@@ -2099,22 +2113,22 @@ export default function GmbPerformanceDashboard() {
                     </div>
 
                     {/* Row 2: Maps */}
-                    <div className="space-y-2 pt-2 border-t border-slate-850/50">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
-                        <Map className="h-3.5 w-3.5 text-secondary" /> Google Maps
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Map className="h-4 w-4 text-teal-600" /> Google Maps
                       </div>
                       
                       {/* Period A */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-400">
+                        <div className="flex justify-between text-xs text-slate-600">
                           <span>{data.range.label}</span>
-                          <span className="font-bold text-slate-200">
+                          <span className="font-extrabold text-slate-900">
                             {data.summary.mapsViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.mapsViews / data.summary.totalViews) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-secondary rounded-full transition-all duration-300"
+                            className="h-full bg-teal-600 rounded-full transition-all duration-300"
                             style={{ width: `${data.summary.totalViews > 0 ? (data.summary.mapsViews / data.summary.totalViews) * 100 : 0}%` }}
                           />
                         </div>
@@ -2122,15 +2136,15 @@ export default function GmbPerformanceDashboard() {
 
                       {/* Period B */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-550">
+                        <div className="flex justify-between text-xs text-slate-400 font-medium">
                           <span>{data.range.previousLabel}</span>
-                          <span className="font-bold text-slate-350">
+                          <span className="font-bold text-slate-600">
                             {(data.previousSummary?.mapsViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.mapsViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-secondary/40 rounded-full transition-all duration-300"
+                            className="h-full bg-teal-300 rounded-full transition-all duration-300"
                             style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.mapsViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
                           />
                         </div>
@@ -2140,30 +2154,30 @@ export default function GmbPerformanceDashboard() {
                 </div>
 
                 {/* Box 2: Device Breakdown (Mobile vs Desktop) */}
-                <div className="bg-slate-900/30 border border-slate-900 rounded-3xl p-6 space-y-4">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-8 space-y-4 shadow-xs">
                   <div className="space-y-0.5">
-                    <h4 className="text-xs font-bold text-slate-200">Device Breakdown</h4>
-                    <p className="text-[10px] text-slate-500">Impressions split between device platforms</p>
+                    <h4 className="text-sm font-extrabold text-slate-900">Device Breakdown</h4>
+                    <p className="text-xs text-slate-500 font-medium">Impressions split between device platforms</p>
                   </div>
 
                   <div className="space-y-4 pt-2">
                     {/* Row 1: Mobile */}
                     <div className="space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
-                        <Smartphone className="h-3.5 w-3.5 text-sky-400" /> Mobile Devices
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Smartphone className="h-4 w-4 text-sky-600" /> Mobile Devices
                       </div>
                       
                       {/* Period A */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-400">
+                        <div className="flex justify-between text-xs text-slate-600">
                           <span>{data.range.label}</span>
-                          <span className="font-bold text-slate-200">
+                          <span className="font-extrabold text-slate-900">
                             {data.summary.mobileViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.mobileViews / data.summary.totalViews) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-sky-400 rounded-full transition-all duration-300"
+                            className="h-full bg-sky-600 rounded-full transition-all duration-300"
                             style={{ width: `${data.summary.totalViews > 0 ? (data.summary.mobileViews / data.summary.totalViews) * 100 : 0}%` }}
                           />
                         </div>
@@ -2171,15 +2185,15 @@ export default function GmbPerformanceDashboard() {
 
                       {/* Period B */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-555">
+                        <div className="flex justify-between text-xs text-slate-400 font-medium">
                           <span>{data.range.previousLabel}</span>
-                          <span className="font-bold text-slate-350">
+                          <span className="font-bold text-slate-600">
                             {(data.previousSummary?.mobileViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.mobileViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-sky-400/40 rounded-full transition-all duration-300"
+                            className="h-full bg-sky-300 rounded-full transition-all duration-300"
                             style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.mobileViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
                           />
                         </div>
@@ -2187,22 +2201,22 @@ export default function GmbPerformanceDashboard() {
                     </div>
 
                     {/* Row 2: Desktop */}
-                    <div className="space-y-2 pt-2 border-t border-slate-850/50">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
-                        <Monitor className="h-3.5 w-3.5 text-amber-400" /> Desktop Devices
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Monitor className="h-4 w-4 text-amber-600" /> Desktop Devices
                       </div>
                       
                       {/* Period A */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-400">
+                        <div className="flex justify-between text-xs text-slate-600">
                           <span>{data.range.label}</span>
-                          <span className="font-bold text-slate-200">
+                          <span className="font-extrabold text-slate-900">
                             {data.summary.desktopViews.toLocaleString()} ({data.summary.totalViews > 0 ? Math.round((data.summary.desktopViews / data.summary.totalViews) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                            className="h-full bg-amber-500 rounded-full transition-all duration-300"
                             style={{ width: `${data.summary.totalViews > 0 ? (data.summary.desktopViews / data.summary.totalViews) * 100 : 0}%` }}
                           />
                         </div>
@@ -2210,15 +2224,15 @@ export default function GmbPerformanceDashboard() {
 
                       {/* Period B */}
                       <div className="space-y-1 pl-5">
-                        <div className="flex justify-between text-[10px] text-slate-555">
+                        <div className="flex justify-between text-xs text-slate-400 font-medium">
                           <span>{data.range.previousLabel}</span>
-                          <span className="font-bold text-slate-350">
+                          <span className="font-bold text-slate-600">
                             {(data.previousSummary?.desktopViews ?? 0).toLocaleString()} ({(data.previousSummary?.totalViews ?? 0) > 0 ? Math.round(((data.previousSummary?.desktopViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100) : 0}%)
                           </span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-amber-400/40 rounded-full transition-all duration-300"
+                            className="h-full bg-amber-300 rounded-full transition-all duration-300"
                             style={{ width: `${(data.previousSummary?.totalViews ?? 0) > 0 ? ((data.previousSummary?.desktopViews ?? 0) / (data.previousSummary?.totalViews ?? 1)) * 100 : 0}%` }}
                           />
                         </div>
@@ -2231,78 +2245,77 @@ export default function GmbPerformanceDashboard() {
           )}
         </>
       )}
-
           {/* =========================================================
               SUB-TAB 1.5: PROFILE DETAILS (EDIT PROFILE PANEL)
               ========================================================= */}
           {activeSubTab === "profile" && (
-            <div className="bg-slate-950/20 border border-slate-850/80 rounded-3xl p-6 lg:p-10 shadow-2xl max-w-4xl mx-auto space-y-10 animate-fadeIn">
-              <div className="flex justify-between items-center border-b border-slate-850 pb-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-10 shadow-xs max-w-4xl mx-auto space-y-10 animate-fadeIn">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-6">
                 <div className="flex items-center gap-4.5">
-                  <div className="h-12 w-12 bg-primary/10 border border-primary/20 flex items-center justify-center rounded-2xl">
-                    <Store className="h-6 w-6 text-primary" />
+                  <div className="h-12 w-12 bg-teal-50 border border-teal-200 flex items-center justify-center rounded-2xl">
+                    <Store className="h-6 w-6 text-teal-600" />
                   </div>
                   <div>
-                    <h2 className="font-black text-slate-100 text-lg tracking-tight">Business Profile Settings</h2>
-                    <p className="text-xs text-slate-400 font-medium mt-0.5">Manage storefront categories, primary contact numbers, location coverage, regular & special hours, and listing attributes</p>
+                    <h2 className="font-extrabold text-slate-900 text-lg tracking-tight">Business Profile Settings</h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">Manage storefront categories, primary contact numbers, location coverage, regular & special hours, and listing attributes</p>
                   </div>
                 </div>
               </div>
 
               {loadingProfile ? (
                 <div className="flex justify-center items-center py-24">
-                  <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                  <div className="h-12 w-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : (
                 <form onSubmit={handleSaveProfile} className="space-y-10">
                   
                   {/* SECTION 1: ABOUT YOUR BUSINESS */}
-                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-6 shadow-md hover:border-slate-800 transition-all duration-300">
-                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
-                      <Info className="h-5 w-5 text-primary" /> 1. About Your Business
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-8 space-y-6 shadow-2xs hover:border-slate-300 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-widest flex items-center gap-3 border-b border-slate-200 pb-4 mb-4">
+                      <Info className="h-5 w-5 text-teal-600" /> 1. About Your Business
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="flex flex-col gap-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Business Name</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Business Name</label>
                         <input
                           type="text"
                           value={profileTitle}
                           onChange={(e) => setProfileTitle(e.target.value)}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary font-bold transition-all duration-200"
+                          className="bg-white border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 font-bold transition-all duration-200 shadow-2xs"
                           required
                         />
                       </div>
                       <div className="flex flex-col gap-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Primary Category</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Primary Category</label>
                         <input
                           type="text"
                           value={profileCategory}
                           disabled
-                          className="bg-slate-900/50 border border-slate-850 rounded-xl px-4.5 py-3 text-sm text-slate-450 outline-none select-none font-mono font-bold"
+                          className="bg-slate-100 border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-500 outline-none select-none font-mono font-bold"
                         />
                       </div>
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Additional Categories (Comma-separated)</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Additional Categories (Comma-separated)</label>
                       <input
                         type="text"
                         value={profileAddCategoriesText}
                         onChange={(e) => setProfileAddCategoriesText(e.target.value)}
                         placeholder="e.g. Website designer, Social media marketing, SEO agency"
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary transition-all duration-200 font-semibold"
+                        className="bg-white border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 transition-all duration-200 font-semibold shadow-2xs"
                       />
                     </div>
 
                     <div className="flex flex-col gap-2.5">
                       <div className="flex justify-between items-center">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Business Description</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Business Description</label>
                         <button
                           type="button"
                           onClick={handleGenerateDescription}
                           disabled={isGeneratingDesc}
-                          className="bg-primary text-slate-950 hover:bg-secondary transition-all font-black text-[10px] uppercase tracking-widest px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50"
+                          className="bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all font-extrabold text-[10px] uppercase tracking-widest px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
                         >
                           <Sparkles className={`h-3.5 w-3.5 ${isGeneratingDesc ? "animate-spin" : ""}`} />
                           {isGeneratingDesc ? "AI Writing..." : "AI Write Description"}
@@ -2313,7 +2326,7 @@ export default function GmbPerformanceDashboard() {
                         onChange={(e) => setProfileDesc(e.target.value)}
                         rows={6}
                         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                        className="bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed font-sans transition-all duration-200 resize-y"
+                        className="bg-white border border-slate-200 rounded-2xl px-5 py-4 text-sm text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 leading-relaxed font-sans transition-all duration-200 resize-y shadow-2xs"
                         placeholder="Provide details about your business..."
                         required
                       />
@@ -2321,7 +2334,7 @@ export default function GmbPerformanceDashboard() {
 
                     {/* Opening Date Fields */}
                     <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Opening Date</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Opening Date</label>
                       <div className="grid grid-cols-3 gap-4">
                         <div>
                           <input
@@ -2329,14 +2342,14 @@ export default function GmbPerformanceDashboard() {
                             placeholder="Year (e.g. 2025)"
                             value={profileOpeningDate.year}
                             onChange={(e) => setProfileOpeningDate({ ...profileOpeningDate, year: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-mono text-center font-bold"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 font-mono text-center font-bold shadow-2xs"
                           />
                         </div>
                         <div>
                           <select
                             value={profileOpeningDate.month}
                             onChange={(e) => setProfileOpeningDate({ ...profileOpeningDate, month: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary cursor-pointer font-semibold"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 cursor-pointer font-semibold shadow-2xs"
                           >
                             <option value="">Month</option>
                             {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((m) => (
@@ -2352,7 +2365,7 @@ export default function GmbPerformanceDashboard() {
                             placeholder="Day (Optional)"
                             value={profileOpeningDate.day}
                             onChange={(e) => setProfileOpeningDate({ ...profileOpeningDate, day: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-mono text-center font-bold"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 font-mono text-center font-bold shadow-2xs"
                           />
                         </div>
                       </div>
@@ -2360,69 +2373,69 @@ export default function GmbPerformanceDashboard() {
                   </div>
 
                   {/* SECTION 2: CONTACT INFORMATION */}
-                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-6 shadow-md hover:border-slate-800 transition-all duration-300">
-                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
-                      <Phone className="h-5 w-5 text-primary" /> 2. Contact Information
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-8 space-y-6 shadow-2xs hover:border-slate-300 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-widest flex items-center gap-3 border-b border-slate-200 pb-4 mb-4">
+                      <Phone className="h-5 w-5 text-teal-600" /> 2. Contact Information
                     </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="flex flex-col gap-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Primary Phone Number</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Primary Phone Number</label>
                         <input
                           type="text"
                           value={profilePhone}
                           onChange={(e) => setProfilePhone(e.target.value)}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-bold"
+                          className="bg-white border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 font-bold shadow-2xs"
                           placeholder="e.g. +91 77099 36965"
                           required
                         />
                       </div>
                       <div className="flex flex-col gap-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Additional Phone 1</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Additional Phone 1</label>
                         <input
                           type="text"
                           value={profileAddPhone1}
                           onChange={(e) => setProfileAddPhone1(e.target.value)}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                          className="bg-white border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 font-semibold shadow-2xs"
                           placeholder="Mobile or landline"
                         />
                       </div>
                       <div className="flex flex-col gap-2">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Additional Phone 2</label>
+                        <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Additional Phone 2</label>
                         <input
                           type="text"
                           value={profileAddPhone2}
                           onChange={(e) => setProfileAddPhone2(e.target.value)}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                          className="bg-white border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 font-semibold shadow-2xs"
                           placeholder="Mobile or landline"
                         />
                       </div>
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Website URL</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Website URL</label>
                       <input
                         type="url"
                         value={profileWebsite}
                         onChange={(e) => setProfileWebsite(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-mono text-[13px] font-bold"
+                        className="bg-white border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 font-mono text-[13px] font-bold shadow-2xs"
                         placeholder="https://www.example.com"
                       />
                     </div>
                   </div>
 
                   {/* SECTION 3: LOCATION AND AREAS */}
-                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-8 shadow-md hover:border-slate-800 transition-all duration-300">
-                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
-                      <MapPin className="h-5 w-5 text-primary" /> 3. Location and Areas
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-8 space-y-8 shadow-2xs hover:border-slate-300 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-widest flex items-center gap-3 border-b border-slate-200 pb-4 mb-4">
+                      <MapPin className="h-5 w-5 text-teal-600" /> 3. Location and Areas
                     </h3>
 
                     {/* Storefront address */}
                     <div className="space-y-4">
-                      <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Storefront Address</h4>
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Storefront Address</h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="md:col-span-3 flex flex-col gap-2">
-                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Street Address Line 1</label>
+                          <label className="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Street Address Line 1</label>
                           <input
                             type="text"
                             value={profileAddress?.addressLines?.[0] || ""}
@@ -2431,12 +2444,12 @@ export default function GmbPerformanceDashboard() {
                               lines[0] = e.target.value;
                               setProfileAddress({ ...profileAddress, addressLines: lines });
                             }}
-                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 font-semibold shadow-2xs"
                             placeholder="Street, suite, building"
                           />
                         </div>
                         <div className="md:col-span-3 flex flex-col gap-2">
-                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Street Address Line 2 (Optional)</label>
+                          <label className="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Street Address Line 2 (Optional)</label>
                           <input
                             type="text"
                             value={profileAddress?.addressLines?.[1] || ""}
@@ -2445,50 +2458,50 @@ export default function GmbPerformanceDashboard() {
                               lines[1] = e.target.value;
                               setProfileAddress({ ...profileAddress, addressLines: lines });
                             }}
-                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 font-semibold shadow-2xs"
                             placeholder="Floor, landmark, sublocality"
                           />
                         </div>
                         <div className="flex flex-col gap-2">
-                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">City / Locality</label>
+                          <label className="text-[11px] text-slate-600 font-bold uppercase tracking-wider">City / Locality</label>
                           <input
                             type="text"
                             value={profileAddress?.locality || ""}
                             onChange={(e) => setProfileAddress({ ...profileAddress, locality: e.target.value })}
-                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-bold"
+                            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 font-bold shadow-2xs"
                           />
                         </div>
                         <div className="flex flex-col gap-2">
-                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">State / Administrative Area</label>
+                          <label className="text-[11px] text-slate-600 font-bold uppercase tracking-wider">State / Administrative Area</label>
                           <input
                             type="text"
                             value={profileAddress?.administrativeArea || ""}
                             onChange={(e) => setProfileAddress({ ...profileAddress, administrativeArea: e.target.value })}
-                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-bold"
+                            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 font-bold shadow-2xs"
                           />
                         </div>
                         <div className="flex flex-col gap-2">
-                          <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Postal / Zip Code</label>
+                          <label className="text-[11px] text-slate-600 font-bold uppercase tracking-wider">Postal / Zip Code</label>
                           <input
                             type="text"
                             value={profileAddress?.postalCode || ""}
                             onChange={(e) => setProfileAddress({ ...profileAddress, postalCode: e.target.value })}
-                            className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-primary font-mono text-center font-bold"
+                            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-500 font-mono text-center font-bold shadow-2xs"
                           />
                         </div>
                       </div>
                     </div>
 
                     {/* Service Area Place Tags */}
-                    <div className="space-y-4 pt-6 border-t border-slate-850/50">
-                      <label className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Service Areas (Places you serve)</label>
+                    <div className="space-y-4 pt-6 border-t border-slate-200/60">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Service Areas (Places you serve)</label>
                       
                       <div className="flex flex-wrap gap-2.5 py-3">
                         {profileServiceAreas.length === 0 ? (
                           <span className="text-sm text-slate-500 italic">No specific service areas added (Storefront operations only)</span>
                         ) : (
                           profileServiceAreas.map((item, idx) => (
-                            <div key={idx} className="bg-slate-900 border border-slate-800 hover:border-slate-750 px-4 py-2 rounded-xl text-xs text-slate-200 font-semibold flex items-center gap-2 transition-all">
+                            <div key={idx} className="bg-white border border-slate-200 hover:border-slate-300 px-4 py-2 rounded-xl text-xs text-slate-800 font-bold flex items-center gap-2 transition-all shadow-2xs">
                               <span>{item.placeName}</span>
                               <button
                                 type="button"
@@ -2496,7 +2509,7 @@ export default function GmbPerformanceDashboard() {
                                   const filtered = profileServiceAreas.filter((_, i) => i !== idx);
                                   setProfileServiceAreas(filtered);
                                 }}
-                                className="text-slate-400 hover:text-rose-400 font-black cursor-pointer text-base leading-none"
+                                className="text-slate-400 hover:text-rose-600 font-black cursor-pointer text-base leading-none"
                               >
                                 &times;
                               </button>
@@ -2512,17 +2525,17 @@ export default function GmbPerformanceDashboard() {
                             placeholder="Search regions, cities, or districts served..."
                             value={newServiceAreaName}
                             onChange={(e) => handlePlacesSearch(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold animate-fadeIn"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 font-semibold animate-fadeIn shadow-2xs"
                           />
                           {searchingPlaces && (
                             <div className="absolute right-3.5 top-3.5">
-                              <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              <div className="h-4 w-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
                             </div>
                           )}
                           
                           {/* Autocomplete Predictions Dropdown */}
                           {placesSuggestions.length > 0 && (
-                            <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-850 max-h-60 overflow-y-auto scrollbar-none">
+                            <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 max-h-60 overflow-y-auto scrollbar-none">
                               {placesSuggestions.map((sug) => (
                                 <button
                                   key={sug.placeId}
@@ -2538,9 +2551,9 @@ export default function GmbPerformanceDashboard() {
                                     setNewServiceAreaName("");
                                     setPlacesSuggestions([]);
                                   }}
-                                  className="w-full text-left px-5 py-3.5 text-xs font-semibold text-slate-350 hover:text-slate-100 hover:bg-slate-950 transition-all flex items-center gap-2.5 cursor-pointer"
+                                  className="w-full text-left px-5 py-3.5 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center gap-2.5 cursor-pointer"
                                 >
-                                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0 animate-pulse" />
+                                  <MapPin className="h-3.5 w-3.5 text-teal-600 shrink-0 animate-pulse" />
                                   <span className="truncate">{sug.placeName}</span>
                                 </button>
                               ))}
@@ -2560,7 +2573,7 @@ export default function GmbPerformanceDashboard() {
                             setNewServiceAreaName("");
                             setPlacesSuggestions([]);
                           }}
-                          className="bg-primary text-slate-950 px-6 rounded-xl text-xs font-extrabold uppercase tracking-widest hover:bg-secondary transition-all cursor-pointer shadow-lg shrink-0"
+                          className="bg-teal-600 text-white px-6 rounded-xl text-xs font-extrabold uppercase tracking-widest hover:bg-teal-500 transition-all cursor-pointer shadow-xs shadow-teal-600/20 shrink-0"
                         >
                           Add Area
                         </button>
@@ -2568,35 +2581,35 @@ export default function GmbPerformanceDashboard() {
                     </div>
 
                     {/* Labels List */}
-                    <div className="space-y-2 pt-6 border-t border-slate-850/50">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Internal Labels (Comma-separated, for sorting)</label>
+                    <div className="space-y-2 pt-6 border-t border-slate-200/60">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Internal Labels (Comma-separated, for sorting)</label>
                       <input
                         type="text"
                         value={profileLabelsText}
                         onChange={(e) => setProfileLabelsText(e.target.value)}
                         placeholder="e.g. Pune-Office, Agency-HQ, Solitaire-Hub"
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-4.5 py-3 text-sm text-slate-200 outline-none focus:border-primary font-semibold"
+                        className="bg-white border border-slate-200 rounded-xl px-4.5 py-3 text-sm text-slate-900 outline-none focus:border-teal-500 font-semibold shadow-2xs"
                       />
                     </div>
                   </div>
 
                   {/* SECTION 4: HOURS & SCHEDULE */}
-                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-8 shadow-md hover:border-slate-800 transition-all duration-300">
-                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
-                      <Clock className="h-5 w-5 text-primary" /> 4. Opening Hours
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-8 space-y-8 shadow-2xs hover:border-slate-300 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-widest flex items-center gap-3 border-b border-slate-200 pb-4 mb-4">
+                      <Clock className="h-5 w-5 text-teal-600" /> 4. Opening Hours
                     </h3>
 
                     {/* Regular Hours Grid */}
                     <div className="space-y-4">
-                      <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Regular Main Hours</h4>
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Regular Main Hours</h4>
                       <div className="space-y-4 pt-2">
                         {["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"].map((day) => {
                           const period = (profileHours?.periods || []).find((p: any) => p.openDay === day);
                           const isOpen = !!period;
 
                           return (
-                            <div key={day} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-slate-850/50 last:border-b-0">
-                              <span className="text-sm font-bold text-slate-200 w-28 uppercase tracking-wider">
+                            <div key={day} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-slate-200/60 last:border-b-0">
+                              <span className="text-sm font-bold text-slate-800 w-28 uppercase tracking-wider">
                                 {day.toLowerCase()}
                               </span>
 
@@ -2608,8 +2621,8 @@ export default function GmbPerformanceDashboard() {
                                     onChange={(e) => handleHoursDayToggle(day, e.target.checked)}
                                     className="sr-only peer"
                                   />
-                                  <div className="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary peer-checked:after:bg-slate-950" />
-                                  <span className="ml-3 text-xs font-extrabold uppercase tracking-widest w-16 text-center text-slate-400">
+                                  <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 peer-checked:after:bg-white" />
+                                  <span className="ml-3 text-xs font-extrabold uppercase tracking-widest w-16 text-center text-slate-600">
                                     {isOpen ? "Open" : "Closed"}
                                   </span>
                                 </label>
@@ -2620,14 +2633,14 @@ export default function GmbPerformanceDashboard() {
                                       type="time"
                                       value={period.openTime || "09:30"}
                                       onChange={(e) => handleHoursTimeChange(day, "openTime", e.target.value)}
-                                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono font-bold outline-none focus:border-primary"
+                                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold outline-none focus:border-teal-500 shadow-2xs"
                                     />
-                                    <span className="text-xs text-slate-500 font-bold uppercase">To</span>
+                                    <span className="text-xs text-slate-400 font-bold uppercase">To</span>
                                     <input
                                       type="time"
                                       value={period.closeTime || "18:30"}
                                       onChange={(e) => handleHoursTimeChange(day, "closeTime", e.target.value)}
-                                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono font-bold outline-none focus:border-primary"
+                                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold outline-none focus:border-teal-500 shadow-2xs"
                                     />
                                   </div>
                                 )}
@@ -2639,9 +2652,9 @@ export default function GmbPerformanceDashboard() {
                     </div>
 
                     {/* Special hours / Holidays */}
-                    <div className="space-y-4 pt-6 border-t border-slate-850/50">
+                    <div className="space-y-4 pt-6 border-t border-slate-200/60">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Special Hours (Holiday exceptions)</h4>
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Special Hours (Holiday exceptions)</h4>
                         <button
                           type="button"
                           onClick={() => {
@@ -2656,7 +2669,7 @@ export default function GmbPerformanceDashboard() {
                               }
                             ]);
                           }}
-                          className="bg-primary text-slate-950 text-[10px] uppercase font-black tracking-widest px-4 py-2.5 rounded-xl hover:bg-secondary transition-all cursor-pointer shadow-md"
+                          className="bg-teal-600 text-white text-[10px] uppercase font-black tracking-widest px-4 py-2.5 rounded-xl hover:bg-teal-500 transition-all cursor-pointer shadow-xs shadow-teal-600/20"
                         >
                           + Add Holiday Exception
                         </button>
@@ -2667,7 +2680,7 @@ export default function GmbPerformanceDashboard() {
                       ) : (
                         <div className="space-y-4">
                           {profileSpecialHours.map((sh, idx) => (
-                            <div key={idx} className="bg-slate-950 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 animate-fadeIn hover:border-slate-750 transition-all">
+                            <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 animate-fadeIn hover:border-slate-300 transition-all shadow-2xs">
                               <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
                                 <div className="flex flex-col gap-1.5">
                                   <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider">Start Date</span>
@@ -2679,7 +2692,7 @@ export default function GmbPerformanceDashboard() {
                                       updated[idx].startDate = e.target.value;
                                       setProfileSpecialHours(updated);
                                     }}
-                                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono outline-none focus:border-primary font-bold"
+                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono outline-none focus:border-teal-500 font-bold"
                                   />
                                 </div>
                                 <div className="flex flex-col gap-1.5">
@@ -2692,7 +2705,7 @@ export default function GmbPerformanceDashboard() {
                                       updated[idx].endDate = e.target.value;
                                       setProfileSpecialHours(updated);
                                     }}
-                                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono outline-none focus:border-primary font-bold"
+                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono outline-none focus:border-teal-500 font-bold"
                                   />
                                 </div>
                               </div>
@@ -2707,9 +2720,9 @@ export default function GmbPerformanceDashboard() {
                                       updated[idx].closed = e.target.checked;
                                       setProfileSpecialHours(updated);
                                     }}
-                                    className="accent-primary h-4.5 w-4.5 rounded"
+                                    className="accent-teal-600 h-4.5 w-4.5 rounded"
                                   />
-                                  <span className="text-xs font-extrabold uppercase text-slate-350 tracking-wider">Closed All-Day</span>
+                                  <span className="text-xs font-extrabold uppercase text-slate-700 tracking-wider">Closed All-Day</span>
                                 </label>
 
                                 {!sh.closed && (
@@ -2722,9 +2735,9 @@ export default function GmbPerformanceDashboard() {
                                         updated[idx].openTime = e.target.value;
                                         setProfileSpecialHours(updated);
                                       }}
-                                      className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 font-mono font-bold outline-none"
+                                      className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono font-bold outline-none"
                                     />
-                                    <span className="text-xs text-slate-500 font-bold uppercase">To</span>
+                                    <span className="text-xs text-slate-400 font-bold uppercase">To</span>
                                     <input
                                       type="time"
                                       value={sh.closeTime || "18:30"}
@@ -2733,7 +2746,7 @@ export default function GmbPerformanceDashboard() {
                                         updated[idx].closeTime = e.target.value;
                                         setProfileSpecialHours(updated);
                                       }}
-                                      className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 font-mono font-bold outline-none"
+                                      className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono font-bold outline-none"
                                     />
                                   </div>
                                 )}
@@ -2744,7 +2757,7 @@ export default function GmbPerformanceDashboard() {
                                     const filtered = profileSpecialHours.filter((_, i) => i !== idx);
                                     setProfileSpecialHours(filtered);
                                   }}
-                                  className="text-rose-450 hover:text-rose-400 text-xs font-black uppercase tracking-widest px-3 py-1 cursor-pointer transition-all border border-rose-950 rounded-lg hover:bg-rose-950/20"
+                                  className="text-rose-600 hover:text-rose-700 text-xs font-bold uppercase tracking-widest px-3 py-1 cursor-pointer transition-all border border-rose-200 rounded-lg hover:bg-rose-50"
                                 >
                                   Remove
                                 </button>
@@ -2757,16 +2770,16 @@ export default function GmbPerformanceDashboard() {
                   </div>
 
                   {/* SECTION 5: MORE (ATTRIBUTES) */}
-                  <div className="bg-slate-900/30 border border-slate-855 rounded-3xl p-8 space-y-8 shadow-md hover:border-slate-800 transition-all duration-300">
-                    <h3 className="text-sm font-extrabold text-slate-200 uppercase tracking-widest flex items-center gap-3 border-b border-slate-850 pb-4 mb-4">
-                      <Settings className="h-5 w-5 text-primary" /> 5. More (Listing Attributes)
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-3xl p-8 space-y-8 shadow-2xs hover:border-slate-300 transition-all duration-300">
+                    <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-widest flex items-center gap-3 border-b border-slate-200 pb-4 mb-4">
+                      <Settings className="h-5 w-5 text-teal-600" /> 5. More (Listing Attributes)
                     </h3>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       
                       {/* Box 1: Accessibility */}
-                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
-                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Accessibility</h4>
+                      <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Accessibility</h4>
                         <div className="space-y-3">
                           {[
                             { key: "wheelchair_accessible_toilet", label: "Wheelchair-accessible toilet" },
@@ -2774,7 +2787,7 @@ export default function GmbPerformanceDashboard() {
                             { key: "wheelchair_accessible_entrance", label: "Wheelchair-accessible entrance" },
                             { key: "wheelchair_accessible_seating", label: "Wheelchair-accessible seating" }
                           ].map((item) => (
-                            <label key={item.key} className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                            <label key={item.key} className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                               <input
                                 type="checkbox"
                                 checked={profileAttributes.accessibility[item.key] || false}
@@ -2783,19 +2796,19 @@ export default function GmbPerformanceDashboard() {
                                   updatedAttr.accessibility[item.key] = e.target.checked;
                                   setProfileAttributes(updatedAttr);
                                 }}
-                                className="accent-primary h-5 w-5 rounded border-slate-800 cursor-pointer"
+                                className="accent-teal-600 h-5 w-5 rounded border-slate-300 cursor-pointer"
                               />
-                              <span className="text-sm font-semibold text-slate-200">{item.label}</span>
+                              <span className="text-sm font-bold text-slate-800">{item.label}</span>
                             </label>
                           ))}
                         </div>
                       </div>
 
                       {/* Box 2: Amenities & Crowd */}
-                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
-                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Amenities & Crowd</h4>
+                      <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Amenities & Crowd</h4>
                         <div className="space-y-3">
-                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                          <label className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                             <input
                               type="checkbox"
                               checked={profileAttributes.amenities.gender_neutral_toilets || false}
@@ -2804,11 +2817,11 @@ export default function GmbPerformanceDashboard() {
                                 updatedAttr.amenities.gender_neutral_toilets = e.target.checked;
                                 setProfileAttributes(updatedAttr);
                               }}
-                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                              className="accent-teal-600 h-5 w-5 rounded cursor-pointer"
                             />
-                            <span className="text-sm font-semibold text-slate-200">Gender-neutral toilets</span>
+                            <span className="text-sm font-bold text-slate-800">Gender-neutral toilets</span>
                           </label>
-                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                          <label className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                             <input
                               type="checkbox"
                               checked={profileAttributes.crowd.lgqbtq_friendly || false}
@@ -2817,18 +2830,18 @@ export default function GmbPerformanceDashboard() {
                                 updatedAttr.crowd.lgqbtq_friendly = e.target.checked;
                                 setProfileAttributes(updatedAttr);
                               }}
-                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                              className="accent-teal-600 h-5 w-5 rounded cursor-pointer"
                             />
-                            <span className="text-sm font-semibold text-slate-200">LGBTQ+ friendly</span>
+                            <span className="text-sm font-bold text-slate-800">LGBTQ+ friendly</span>
                           </label>
                         </div>
                       </div>
 
                       {/* Box 3: Parking */}
-                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
-                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Parking Options</h4>
+                      <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Parking Options</h4>
                         <div className="space-y-3">
-                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                          <label className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                             <input
                               type="checkbox"
                               checked={profileAttributes.parking.free_multistorey_car_park || false}
@@ -2837,11 +2850,11 @@ export default function GmbPerformanceDashboard() {
                                 updatedAttr.parking.free_multistorey_car_park = e.target.checked;
                                 setProfileAttributes(updatedAttr);
                               }}
-                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                              className="accent-teal-600 h-5 w-5 rounded cursor-pointer"
                             />
-                            <span className="text-sm font-semibold text-slate-200">Free multi-storey car park</span>
+                            <span className="text-sm font-bold text-slate-800">Free multi-storey car park</span>
                           </label>
-                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                          <label className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                             <input
                               type="checkbox"
                               checked={profileAttributes.parking.free_parking_lot || false}
@@ -2850,17 +2863,17 @@ export default function GmbPerformanceDashboard() {
                                 updatedAttr.parking.free_parking_lot = e.target.checked;
                                 setProfileAttributes(updatedAttr);
                               }}
-                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                              className="accent-teal-600 h-5 w-5 rounded cursor-pointer"
                             />
-                            <span className="text-sm font-semibold text-slate-200">Free parking lot</span>
+                            <span className="text-sm font-bold text-slate-800">Free parking lot</span>
                           </label>
                         </div>
                       </div>
 
                       {/* Box 4: Planning & Service Options */}
-                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850">
-                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Planning & Booking</h4>
-                        <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                      <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs">
+                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Planning & Booking</h4>
+                        <label className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                           <input
                             type="checkbox"
                             checked={profileAttributes.planning.appointment_required || false}
@@ -2869,16 +2882,16 @@ export default function GmbPerformanceDashboard() {
                               updatedAttr.planning.appointment_required = e.target.checked;
                               setProfileAttributes(updatedAttr);
                             }}
-                            className="accent-primary h-5 w-5 rounded cursor-pointer"
+                            className="accent-teal-600 h-5 w-5 rounded cursor-pointer"
                           />
-                          <span className="text-sm font-semibold text-slate-200">Appointment required</span>
+                          <span className="text-sm font-bold text-slate-800">Appointment required</span>
                         </label>
                       </div>
 
-                      <div className="space-y-4 bg-slate-950 p-6 rounded-2xl border border-slate-850 md:col-span-2">
-                        <h4 className="text-xs font-extrabold text-slate-350 uppercase tracking-wider border-l-2 border-primary pl-2">Service Options</h4>
+                      <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-200 md:col-span-2 shadow-2xs">
+                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-l-2 border-teal-600 pl-2">Service Options</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                          <label className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                             <input
                               type="checkbox"
                               checked={profileAttributes.serviceOptions.offers_online_appointments || false}
@@ -2887,11 +2900,11 @@ export default function GmbPerformanceDashboard() {
                                 updatedAttr.serviceOptions.offers_online_appointments = e.target.checked;
                                 setProfileAttributes(updatedAttr);
                               }}
-                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                              className="accent-teal-600 h-5 w-5 rounded cursor-pointer"
                             />
-                            <span className="text-sm font-semibold text-slate-200">Offers online appointments</span>
+                            <span className="text-sm font-bold text-slate-800">Offers online appointments</span>
                           </label>
-                          <label className="flex items-center gap-3.5 bg-slate-900/30 border border-slate-850 hover:bg-slate-900/60 hover:border-slate-800 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
+                          <label className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 rounded-xl p-3.5 cursor-pointer transition-all duration-200 select-none">
                             <input
                               type="checkbox"
                               checked={profileAttributes.serviceOptions.onsite_services_available || false}
@@ -2900,22 +2913,21 @@ export default function GmbPerformanceDashboard() {
                                 updatedAttr.serviceOptions.onsite_services_available = e.target.checked;
                                 setProfileAttributes(updatedAttr);
                               }}
-                              className="accent-primary h-5 w-5 rounded cursor-pointer"
+                              className="accent-teal-600 h-5 w-5 rounded cursor-pointer"
                             />
-                            <span className="text-sm font-semibold text-slate-200">On-site services available</span>
+                            <span className="text-sm font-bold text-slate-800">On-site services available</span>
                           </label>
                         </div>
                       </div>
 
                     </div>
                   </div>
-
                   {/* Submission Row */}
                   <div className="flex justify-end pt-6">
                     <button
                       type="submit"
                       disabled={savingProfile}
-                      className="bg-primary hover:bg-secondary text-slate-950 font-black text-sm px-10 py-4.5 rounded-2xl transition-all shadow-2xl flex items-center gap-2 cursor-pointer disabled:opacity-50 tracking-wider uppercase"
+                      className="bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-sm px-10 py-4.5 rounded-2xl transition-all shadow-xs shadow-teal-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50 tracking-wider uppercase"
                     >
                       {savingProfile ? "Saving Profile Changes..." : "Save Business Profile Changes"}
                     </button>
@@ -2932,16 +2944,16 @@ export default function GmbPerformanceDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
               {/* Creator Form Column */}
               <div className="lg:col-span-1 space-y-6">
-                <form onSubmit={handleCreatePost} className="bg-slate-950/30 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Plus className="h-4.5 w-4.5 text-primary" /> Create Google Post
+                <form onSubmit={handleCreatePost} className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-7 space-y-4 shadow-xs">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Plus className="h-4.5 w-4.5 text-teal-600" /> Create Google Post
                     </h3>
                     <button
                       type="button"
                       onClick={handleGeneratePostCopy}
                       disabled={isGeneratingPost}
-                      className="bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-slate-950 transition-all font-bold text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      className="bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition-all font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
                     >
                       <Sparkles className={`h-3 w-3 ${isGeneratingPost ? "animate-spin" : ""}`} />
                       {isGeneratingPost ? "Drafting..." : "AI Write"}
@@ -2949,34 +2961,34 @@ export default function GmbPerformanceDashboard() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Post Title (Optional)</label>
+                    <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Post Title (Optional)</label>
                     <input
                       type="text"
                       value={postTitle}
                       onChange={(e) => setPostTitle(e.target.value)}
-                      placeholder="monsoon special deal"
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      placeholder="e.g. Monsoon special deal"
+                      className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 font-bold shadow-2xs"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Post Summary / Body</label>
+                    <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Post Summary / Body</label>
                     <textarea
                       value={postSummary}
                       onChange={(e) => setPostSummary(e.target.value)}
                       placeholder="Write post content here..."
                       rows={4}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary leading-relaxed"
+                      className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 leading-relaxed shadow-2xs"
                       required
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CTA Button Action</label>
+                    <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">CTA Button Action</label>
                     <select
                       value={postCTA}
                       onChange={(e) => setPostCTA(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary cursor-pointer"
+                      className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold outline-none focus:border-teal-500 cursor-pointer shadow-2xs"
                     >
                       <option value="NONE">No Button</option>
                       <option value="BOOK">Book Appointment</option>
@@ -2990,29 +3002,29 @@ export default function GmbPerformanceDashboard() {
 
                   {postCTA !== "NONE" && postCTA !== "CALL" && (
                     <div className="flex flex-col gap-1.5 animate-fadeIn">
-                      <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">CTA Action URL</label>
+                      <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">CTA Action URL</label>
                       <input
                         type="url"
                         value={postCTAUrl}
                         onChange={(e) => setPostCTAUrl(e.target.value)}
                         placeholder="https://example.com"
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono"
+                        className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 font-mono shadow-2xs"
                       />
                     </div>
                   )}
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Media Photo URL (Optional)</label>
+                    <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Media Photo URL (Optional)</label>
                     <input
                       type="url"
                       value={postMediaUrl}
                       onChange={(e) => setPostMediaUrl(e.target.value)}
-                      placeholder="Image address"
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary font-mono text-[10px]"
+                      placeholder="https://example.com/image.jpg"
+                      className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 font-mono text-xs shadow-2xs"
                     />
                   </div>
 
-                   <div className="flex items-center gap-2 select-none py-1">
+                  <div className="flex items-center gap-2 select-none py-1">
                     <input
                       type="checkbox"
                       id="schedule-toggle"
@@ -3023,9 +3035,9 @@ export default function GmbPerformanceDashboard() {
                           setScheduleDate(null);
                         }
                       }}
-                      className="accent-primary h-4 w-4 rounded cursor-pointer"
+                      className="accent-teal-600 h-4 w-4 rounded cursor-pointer"
                     />
-                    <label htmlFor="schedule-toggle" className="text-xs font-bold text-slate-350 cursor-pointer select-none">
+                    <label htmlFor="schedule-toggle" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
                       Schedule this post
                     </label>
                   </div>
@@ -3034,14 +3046,14 @@ export default function GmbPerformanceDashboard() {
                     <div className="space-y-4 animate-fadeIn">
                       <div className="grid grid-cols-2 gap-3.5">
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Publish Date</label>
+                          <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Publish Date</label>
                           <DatePicker
                             selected={scheduleDate}
                             onChange={(date: Date | null) => setScheduleDate(date)}
                             minDate={new Date()}
                             placeholderText="Select a date"
                             dateFormat="dd MMM yyyy"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer text-center"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 cursor-pointer text-center font-bold shadow-2xs"
                             required={isScheduledOnly}
                             portalId="gmb-datepicker-portal"
                             renderCustomHeader={({
@@ -3061,12 +3073,12 @@ export default function GmbPerformanceDashboard() {
                               const years = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i);
 
                               return (
-                                <div className="flex items-center justify-between px-2 py-1.5 gap-2 bg-slate-950 border-b border-slate-850">
+                                <div className="flex items-center justify-between px-2 py-1.5 gap-2 bg-slate-50 border-b border-slate-200">
                                   <button
                                     type="button"
                                     onClick={decreaseMonth}
                                     disabled={prevMonthButtonDisabled}
-                                    className="p-1 hover:bg-slate-900 border border-slate-900 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="p-1 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                                   >
                                     <ChevronLeft className="h-4 w-4" />
                                   </button>
@@ -3075,7 +3087,7 @@ export default function GmbPerformanceDashboard() {
                                     <select
                                       value={date.getMonth()}
                                       onChange={({ target: { value } }) => changeMonth(Number(value))}
-                                      className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 font-bold outline-none cursor-pointer hover:border-slate-700"
+                                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 font-bold outline-none cursor-pointer hover:border-slate-300"
                                     >
                                       {monthNames.map((monthName, idx) => (
                                         <option key={monthName} value={idx}>
@@ -3087,7 +3099,7 @@ export default function GmbPerformanceDashboard() {
                                     <select
                                       value={date.getFullYear()}
                                       onChange={({ target: { value } }) => changeYear(Number(value))}
-                                      className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 font-bold outline-none cursor-pointer hover:border-slate-700"
+                                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 font-bold outline-none cursor-pointer hover:border-slate-300"
                                     >
                                       {years.map((y) => (
                                         <option key={y} value={y}>
@@ -3101,7 +3113,7 @@ export default function GmbPerformanceDashboard() {
                                     type="button"
                                     onClick={increaseMonth}
                                     disabled={nextMonthButtonDisabled}
-                                    className="p-1 hover:bg-slate-900 border border-slate-900 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="p-1 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                                   >
                                     <ChevronRight className="h-4 w-4" />
                                   </button>
@@ -3111,7 +3123,7 @@ export default function GmbPerformanceDashboard() {
                           />
                         </div>
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Publish Time</label>
+                          <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Publish Time</label>
                           <CustomGmbTimePicker
                             selectedTime={scheduleTime}
                             onChange={setScheduleTime}
@@ -3121,10 +3133,10 @@ export default function GmbPerformanceDashboard() {
 
                       {/* Live Preview Banner */}
                       {scheduleDate && (
-                        <div className="bg-slate-900/40 border border-slate-850/60 p-3.5 rounded-xl flex flex-col gap-1.5 text-xs select-none">
-                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Post will publish on</span>
-                          <div className="flex items-center gap-2 text-slate-200 font-extrabold text-sm">
-                            <Clock className="h-4 w-4 text-primary" />
+                        <div className="bg-teal-50 border border-teal-200 p-3.5 rounded-xl flex flex-col gap-1.5 text-xs select-none">
+                          <span className="text-[10px] text-teal-800 font-bold uppercase tracking-wider">Post will publish on</span>
+                          <div className="flex items-center gap-2 text-teal-950 font-extrabold text-sm">
+                            <Clock className="h-4 w-4 text-teal-600" />
                             <span>
                               {format(scheduleDate, "dd MMM yyyy")} • {formattedTimeStr}
                             </span>
@@ -3132,19 +3144,19 @@ export default function GmbPerformanceDashboard() {
                         </div>
                       )}
 
-                      {/* Custom Dark Theme Styles for DatePicker */}
+                      {/* Custom Light Theme Styles for DatePicker */}
                       <style>{`
                         .react-datepicker {
-                          background-color: #020617 !important;
-                          border: 1px solid #1e293b !important;
+                          background-color: #ffffff !important;
+                          border: 1px solid #e2e8f0 !important;
                           border-radius: 12px !important;
                           font-family: inherit !important;
-                          color: #e2e8f0 !important;
-                          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+                          color: #0f172a !important;
+                          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
                         }
                         .react-datepicker__header {
-                          background-color: #090d16 !important;
-                          border-bottom: 1px solid #1e293b !important;
+                          background-color: #f8fafc !important;
+                          border-bottom: 1px solid #e2e8f0 !important;
                           border-top-left-radius: 12px !important;
                           border-top-right-radius: 12px !important;
                           padding-top: 10px !important;
@@ -3152,23 +3164,23 @@ export default function GmbPerformanceDashboard() {
                         .react-datepicker__current-month,
                         .react-datepicker__day-name,
                         .react-datepicker__day {
-                          color: #cbd5e1 !important;
+                          color: #334155 !important;
                         }
                         .react-datepicker__day:hover {
-                          background-color: #1e293b !important;
-                          color: #ffffff !important;
+                          background-color: #f1f5f9 !important;
+                          color: #0f172a !important;
                         }
                         .react-datepicker__day--selected {
-                          background-color: var(--color-primary, #38bdf8) !important;
-                          color: #020617 !important;
+                          background-color: #0d9488 !important;
+                          color: #ffffff !important;
                           font-weight: bold !important;
                         }
                         .react-datepicker__day--disabled {
-                          color: #475569 !important;
-                          opacity: 0.25;
+                          color: #cbd5e1 !important;
+                          opacity: 0.5;
                         }
                         .react-datepicker__navigation-icon::before {
-                          border-color: #94a3b8 !important;
+                          border-color: #64748b !important;
                         }
                         .react-datepicker__header__dropdown {
                           margin-top: 6px;
@@ -3178,9 +3190,9 @@ export default function GmbPerformanceDashboard() {
                         }
                         .react-datepicker__month-select,
                         .react-datepicker__year-select {
-                          background-color: #0f172a !important;
-                          color: #cbd5e1 !important;
-                          border: 1px solid #334155 !important;
+                          background-color: #ffffff !important;
+                          color: #0f172a !important;
+                          border: 1px solid #cbd5e1 !important;
                           border-radius: 6px !important;
                           padding: 2px 4px !important;
                           font-size: 11px !important;
@@ -3188,28 +3200,28 @@ export default function GmbPerformanceDashboard() {
                           cursor: pointer;
                         }
                         .react-datepicker__time-container {
-                          background-color: #020617 !important;
-                          border-left: 1px solid #1e293b !important;
+                          background-color: #ffffff !important;
+                          border-left: 1px solid #e2e8f0 !important;
                           width: 85px !important;
                         }
                         .react-datepicker__time-container .react-datepicker__time {
-                          background-color: #020617 !important;
-                          color: #cbd5e1 !important;
+                          background-color: #ffffff !important;
+                          color: #0f172a !important;
                         }
                         .react-datepicker__time-list-item {
-                          background-color: #020617 !important;
-                          color: #cbd5e1 !important;
+                          background-color: #ffffff !important;
+                          color: #334155 !important;
                           font-size: 11px !important;
                           padding: 6px 10px !important;
                           cursor: pointer;
                         }
                         .react-datepicker__time-list-item:hover {
-                          background-color: #1e293b !important;
-                          color: #ffffff !important;
+                          background-color: #f1f5f9 !important;
+                          color: #0f172a !important;
                         }
                         .react-datepicker__time-list-item--selected {
-                          background-color: var(--color-primary, #38bdf8) !important;
-                          color: #020617 !important;
+                          background-color: #0d9488 !important;
+                          color: #ffffff !important;
                           font-weight: bold !important;
                         }
                         .react-datepicker--time-only .react-datepicker__time-container {
@@ -3227,7 +3239,7 @@ export default function GmbPerformanceDashboard() {
                   <button
                     type="submit"
                     disabled={isSubmittingPost || !postSummary || (isScheduledOnly && !scheduleDate)}
-                    className="w-full bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs py-3 rounded-xl transition-all shadow-md mt-4 cursor-pointer"
+                    className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-xs shadow-teal-600/20 mt-4 cursor-pointer"
                   >
                     {isSubmittingPost ? "Processing..." : isScheduledOnly ? "Schedule Google Post" : "Publish Post on Google Maps"}
                   </button>
@@ -3236,14 +3248,14 @@ export default function GmbPerformanceDashboard() {
 
               {/* Posts Feed Grid */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                   <div className="flex flex-col">
-                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider">Active Updates Feed</h3>
-                    <span className="text-[10px] text-slate-500 leading-normal">Manage scheduled and live posts on Google Maps</span>
+                    <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider">Active Updates Feed</h3>
+                    <span className="text-xs text-slate-500 font-medium">Manage scheduled and live posts on Google Maps</span>
                   </div>
                   <button
                     onClick={fetchPosts}
-                    className="p-2 bg-slate-950/40 border border-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                    className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
                   >
                     <RefreshCw className={`h-4.5 w-4.5 ${loadingPosts ? "animate-spin" : ""}`} />
                   </button>
@@ -3251,71 +3263,71 @@ export default function GmbPerformanceDashboard() {
 
                 {loadingPosts && posts.length === 0 ? (
                   <div className="flex justify-center items-center py-20">
-                    <div className="h-8 w-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="h-8 w-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : posts.length === 0 ? (
-                  <div className="bg-slate-950/20 border border-slate-900 rounded-3xl p-12 text-center text-slate-400">
-                    <Calendar className="h-14 w-14 text-slate-650 mx-auto mb-4 stroke-1" />
-                    <p className="text-xs font-semibold">No active updates or local posts found.</p>
-                    <p className="text-[10px] text-slate-550 mt-1">Use the writer form on the left to publish your first post.</p>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-500 shadow-xs">
+                    <Calendar className="h-14 w-14 text-slate-400 mx-auto mb-4 stroke-1" />
+                    <p className="text-xs font-bold text-slate-700">No active updates or local posts found.</p>
+                    <p className="text-xs text-slate-400 mt-1">Use the writer form on the left to publish your first post.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {posts.map((post) => (
-                      <div key={post.id} className="bg-slate-950/20 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between shadow-lg">
+                      <div key={post.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all">
                         <div className="p-5 space-y-4">
                           <div className="flex flex-col gap-2">
                             <div className="flex justify-between items-start">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                                post.status === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-400" :
-                                post.status === "SCHEDULED" ? "bg-blue-500/10 text-blue-400" :
-                                post.status === "PUBLISHING" ? "bg-amber-500/10 text-amber-400 animate-pulse" :
-                                post.status === "FAILED" ? "bg-rose-500/10 text-rose-400" :
-                                "bg-slate-800 text-slate-400"
+                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                                post.status === "PUBLISHED" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                post.status === "SCHEDULED" ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                                post.status === "PUBLISHING" ? "bg-amber-50 text-amber-700 border border-amber-200 animate-pulse" :
+                                post.status === "FAILED" ? "bg-rose-50 text-rose-700 border border-rose-200" :
+                                "bg-slate-100 text-slate-600"
                               }`}>
                                 {post.status}
                               </span>
                               <button
                                 onClick={() => handleDeletePost(post.id)}
-                                className="text-rose-400 hover:text-rose-300 p-1.5 bg-slate-900/50 border border-slate-850 hover:border-rose-900/50 rounded-xl transition-all cursor-pointer"
+                                className="text-rose-600 hover:text-rose-700 p-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-xl transition-all cursor-pointer"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
                             
                             {post.status === "SCHEDULED" && post.scheduledAt && (
-                              <div className="text-[10px] text-blue-400 flex items-center gap-1 font-semibold">
+                              <div className="text-xs text-blue-600 flex items-center gap-1 font-bold">
                                 <Clock className="h-3.5 w-3.5" /> Scheduled for: {new Date(post.scheduledAt).toLocaleString()}
                               </div>
                             )}
 
                             {post.status === "FAILED" && post.publishError && (
-                              <div className="text-[10px] text-rose-400 border border-rose-950/40 bg-rose-950/10 p-2 rounded-xl leading-relaxed select-all">
+                              <div className="text-xs text-rose-700 border border-rose-200 bg-rose-50 p-2 rounded-xl leading-relaxed select-all font-semibold">
                                 Error: {post.publishError}
                               </div>
                             )}
                           </div>
 
                           {post.mediaUrl && (
-                            <div className="h-32 w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-855">
+                            <div className="h-32 w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
                               <img src={post.mediaUrl} alt="Post Cover" className="w-full h-full object-cover" />
                             </div>
                           )}
 
                           <div className="space-y-1.5">
-                            {post.title && <h4 className="font-extrabold text-sm text-slate-200">{post.title}</h4>}
-                            <p className="text-xs text-slate-400 leading-relaxed line-clamp-4">{post.summary}</p>
+                            {post.title && <h4 className="font-extrabold text-sm text-slate-900">{post.title}</h4>}
+                            <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">{post.summary}</p>
                           </div>
                         </div>
 
                         {post.callToActionType && post.callToActionType !== "NONE" && (
-                          <div className="bg-slate-950/40 p-4 border-t border-slate-855 flex items-center justify-between">
+                          <div className="bg-slate-50/80 p-4 border-t border-slate-100 flex items-center justify-between">
                             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">CTA: {post.callToActionType}</span>
                             <a
                               href={post.callToActionUrl || "#"}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[10px] text-primary hover:text-secondary font-bold flex items-center gap-1"
+                              className="text-xs text-teal-600 hover:text-teal-700 font-bold flex items-center gap-1"
                             >
                               Link Landing Page <ExternalLink className="h-3.5 w-3.5" />
                             </a>
@@ -3334,16 +3346,16 @@ export default function GmbPerformanceDashboard() {
               ========================================================= */}
           {activeSubTab === "qa" && (
             <div className="space-y-6 animate-fadeIn">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                 <div className="flex flex-col">
-                  <h2 className="font-bold text-sm text-slate-200 uppercase tracking-wider">Customer Questions Inbox</h2>
-                  <span className="text-[10px] text-slate-500 leading-normal">Monitor and auto-reply to questions posted on Google Maps</span>
+                  <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider">Customer Questions Inbox</h2>
+                  <span className="text-xs text-slate-500 font-medium">Monitor and auto-reply to questions posted on Google Maps</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleSyncQuestions}
                     disabled={loadingQuestions}
-                    className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                    className="bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-xs shadow-teal-600/20 flex items-center gap-1.5 cursor-pointer"
                   >
                     <RefreshCw className={`h-4 w-4 ${loadingQuestions ? "animate-spin" : ""}`} />
                     Sync Questions
@@ -3353,59 +3365,59 @@ export default function GmbPerformanceDashboard() {
 
               {loadingQuestions && questions.length === 0 ? (
                 <div className="flex justify-center items-center py-20">
-                  <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                  <div className="h-10 w-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : questions.length === 0 ? (
-                <div className="bg-slate-950/20 border border-slate-900 rounded-3xl p-12 text-center text-slate-400 max-w-2xl mx-auto">
-                  <HelpCircle className="h-14 w-14 text-slate-650 mx-auto mb-4 stroke-1 animate-pulse" />
-                  <p className="text-xs font-semibold">Q&A inbox is currently empty.</p>
-                  <p className="text-[10px] text-slate-550 mt-1">Click **Sync Questions** to scan live customer comments from Google Maps.</p>
+                <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-500 max-w-2xl mx-auto shadow-xs">
+                  <HelpCircle className="h-14 w-14 text-slate-400 mx-auto mb-4 stroke-1 animate-pulse" />
+                  <p className="text-xs font-bold text-slate-700">Q&A inbox is currently empty.</p>
+                  <p className="text-xs text-slate-400 mt-1">Click <strong>Sync Questions</strong> to scan live customer comments from Google Maps.</p>
                 </div>
               ) : (
                 <div className="space-y-6 max-w-4xl mx-auto">
                   {questions.map((q) => (
-                    <div key={q.id} className="bg-slate-950/20 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+                    <div key={q.id} className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-7 space-y-4 shadow-xs">
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-9 w-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-300">
+                          <div className="h-9 w-9 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center font-bold text-xs text-teal-700">
                             {q.authorName.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-200">{q.authorName}</span>
-                            <span className="text-[9px] text-slate-500">{new Date(q.createdAt).toLocaleDateString([], { dateStyle: "medium" })}</span>
+                            <span className="text-xs font-bold text-slate-900">{q.authorName}</span>
+                            <span className="text-[10px] text-slate-400">{new Date(q.createdAt).toLocaleDateString([], { dateStyle: "medium" })}</span>
                           </div>
                         </div>
 
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                          q.status === "ANSWERED" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                          q.status === "ANSWERED" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}>
                           {q.status}
                         </span>
                       </div>
 
-                      <div className="bg-slate-900/40 p-4 border border-slate-855 rounded-2xl flex gap-3">
-                        <MessageSquare className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                        <p className="text-xs text-slate-300 font-semibold leading-relaxed font-sans italic">
+                      <div className="bg-slate-50 p-4 border border-slate-200 rounded-2xl flex gap-3">
+                        <MessageSquare className="h-5 w-5 text-teal-600 shrink-0 mt-0.5" />
+                        <p className="text-xs text-slate-800 font-semibold leading-relaxed font-sans italic">
                           "{q.text}"
                         </p>
                       </div>
 
                       {q.answerText ? (
-                        <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-850 space-y-2 border-l-2 border-l-emerald-500">
-                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Posted Answer</span>
-                          <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{q.answerText}</p>
+                        <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-200 space-y-2 border-l-4 border-l-teal-600">
+                          <span className="text-[10px] text-teal-800 font-bold uppercase tracking-wider">Posted Answer</span>
+                          <p className="text-xs text-teal-950 leading-relaxed whitespace-pre-wrap font-medium">{q.answerText}</p>
                         </div>
                       ) : (
                         <div className="space-y-4">
                           <div className="flex justify-between items-center">
-                            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Merchant Reply Panel</span>
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Merchant Reply Panel</span>
                             <button
                               onClick={() => {
                                 setReplyingToQuestionId(q.id);
                                 handleGenerateAnswerSuggestion(q.text);
                               }}
                               disabled={isGeneratingAnswer && replyingToQuestionId === q.id}
-                              className="bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-slate-950 transition-all font-bold text-[9px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              className="bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition-all font-bold text-[9px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
                             >
                               <Sparkles className={`h-3 w-3 ${isGeneratingAnswer && replyingToQuestionId === q.id ? "animate-spin" : ""}`} />
                               AI Draft Reply
@@ -3421,12 +3433,12 @@ export default function GmbPerformanceDashboard() {
                               }}
                               placeholder="Type answer to post on Google Maps..."
                               rows={2}
-                              className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-slate-200 outline-none focus:border-primary"
+                              className="flex-1 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 shadow-2xs"
                             />
                             <button
                               onClick={() => handlePostAnswer(q.id)}
                               disabled={isSubmittingAnswer || replyingToQuestionId !== q.id || !questionReplyText}
-                              className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold rounded-2xl p-3 px-5 flex items-center justify-center shrink-0 shadow-lg cursor-pointer"
+                              className="bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-bold rounded-2xl p-3 px-5 flex items-center justify-center shrink-0 shadow-xs shadow-teal-600/20 cursor-pointer"
                             >
                               <Send className="h-4.5 w-4.5" />
                             </button>
@@ -3447,19 +3459,19 @@ export default function GmbPerformanceDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn">
               {/* Photo Upload Card Column */}
               <div className="lg:col-span-1 space-y-6">
-                <form onSubmit={handleUploadPhoto} className="bg-slate-950/30 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-                  <div className="border-b border-slate-800 pb-3">
-                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Upload className="h-4.5 w-4.5 text-primary" /> Upload Photo
+                <form onSubmit={handleUploadPhoto} className="bg-white border border-slate-200 rounded-3xl p-6 lg:p-7 space-y-4 shadow-xs">
+                  <div className="border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Upload className="h-4.5 w-4.5 text-teal-600" /> Upload Photo
                     </h3>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Photo Category</label>
+                    <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Photo Category</label>
                     <select
                       value={mediaCategory}
                       onChange={(e) => setMediaCategory(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none focus:border-primary cursor-pointer"
+                      className="bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold outline-none focus:border-teal-500 cursor-pointer shadow-2xs"
                     >
                       <option value="ADDITIONAL">Additional Photo</option>
                       <option value="COVER">Cover Photo</option>
@@ -3472,8 +3484,8 @@ export default function GmbPerformanceDashboard() {
 
                   {/* Visual Dropzone File Picker */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Select Image File</label>
-                    <div className="relative border-2 border-dashed border-slate-800 hover:border-primary/50 bg-slate-900/60 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+                    <label className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Select Image File</label>
+                    <div className="relative border-2 border-dashed border-slate-200 hover:border-teal-500 bg-slate-50/70 hover:bg-teal-50/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
                       <input
                         type="file"
                         accept="image/*"
@@ -3482,14 +3494,14 @@ export default function GmbPerformanceDashboard() {
                       />
                       {mediaFileBase64 ? (
                         <div className="space-y-3">
-                          <img src={mediaFileBase64} alt="Preview" className="h-24 mx-auto object-cover rounded-xl border border-slate-850" />
-                          <span className="text-[10px] text-emerald-400 font-bold block">Image loaded successfully!</span>
+                          <img src={mediaFileBase64} alt="Preview" className="h-24 mx-auto object-cover rounded-xl border border-slate-200 shadow-2xs" />
+                          <span className="text-xs text-emerald-600 font-bold block">Image loaded successfully!</span>
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <ImageIcon className="h-8 w-8 text-slate-600 mx-auto" />
-                          <span className="text-xs font-semibold text-slate-350 block">Click or Drag Image Here</span>
-                          <span className="text-[10px] text-slate-550 block font-mono">PNG, JPG, or WEBP up to 5MB</span>
+                          <ImageIcon className="h-8 w-8 text-slate-400 mx-auto" />
+                          <span className="text-xs font-bold text-slate-700 block">Click or Drag Image Here</span>
+                          <span className="text-[10px] text-slate-400 block font-mono">PNG, JPG, or WEBP up to 5MB</span>
                         </div>
                       )}
                     </div>
@@ -3498,7 +3510,7 @@ export default function GmbPerformanceDashboard() {
                   <button
                     type="submit"
                     disabled={uploadingPhoto || !mediaFileBase64}
-                    className="w-full bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-bold text-xs py-3 rounded-xl transition-all shadow-md mt-4 cursor-pointer"
+                    className="w-full bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-xs shadow-teal-600/20 mt-4 cursor-pointer"
                   >
                     {uploadingPhoto ? "Uploading to Google..." : "Upload Photo to Live Profile"}
                   </button>
@@ -3507,14 +3519,14 @@ export default function GmbPerformanceDashboard() {
 
               {/* Photos Gallery Feed Grid */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                   <div className="flex flex-col">
-                    <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider">Listing Image Gallery</h3>
-                    <span className="text-[10px] text-slate-550 leading-normal">Live storefront and workspace media from your business page</span>
+                    <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider">Listing Image Gallery</h3>
+                    <span className="text-xs text-slate-500 font-medium">Live storefront and workspace media from your business page</span>
                   </div>
                   <button
                     onClick={fetchMedia}
-                    className="p-2 bg-slate-950/40 border border-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                    className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
                   >
                     <RefreshCw className={`h-4.5 w-4.5 ${loadingMedia ? "animate-spin" : ""}`} />
                   </button>
@@ -3522,13 +3534,13 @@ export default function GmbPerformanceDashboard() {
 
                 {loadingMedia && mediaItems.length === 0 ? (
                   <div className="flex justify-center items-center py-20">
-                    <div className="h-8 w-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="h-8 w-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : mediaItems.length === 0 ? (
-                  <div className="bg-slate-950/20 border border-slate-900 rounded-3xl p-12 text-center text-slate-400">
-                    <Camera className="h-14 w-14 text-slate-650 mx-auto mb-4 stroke-1" />
-                    <p className="text-xs font-semibold">Your gallery has no photos.</p>
-                    <p className="text-[10px] text-slate-550 mt-1">Use the upload box on the left to upload brand storefront photos.</p>
+                  <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-500 shadow-xs">
+                    <Camera className="h-14 w-14 text-slate-400 mx-auto mb-4 stroke-1" />
+                    <p className="text-xs font-bold text-slate-700">Your gallery has no photos.</p>
+                    <p className="text-xs text-slate-400 mt-1">Use the upload box on the left to upload brand storefront photos.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -3536,7 +3548,7 @@ export default function GmbPerformanceDashboard() {
                       <div 
                         key={item.name || idx} 
                         onClick={() => setSelectedPhoto(item)}
-                        className="group relative aspect-square bg-slate-950/30 border border-slate-800 rounded-2xl overflow-hidden shadow-md flex flex-col justify-end cursor-pointer transition-all hover:border-primary/40 hover:shadow-lg"
+                        className="group relative aspect-square bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs flex flex-col justify-end cursor-pointer transition-all hover:border-teal-500 hover:shadow-md"
                       >
                         <img
                           src={item.googleUrl || item.thumbnailUrl}
@@ -3544,11 +3556,11 @@ export default function GmbPerformanceDashboard() {
                           referrerPolicy="no-referrer"
                           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent opacity-85 p-3 flex flex-col justify-end gap-1 select-none">
-                          <span className="text-[9px] bg-primary/95 text-slate-950 font-bold px-2 py-0.5 rounded-lg w-max uppercase tracking-wider">
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent p-3 flex flex-col justify-end gap-1 select-none">
+                          <span className="text-[10px] bg-teal-600 text-white font-bold px-2 py-0.5 rounded-lg w-max uppercase tracking-wider shadow-2xs">
                             {item.category}
                           </span>
-                          <span className="text-[8px] text-slate-400">
+                          <span className="text-[9px] text-slate-200 font-medium">
                             Uploaded {new Date(item.createTime).toLocaleDateString([], { dateStyle: "short" })}
                           </span>
                         </div>
@@ -3565,62 +3577,62 @@ export default function GmbPerformanceDashboard() {
       {/* Lightbox Photo Preview Modal */}
       {selectedPhoto && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
           onClick={() => setSelectedPhoto(null)}
         >
           <div 
-            className="relative bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden max-w-3xl w-full max-h-[90vh] flex flex-col md:flex-row shadow-2xl"
+            className="relative bg-white border border-slate-200 rounded-3xl overflow-hidden max-w-3xl w-full max-h-[90vh] flex flex-col md:flex-row shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close Button */}
             <button 
               onClick={() => setSelectedPhoto(null)}
-              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-slate-950/60 border border-slate-800 text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm border border-slate-200 text-slate-600 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
             >
               <X className="h-4.5 w-4.5" />
             </button>
 
             {/* Left side: Large Image */}
-            <div className="md:w-2/3 bg-slate-950 flex items-center justify-center p-4 relative min-h-[300px] md:min-h-[500px]">
+            <div className="md:w-2/3 bg-slate-100 flex items-center justify-center p-4 relative min-h-[300px] md:min-h-[500px]">
               <img 
                 src={selectedPhoto.googleUrl || selectedPhoto.thumbnailUrl} 
                 alt="Storefront Preview" 
                 referrerPolicy="no-referrer"
-                className="max-w-full max-h-[80vh] object-contain rounded-xl"
+                className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-xs"
               />
             </div>
 
             {/* Right side: Photo Details Metadata */}
-            <div className="md:w-1/3 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800 bg-slate-900/60">
+            <div className="md:w-1/3 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-200 bg-slate-50/50">
               <div className="space-y-6">
                 <div>
                   <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Photo Category</h4>
-                  <span className="px-3 py-1 bg-primary/10 border border-primary/20 text-primary text-xs font-bold rounded-xl uppercase tracking-wider block w-max">
+                  <span className="px-3 py-1 bg-teal-50 border border-teal-200 text-teal-700 text-xs font-bold rounded-xl uppercase tracking-wider block w-max shadow-2xs">
                     {selectedPhoto.category}
                   </span>
                 </div>
 
                 <div>
                   <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Creation Timestamp</h4>
-                  <p className="text-xs font-semibold text-slate-200">
+                  <p className="text-xs font-bold text-slate-800">
                     {new Date(selectedPhoto.createTime).toLocaleString([], { dateStyle: "long", timeStyle: "short" })}
                   </p>
                 </div>
 
                 <div>
                   <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Resource Path</h4>
-                  <p className="text-[9px] text-slate-400 font-mono break-all bg-slate-950/40 p-2.5 rounded-xl border border-slate-850">
+                  <p className="text-[10px] text-slate-600 font-mono break-all bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
                     {selectedPhoto.name || "simulated/media/node"}
                   </p>
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-slate-800">
+              <div className="pt-6 border-t border-slate-200">
                 <a 
                   href={selectedPhoto.googleUrl || selectedPhoto.thumbnailUrl} 
                   target="_blank" 
                   rel="noreferrer"
-                  className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-3 rounded-xl transition-all shadow-md text-center block cursor-pointer"
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-3 rounded-xl transition-all shadow-2xs text-center block cursor-pointer border border-slate-200"
                 >
                   Open Original URL
                 </a>

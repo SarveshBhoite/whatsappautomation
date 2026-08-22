@@ -48,6 +48,7 @@ interface AIAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApplyContent: (generatedText: string) => void;
+  initialPrompt?: string;
 }
 
 const TEMPLATES = [
@@ -62,7 +63,8 @@ export function AIAssistantModal({
   organizationId = "demo-org-123",
   isOpen,
   onClose,
-  onApplyContent
+  onApplyContent,
+  initialPrompt = ""
 }: AIAssistantModalProps) {
   const [activeTab, setActiveTab] = useState<"generate" | "rewrite" | "templates" | "history">("generate");
   const [topic, setTopic] = useState("");
@@ -72,6 +74,13 @@ export function AIAssistantModal({
   const [loading, setLoading] = useState(false);
   const [outputResult, setOutputResult] = useState("");
   const [contentScore, setContentScore] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialPrompt) {
+      setTopic(initialPrompt);
+      setActiveTab("generate");
+    }
+  }, [isOpen, initialPrompt]);
 
   // History State
   const [historyList, setHistoryList] = useState<AIHistoryItem[]>([]);
