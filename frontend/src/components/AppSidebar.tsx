@@ -144,13 +144,12 @@ export default function AppSidebar() {
 
   return (
     <>
-      {/* ── Desktop sidebar (Clean Light Theme, No Scrollbars) ──────────── */}
-      <aside className="hidden sm:flex w-16 flex-col items-center py-4 border-r border-slate-200 bg-white justify-between shrink-0 z-40 shadow-xs h-full overflow-hidden select-none">
-        
+      {/* ── Desktop sidebar (Uniform Solid Brand Theme Background) ──────────── */}
+      <aside className="hidden sm:flex w-16 flex-col items-center py-4 border-r border-sky-300 bg-[#BAE6FD] justify-between shrink-0 z-40 shadow-xs h-full overflow-hidden select-none relative text-slate-800">
         {/* Logo & Nav items */}
         <div className="flex flex-col items-center w-full gap-2 overflow-y-auto overflow-x-hidden no-scrollbar flex-1 pb-2">
-          <Link href="/" className="h-9 w-9 rounded-xl overflow-hidden border border-slate-200 mb-2 shrink-0 shadow-2xs hover:border-brand-blue/60 transition-all">
-            <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
+          <Link href="/" className="h-10 w-10 rounded-2xl overflow-hidden border border-sky-300 mb-2 shrink-0 shadow-xs hover:border-brand-blue hover:shadow-sm hover:scale-105 transition-all p-0.5 bg-white">
+            <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover rounded-xl" />
           </Link>
 
           {visibleNavItems.map((item) => {
@@ -172,13 +171,13 @@ export default function AppSidebar() {
                     w-10 h-10 rounded-xl flex items-center justify-center relative
                     transition-all duration-200
                     ${active
-                      ? "bg-brand-blue/10 text-brand-blue shadow-xs font-bold"
-                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}
+                      ? "bg-gradient-to-br from-brand-blue to-brand-blue-deep text-white shadow-md shadow-brand-blue/25 font-bold scale-105"
+                      : "text-slate-600 hover:text-brand-blue-deep hover:bg-white/80 hover:shadow-2xs"}
                   `}
                 >
-                  {/* Active left accent bar */}
+                  {/* Active left brand accent pill */}
                   {active && (
-                    <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-blue rounded-r-full" />
+                    <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-brand-blue rounded-r-full shadow-xs" />
                   )}
                   {item.icon}
                 </Link>
@@ -188,7 +187,7 @@ export default function AppSidebar() {
         </div>
 
         {/* Bottom Actions: Super Admin, Settings, Logout */}
-        <div className="flex flex-col gap-2 shrink-0 pt-3 border-t border-slate-200 w-full items-center">
+        <div className="flex flex-col gap-2 shrink-0 pt-3 border-t border-sky-200/60 w-full items-center">
           {userRole === "super_admin" && (
             <div className="relative shrink-0">
               <Link
@@ -206,12 +205,12 @@ export default function AppSidebar() {
                   w-10 h-10 rounded-xl flex items-center justify-center relative
                   transition-all duration-200
                   ${isActive("/admin")
-                    ? "bg-amber-50 text-amber-700 font-bold"
-                    : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"}
+                    ? "bg-amber-500 text-white font-bold shadow-md shadow-amber-500/25 scale-105"
+                    : "text-amber-700 hover:text-amber-800 hover:bg-amber-100/60"}
                 `}
               >
                 {isActive("/admin") && (
-                  <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-amber-500 rounded-r-full" />
+                  <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-amber-500 rounded-r-full" />
                 )}
                 <Shield className="h-5 w-5" />
               </Link>
@@ -233,12 +232,12 @@ export default function AppSidebar() {
                 w-10 h-10 rounded-xl flex items-center justify-center relative
                 transition-all duration-200
                 ${isActive("/settings")
-                  ? "bg-brand-blue/10 text-brand-blue font-bold"
-                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}
+                  ? "bg-gradient-to-br from-brand-blue to-brand-blue-deep text-white font-bold shadow-md shadow-brand-blue/25 scale-105"
+                  : "text-slate-600 hover:text-brand-blue-deep hover:bg-white/80 hover:shadow-2xs"}
               `}
             >
               {isActive("/settings") && (
-                <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-blue rounded-r-full" />
+                <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-brand-blue rounded-r-full" />
               )}
               <Settings className="h-5 w-5" />
             </Link>
@@ -256,7 +255,7 @@ export default function AppSidebar() {
                 });
               }}
               onMouseLeave={() => setHoveredNav(null)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200 cursor-pointer"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-200 cursor-pointer"
             >
               <LogOut className="h-5 w-5" />
             </button>
@@ -273,10 +272,10 @@ export default function AppSidebar() {
           <div
             className={`relative px-3 py-1.5 rounded-xl text-xs font-bold shadow-2xl border whitespace-nowrap flex items-center gap-1.5 ${
               hoveredNav.isRed
-                ? "bg-slate-900 text-red-300 border-red-800 shadow-red-950/30"
+                ? "bg-slate-900 text-rose-300 border-rose-800"
                 : hoveredNav.isAmber
-                ? "bg-slate-900 text-amber-300 border-amber-800 shadow-amber-950/30"
-                : "bg-slate-900 text-white border-slate-800 shadow-slate-950/40"
+                ? "bg-slate-900 text-amber-300 border-amber-800"
+                : "bg-slate-900 text-white border-slate-800"
             }`}
           >
             {/* Pointer arrow pointing to icon */}
@@ -287,13 +286,13 @@ export default function AppSidebar() {
       )}
 
       {/* ── Mobile bottom bar (Icons Only & Scrollable) ───────────────────────── */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-3 py-2 gap-2 shadow-2xl safe-bottom">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#BAE6FD] backdrop-blur-md border-t border-sky-300 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-3 py-2 gap-2 shadow-2xl safe-bottom text-slate-800">
         <Link 
           href="/" 
-          className="h-10 w-10 rounded-xl overflow-hidden border border-slate-200 shrink-0 shadow-2xs hover:border-brand-blue/60 transition-all flex items-center justify-center"
+          className="h-10 w-10 rounded-xl overflow-hidden border border-sky-300 shrink-0 shadow-2xs hover:border-brand-blue transition-all flex items-center justify-center bg-white p-0.5"
           title="Home"
         >
-          <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover" />
+          <img src="/icon.jpeg" alt="Logo" className="h-full w-full object-cover rounded-lg" />
         </Link>
 
         {visibleNavItems.map(item => {
@@ -306,8 +305,8 @@ export default function AppSidebar() {
               className={`
                 h-10 w-10 shrink-0 rounded-xl flex items-center justify-center transition-all duration-200
                 ${active
-                  ? "bg-brand-blue/10 text-brand-blue font-bold border border-brand-blue/20 shadow-xs"
-                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"}
+                  ? "bg-gradient-to-br from-brand-blue to-brand-blue-deep text-white font-bold shadow-xs"
+                  : "text-slate-600 hover:text-brand-blue hover:bg-white/80"}
               `}
             >
               {item.icon}
@@ -318,7 +317,7 @@ export default function AppSidebar() {
         <button
           onClick={handleLogout}
           title="Log Out"
-          className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center text-red-500 hover:bg-red-50 transition-all duration-200 cursor-pointer"
+          className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-200 cursor-pointer"
         >
           <LogOut className="h-5 w-5" />
         </button>
