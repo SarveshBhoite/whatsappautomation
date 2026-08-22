@@ -78,7 +78,7 @@ function MetricCard({ icon: Icon, label, value, sub, color }: any) {
       <div>
         <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
         <p className="text-xs font-bold text-slate-600 mt-0.5">{label}</p>
-        {sub && <p className="text-[11px] text-slate-400 mt-1">{sub}</p>}
+        {sub && <p className="text-[11px] text-slate-500 mt-1">{sub}</p>}
       </div>
     </div>
   );
@@ -107,11 +107,11 @@ function EmptyState({ icon: Icon, title, sub, action, onAction }: any) {
 function Modal({ title, onClose, children, wide }: any) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
-      <div className={`relative z-10 bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${wide ? "w-full max-w-2xl" : "w-full max-w-lg"}`}>
+      <div className="absolute inset-0 bg-white/40 backdrop-blur-xs" onClick={onClose} />
+      <div className={`relative z-10 bg-white border border-slate-200 rounded-2xl shadow-md flex flex-col max-h-[90vh] ${wide ? "w-full max-w-2xl" : "w-full max-w-lg"}`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <h3 className="font-bold text-slate-900 text-base">{title}</h3>
-          <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer">
+          <button onClick={onClose} className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -205,11 +205,11 @@ function AccountSelector({ accounts, selected, onSelect, loading, orgId }: any) 
       >
         <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
         <span className="flex-1 text-left truncate">{current?.name || (selected ? `ID: ${selected}` : "Select Account")}</span>
-        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-500" />}
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 w-80 z-[200] bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn">
+        <div className="absolute top-full mt-1 left-0 w-80 z-[200] bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fadeIn">
           <div className="p-3 border-b border-slate-100 bg-slate-50">
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Google Ads Accounts</p>
           </div>
@@ -377,7 +377,7 @@ function AccountPickerScreen({
           <div className="divide-y divide-slate-100">
             {!loading && accessibleCids.length === 0 && (
               <div className="py-10 text-center space-y-3 px-6">
-                <AlertCircle className="h-8 w-8 text-slate-400 mx-auto" />
+                <AlertCircle className="h-8 w-8 text-slate-500 mx-auto" />
                 <p className="text-slate-700 text-xs font-bold">No accounts found</p>
                 <p className="text-slate-500 text-[11px] max-w-sm mx-auto">
                   This can happen if the Google account connected has no Google Ads accounts. Try connecting manually below.
@@ -602,7 +602,7 @@ function SettingsTab({
             <button 
               onClick={fetchAccessible} 
               disabled={loadingAccessible}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
               title="Refresh profile accounts"
             >
               <RefreshCw className={`h-4 w-4 ${loadingAccessible ? "animate-spin" : ""}`} />
@@ -642,7 +642,7 @@ function SettingsTab({
                         disabled={isConnectingClient || isAlreadyConnected}
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                           isAlreadyConnected 
-                          ? "bg-slate-100 text-slate-400 border border-transparent cursor-not-allowed" 
+                          ? "bg-slate-100 text-slate-500 border border-transparent cursor-not-allowed" 
                           : "bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 cursor-pointer"
                         }`}
                       >
@@ -1127,7 +1127,7 @@ export default function GoogleAdsPage() {
       <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-y-auto">
         <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0 shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-white font-bold">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-slate-900 font-bold">
               <Megaphone className="h-5 w-5" />
             </div>
             <div>
@@ -1187,7 +1187,7 @@ export default function GoogleAdsPage() {
       {/* ── Top Header Bar ── */}
       <header className="relative z-50 flex items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-white shrink-0 gap-3 flex-wrap shadow-2xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-white font-bold">
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm text-slate-900 font-bold">
             <Megaphone className="h-5 w-5" />
           </div>
           <div>
@@ -1218,7 +1218,7 @@ export default function GoogleAdsPage() {
           {selectedCustomerId && (
             <button
               onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
               <Plus className="h-4 w-4" /> New Campaign
             </button>
@@ -1259,7 +1259,7 @@ export default function GoogleAdsPage() {
       {!selectedCustomerId && activeTab !== "settings" ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-3">
-            <Building2 className="h-12 w-12 text-slate-400 mx-auto" />
+            <Building2 className="h-12 w-12 text-slate-500 mx-auto" />
             <p className="text-slate-900 font-bold text-sm">Select a Google Ads account</p>
             <p className="text-slate-500 text-xs">Use the account selector in the header to choose an active account.</p>
           </div>
@@ -1345,7 +1345,7 @@ export default function GoogleAdsPage() {
             <>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                   <input
                     value={campSearch}
                     onChange={e => setCampSearch(e.target.value)}
@@ -1362,7 +1362,7 @@ export default function GoogleAdsPage() {
                   </button>
                   <button
                     onClick={() => router.push(`/ads/campaigns/create?customerId=${selectedCustomerId}`)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
                   >
                     <Plus className="h-4 w-4" /> New Campaign
                   </button>
@@ -1447,7 +1447,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Layers className="h-4 w-4 text-blue-600" />Ad Groups <span className="text-slate-500 font-normal">({adGroups.length})</span></h2>
-                <button onClick={() => loadAdGroups(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadAdGroups(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {adGroupsLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1482,7 +1482,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><FileText className="h-4 w-4 text-blue-600" />Ads <span className="text-slate-500 font-normal">({ads.length})</span></h2>
-                <button onClick={() => loadAds(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadAds(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {adsLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1526,7 +1526,7 @@ export default function GoogleAdsPage() {
             <>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                   <input
                     value={kwSearch}
                     onChange={e => setKwSearch(e.target.value)}
@@ -1543,7 +1543,7 @@ export default function GoogleAdsPage() {
                   </button>
                   <button
                     onClick={() => setShowAddKeyword(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
                   >
                     <Plus className="h-4 w-4" /> Add Keywords
                   </button>
@@ -1597,7 +1597,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Link2 className="h-4 w-4 text-blue-600" />Ad Assets &amp; Extensions <span className="text-slate-500 font-normal">({extensions.length})</span></h2>
-                <button onClick={() => loadExtensions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadExtensions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {extLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1624,7 +1624,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Target className="h-4 w-4 text-emerald-600" />Conversion Goals <span className="text-slate-500 font-normal">({conversions.length})</span></h2>
-                <button onClick={() => loadConversions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadConversions(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {convLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1659,7 +1659,7 @@ export default function GoogleAdsPage() {
             <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Users className="h-4 w-4 text-purple-600" />Audiences <span className="text-slate-500 font-normal">({audiences.length})</span></h2>
-                <button onClick={() => loadAudiences(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                <button onClick={() => loadAudiences(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
               </div>
               {audLoading ? (
                 <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 text-blue-600 animate-spin" /></div>
@@ -1693,7 +1693,7 @@ export default function GoogleAdsPage() {
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                   <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2"><Search className="h-4 w-4 text-blue-600" />Search Terms Report <span className="text-slate-500 font-normal">({searchTerms.length})</span></h2>
-                  <button onClick={() => loadReports(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
+                  <button onClick={() => loadReports(selectedCustomerId)} className="p-1.5 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"><RefreshCw className="h-4 w-4" /></button>
                 </div>
                 {searchTerms.length === 0 ? (
                   <EmptyState icon={Search} title="No search terms data" sub="Search term reports show what users searched to trigger your ads." />
@@ -1908,7 +1908,7 @@ export default function GoogleAdsPage() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl bg-slate-900 text-white text-xs font-bold shadow-2xl animate-fadeIn">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl bg-white text-slate-900 text-xs font-bold shadow-md animate-fadeIn">
           {toast}
         </div>
       )}

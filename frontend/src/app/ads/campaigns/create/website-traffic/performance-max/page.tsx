@@ -122,32 +122,32 @@ export default function WebsiteTrafficPerformanceMaxPage() {
     : Number(selectedPresetBudget) || 5080.90;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-all cursor-pointer"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-4 text-xs font-semibold">
-            <span className="text-slate-400">Website traffic</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
+            <span className="text-slate-500">Website traffic</span>
             <span className="text-slate-600">/</span>
-            <span className="text-slate-200 font-bold flex items-center gap-1.5">
+            <span className="text-slate-800 font-bold flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               Performance Max Setup
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
           <span className="font-mono">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "658-735-5041 JISNU Digital Solutions PVT LTD"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-white" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
         </div>
       </header>
 
@@ -155,9 +155,9 @@ export default function WebsiteTrafficPerformanceMaxPage() {
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sidebar Navigation */}
-        <aside className="w-64 border-r border-slate-800 p-4 space-y-4 shrink-0 bg-slate-950/60 hidden md:flex flex-col justify-between">
+        <aside className="w-64 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-slate-50/60 hidden md:flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2 text-xs font-semibold text-slate-200">
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
               <Sparkles className="h-4 w-4 text-primary shrink-0" />
               <span>Performance Max</span>
             </div>
@@ -169,7 +169,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 className={`p-2.5 rounded-xl space-y-1 cursor-pointer transition-all ${
                   wizardStep === "BIDDING"
                     ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
                 }`}
               >
                 <div className="flex items-center gap-2 font-medium">
@@ -184,7 +184,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                   wizardStep === "CAMPAIGN_SETTINGS"
                     ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
                 }`}
               >
                 <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</div>
@@ -197,7 +197,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                   wizardStep === "ASSET_GROUP"
                     ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
                 }`}
               >
                 <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">3</div>
@@ -210,7 +210,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                   wizardStep === "BUDGET"
                     ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
                 }`}
               >
                 <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">4</div>
@@ -223,7 +223,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                   wizardStep === "SUMMARY"
                     ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
                 }`}
               >
                 <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">5</div>
@@ -239,17 +239,17 @@ export default function WebsiteTrafficPerformanceMaxPage() {
           {/* STEP 1: BIDDING */}
           {wizardStep === "BIDDING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Bidding</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Bidding</h1>
 
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Bidding</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Bidding</h2>
                 
                 <div className="space-y-3">
-                  <label className="block text-slate-300 font-semibold">What do you want to focus on?</label>
+                  <label className="block text-slate-700 font-semibold">What do you want to focus on?</label>
                   <select
                     value={biddingFocus}
                     onChange={(e) => setBiddingFocus(e.target.value as any)}
-                    className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-medium"
+                    className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-medium"
                   >
                     <option value="Conversions">Conversions</option>
                     <option value="Conversion value">Conversion value</option>
@@ -261,45 +261,45 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                         type="checkbox"
                         checked={setTargetCpa}
                         onChange={(e) => setSetTargetCpa(e.target.checked)}
-                        className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                        className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                       />
-                      <span className="text-slate-200 font-medium">Set a target cost per action (optional)</span>
+                      <span className="text-slate-800 font-medium">Set a target cost per action (optional)</span>
                     </label>
                   </div>
                 </div>
 
                 {/* Customer Acquisition */}
-                <div className="pt-4 border-t border-slate-800 space-y-3">
-                  <h3 className="font-semibold text-slate-200">Customer acquisition</h3>
+                <div className="pt-4 border-t border-slate-200 space-y-3">
+                  <h3 className="font-semibold text-slate-800">Customer acquisition</h3>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={onlyBidNewCustomers}
                       onChange={(e) => setOnlyBidNewCustomers(e.target.checked)}
-                      className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                      className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                     />
-                    <span className="text-slate-200 font-medium">Only bid for new customers</span>
+                    <span className="text-slate-800 font-medium">Only bid for new customers</span>
                   </label>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
+                  <p className="text-slate-500 text-[11px] leading-relaxed">
                     Your campaign will be limited to only new customers, regardless of your bid strategy. By default, your campaign bids equally for new and existing customers. However, you can configure your customer acquisition settings to optimize for acquiring new customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about customer acquisition</a>
                   </p>
                 </div>
 
                 {/* Customer Retention */}
-                <div className="pt-4 border-t border-slate-800 space-y-3">
-                  <h3 className="font-semibold text-slate-200">Customer retention</h3>
+                <div className="pt-4 border-t border-slate-200 space-y-3">
+                  <h3 className="font-semibold text-slate-800">Customer retention</h3>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={adjustLapsedCustomers}
                       onChange={(e) => setAdjustLapsedCustomers(e.target.checked)}
-                      className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                      className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                     />
-                    <span className="text-slate-200 font-medium">Adjust your bidding to help re-engage lapsed customers</span>
+                    <span className="text-slate-800 font-medium">Adjust your bidding to help re-engage lapsed customers</span>
                   </label>
                   <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-[11px] leading-relaxed space-y-1">
                     <p>You can’t bid higher for lapsed customers because you don’t have a website traffic goal in your account. Add a goal to run campaigns that bid higher for specific customer types.</p>
-                    <p className="text-slate-400 pt-1">By default, your campaign does not adjust bidding to re-engage lapsed customers. However, you can configure your customer acquisition settings to optimize for winning back lapsed customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a></p>
+                    <p className="text-slate-500 pt-1">By default, your campaign does not adjust bidding to re-engage lapsed customers. However, you can configure your customer acquisition settings to optimize for winning back lapsed customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a></p>
                   </div>
                 </div>
               </div>
@@ -309,13 +309,13 @@ export default function WebsiteTrafficPerformanceMaxPage() {
           {/* STEP 2: CAMPAIGN SETTINGS */}
           {wizardStep === "CAMPAIGN_SETTINGS" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign settings</h1>
-              <p className="text-slate-400">To reach the right people, start by defining key settings for your campaign</p>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
+              <p className="text-slate-500">To reach the right people, start by defining key settings for your campaign</p>
 
               {/* Locations */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-slate-100">Locations</h2>
-                <p className="text-slate-400">Select locations for this campaign</p>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
+                <p className="text-slate-500">Select locations for this campaign</p>
                 <div className="space-y-2">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input type="radio" name="wtPmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
@@ -332,19 +332,19 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 </div>
 
                 {/* Location Options Accordion */}
-                <div className="pt-2 border-t border-slate-800">
+                <div className="pt-2 border-t border-slate-200">
                   <button
                     type="button"
                     onClick={() => setShowLocationOptions(!showLocationOptions)}
-                    className="flex items-center justify-between w-full py-1 text-slate-300 font-semibold cursor-pointer"
+                    className="flex items-center justify-between w-full py-1 text-slate-700 font-semibold cursor-pointer"
                   >
                     <span>Location options</span>
                     {showLocationOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
 
                   {showLocationOptions && (
-                    <div className="mt-3 p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3 animate-in fade-in duration-150">
-                      <span className="font-semibold text-slate-200 block">Include</span>
+                    <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 animate-in fade-in duration-150">
+                      <span className="font-semibold text-slate-800 block">Include</span>
                       <label className="flex items-start gap-3 cursor-pointer">
                         <input
                           type="radio"
@@ -354,10 +354,10 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                           className="mt-0.5 text-primary h-4 w-4"
                         />
                         <div>
-                          <span className="font-semibold text-slate-200 block">Presence or interest: People in, regularly in, or who've shown interest in your included locations (recommended)</span>
+                          <span className="font-semibold text-slate-800 block">Presence or interest: People in, regularly in, or who've shown interest in your included locations (recommended)</span>
                         </div>
                       </label>
-                      <label className="flex items-start gap-3 cursor-pointer border-t border-slate-800/60 pt-2">
+                      <label className="flex items-start gap-3 cursor-pointer border-t border-slate-200 pt-2">
                         <input
                           type="radio"
                           name="locTargetType"
@@ -366,7 +366,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                           className="mt-0.5 text-primary h-4 w-4"
                         />
                         <div>
-                          <span className="font-semibold text-slate-200 block">Presence: People in or regularly in your included locations</span>
+                          <span className="font-semibold text-slate-800 block">Presence: People in or regularly in your included locations</span>
                         </div>
                       </label>
                     </div>
@@ -375,9 +375,9 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* Languages */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-slate-100">Languages</h2>
-                <p className="text-slate-400">Select the languages your target visitors speak.</p>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
+                <p className="text-slate-500">Select the languages your target visitors speak.</p>
 
                 <div className="relative max-w-md">
                   <input
@@ -385,14 +385,14 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     value={languageSearchInput}
                     onChange={(e) => setLanguageSearchInput(e.target.value)}
                     placeholder="Start typing or select a language"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                   />
 
                   {/* API search results popup */}
                   {languageSearchInput.trim() !== "" && (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto py-1 text-xs">
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-md z-30 max-h-48 overflow-y-auto py-1 text-xs">
                       {isSearchingLanguages ? (
-                        <p className="px-4 py-2 text-slate-400 font-mono">Searching languages...</p>
+                        <p className="px-4 py-2 text-slate-500 font-mono">Searching languages...</p>
                       ) : languageSearchResults.length > 0 ? (
                         languageSearchResults.map((lang, i) => (
                           <button
@@ -402,7 +402,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                               setSelectedLanguages(prev => [...prev, lang]);
                               setLanguageSearchInput("");
                             }}
-                            className="w-full text-left px-4 py-2 hover:bg-slate-800 text-slate-200 cursor-pointer flex items-center justify-between"
+                            className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-800 cursor-pointer flex items-center justify-between"
                           >
                             <span>{lang}</span>
                             <Plus className="h-3.5 w-3.5 text-primary" />
@@ -428,12 +428,12 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* EU political ads */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-slate-100">EU political ads</h2>
+                  <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
                   <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
                 </div>
-                <p className="text-slate-300">Does your campaign have European Union political ads?</p>
+                <p className="text-slate-700">Does your campaign have European Union political ads?</p>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="radio" name="euPolWT" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
                   <span>Yes, this campaign has EU political ads</span>
@@ -446,15 +446,15 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* More settings Section */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
-                <h3 className="font-bold text-slate-200 text-sm border-b border-slate-800 pb-2">More settings</h3>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
+                <h3 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">More settings</h3>
 
                 {/* Ad schedule */}
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-slate-300">Ad schedule</h4>
+                  <h4 className="font-semibold text-slate-700">Ad schedule</h4>
                   
                   {adScheduleList.map((sched, idx) => (
-                    <div key={idx} className="flex flex-wrap items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <div key={idx} className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <select
                         value={sched.day}
                         onChange={(e) => {
@@ -462,7 +462,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                           updated[idx].day = e.target.value;
                           setAdScheduleList(updated);
                         }}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-medium"
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
                       >
                         {["All days", "Mondays - Fridays", "Saturdays - Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"].map((day, i) => (
                           <option key={i} value={day}>{day}</option>
@@ -476,14 +476,14 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                           updated[idx].start = e.target.value;
                           setAdScheduleList(updated);
                         }}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                       >
                         {["00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45", "02:00", "02:15", "02:30", "02:45", "03:00", "03:15", "03:30", "03:45", "04:00", "04:15", "04:30", "04:45", "05:00", "05:15", "05:30", "05:45", "06:00", "06:15", "06:30", "06:45", "07:00", "07:15", "07:30", "07:45", "08:00", "08:15", "08:30", "08:45", "09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", "18:45", "19:00", "19:15", "19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45", "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45"].map((t, i) => (
                           <option key={i} value={t}>{t}</option>
                         ))}
                       </select>
 
-                      <span className="text-slate-400">to</span>
+                      <span className="text-slate-500">to</span>
 
                       <select
                         value={sched.end}
@@ -492,7 +492,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                           updated[idx].end = e.target.value;
                           setAdScheduleList(updated);
                         }}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                       >
                         {["00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45", "02:00", "02:15", "02:30", "02:45", "03:00", "03:15", "03:30", "03:45", "04:00", "04:15", "04:30", "04:45", "05:00", "05:15", "05:30", "05:45", "06:00", "06:15", "06:30", "06:45", "07:00", "07:15", "07:30", "07:45", "08:00", "08:15", "08:30", "08:45", "09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", "18:45", "19:00", "19:15", "19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45", "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45"].map((t, i) => (
                           <option key={i} value={t}>{t}</option>
@@ -503,7 +503,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                         <button
                           type="button"
                           onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-slate-400 hover:text-rose-400 ml-auto"
+                          className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -520,95 +520,95 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     Add ad schedule
                   </button>
 
-                  <p className="text-[11px] text-slate-400 leading-relaxed">To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more</p>
                   <p className="text-[11px] text-slate-500 font-mono">Based on account time zone: (GMT+05:30) India Standard Time</p>
                 </div>
 
                 {/* Start and end dates with Date Inputs */}
-                <div className="space-y-3 pt-3 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Start and end dates</h4>
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Start and end dates</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
                     <div className="space-y-1">
-                      <label className="block text-[11px] text-slate-400 font-semibold">Start date</label>
+                      <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                       <input
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
+                      <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                       <input
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
                       />
                     </div>
                   </div>
-                  <p className="text-[11px] text-slate-400">Your ads will continue to run unless you specify an end date.</p>
+                  <p className="text-[11px] text-slate-500">Your ads will continue to run unless you specify an end date.</p>
                 </div>
 
                 {/* Campaign URL options & Custom Parameters */}
-                <div className="space-y-3 pt-3 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Campaign URL options</h4>
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Campaign URL options</h4>
                   <div className="space-y-2">
                     <div>
-                      <label className="block text-[11px] text-slate-400 font-semibold">Tracking template</label>
+                      <label className="block text-[11px] text-slate-500 font-semibold">Tracking template</label>
                       <input
                         type="text"
                         value={trackingTemplate}
                         onChange={(e) => setTrackingTemplate(e.target.value)}
                         placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 font-semibold">Final URL suffix</label>
+                      <label className="block text-[11px] text-slate-500 font-semibold">Final URL suffix</label>
                       <input
                         type="text"
                         value={finalUrlSuffix}
                         onChange={(e) => setFinalUrlSuffix(e.target.value)}
                         placeholder="Example: param1=value1&param2=value2"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Page feeds */}
-                <div className="space-y-2 pt-3 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Page feeds</h4>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds. Learn more about page feeds</p>
+                <div className="space-y-2 pt-3 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Page feeds</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">Add page feeds to specify which URLs to use in your campaign. With Final URL expansion on, you will use all URLs Google knows about your website, including any page feeds. By turning Final URL expansion off, you will only use URLs from your page feeds. Learn more about page feeds</p>
                 </div>
 
                 {/* Devices */}
-                <div className="space-y-2 pt-3 border-t border-slate-800">
+                <div className="space-y-2 pt-3 border-t border-slate-200">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-semibold text-slate-300">Devices</h4>
+                    <h4 className="font-semibold text-slate-700">Devices</h4>
                     <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
                   </div>
-                  <p className="text-[11px] text-slate-400">Choose the devices where your ads can appear.</p>
+                  <p className="text-[11px] text-slate-500">Choose the devices where your ads can appear.</p>
                 </div>
 
                 {/* Brand exclusions */}
-                <div className="space-y-2 pt-3 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Brand exclusions</h4>
-                  <p className="text-[11px] text-slate-400">Exclude brands so your ads won't show on searches that mention those brands. Learn more about brand exclusions</p>
+                <div className="space-y-2 pt-3 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Brand exclusions</h4>
+                  <p className="text-[11px] text-slate-500">Exclude brands so your ads won't show on searches that mention those brands. Learn more about brand exclusions</p>
                 </div>
 
                 {/* Demographic exclusions */}
-                <div className="space-y-2 pt-3 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Demographic exclusions</h4>
-                  <p className="text-[11px] text-slate-400">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
+                <div className="space-y-2 pt-3 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Demographic exclusions</h4>
+                  <p className="text-[11px] text-slate-500">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
                 </div>
 
                 {/* Your data exclusions */}
-                <div className="space-y-2 pt-3 border-t border-slate-800">
-                  <h4 className="font-semibold text-slate-300">Your data exclusions</h4>
+                <div className="space-y-2 pt-3 border-t border-slate-200">
+                  <h4 className="font-semibold text-slate-700">Your data exclusions</h4>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" defaultChecked className="rounded text-primary h-4 w-4" />
                     <span>Enable your data exclusions</span>
@@ -622,41 +622,41 @@ export default function WebsiteTrafficPerformanceMaxPage() {
           {/* STEP 3: ASSET GROUP */}
           {wizardStep === "ASSET_GROUP" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Asset group</h1>
-              <p className="text-slate-400">Show high quality ads to the right people. Start by adding your assets, the building blocks of every ad.</p>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Asset group</h1>
+              <p className="text-slate-500">Show high quality ads to the right people. Start by adding your assets, the building blocks of every ad.</p>
 
               {/* Asset Group Name & Final URL */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                 <div>
-                  <label className="block font-semibold text-slate-300">Asset group name</label>
-                  <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-medium" />
+                  <label className="block font-semibold text-slate-700">Asset group name</label>
+                  <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium" />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-300">Final URL</label>
-                  <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-mono" />
+                  <label className="block font-semibold text-slate-700">Final URL</label>
+                  <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono" />
                 </div>
               </div>
 
               {/* Assets Section */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Assets</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Assets</h2>
                 <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-300 text-[11px]">
                   Google AI isn't able to generate assets for your final url. You can still add assets yourself. Let's start adding ad assets
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
-                  <span className="font-semibold text-slate-300">Ad strength</span>
+                  <span className="font-semibold text-slate-700">Ad strength</span>
                   <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">Incomplete</span>
                 </div>
 
                 {/* Asset Input Rows */}
-                <div className="space-y-4 pt-3 border-t border-slate-800">
+                <div className="space-y-4 pt-3 border-t border-slate-200">
                   
                   {/* 1) Calls Section at Top */}
-                  <div className="space-y-3 p-3.5 rounded-xl border border-slate-800 bg-slate-950">
+                  <div className="space-y-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-slate-300">Calls</h4>
+                        <h4 className="font-semibold text-slate-700">Calls</h4>
                         <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold text-[10px]">1 call (account)</span>
                       </div>
                       <button
@@ -668,7 +668,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                         Add calls
                       </button>
                     </div>
-                    <div className="flex items-center gap-2 font-mono text-slate-200 text-xs">
+                    <div className="flex items-center gap-2 font-mono text-slate-800 text-xs">
                       <Phone className="h-3.5 w-3.5 text-primary" />
                       <span>Account-level: 077099 36965</span>
                     </div>
@@ -677,7 +677,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   {/* 2) Headlines */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-300">Headlines ({headlines.length})</span>
+                      <span className="font-semibold text-slate-700">Headlines ({headlines.length})</span>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -694,7 +694,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     </div>
                     {headlines.map((hl, i) => (
                       <div key={i} className="space-y-1">
-                        <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder="Headline" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                        <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder="Headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
                         <div className="flex justify-between text-[10px] text-slate-500">
                           <span>Text is {hl.length} characters out of 30</span>
                           <span>{hl.length} / 30</span>
@@ -704,9 +704,9 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   </div>
 
                   {/* 3) Long Headlines */}
-                  <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-300">Long headlines ({longHeadlines.length})</span>
+                      <span className="font-semibold text-slate-700">Long headlines ({longHeadlines.length})</span>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -723,7 +723,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     </div>
                     {longHeadlines.map((lh, i) => (
                       <div key={i} className="space-y-1">
-                        <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder="Long headline" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                        <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder="Long headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
                         <div className="flex justify-between text-[10px] text-slate-500">
                           <span>Text is {lh.length} characters out of 90</span>
                           <span>{lh.length} / 90</span>
@@ -733,9 +733,9 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   </div>
 
                   {/* 4) Descriptions */}
-                  <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-300">Descriptions ({descriptions.length})</span>
+                      <span className="font-semibold text-slate-700">Descriptions ({descriptions.length})</span>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -752,7 +752,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     </div>
                     {descriptions.map((desc, i) => (
                       <div key={i} className="space-y-1">
-                        <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder="Description" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                        <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder="Description" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
                         <div className="flex justify-between text-[10px] text-slate-500">
                           <span>Text is {desc.length} characters out of 90</span>
                           <span>{desc.length} / 90</span>
@@ -762,11 +762,11 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   </div>
 
                   {/* 5) Images, Videos, Animated Clips Uploads with Native System Input */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200">
                     {/* Images */}
-                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-center">
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
                       <ImageIcon className="h-5 w-5 text-primary mx-auto" />
-                      <span className="font-semibold text-slate-200 block text-xs">Images ({uploadedImages.length})</span>
+                      <span className="font-semibold text-slate-800 block text-xs">Images ({uploadedImages.length})</span>
                       <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
                         + Add images
                         <input
@@ -785,16 +785,16 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                       {uploadedImages.length > 0 && (
                         <div className="flex flex-wrap gap-1 justify-center pt-1">
                           {uploadedImages.map((img, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-300 truncate max-w-[100px]">{img}</span>
+                            <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{img}</span>
                           ))}
                         </div>
                       )}
                     </div>
 
                     {/* Videos */}
-                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-center">
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
                       <VideoIcon className="h-5 w-5 text-primary mx-auto" />
-                      <span className="font-semibold text-slate-200 block text-xs">Videos ({uploadedVideos.length})</span>
+                      <span className="font-semibold text-slate-800 block text-xs">Videos ({uploadedVideos.length})</span>
                       <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
                         + Add videos
                         <input
@@ -813,16 +813,16 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                       {uploadedVideos.length > 0 && (
                         <div className="flex flex-wrap gap-1 justify-center pt-1">
                           {uploadedVideos.map((vid, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-300 truncate max-w-[100px]">{vid}</span>
+                            <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{vid}</span>
                           ))}
                         </div>
                       )}
                     </div>
 
                     {/* Animated clips */}
-                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 space-y-2 text-center">
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
                       <Upload className="h-5 w-5 text-primary mx-auto" />
-                      <span className="font-semibold text-slate-200 block text-xs">Animated clips ({uploadedClips.length})</span>
+                      <span className="font-semibold text-slate-800 block text-xs">Animated clips ({uploadedClips.length})</span>
                       <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
                         + Add animated clips
                         <input
@@ -841,7 +841,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                       {uploadedClips.length > 0 && (
                         <div className="flex flex-wrap gap-1 justify-center pt-1">
                           {uploadedClips.map((clip, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[10px] text-slate-300 truncate max-w-[100px]">{clip}</span>
+                            <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{clip}</span>
                           ))}
                         </div>
                       )}
@@ -849,12 +849,12 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   </div>
 
                   {/* Business Name */}
-                  <div className="space-y-1 pt-2 border-t border-slate-800/60">
+                  <div className="space-y-1 pt-2 border-t border-slate-200">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-300">Business name</span>
+                      <span className="font-semibold text-slate-700">Business name</span>
                       <span className="text-[10px] text-slate-500">Required</span>
                     </div>
-                    <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} maxLength={25} placeholder="Business name" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                    <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} maxLength={25} placeholder="Business name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
                     <div className="flex justify-between text-[10px] text-slate-500">
                       <span>Text is {businessName.length} characters out of 25</span>
                       <span>{businessName.length} / 25</span>
@@ -862,12 +862,12 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   </div>
 
                   {/* 9) Call-to-action Dropdown */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
-                    <label className="block text-slate-300 font-semibold">Call-to-action</label>
+                  <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                    <label className="block text-slate-700 font-semibold">Call-to-action</label>
                     <select
                       value={ctaOption}
                       onChange={(e) => setCtaOption(e.target.value)}
-                      className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                      className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                     >
                       <option value="Automated (recommended)">Automated (recommended)</option>
                       <option value="Learn more">Learn more</option>
@@ -883,9 +883,9 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   </div>
 
                   {/* 6) Sitelinks with Display of Saved Sitelinks */}
-                  <div className="space-y-3 pt-3 border-t border-slate-800">
+                  <div className="space-y-3 pt-3 border-t border-slate-200">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-slate-300">Sitelinks ({savedSitelinks.length})</h4>
+                      <h4 className="font-semibold text-slate-700">Sitelinks ({savedSitelinks.length})</h4>
                       <button
                         type="button"
                         onClick={() => setActiveModal("SITELINKS")}
@@ -899,7 +899,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     {savedSitelinks.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {savedSitelinks.map((st, i) => (
-                          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-semibold text-slate-200">
+                          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800">
                             {st.text}
                             <button type="button" onClick={() => setSavedSitelinks(prev => prev.filter((_, idx) => idx !== i))}>
                               <X className="h-3 w-3 hover:text-rose-400" />
@@ -910,34 +910,34 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {["Sitelink 1", "Sitelink 2", "Sitelink 3", "Sitelink 4"].map((s, i) => (
-                          <button key={i} type="button" onClick={() => setActiveModal("SITELINKS")} className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-[11px] text-slate-400 hover:text-white cursor-pointer">{s} (Recommended)</button>
+                          <button key={i} type="button" onClick={() => setActiveModal("SITELINKS")} className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-500 hover:text-slate-900 cursor-pointer">{s} (Recommended)</button>
                         ))}
                       </div>
                     )}
                   </div>
 
                   {/* 7 & 8) More asset types with Live Display of Saved Assets */}
-                  <div className="space-y-3 pt-3 border-t border-slate-800">
-                    <h4 className="font-semibold text-slate-300">More asset types</h4>
-                    <p className="text-[11px] text-slate-400">Improve your ad performance and make your ad more interactive by adding more details about your business and website</p>
+                  <div className="space-y-3 pt-3 border-t border-slate-200">
+                    <h4 className="font-semibold text-slate-700">More asset types</h4>
+                    <p className="text-[11px] text-slate-500">Improve your ad performance and make your ad more interactive by adding more details about your business and website</p>
 
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <button type="button" onClick={() => setActiveModal("PROMOTIONS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                      <button type="button" onClick={() => setActiveModal("PROMOTIONS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
                         + Promotions {savedPromotions.length > 0 && `(${savedPromotions.length})`}
                       </button>
-                      <button type="button" onClick={() => setActiveModal("PRICES")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                      <button type="button" onClick={() => setActiveModal("PRICES")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
                         + Prices {savedPrices.length > 0 && `(${savedPrices.length})`}
                       </button>
-                      <button type="button" onClick={() => setActiveModal("APPS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                      <button type="button" onClick={() => setActiveModal("APPS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
                         + Messages {savedMessages.length > 0 && `(${savedMessages.length})`}
                       </button>
-                      <button type="button" onClick={() => setActiveModal("SNIPPETS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                      <button type="button" onClick={() => setActiveModal("SNIPPETS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
                         + Structured snippets {savedSnippets.length > 0 && `(${savedSnippets.length})`}
                       </button>
-                      <button type="button" onClick={() => setActiveModal("LEAD_FORMS")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                      <button type="button" onClick={() => setActiveModal("LEAD_FORMS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
                         + Lead forms {savedLeadForms.length > 0 && `(${savedLeadForms.length})`}
                       </button>
-                      <button type="button" onClick={() => setActiveModal("BRAND_GUIDELINES")} className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-semibold hover:border-primary cursor-pointer">
+                      <button type="button" onClick={() => setActiveModal("BRAND_GUIDELINES")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
                         + Callouts {savedCallouts.length > 0 && `(${savedCallouts.length})`}
                       </button>
                     </div>
@@ -945,7 +945,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                     {/* Display active saved extensions */}
                     {(savedPromotions.length > 0 || savedPrices.length > 0 || savedSnippets.length > 0 || savedCallouts.length > 0) && (
                       <div className="pt-2 space-y-2">
-                        <span className="text-[11px] text-slate-400 font-semibold block">Added Extensions:</span>
+                        <span className="text-[11px] text-slate-500 font-semibold block">Added Extensions:</span>
                         <div className="flex flex-wrap gap-2">
                           {savedPromotions.map((p, i) => (
                             <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Promo: {p.item || "Discount"}</span>
@@ -964,35 +964,35 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* Asset optimization Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Asset optimization</h2>
-                <p className="text-slate-400">To show more relevant ads, Google AI can enhance or generate assets using the information you’ve provided.</p>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Asset optimization</h2>
+                <p className="text-slate-500">To show more relevant ads, Google AI can enhance or generate assets using the information you’ve provided.</p>
 
                 <div className="space-y-3 pt-2">
                   <div className="flex items-start gap-3">
                     <input type="checkbox" checked={enableTextCustomization} onChange={(e) => setEnableTextCustomization(e.target.checked)} className="mt-0.5 rounded text-primary h-4 w-4" />
                     <div>
-                      <span className="font-semibold text-slate-200 block">Text Customization</span>
-                      <span className="text-[11px] text-slate-400 block">Use text from your site, landing pages, ads, and provided assets to create customized ad copy.</span>
+                      <span className="font-semibold text-slate-800 block">Text Customization</span>
+                      <span className="text-[11px] text-slate-500 block">Use text from your site, landing pages, ads, and provided assets to create customized ad copy.</span>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 border-t border-slate-800/60 pt-2.5">
+                  <div className="flex items-start gap-3 border-t border-slate-200 pt-2.5">
                     <input type="checkbox" checked={enableFinalUrlExpansion} onChange={(e) => setEnableFinalUrlExpansion(e.target.checked)} className="mt-0.5 rounded text-primary h-4 w-4" />
                     <div>
-                      <span className="font-semibold text-slate-200 block">Final URL expansion</span>
-                      <span className="text-[11px] text-slate-400 block">Send traffic to the most relevant URLs on your site when it's likely to result in better performance.</span>
+                      <span className="font-semibold text-slate-800 block">Final URL expansion</span>
+                      <span className="text-[11px] text-slate-500 block">Send traffic to the most relevant URLs on your site when it's likely to result in better performance.</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Signals Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Signals</h2>
-                <p className="text-slate-400">Signals provide valuable information about the people you want to reach.</p>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Signals</h2>
+                <p className="text-slate-500">Signals provide valuable information about the people you want to reach.</p>
                 <div>
-                  <h3 className="font-semibold text-slate-300 mb-1">Search themes</h3>
-                  <input type="text" placeholder="Add search themes (up to 50)" className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs" />
+                  <h3 className="font-semibold text-slate-700 mb-1">Search themes</h3>
+                  <input type="text" placeholder="Add search themes (up to 50)" className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
                 </div>
               </div>
             </div>
@@ -1001,20 +1001,20 @@ export default function WebsiteTrafficPerformanceMaxPage() {
           {/* STEP 4: BUDGET */}
           {wizardStep === "BUDGET" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Budget</h1>
-              <p className="text-slate-400">Decide how much you want to spend.</p>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Budget</h1>
+              <p className="text-slate-500">Decide how much you want to spend.</p>
 
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
-                <h2 className="text-sm font-semibold text-white border-b border-slate-800 pb-2">Budget</h2>
-                <p className="text-slate-400 leading-relaxed">Your budget type (daily or campaign total) can’t be changed once this campaign has started. You can change your budget amount at any time.</p>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Budget</h2>
+                <p className="text-slate-500 leading-relaxed">Your budget type (daily or campaign total) can’t be changed once this campaign has started. You can change your budget amount at any time.</p>
 
                 {/* Select Budget Type */}
                 <div className="space-y-3 pt-2">
-                  <label className="block font-semibold text-slate-300">Select budget type</label>
+                  <label className="block font-semibold text-slate-700">Select budget type</label>
                   
                   <div className="space-y-3">
                     {/* Daily Budget Option */}
-                    <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${budgetType === "DAILY" ? "bg-primary/10 border-primary" : "bg-slate-950 border-slate-800 hover:border-slate-700"}`}>
+                    <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${budgetType === "DAILY" ? "bg-primary/10 border-primary" : "bg-slate-50 border-slate-200 hover:border-slate-300"}`}>
                       <div className="flex items-start gap-3">
                         <input
                           type="radio"
@@ -1024,14 +1024,14 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                           className="mt-0.5 text-primary h-4 w-4"
                         />
                         <div className="space-y-1">
-                          <span className="font-bold text-slate-100 block">Average daily budget</span>
-                          <span className="text-[11px] text-slate-400 block">Set your average daily budget for this campaign</span>
+                          <span className="font-bold text-slate-900 block">Average daily budget</span>
+                          <span className="text-[11px] text-slate-500 block">Set your average daily budget for this campaign</span>
                         </div>
                       </div>
                     </label>
 
                     {/* Campaign Total Budget Option */}
-                    <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${budgetType === "TOTAL" ? "bg-primary/10 border-primary" : "bg-slate-950 border-slate-800 hover:border-slate-700"}`}>
+                    <label className={`block p-4 rounded-xl border transition-all cursor-pointer ${budgetType === "TOTAL" ? "bg-primary/10 border-primary" : "bg-slate-50 border-slate-200 hover:border-slate-300"}`}>
                       <div className="flex items-start gap-3">
                         <input
                           type="radio"
@@ -1041,8 +1041,8 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                           className="mt-0.5 text-primary h-4 w-4"
                         />
                         <div className="space-y-1">
-                          <span className="font-bold text-slate-100 block">Campaign total budget</span>
-                          <span className="text-[11px] text-slate-400 block">Set a budget for the duration of your campaign</span>
+                          <span className="font-bold text-slate-900 block">Campaign total budget</span>
+                          <span className="text-[11px] text-slate-500 block">Set a budget for the duration of your campaign</span>
                         </div>
                       </div>
                     </label>
@@ -1050,18 +1050,18 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 </div>
 
                 {/* Budget Amount Input */}
-                <div className="space-y-3 pt-3 border-t border-slate-800">
-                  <label className="block font-semibold text-slate-300">
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <label className="block font-semibold text-slate-700">
                     {budgetType === "DAILY" ? "Average daily budget amount" : "Campaign total budget amount"}
                   </label>
                   <div className="relative max-w-xs">
-                    <span className="absolute left-3.5 top-2.5 font-bold text-slate-400">₹</span>
+                    <span className="absolute left-3.5 top-2.5 font-bold text-slate-500">₹</span>
                     <input
                       type="text"
                       value={dailyBudgetValue}
                       onChange={(e) => setDailyBudgetValue(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-100 font-medium focus:border-primary focus:outline-none"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-900 font-medium focus:border-primary focus:outline-none"
                     />
                   </div>
                   {!dailyBudgetValue && <p className="text-rose-400 font-semibold text-[11px]">Value is required</p>}
@@ -1069,31 +1069,31 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
                 {/* Campaign Dates Card for Campaign Total Budget */}
                 {budgetType === "TOTAL" && (
-                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3 pt-3 border-t border-slate-800">
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 pt-3 border-t border-slate-200">
                     <div>
-                      <h4 className="font-semibold text-slate-200">Campaign dates</h4>
-                      <p className="text-[11px] text-slate-400">To set a campaign total budget add the dates of your campaign</p>
+                      <h4 className="font-semibold text-slate-800">Campaign dates</h4>
+                      <p className="text-[11px] text-slate-500">To set a campaign total budget add the dates of your campaign</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Start date</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                         <input
                           type="date"
                           value={startDate}
                           onChange={(e) => setStartDate(e.target.value)}
                           onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                         <input
                           type="date"
                           value={endDate}
                           onChange={(e) => setEndDate(e.target.value)}
                           onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
                         />
                       </div>
                     </div>
@@ -1105,7 +1105,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 )}
 
                 {/* Monthly Spending Note */}
-                <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/60">
+                <p className="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
                   For the month, you won't pay more than your daily budget times the average number of days in a month. Some days you might spend less than your daily budget, and on others you might spend up to twice as much.
                 </p>
               </div>
@@ -1115,10 +1115,10 @@ export default function WebsiteTrafficPerformanceMaxPage() {
           {/* STEP 5: SUMMARY */}
           {wizardStep === "SUMMARY" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Your campaign is almost ready to publish</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Your campaign is almost ready to publish</h1>
 
               {/* Issues Card */}
-              <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-xl">
+              <div className="p-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 space-y-3 shadow-sm">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-rose-400" />
                   <h2 className="text-sm font-bold text-rose-200">Issues</h2>
@@ -1132,46 +1132,46 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* Recommendations Card */}
-              <div className="p-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2 shadow-xl">
+              <div className="p-6 rounded-2xl border border-blue-500/30 bg-blue-500/10 space-y-2 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-blue-400" />
-                    <h2 className="text-sm font-bold text-slate-100">Recommendations</h2>
+                    <h2 className="text-sm font-bold text-slate-900">Recommendations</h2>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold text-[10px]">1 / 2</span>
                 </div>
-                <p className="text-slate-300">Apply these recommendations to optimize campaign performance</p>
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-200 mt-2">
+                <p className="text-slate-700">Apply these recommendations to optimize campaign performance</p>
+                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 text-slate-800 mt-2">
                   <span className="font-bold block text-blue-400">Add sitelinks</span>
                   <span>Draw more attention to your ads by adding at least 4 sitelinks.</span>
                 </div>
               </div>
 
               {/* Overview Section Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-sm font-semibold text-white">Overview</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Overview</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Campaign name</span>
-                    <span className="font-bold text-slate-100 text-sm">Website Traffic-Performance Max-1</span>
+                    <span className="text-slate-500 block text-[11px]">Campaign name</span>
+                    <span className="font-bold text-slate-900 text-sm">Website Traffic-Performance Max-1</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Campaign type</span>
-                    <span className="font-bold text-slate-100 text-sm">Performance Max</span>
+                    <span className="text-slate-500 block text-[11px]">Campaign type</span>
+                    <span className="font-bold text-slate-900 text-sm">Performance Max</span>
                   </div>
                   <div className="md:col-span-2">
-                    <span className="text-slate-400 block text-[11px]">Goal</span>
-                    <span className="font-bold text-slate-100">Website Traffic</span>
+                    <span className="text-slate-500 block text-[11px]">Goal</span>
+                    <span className="font-bold text-slate-900">Website Traffic</span>
                   </div>
                 </div>
               </div>
 
               {/* Bidding Section Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-sm font-semibold text-white">Bidding</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Bidding</h2>
                   <button
                     type="button"
                     onClick={() => setWizardStep("BIDDING")}
@@ -1182,24 +1182,24 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Bidding focus</span>
-                    <span className="font-bold text-slate-100">{biddingFocus}</span>
+                    <span className="text-slate-500 block text-[11px]">Bidding focus</span>
+                    <span className="font-bold text-slate-900">{biddingFocus}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Customer acquisition</span>
-                    <span className="text-slate-200">Bid equally for new and existing customers</span>
+                    <span className="text-slate-500 block text-[11px]">Customer acquisition</span>
+                    <span className="text-slate-800">Bid equally for new and existing customers</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Customer retention</span>
-                    <span className="text-slate-200">Do not adjust bidding to re-engage lapsed customers</span>
+                    <span className="text-slate-500 block text-[11px]">Customer retention</span>
+                    <span className="text-slate-800">Do not adjust bidding to re-engage lapsed customers</span>
                   </div>
                 </div>
               </div>
 
               {/* Campaign settings Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-sm font-semibold text-white">Campaign settings</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Campaign settings</h2>
                   <button
                     type="button"
                     onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
@@ -1210,24 +1210,24 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Locations</span>
-                    <span className="font-medium text-slate-200">{selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : "Custom locations"}</span>
+                    <span className="text-slate-500 block text-[11px]">Locations</span>
+                    <span className="font-medium text-slate-800">{selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : "Custom locations"}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Languages</span>
-                    <span className="font-medium text-slate-200">{selectedLanguages.join(", ") || "English"}</span>
+                    <span className="text-slate-500 block text-[11px]">Languages</span>
+                    <span className="font-medium text-slate-800">{selectedLanguages.join(", ") || "English"}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">EU political ads</span>
-                    <span className="font-medium text-slate-200">{euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}</span>
+                    <span className="text-slate-500 block text-[11px]">EU political ads</span>
+                    <span className="font-medium text-slate-800">{euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}</span>
                   </div>
                 </div>
               </div>
 
               {/* Asset group Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-sm font-semibold text-white">Asset group</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Asset group</h2>
                   <button
                     type="button"
                     onClick={() => setWizardStep("ASSET_GROUP")}
@@ -1238,46 +1238,46 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Asset group name</span>
-                    <span className="font-bold text-slate-100">{assetGroupName}</span>
+                    <span className="text-slate-500 block text-[11px]">Asset group name</span>
+                    <span className="font-bold text-slate-900">{assetGroupName}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Final URL</span>
+                    <span className="text-slate-500 block text-[11px]">Final URL</span>
                     <span className={finalUrl ? "font-mono text-emerald-400" : "font-semibold text-rose-400"}>
                       {finalUrl || "Enter a valid URL (ex. https://www.example.com)"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Assets</span>
-                    <span className="text-slate-300">
+                    <span className="text-slate-500 block text-[11px]">Assets</span>
+                    <span className="text-slate-700">
                       {headlines.filter(h => h).length > 0 || descriptions.filter(d => d).length > 0 || uploadedImages.length > 0 || uploadedVideos.length > 0
                         ? `${headlines.filter(h => h).length} headlines, ${longHeadlines.filter(lh => lh).length} long headlines, ${descriptions.filter(d => d).length} descriptions, ${uploadedImages.length} images, ${uploadedVideos.length} videos`
                         : "No assets"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Asset optimization</span>
-                    <span className="text-slate-200">
+                    <span className="text-slate-500 block text-[11px]">Asset optimization</span>
+                    <span className="text-slate-800">
                       {enableTextCustomization ? "Text customization" : ""}{enableTextCustomization && enableFinalUrlExpansion ? ", " : ""}{enableFinalUrlExpansion ? "final URL expansion" : ""}, and 2 more are turned on
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-1">
                     <div>
-                      <span className="text-slate-400 block text-[11px]">Search themes</span>
-                      <span className="text-slate-400 italic">{searchThemes.length > 0 ? searchThemes.join(", ") : "No signals provided"}</span>
+                      <span className="text-slate-500 block text-[11px]">Search themes</span>
+                      <span className="text-slate-500 italic">{searchThemes.length > 0 ? searchThemes.join(", ") : "No signals provided"}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[11px]">Audience</span>
-                      <span className="text-slate-400 italic">{audienceName || "No signal provided"}</span>
+                      <span className="text-slate-500 block text-[11px]">Audience</span>
+                      <span className="text-slate-500 italic">{audienceName || "No signal provided"}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Budget Summary Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-sm font-semibold text-white">Budget</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Budget</h2>
                   <button
                     type="button"
                     onClick={() => setWizardStep("BUDGET")}
@@ -1287,8 +1287,8 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   </button>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[11px]">Budget</span>
-                  <span className="font-bold text-slate-100 text-sm">
+                  <span className="text-slate-500 block text-[11px]">Budget</span>
+                  <span className="font-bold text-slate-900 text-sm">
                     {budgetType === "TOTAL" ? `Campaign total: ₹${dailyBudgetValue || "0.00"}` : `Daily: ₹${dailyBudgetValue || "0.00"}`}
                   </span>
                   {!dailyBudgetValue && <p className="text-rose-400 font-semibold text-[11px] mt-1">Value is required</p>}
@@ -1302,7 +1302,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
       </div>
 
       {/* ── Fixed Footer Action Bar ── */}
-      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center justify-between z-50">
+      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-50">
         <button
           onClick={() => {
             if (wizardStep === "SUMMARY") setWizardStep("BUDGET");
@@ -1311,7 +1311,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
             else if (wizardStep === "CAMPAIGN_SETTINGS") setWizardStep("BIDDING");
             else router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
           }}
-          className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+          className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
         >
           {wizardStep === "BIDDING" ? "Cancel" : "Back"}
         </button>
@@ -1347,32 +1347,32 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Add Calls Modal ── */}
       {activeModal === "CALLS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add calls to your campaign</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">Campaign-level calls: Add calls to this campaign. Any calls added here can be used across campaigns.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add calls to your campaign</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">Campaign-level calls: Add calls to this campaign. Any calls added here can be used across campaigns.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white p-1">
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900 p-1">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Add new call Section */}
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-4">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-slate-200">Add new call</h4>
+                <h4 className="font-semibold text-slate-800">Add new call</h4>
                 <span className="text-[11px] text-emerald-400 font-semibold">Call reporting on, call recording off</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold">Country</label>
+                  <label className="block text-slate-500 font-semibold">Country</label>
                   <select
                     value={callCountry}
                     onChange={(e) => setCallCountry(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
                   >
                     <option value="United States">United States</option>
                     <option value="India (+91)">India (+91)</option>
@@ -1383,24 +1383,24 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-slate-400 font-semibold">Phone number</label>
+                  <label className="block text-slate-500 font-semibold">Phone number</label>
                   <input
                     type="text"
                     value={callPhone}
                     onChange={(e) => setCallPhone(e.target.value)}
                     placeholder="Example: (201) 555-0123"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                   />
                 </div>
               </div>
 
               {/* Conversion action */}
               <div className="space-y-1">
-                <label className="block text-slate-400 font-semibold">Conversion action</label>
+                <label className="block text-slate-500 font-semibold">Conversion action</label>
                 <select
                   value={callConvAction}
                   onChange={(e) => setCallConvAction(e.target.value)}
-                  className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium"
+                  className="w-full max-w-md bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
                 >
                   <option value="Use account settings (Calls from ads)">Use account settings (Calls from ads)</option>
                   <option value="Calls from ads">Calls from ads</option>
@@ -1410,12 +1410,12 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* Advanced options - Days and hours */}
-              <div className="pt-3 border-t border-slate-800 space-y-3">
-                <h5 className="font-semibold text-slate-300">Advanced options</h5>
-                <label className="block text-[11px] text-slate-400 font-semibold">Days and hours</label>
+              <div className="pt-3 border-t border-slate-200 space-y-3">
+                <h5 className="font-semibold text-slate-700">Advanced options</h5>
+                <label className="block text-[11px] text-slate-500 font-semibold">Days and hours</label>
 
                 {callSchedules.map((sched, idx) => (
-                  <div key={sched.id} className="flex flex-wrap items-center gap-3 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                  <div key={sched.id} className="flex flex-wrap items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200">
                     <select
                       value={sched.day}
                       onChange={(e) => {
@@ -1423,7 +1423,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                         updated[idx].day = e.target.value;
                         setCallSchedules(updated);
                       }}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-medium"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
                     >
                       {["All days", "Mondays - Fridays", "Saturdays - Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"].map((d, i) => (
                         <option key={i} value={d}>{d}</option>
@@ -1437,14 +1437,14 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                         updated[idx].start = e.target.value;
                         setCallSchedules(updated);
                       }}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                     >
                       {["00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45", "02:00", "02:15", "02:30", "02:45", "03:00", "03:15", "03:30", "03:45", "04:00", "04:15", "04:30", "04:45", "05:00", "05:15", "05:30", "05:45", "06:00", "06:15", "06:30", "06:45", "07:00", "07:15", "07:30", "07:45", "08:00", "08:15", "08:30", "08:45", "09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", "18:45", "19:00", "19:15", "19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45", "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45"].map((t, i) => (
                         <option key={i} value={t}>{t}</option>
                       ))}
                     </select>
 
-                    <span className="text-slate-400">to</span>
+                    <span className="text-slate-500">to</span>
 
                     <select
                       value={sched.end}
@@ -1453,7 +1453,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                         updated[idx].end = e.target.value;
                         setCallSchedules(updated);
                       }}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                     >
                       {["00:00", "00:15", "00:30", "00:45", "01:00", "01:15", "01:30", "01:45", "02:00", "02:15", "02:30", "02:45", "03:00", "03:15", "03:30", "03:45", "04:00", "04:15", "04:30", "04:45", "05:00", "05:15", "05:30", "05:45", "06:00", "06:15", "06:30", "06:45", "07:00", "07:15", "07:30", "07:45", "08:00", "08:15", "08:30", "08:45", "09:00", "09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30", "15:45", "16:00", "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", "18:45", "19:00", "19:15", "19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45", "22:00", "22:15", "22:30", "22:45", "23:00", "23:15", "23:30", "23:45"].map((t, i) => (
                         <option key={i} value={t}>{t}</option>
@@ -1464,7 +1464,7 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                       <button
                         type="button"
                         onClick={() => setCallSchedules(prev => prev.filter((_, i) => i !== idx))}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 ml-auto"
+                        className="p-1.5 text-slate-500 hover:text-rose-400 ml-auto"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -1481,40 +1481,40 @@ export default function WebsiteTrafficPerformanceMaxPage() {
                   Add schedules
                 </button>
 
-                <p className="text-[11px] text-slate-400 leading-relaxed">To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more</p>
                 <p className="text-[11px] text-slate-500 font-mono">Based on account time zone: (GMT+05:30) India Standard Time</p>
               </div>
             </div>
 
             {/* Ad Preview Box */}
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-              <h4 className="font-semibold text-slate-300">Preview</h4>
-              <div className="p-3 rounded-lg border border-slate-800 bg-slate-900 flex items-center gap-3">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <h4 className="font-semibold text-slate-700">Preview</h4>
+              <div className="p-3 rounded-lg border border-slate-200 bg-white flex items-center gap-3">
                 <Phone className="h-4 w-4 text-emerald-400 shrink-0" />
                 <div className="text-xs">
                   <span className="text-blue-400 font-semibold block">{callPhone || "(201) 555-0123"}</span>
-                  <span className="text-slate-400 text-[10px]">Call now • Available during specified hours</span>
+                  <span className="text-slate-500 text-[10px]">Call now • Available during specified hours</span>
                 </div>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed">Previews shown here are examples and don't include all possible formats. You're responsible for the content of your ads. Please make sure that your provided assets don't violate any Google policies or applicable laws.</p>
             </div>
 
             {/* Account-level calls */}
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
-              <h4 className="font-semibold text-slate-200">Account-level calls</h4>
-              <p className="text-[11px] text-slate-400">The following calls are from your account and will be used in this campaign.</p>
-              <div className="flex items-center gap-2 pt-1 font-mono text-slate-200 font-bold text-xs">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <h4 className="font-semibold text-slate-800">Account-level calls</h4>
+              <p className="text-[11px] text-slate-500">The following calls are from your account and will be used in this campaign.</p>
+              <div className="flex items-center gap-2 pt-1 font-mono text-slate-800 font-bold text-xs">
                 <Phone className="h-3.5 w-3.5 text-primary" />
                 <span>077099 36965</span>
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -1535,35 +1535,35 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Sitelinks Modal ── */}
       {activeModal === "SITELINKS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-semibold text-white">Create sitelink</h3>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-semibold text-slate-900">Create sitelink</h3>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
-              <h4 className="font-bold text-slate-200">Sitelink 1</h4>
+              <h4 className="font-bold text-slate-800">Sitelink 1</h4>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Sitelink text</label>
-                <input id="sitelinkTextInp" type="text" maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Sitelink text</label>
+                <input id="sitelinkTextInp" type="text" maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Description line 1 (recommended)</label>
-                <input id="sitelinkDesc1Inp" type="text" maxLength={35} placeholder="Description line 1" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Description line 1 (recommended)</label>
+                <input id="sitelinkDesc1Inp" type="text" maxLength={35} placeholder="Description line 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Description line 2 (recommended)</label>
-                <input id="sitelinkDesc2Inp" type="text" maxLength={35} placeholder="Description line 2" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Description line 2 (recommended)</label>
+                <input id="sitelinkDesc2Inp" type="text" maxLength={35} placeholder="Description line 2" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Final URL</label>
-                <input id="sitelinkUrlInp" type="text" placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono" />
+                <label className="block text-slate-700 font-semibold">Final URL</label>
+                <input id="sitelinkUrlInp" type="text" placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono" />
               </div>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
               <button type="button" className="text-primary font-bold text-xs hover:underline">+ Sitelink 2</button>
               <button
                 type="button"
@@ -1586,48 +1586,48 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Promotions Modal ── */}
       {activeModal === "PROMOTIONS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add promotions to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level promotions: Add promotions to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add promotions to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level promotions: Add promotions to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Add new promotion</h4>
+              <h4 className="font-semibold text-slate-800">Add new promotion</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Occasion</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>None</option></select>
+                  <label className="block text-slate-500 font-semibold">Occasion</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>None</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Language</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>English</option></select>
+                  <label className="block text-slate-500 font-semibold">Language</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>English</option></select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Currency</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>USD ($)</option></select>
+                  <label className="block text-slate-500 font-semibold">Currency</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>USD ($)</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Promotion type</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>Monetary discount ($)</option></select>
+                  <label className="block text-slate-500 font-semibold">Promotion type</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>Monetary discount ($)</option></select>
                 </div>
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold">Item</label>
-                <input id="promoItemInp" type="text" maxLength={20} placeholder="Item name" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-500 font-semibold">Item</label>
+                <input id="promoItemInp" type="text" maxLength={20} placeholder="Item name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500">Text is 0 characters out of 20</span>
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold">Final URL</label>
-                <input id="promoUrlInp" type="text" placeholder="https://www.example.com/promo" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono" />
+                <label className="block text-slate-500 font-semibold">Final URL</label>
+                <input id="promoUrlInp" type="text" placeholder="https://www.example.com/promo" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
               </div>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -1647,37 +1647,37 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Prices Modal ── */}
       {activeModal === "PRICES" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add prices to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level prices: Add prices to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add prices to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level prices: Add prices to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Add new price</h4>
+              <h4 className="font-semibold text-slate-800">Add new price</h4>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Language</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
+                  <label className="block text-slate-500 font-semibold">Language</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Type</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>Brands</option></select>
+                  <label className="block text-slate-500 font-semibold">Type</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>Brands</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Currency</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>USD ($)</option></select>
+                  <label className="block text-slate-500 font-semibold">Currency</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>USD ($)</option></select>
                 </div>
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold">Price qualifier</label>
-                <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>No qualifier</option></select>
+                <label className="block text-slate-500 font-semibold">Price qualifier</label>
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>No qualifier</option></select>
               </div>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -1695,26 +1695,26 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Messages Modal ── */}
       {activeModal === "APPS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-xs">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-md text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add messages to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level messages: Add messages to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add messages to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level messages: Add messages to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Set up your message asset</h4>
+              <h4 className="font-semibold text-slate-800">Set up your message asset</h4>
               <div>
-                <label className="block text-slate-400 font-semibold">Select message platform</label>
-                <select id="msgPlatformSel" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100">
+                <label className="block text-slate-500 font-semibold">Select message platform</label>
+                <select id="msgPlatformSel" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900">
                   <option value="WhatsApp">WhatsApp</option>
                   <option value="SMS">SMS / Text Message</option>
                 </select>
               </div>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -1733,35 +1733,35 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Structured Snippets Modal ── */}
       {activeModal === "SNIPPETS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-semibold text-white">Create structured snippet</h3>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-semibold text-slate-900">Create structured snippet</h3>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Header Language</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
+                  <label className="block text-slate-500 font-semibold">Header Language</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Select header type</label>
-                  <select id="snippetHeaderSel" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>Amenities</option><option>Brands</option><option>Services</option></select>
+                  <label className="block text-slate-500 font-semibold">Select header type</label>
+                  <select id="snippetHeaderSel" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>Amenities</option><option>Brands</option><option>Services</option></select>
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-slate-300 font-semibold">Values</label>
+                <label className="block text-slate-700 font-semibold">Values</label>
                 {["Value 1", "Value 2", "Value 3"].map((valLabel, idx) => (
                   <div key={idx} className="space-y-1">
-                    <input type="text" maxLength={25} placeholder={valLabel} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                    <input type="text" maxLength={25} placeholder={valLabel} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                     <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
                   </div>
                 ))}
               </div>
               <button type="button" className="text-primary font-bold text-xs hover:underline">+ Add value</button>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -1780,39 +1780,39 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Lead Forms Modal ── */}
       {activeModal === "LEAD_FORMS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add a lead form to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level lead forms: Add lead forms to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add a lead form to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level lead forms: Add lead forms to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
-              <h4 className="font-semibold text-slate-200">Create your lead form</h4>
+              <h4 className="font-semibold text-slate-800">Create your lead form</h4>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Headline</label>
-                <input id="lfHeadlineInp" type="text" maxLength={30} placeholder="Headline" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Headline</label>
+                <input id="lfHeadlineInp" type="text" maxLength={30} placeholder="Headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 30</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Business name</label>
-                <input id="lfBizInp" type="text" maxLength={25} placeholder="Business name" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Business name</label>
+                <input id="lfBizInp" type="text" maxLength={25} placeholder="Business name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Description</label>
-                <textarea rows={3} maxLength={200} placeholder="Description" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Description</label>
+                <textarea rows={3} maxLength={200} placeholder="Description" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 200</span>
               </div>
 
               {/* Questions */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <h5 className="font-semibold text-slate-300">Contact information</h5>
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <h5 className="font-semibold text-slate-700">Contact information</h5>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   {["Name", "Email", "Phone number", "Country", "City", "Zip/Postal code"].map((f, i) => (
-                    <label key={i} className="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <label key={i} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
                       <input type="checkbox" defaultChecked className="rounded text-primary h-3.5 w-3.5" />
                       <span>{f} (Pre-filled)</span>
                     </label>
@@ -1821,22 +1821,22 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* Form Submission Message */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <h5 className="font-semibold text-slate-300">Form submission message</h5>
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <h5 className="font-semibold text-slate-700">Form submission message</h5>
                 <div className="space-y-1">
-                  <label className="block text-slate-400 text-[11px]">Headline</label>
-                  <input type="text" defaultValue="Thank you." maxLength={30} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                  <label className="block text-slate-500 text-[11px]">Headline</label>
+                  <input type="text" defaultValue="Thank you." maxLength={30} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                   <span className="text-[10px] text-slate-500 block">Text is 10 characters out of 30</span>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-slate-400 text-[11px]">Description</label>
-                  <input type="text" defaultValue="We'll contact you soon." maxLength={200} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                  <label className="block text-slate-500 text-[11px]">Description</label>
+                  <input type="text" defaultValue="We'll contact you soon." maxLength={200} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                   <span className="text-[10px] text-slate-500 block">Text is 23 characters out of 200</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -1856,34 +1856,34 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Callouts Modal ── */}
       {activeModal === "BRAND_GUIDELINES" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add callouts to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level callouts: Add callouts to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add callouts to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level callouts: Add callouts to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Add new callout</h4>
+              <h4 className="font-semibold text-slate-800">Add new callout</h4>
               {["Callout text 1", "Callout text 2", "Callout text 3", "Callout text 4"].map((ct, idx) => (
                 <div key={idx} className="space-y-1">
-                  <input id={`calloutInp-${idx}`} type="text" maxLength={25} placeholder={ct} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                  <input id={`calloutInp-${idx}`} type="text" maxLength={25} placeholder={ct} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                   <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
                 </div>
               ))}
-              <div className="pt-2 border-t border-slate-800 space-y-2">
-                <h5 className="font-semibold text-slate-300">Advanced options - Days and hours</h5>
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <h5 className="font-semibold text-slate-700">Advanced options - Days and hours</h5>
                 <div className="flex flex-wrap items-center gap-3">
-                  <select defaultValue="All days" className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100"><option>All days</option></select>
-                  <select defaultValue="00:00" className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"><option>00:00</option></select>
-                  <span className="text-slate-400">to</span>
-                  <select defaultValue="00:00" className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"><option>00:00</option></select>
+                  <select defaultValue="All days" className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900"><option>All days</option></select>
+                  <select defaultValue="00:00" className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"><option>00:00</option></select>
+                  <span className="text-slate-500">to</span>
+                  <select defaultValue="00:00" className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"><option>00:00</option></select>
                 </div>
               </div>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
               <button type="button" className="inline-flex items-center gap-1 text-primary text-xs font-semibold hover:underline">+ Add schedules</button>
               <button
                 type="button"
@@ -1903,35 +1903,35 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Sitelinks Modal ── */}
       {activeModal === "SITELINKS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-semibold text-white">Create sitelink</h3>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-semibold text-slate-900">Create sitelink</h3>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
-              <h4 className="font-bold text-slate-200">Sitelink 1</h4>
+              <h4 className="font-bold text-slate-800">Sitelink 1</h4>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Sitelink text</label>
-                <input id="sitelinkTextInp" type="text" maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Sitelink text</label>
+                <input id="sitelinkTextInp" type="text" maxLength={25} placeholder="Sitelink text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Description line 1 (recommended)</label>
-                <input id="sitelinkDesc1Inp" type="text" maxLength={35} placeholder="Description line 1" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Description line 1 (recommended)</label>
+                <input id="sitelinkDesc1Inp" type="text" maxLength={35} placeholder="Description line 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Description line 2 (recommended)</label>
-                <input id="sitelinkDesc2Inp" type="text" maxLength={35} placeholder="Description line 2" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Description line 2 (recommended)</label>
+                <input id="sitelinkDesc2Inp" type="text" maxLength={35} placeholder="Description line 2" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 35</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Final URL</label>
-                <input id="sitelinkUrlInp" type="text" placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono" />
+                <label className="block text-slate-700 font-semibold">Final URL</label>
+                <input id="sitelinkUrlInp" type="text" placeholder="https://www.example.com/sitelink1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono" />
               </div>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
               <button type="button" className="text-primary font-bold text-xs hover:underline">+ Sitelink 2</button>
               <button
                 type="button"
@@ -1954,48 +1954,48 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Promotions Modal ── */}
       {activeModal === "PROMOTIONS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add promotions to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level promotions: Add promotions to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add promotions to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level promotions: Add promotions to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Add new promotion</h4>
+              <h4 className="font-semibold text-slate-800">Add new promotion</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Occasion</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>None</option></select>
+                  <label className="block text-slate-500 font-semibold">Occasion</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>None</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Language</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>English</option></select>
+                  <label className="block text-slate-500 font-semibold">Language</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>English</option></select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Currency</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>USD ($)</option></select>
+                  <label className="block text-slate-500 font-semibold">Currency</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>USD ($)</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Promotion type</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>Monetary discount ($)</option></select>
+                  <label className="block text-slate-500 font-semibold">Promotion type</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>Monetary discount ($)</option></select>
                 </div>
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold">Item</label>
-                <input id="promoItemInp" type="text" maxLength={20} placeholder="Item name" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-500 font-semibold">Item</label>
+                <input id="promoItemInp" type="text" maxLength={20} placeholder="Item name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500">Text is 0 characters out of 20</span>
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold">Final URL</label>
-                <input id="promoUrlInp" type="text" placeholder="https://www.example.com/promo" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono" />
+                <label className="block text-slate-500 font-semibold">Final URL</label>
+                <input id="promoUrlInp" type="text" placeholder="https://www.example.com/promo" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono" />
               </div>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -2015,37 +2015,37 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Prices Modal ── */}
       {activeModal === "PRICES" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add prices to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level prices: Add prices to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add prices to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level prices: Add prices to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Add new price</h4>
+              <h4 className="font-semibold text-slate-800">Add new price</h4>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Language</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
+                  <label className="block text-slate-500 font-semibold">Language</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Type</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>Brands</option></select>
+                  <label className="block text-slate-500 font-semibold">Type</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>Brands</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Currency</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>USD ($)</option></select>
+                  <label className="block text-slate-500 font-semibold">Currency</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>USD ($)</option></select>
                 </div>
               </div>
               <div>
-                <label className="block text-slate-400 font-semibold">Price qualifier</label>
-                <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>No qualifier</option></select>
+                <label className="block text-slate-500 font-semibold">Price qualifier</label>
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>No qualifier</option></select>
               </div>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -2063,26 +2063,26 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Messages Modal ── */}
       {activeModal === "APPS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-xs">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-md text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add messages to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level messages: Add messages to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add messages to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level messages: Add messages to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Set up your message asset</h4>
+              <h4 className="font-semibold text-slate-800">Set up your message asset</h4>
               <div>
-                <label className="block text-slate-400 font-semibold">Select message platform</label>
-                <select id="msgPlatformSel" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100">
+                <label className="block text-slate-500 font-semibold">Select message platform</label>
+                <select id="msgPlatformSel" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900">
                   <option value="WhatsApp">WhatsApp</option>
                   <option value="SMS">SMS / Text Message</option>
                 </select>
               </div>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -2101,35 +2101,35 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Structured Snippets Modal ── */}
       {activeModal === "SNIPPETS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-semibold text-white">Create structured snippet</h3>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-semibold text-slate-900">Create structured snippet</h3>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold">Header Language</label>
-                  <select className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
+                  <label className="block text-slate-500 font-semibold">Header Language</label>
+                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"><option>English</option></select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-semibold">Select header type</label>
-                  <select id="snippetHeaderSel" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"><option>Amenities</option><option>Brands</option><option>Services</option></select>
+                  <label className="block text-slate-500 font-semibold">Select header type</label>
+                  <select id="snippetHeaderSel" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"><option>Amenities</option><option>Brands</option><option>Services</option></select>
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-slate-300 font-semibold">Values</label>
+                <label className="block text-slate-700 font-semibold">Values</label>
                 {["Value 1", "Value 2", "Value 3"].map((valLabel, idx) => (
                   <div key={idx} className="space-y-1">
-                    <input type="text" maxLength={25} placeholder={valLabel} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                    <input type="text" maxLength={25} placeholder={valLabel} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                     <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
                   </div>
                 ))}
               </div>
               <button type="button" className="text-primary font-bold text-xs hover:underline">+ Add value</button>
             </div>
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -2148,39 +2148,39 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Lead Forms Modal ── */}
       {activeModal === "LEAD_FORMS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add a lead form to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level lead forms: Add lead forms to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add a lead form to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level lead forms: Add lead forms to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
-              <h4 className="font-semibold text-slate-200">Create your lead form</h4>
+              <h4 className="font-semibold text-slate-800">Create your lead form</h4>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Headline</label>
-                <input id="lfHeadlineInp" type="text" maxLength={30} placeholder="Headline" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Headline</label>
+                <input id="lfHeadlineInp" type="text" maxLength={30} placeholder="Headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 30</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Business name</label>
-                <input id="lfBizInp" type="text" maxLength={25} placeholder="Business name" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Business name</label>
+                <input id="lfBizInp" type="text" maxLength={25} placeholder="Business name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
               </div>
               <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold">Description</label>
-                <textarea rows={3} maxLength={200} placeholder="Description" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100" />
+                <label className="block text-slate-700 font-semibold">Description</label>
+                <textarea rows={3} maxLength={200} placeholder="Description" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900" />
                 <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 200</span>
               </div>
 
               {/* Questions */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <h5 className="font-semibold text-slate-300">Contact information</h5>
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <h5 className="font-semibold text-slate-700">Contact information</h5>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   {["Name", "Email", "Phone number", "Country", "City", "Zip/Postal code"].map((f, i) => (
-                    <label key={i} className="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                    <label key={i} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
                       <input type="checkbox" defaultChecked className="rounded text-primary h-3.5 w-3.5" />
                       <span>{f} (Pre-filled)</span>
                     </label>
@@ -2189,22 +2189,22 @@ export default function WebsiteTrafficPerformanceMaxPage() {
               </div>
 
               {/* Form Submission Message */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <h5 className="font-semibold text-slate-300">Form submission message</h5>
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <h5 className="font-semibold text-slate-700">Form submission message</h5>
                 <div className="space-y-1">
-                  <label className="block text-slate-400 text-[11px]">Headline</label>
-                  <input type="text" defaultValue="Thank you." maxLength={30} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                  <label className="block text-slate-500 text-[11px]">Headline</label>
+                  <input type="text" defaultValue="Thank you." maxLength={30} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                   <span className="text-[10px] text-slate-500 block">Text is 10 characters out of 30</span>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-slate-400 text-[11px]">Description</label>
-                  <input type="text" defaultValue="We'll contact you soon." maxLength={200} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                  <label className="block text-slate-500 text-[11px]">Description</label>
+                  <input type="text" defaultValue="We'll contact you soon." maxLength={200} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                   <span className="text-[10px] text-slate-500 block">Text is 23 characters out of 200</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-3 border-t border-slate-800">
+            <div className="flex justify-end pt-3 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => {
@@ -2224,34 +2224,34 @@ export default function WebsiteTrafficPerformanceMaxPage() {
 
       {/* ── Callouts Modal ── */}
       {activeModal === "BRAND_GUIDELINES" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-md text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Add callouts to your campaign</h3>
-                <p className="text-[11px] text-slate-400">Campaign-level callouts: Add callouts to this campaign.</p>
+                <h3 className="text-base font-semibold text-slate-900">Add callouts to your campaign</h3>
+                <p className="text-[11px] text-slate-500">Campaign-level callouts: Add callouts to this campaign.</p>
               </div>
-              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setActiveModal(null)} className="text-slate-500 hover:text-slate-900"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-slate-200">Add new callout</h4>
+              <h4 className="font-semibold text-slate-800">Add new callout</h4>
               {["Callout text 1", "Callout text 2", "Callout text 3", "Callout text 4"].map((ct, idx) => (
                 <div key={idx} className="space-y-1">
-                  <input id={`calloutInp-${idx}`} type="text" maxLength={25} placeholder={ct} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100" />
+                  <input id={`calloutInp-${idx}`} type="text" maxLength={25} placeholder={ct} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900" />
                   <span className="text-[10px] text-slate-500 block">Text is 0 characters out of 25</span>
                 </div>
               ))}
-              <div className="pt-2 border-t border-slate-800 space-y-2">
-                <h5 className="font-semibold text-slate-300">Advanced options - Days and hours</h5>
+              <div className="pt-2 border-t border-slate-200 space-y-2">
+                <h5 className="font-semibold text-slate-700">Advanced options - Days and hours</h5>
                 <div className="flex flex-wrap items-center gap-3">
-                  <select defaultValue="All days" className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100"><option>All days</option></select>
-                  <select defaultValue="00:00" className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"><option>00:00</option></select>
-                  <span className="text-slate-400">to</span>
-                  <select defaultValue="00:00" className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"><option>00:00</option></select>
+                  <select defaultValue="All days" className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900"><option>All days</option></select>
+                  <select defaultValue="00:00" className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"><option>00:00</option></select>
+                  <span className="text-slate-500">to</span>
+                  <select defaultValue="00:00" className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"><option>00:00</option></select>
                 </div>
               </div>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+            <div className="flex justify-between items-center pt-3 border-t border-slate-200">
               <button type="button" className="inline-flex items-center gap-1 text-primary text-xs font-semibold hover:underline">+ Add schedules</button>
               <button
                 type="button"

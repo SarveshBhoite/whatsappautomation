@@ -186,27 +186,27 @@ export default function WebsiteTrafficDisplayPage() {
   }, [customerId]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-all cursor-pointer"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
-            <span className="text-sm font-semibold text-slate-200">Display Campaign Setup</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+            <span className="text-sm font-semibold text-slate-800">Display Campaign Setup</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
           <span className="font-mono">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-white" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
         </div>
       </header>
 
@@ -214,9 +214,9 @@ export default function WebsiteTrafficDisplayPage() {
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sidebar Navigation matching Performance Max style */}
-        <aside className="w-72 border-r border-slate-800 p-4 space-y-4 shrink-0 bg-slate-950/80 hidden md:flex flex-col justify-between overflow-y-auto">
+        <aside className="w-72 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-slate-50/80 hidden md:flex flex-col justify-between overflow-y-auto">
           <div className="space-y-4">
-            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2 text-xs font-semibold text-slate-200">
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
               <LayoutGrid className="h-4 w-4 text-primary shrink-0" />
               <span>Display</span>
             </div>
@@ -229,24 +229,24 @@ export default function WebsiteTrafficDisplayPage() {
                   className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     displayStep === "CAMPAIGN_SETTINGS"
                       ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <span>1. Campaign settings</span>
                 </div>
                 {displayStep === "CAMPAIGN_SETTINGS" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
-                    <p className="hover:text-slate-200">Locations</p>
-                    <p className="hover:text-slate-200">Languages</p>
-                    <p className="hover:text-slate-200">EU political ads</p>
-                    <p className="hover:text-slate-200">Ad rotation</p>
-                    <p className="hover:text-slate-200">Devices</p>
-                    <p className="hover:text-slate-200">Ad Schedule</p>
-                    <p className="hover:text-slate-200">Campaign URL options</p>
-                    <p className="hover:text-slate-200">Dynamic ads</p>
-                    <p className="hover:text-slate-200">Start and end dates</p>
-                    <p className="hover:text-slate-200">Conversions</p>
-                    <p className="hover:text-slate-200">Content exclusions</p>
+                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                    <p className="hover:text-slate-800">Locations</p>
+                    <p className="hover:text-slate-800">Languages</p>
+                    <p className="hover:text-slate-800">EU political ads</p>
+                    <p className="hover:text-slate-800">Ad rotation</p>
+                    <p className="hover:text-slate-800">Devices</p>
+                    <p className="hover:text-slate-800">Ad Schedule</p>
+                    <p className="hover:text-slate-800">Campaign URL options</p>
+                    <p className="hover:text-slate-800">Dynamic ads</p>
+                    <p className="hover:text-slate-800">Start and end dates</p>
+                    <p className="hover:text-slate-800">Conversions</p>
+                    <p className="hover:text-slate-800">Content exclusions</p>
                   </div>
                 )}
               </div>
@@ -258,15 +258,15 @@ export default function WebsiteTrafficDisplayPage() {
                   className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     displayStep === "BUDGET_BIDDING"
                       ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <span>2. Budget and bidding</span>
                 </div>
                 {displayStep === "BUDGET_BIDDING" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
-                    <p className="hover:text-slate-200">Budget</p>
-                    <p className="hover:text-slate-200">Bidding</p>
+                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                    <p className="hover:text-slate-800">Budget</p>
+                    <p className="hover:text-slate-800">Bidding</p>
                   </div>
                 )}
               </div>
@@ -278,19 +278,19 @@ export default function WebsiteTrafficDisplayPage() {
                   className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     displayStep === "TARGETING"
                       ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <span>3. Targeting</span>
                 </div>
                 {displayStep === "TARGETING" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
-                    <p className="hover:text-slate-200">Audience Segments</p>
-                    <p className="hover:text-slate-200">Demographics</p>
-                    <p className="hover:text-slate-200">Keywords</p>
-                    <p className="hover:text-slate-200">Topics</p>
-                    <p className="hover:text-slate-200">Placements</p>
-                    <p className="hover:text-slate-200">Optimized targeting</p>
+                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                    <p className="hover:text-slate-800">Audience Segments</p>
+                    <p className="hover:text-slate-800">Demographics</p>
+                    <p className="hover:text-slate-800">Keywords</p>
+                    <p className="hover:text-slate-800">Topics</p>
+                    <p className="hover:text-slate-800">Placements</p>
+                    <p className="hover:text-slate-800">Optimized targeting</p>
                   </div>
                 )}
               </div>
@@ -302,14 +302,14 @@ export default function WebsiteTrafficDisplayPage() {
                   className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     displayStep === "ADS"
                       ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <span>4. Ads</span>
                 </div>
                 {displayStep === "ADS" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
-                    <p className="hover:text-slate-200">Ad creation</p>
+                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                    <p className="hover:text-slate-800">Ad creation</p>
                   </div>
                 )}
               </div>
@@ -321,7 +321,7 @@ export default function WebsiteTrafficDisplayPage() {
                   className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
                     displayStep === "REVIEW"
                       ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <span>5. Review</span>
@@ -337,15 +337,15 @@ export default function WebsiteTrafficDisplayPage() {
           {/* STEP 1: CAMPAIGN SETTINGS */}
           {displayStep === "CAMPAIGN_SETTINGS" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign settings</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
 
               {/* Locations Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Locations</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
-                <p className="text-xs text-slate-400">Select locations for this campaign</p>
+                <p className="text-xs text-slate-500">Select locations for this campaign</p>
 
                 <div className="space-y-3 text-xs">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -356,7 +356,7 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={() => setSelectedLocation("ALL")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">All countries and territories</span>
+                    <span className="text-slate-800">All countries and territories</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -366,7 +366,7 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={() => setSelectedLocation("INDIA")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">India</span>
+                    <span className="text-slate-800">India</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -376,7 +376,7 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={() => setSelectedLocation("CUSTOM")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">Enter another location</span>
+                    <span className="text-slate-800">Enter another location</span>
                   </label>
 
                   {selectedLocation === "CUSTOM" && (
@@ -388,13 +388,13 @@ export default function WebsiteTrafficDisplayPage() {
                           value={customLocationInput}
                           onChange={(e) => setCustomLocationInput(e.target.value)}
                           placeholder="Enter a location to target or exclude"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                         />
                       </div>
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                  <div className="pt-2 border-t border-slate-200 space-y-3">
                     <button
                       type="button"
                       onClick={() => setShowLocationOptions(!showLocationOptions)}
@@ -405,8 +405,8 @@ export default function WebsiteTrafficDisplayPage() {
                     </button>
 
                     {showLocationOptions && (
-                      <div className="pl-4 pt-2 space-y-3 animate-in fade-in duration-200 border-l-2 border-slate-800">
-                        <span className="font-semibold text-slate-300 block">Include</span>
+                      <div className="pl-4 pt-2 space-y-3 animate-in fade-in duration-200 border-l-2 border-slate-200">
+                        <span className="font-semibold text-slate-700 block">Include</span>
                         <div className="space-y-2">
                           <label className="flex items-start gap-3 cursor-pointer">
                             <input
@@ -417,8 +417,8 @@ export default function WebsiteTrafficDisplayPage() {
                               className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
                             />
                             <div>
-                              <span className="text-slate-200 font-semibold block">Presence or interest:</span>
-                              <span className="text-[11px] text-slate-400 block">People in, regularly in, or who've shown interest in your included locations (recommended)</span>
+                              <span className="text-slate-800 font-semibold block">Presence or interest:</span>
+                              <span className="text-[11px] text-slate-500 block">People in, regularly in, or who've shown interest in your included locations (recommended)</span>
                             </div>
                           </label>
 
@@ -431,8 +431,8 @@ export default function WebsiteTrafficDisplayPage() {
                               className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
                             />
                             <div>
-                              <span className="text-slate-200 font-semibold block">Presence:</span>
-                              <span className="text-[11px] text-slate-400 block">People in or regularly in your included locations</span>
+                              <span className="text-slate-800 font-semibold block">Presence:</span>
+                              <span className="text-[11px] text-slate-500 block">People in or regularly in your included locations</span>
                             </div>
                           </label>
                         </div>
@@ -443,12 +443,12 @@ export default function WebsiteTrafficDisplayPage() {
               </div>
 
               {/* Languages Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Languages</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
-                <p className="text-xs text-slate-400">Select the languages your customers speak.</p>
+                <p className="text-xs text-slate-500">Select the languages your customers speak.</p>
 
                 <div className="space-y-3 text-xs">
                   <div className="relative max-w-md">
@@ -458,12 +458,12 @@ export default function WebsiteTrafficDisplayPage() {
                       value={languageSearchInput}
                       onChange={(e) => setLanguageSearchInput(e.target.value)}
                       placeholder="Start typing or select a language"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                     />
 
                     {/* API Search Suggestions Dropdown */}
                     {languageSearchResults.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-48 overflow-y-auto divide-y divide-slate-800">
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-md z-20 max-h-48 overflow-y-auto divide-y divide-slate-800">
                         {languageSearchResults.map((langItem, i) => (
                           <div
                             key={i}
@@ -472,10 +472,10 @@ export default function WebsiteTrafficDisplayPage() {
                               setLanguageSearchInput("");
                               setLanguageSearchResults([]);
                             }}
-                            className="p-2.5 hover:bg-slate-800 text-xs text-slate-200 cursor-pointer flex items-center justify-between"
+                            className="p-2.5 hover:bg-slate-100 text-xs text-slate-800 cursor-pointer flex items-center justify-between"
                           >
                             <span>{langItem}</span>
-                            <Plus className="h-3.5 w-3.5 text-slate-400" />
+                            <Plus className="h-3.5 w-3.5 text-slate-500" />
                           </div>
                         ))}
                       </div>
@@ -496,16 +496,16 @@ export default function WebsiteTrafficDisplayPage() {
               </div>
 
               {/* EU Political Ads Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-slate-100">EU political ads</h2>
+                    <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
                     <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">Required</span>
                   </div>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
-                <p className="text-xs font-semibold text-slate-200">Does your campaign have European Union political ads?</p>
+                <p className="text-xs font-semibold text-slate-800">Does your campaign have European Union political ads?</p>
 
                 <div className="space-y-2 text-xs">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -516,7 +516,7 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={() => setEuPoliticalAds("YES")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">Yes, this campaign has EU political ads</span>
+                    <span className="text-slate-800">Yes, this campaign has EU political ads</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -526,20 +526,20 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={() => setEuPoliticalAds("NO")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">No, this campaign doesn't have EU political ads</span>
+                    <span className="text-slate-800">No, this campaign doesn't have EU political ads</span>
                   </label>
                 </div>
 
-                <p className="text-[11px] text-slate-400 pt-1">
+                <p className="text-[11px] text-slate-500 pt-1">
                   EU regulation requires Google to ask this question. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn how an EU political ad is defined</a>
                 </p>
               </div>
 
               {/* 4. Ad Schedule Card (With Multi Schedule Add Button) */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Ad schedule</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Ad schedule</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="space-y-3">
@@ -552,7 +552,7 @@ export default function WebsiteTrafficDisplayPage() {
                           updated[index].day = e.target.value;
                           setAdScheduleList(updated);
                         }}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
                       >
                         <option value="All days">All days</option>
                         <option value="Mondays - Fridays">Mondays - Fridays</option>
@@ -573,7 +573,7 @@ export default function WebsiteTrafficDisplayPage() {
                           updated[index].start = e.target.value;
                           setAdScheduleList(updated);
                         }}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
                       >
                         {Array.from({ length: 96 }).map((_, i) => {
                           const h = String(Math.floor(i / 4)).padStart(2, "0");
@@ -583,7 +583,7 @@ export default function WebsiteTrafficDisplayPage() {
                         })}
                       </select>
 
-                      <span className="text-slate-400 font-medium">to</span>
+                      <span className="text-slate-500 font-medium">to</span>
 
                       <select
                         value={item.end}
@@ -592,7 +592,7 @@ export default function WebsiteTrafficDisplayPage() {
                           updated[index].end = e.target.value;
                           setAdScheduleList(updated);
                         }}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary"
                       >
                         {Array.from({ length: 96 }).map((_, i) => {
                           const h = String(Math.floor(i / 4)).padStart(2, "0");
@@ -606,7 +606,7 @@ export default function WebsiteTrafficDisplayPage() {
                         <button
                           type="button"
                           onClick={() => setAdScheduleList(prev => prev.filter(s => s.id !== item.id))}
-                          className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 cursor-pointer"
+                          className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-100 cursor-pointer"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -623,7 +623,7 @@ export default function WebsiteTrafficDisplayPage() {
                   </button>
                 </div>
 
-                <div className="space-y-1 text-[11px] text-slate-400 leading-relaxed pt-1">
+                <div className="space-y-1 text-[11px] text-slate-500 leading-relaxed pt-1">
                   <p>To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a></p>
                   <p>Based on account time zone: <strong>(GMT+05:30) India Standard Time</strong></p>
                   <p className="text-amber-400/90 font-medium">Saving this removes the settings you changed and adds new ones, resetting any performance data.</p>
@@ -632,10 +632,10 @@ export default function WebsiteTrafficDisplayPage() {
               </div>
 
               {/* 5. Ad Rotation Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Ad rotation</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Ad rotation</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="space-y-3">
@@ -648,8 +648,8 @@ export default function WebsiteTrafficDisplayPage() {
                       className="mt-0.5 text-primary h-4 w-4"
                     />
                     <div>
-                      <span className="font-semibold text-slate-200 block">Optimize: Prefer best performing ads</span>
-                      <span className="text-[11px] text-slate-400 block">Show ads that are expected to get more clicks or conversions. Recommended for most advertisers.</span>
+                      <span className="font-semibold text-slate-800 block">Optimize: Prefer best performing ads</span>
+                      <span className="text-[11px] text-slate-500 block">Show ads that are expected to get more clicks or conversions. Recommended for most advertisers.</span>
                     </div>
                   </label>
 
@@ -662,17 +662,17 @@ export default function WebsiteTrafficDisplayPage() {
                       className="mt-0.5 text-primary h-4 w-4"
                     />
                     <div>
-                      <span className="font-semibold text-slate-200 block">Do not optimize: Rotate ads indefinitely</span>
+                      <span className="font-semibold text-slate-800 block">Do not optimize: Rotate ads indefinitely</span>
                     </div>
                   </label>
                 </div>
               </div>
 
               {/* 6. Devices Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Devices</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Devices</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="space-y-2">
@@ -684,7 +684,7 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={() => setDeviceOption("ALL")}
                       className="text-primary h-4 w-4"
                     />
-                    <span className="text-slate-200 font-semibold">Show on all devices</span>
+                    <span className="text-slate-800 font-semibold">Show on all devices</span>
                   </label>
 
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -695,47 +695,47 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={() => setDeviceOption("SPECIFIC")}
                       className="text-primary h-4 w-4"
                     />
-                    <span className="text-slate-200 font-semibold">Set specific targeting for devices</span>
+                    <span className="text-slate-800 font-semibold">Set specific targeting for devices</span>
                   </label>
                 </div>
 
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   Device targeting lets you choose the types of devices where your ad can appear.
                 </p>
               </div>
 
               {/* 7. Campaign URL Options Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Campaign URL options</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Campaign URL options</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    <label className="block text-slate-300 font-semibold">Tracking template</label>
+                    <label className="block text-slate-700 font-semibold">Tracking template</label>
                     <input
                       type="text"
                       value={trackingTemplate}
                       onChange={(e) => setTrackingTemplate(e.target.value)}
                       placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-slate-300 font-semibold">Final URL suffix</label>
+                    <label className="block text-slate-700 font-semibold">Final URL suffix</label>
                     <input
                       type="text"
                       value={finalUrlSuffix}
                       onChange={(e) => setFinalUrlSuffix(e.target.value)}
                       placeholder="Example: param1=value1&param2=value2"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                     />
                   </div>
 
-                  <div className="space-y-3 pt-1 border-t border-slate-800">
-                    <label className="block text-slate-300 font-semibold">Custom parameters</label>
+                  <div className="space-y-3 pt-1 border-t border-slate-200">
+                    <label className="block text-slate-700 font-semibold">Custom parameters</label>
                     
                     {customParamsList.map((param, index) => (
                       <div key={param.id} className="flex items-center gap-3">
@@ -749,10 +749,10 @@ export default function WebsiteTrafficDisplayPage() {
                               setCustomParamsList(updated);
                             }}
                             placeholder="Name {_name}"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                           />
                         </div>
-                        <span className="text-slate-400 font-bold text-base">=</span>
+                        <span className="text-slate-500 font-bold text-base">=</span>
                         <div className="flex-1">
                           <input
                             type="text"
@@ -763,14 +763,14 @@ export default function WebsiteTrafficDisplayPage() {
                               setCustomParamsList(updated);
                             }}
                             placeholder="Value"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                           />
                         </div>
                         {customParamsList.length > 1 && (
                           <button
                             type="button"
                             onClick={() => setCustomParamsList(prev => prev.filter(p => p.id !== param.id))}
-                            className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 cursor-pointer"
+                            className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-100 cursor-pointer"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -787,17 +787,17 @@ export default function WebsiteTrafficDisplayPage() {
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
                     Tracking template is the URL you want the ad click to go to for tracking. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
                   </p>
                 </div>
               </div>
 
               {/* 8. Dynamic Ads Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Dynamic ads</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Dynamic ads</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -805,38 +805,38 @@ export default function WebsiteTrafficDisplayPage() {
                     type="checkbox"
                     checked={useDynamicFeed}
                     onChange={(e) => setUseDynamicFeed(e.target.checked)}
-                    className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                    className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                   />
-                  <span className="font-semibold text-slate-200">Use dynamic ads feed for personalized ads</span>
+                  <span className="font-semibold text-slate-800">Use dynamic ads feed for personalized ads</span>
                 </label>
               </div>
 
               {/* 9. Start and End Dates Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Start and end dates</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Start and end dates</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="block text-slate-300 font-semibold">Start date</label>
+                    <label className="block text-slate-700 font-semibold">Start date</label>
                     <input
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                     />
                     <p className="text-[10px] text-slate-500">Aug 11, 2026</p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="block text-slate-300 font-semibold">End date</label>
+                    <label className="block text-slate-700 font-semibold">End date</label>
                     <input
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                     />
                     {!endDate ? (
                       <p className="text-[10px] text-slate-500">None (Select a date)</p>
@@ -844,53 +844,53 @@ export default function WebsiteTrafficDisplayPage() {
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   Your ads will continue to run unless you specify an end date.
                 </p>
               </div>
 
               {/* 10. Conversions Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Conversions</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Conversions</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="space-y-2">
-                  <h4 className="font-bold text-slate-200">View-through conversions</h4>
+                  <h4 className="font-bold text-slate-800">View-through conversions</h4>
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={includeViewThrough}
                       onChange={(e) => setIncludeViewThrough(e.target.checked)}
-                      className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                      className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                     />
                     <div>
-                      <span className="font-semibold text-slate-200 block">Include view-through conversions in your "Conversions" and "All conversions" columns</span>
-                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                      <span className="font-semibold text-slate-800 block">Include view-through conversions in your "Conversions" and "All conversions" columns</span>
+                      <span className="text-[11px] text-slate-500 block mt-0.5">
                         Only available for manual vCPM and Target CPA bid strategies that are paying for viewable impressions.
                       </span>
                     </div>
                   </label>
                 </div>
 
-                <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
                   View-through conversions are counted when someone views your ad, doesn't click it, then performs a conversion action later on. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
                 </p>
               </div>
 
               {/* 11. Content Exclusions Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Content exclusions</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Content exclusions</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
-                <p className="text-slate-300">Opt out of showing your ads on content that doesn't fit your brand</p>
+                <p className="text-slate-700">Opt out of showing your ads on content that doesn't fit your brand</p>
 
                 {/* Section A: Content label */}
-                <div className="space-y-3 pt-1 border-t border-slate-800/80">
-                  <h3 className="font-bold text-slate-200">Content label (Display and GVP)</h3>
+                <div className="space-y-3 pt-1 border-t border-slate-200">
+                  <h3 className="font-bold text-slate-800">Content label (Display and GVP)</h3>
                   <div className="space-y-2">
                     {[
                       { key: "DL-G", title: "DL‑G: General audiences", desc: "Content suitable for families" },
@@ -904,11 +904,11 @@ export default function WebsiteTrafficDisplayPage() {
                           type="checkbox"
                           checked={!!contentLabels[lbl.key]}
                           onChange={(e) => setContentLabels(prev => ({ ...prev, [lbl.key]: e.target.checked }))}
-                          className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                          className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                         />
                         <div>
-                          <span className="font-semibold text-slate-200 block">{lbl.title}</span>
-                          <span className="text-[11px] text-slate-400 block">{lbl.desc}</span>
+                          <span className="font-semibold text-slate-800 block">{lbl.title}</span>
+                          <span className="text-[11px] text-slate-500 block">{lbl.desc}</span>
                         </div>
                       </label>
                     ))}
@@ -916,8 +916,8 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Section B: Sensitive content */}
-                <div className="space-y-3 pt-3 border-t border-slate-800/80">
-                  <h3 className="font-bold text-slate-200">Sensitive content</h3>
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <h3 className="font-bold text-slate-800">Sensitive content</h3>
                   <div className="space-y-2">
                     {[
                       "Tragedy and conflict",
@@ -931,17 +931,17 @@ export default function WebsiteTrafficDisplayPage() {
                           type="checkbox"
                           checked={!!sensitiveContent[sens]}
                           onChange={(e) => setSensitiveContent(prev => ({ ...prev, [sens]: e.target.checked }))}
-                          className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                          className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                         />
-                        <span className="text-slate-200">{sens}</span>
+                        <span className="text-slate-800">{sens}</span>
                       </label>
                     ))}
                   </div>
                 </div>
 
                 {/* Section C: Content type */}
-                <div className="space-y-3 pt-3 border-t border-slate-800/80">
-                  <h3 className="font-bold text-slate-200">Content type</h3>
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <h3 className="font-bold text-slate-800">Content type</h3>
                   <div className="space-y-2">
                     {[
                       { name: "Games", status: "Inactive" },
@@ -952,18 +952,18 @@ export default function WebsiteTrafficDisplayPage() {
                       { name: "Parked domains", status: "Active" },
                       { name: "In-video", status: "Active" }
                     ].map((ct) => (
-                      <label key={ct.name} className="flex items-center justify-between cursor-pointer p-1.5 rounded-lg hover:bg-slate-950">
+                      <label key={ct.name} className="flex items-center justify-between cursor-pointer p-1.5 rounded-lg hover:bg-slate-50">
                         <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
                             checked={!!contentTypeExclusions[ct.name]}
                             onChange={(e) => setContentTypeExclusions(prev => ({ ...prev, [ct.name]: e.target.checked }))}
-                            className="rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                            className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                           />
-                          <span className="text-slate-200">{ct.name}</span>
+                          <span className="text-slate-800">{ct.name}</span>
                         </div>
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                          ct.status === "Inactive" ? "bg-slate-800 text-slate-400" : "bg-emerald-500/20 text-emerald-400"
+                          ct.status === "Inactive" ? "bg-slate-100 text-slate-500" : "bg-emerald-500/20 text-emerald-400"
                         }`}>
                           {ct.status}
                         </span>
@@ -972,7 +972,7 @@ export default function WebsiteTrafficDisplayPage() {
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/60">
+                <p className="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
                   While content exclusions are completed to the best of our ability, we can't guarantee that all related content will be excluded.
                 </p>
               </div>
@@ -982,48 +982,48 @@ export default function WebsiteTrafficDisplayPage() {
           {/* STEP 2: BUDGET AND BIDDING */}
           {displayStep === "BUDGET_BIDDING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Budget and bidding</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Budget and bidding</h1>
 
               {/* Budget Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Budget</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Budget</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
-                <p className="text-xs font-semibold text-slate-200">Set your average daily budget for this campaign</p>
+                <p className="text-xs font-semibold text-slate-800">Set your average daily budget for this campaign</p>
 
                 <div className="relative max-w-xs">
-                  <span className="absolute left-3.5 top-2.5 text-xs font-semibold text-slate-400">₹</span>
+                  <span className="absolute left-3.5 top-2.5 text-xs font-semibold text-slate-500">₹</span>
                   <input
                     type="text"
                     value={dailyBudget}
                     onChange={(e) => setDailyBudget(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                   />
                 </div>
 
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
                   The most you'll pay per month is your daily budget times 30.4 (the average number of days in a month). Some days you might spend more or less than your daily budget. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
                 </p>
               </div>
 
               {/* Bidding Card with Conditional Views */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Bidding</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Bidding</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 {!showDirectBidStrategy ? (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1.5">What do you want to focus on?</label>
+                      <label className="block text-slate-700 font-semibold mb-1.5">What do you want to focus on?</label>
                       <select
                         value={biddingFocus}
                         onChange={(e) => setBiddingFocus(e.target.value)}
-                        className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                        className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                       >
                         <optgroup label="Recommended">
                           <option value="Conversions">Conversions</option>
@@ -1042,8 +1042,8 @@ export default function WebsiteTrafficDisplayPage() {
                           Recommended for your campaign goal
                         </span>
 
-                        <div className="space-y-2 pt-2 border-t border-slate-800">
-                          <label className="block text-slate-300 font-semibold">How do you want to get conversions?</label>
+                        <div className="space-y-2 pt-2 border-t border-slate-200">
+                          <label className="block text-slate-700 font-semibold">How do you want to get conversions?</label>
 
                           <label className="flex items-center gap-3 cursor-pointer">
                             <input
@@ -1053,7 +1053,7 @@ export default function WebsiteTrafficDisplayPage() {
                               onChange={() => setConversionBiddingType("MANUAL")}
                               className="text-primary focus:ring-primary h-4 w-4"
                             />
-                            <span className="text-slate-200">Manually set bids</span>
+                            <span className="text-slate-800">Manually set bids</span>
                           </label>
 
                           <label className="flex items-center gap-3 cursor-pointer">
@@ -1064,7 +1064,7 @@ export default function WebsiteTrafficDisplayPage() {
                               onChange={() => setConversionBiddingType("MAX_CONVERSIONS")}
                               className="text-primary focus:ring-primary h-4 w-4"
                             />
-                            <span className="text-slate-200">Automatically maximize conversions</span>
+                            <span className="text-slate-800">Automatically maximize conversions</span>
                           </label>
 
                           <label className="flex items-start gap-3 cursor-pointer pt-1">
@@ -1076,16 +1076,16 @@ export default function WebsiteTrafficDisplayPage() {
                               className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
                             />
                             <div>
-                              <span className="text-slate-200 block">Set a target cost per action</span>
+                              <span className="text-slate-800 block">Set a target cost per action</span>
                               {conversionBiddingType === "TARGET_CPA" && (
                                 <div className="pt-2 space-y-1">
-                                  <label className="block text-[11px] text-slate-400 font-semibold">Target CPA (₹)</label>
+                                  <label className="block text-[11px] text-slate-500 font-semibold">Target CPA (₹)</label>
                                   <input
                                     type="text"
                                     value={targetCpaValue}
                                     onChange={(e) => setTargetCpaValue(e.target.value)}
                                     placeholder="e.g. 500"
-                                    className="w-48 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                                    className="w-48 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                                   />
                                 </div>
                               )}
@@ -1093,7 +1093,7 @@ export default function WebsiteTrafficDisplayPage() {
                           </label>
                         </div>
 
-                        <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/80">
+                        <p className="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
                           This campaign will use the Maximize conversions bid strategy to help you get the most conversions for your budget.
                         </p>
                       </div>
@@ -1106,25 +1106,25 @@ export default function WebsiteTrafficDisplayPage() {
                           Recommended for your campaign goal
                         </span>
 
-                        <div className="pt-2 border-t border-slate-800 space-y-2">
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
                           <label className="flex items-start gap-3 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={setTargetRoas}
                               onChange={(e) => setSetTargetRoas(e.target.checked)}
-                              className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                              className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                             />
                             <div>
-                              <span className="font-semibold text-slate-200 block">Set a target return on ad spend</span>
+                              <span className="font-semibold text-slate-800 block">Set a target return on ad spend</span>
                               {setTargetRoas && (
                                 <div className="pt-2 space-y-1">
-                                  <label className="block text-[11px] text-slate-400 font-semibold">Target ROAS (%)</label>
+                                  <label className="block text-[11px] text-slate-500 font-semibold">Target ROAS (%)</label>
                                   <input
                                     type="text"
                                     value={targetRoasValue}
                                     onChange={(e) => setTargetRoasValue(e.target.value)}
                                     placeholder="e.g. 200%"
-                                    className="w-48 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                                    className="w-48 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                                   />
                                 </div>
                               )}
@@ -1132,7 +1132,7 @@ export default function WebsiteTrafficDisplayPage() {
                           </label>
                         </div>
 
-                        <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/80">
+                        <p className="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
                           This campaign will use the Maximize conversion value bid strategy to help you get the most conversion value for your budget.
                         </p>
                       </div>
@@ -1145,28 +1145,28 @@ export default function WebsiteTrafficDisplayPage() {
                           Conversions is recommended for your campaign goal
                         </span>
 
-                        <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                          <label className="block text-slate-300 font-semibold">Enter your viewable CPM bid for this ad group</label>
+                        <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                          <label className="block text-slate-700 font-semibold">Enter your viewable CPM bid for this ad group</label>
                           <div className="relative max-w-xs">
-                            <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-400">₹</span>
+                            <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
                             <input
                               type="text"
                               value={viewableCpmBid}
                               onChange={(e) => setViewableCpmBid(e.target.value)}
                               placeholder="0.00"
-                              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                             />
                           </div>
                         </div>
 
-                        <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/80">
+                        <p className="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
                           You’ve chosen to focus on impressions using the Viewable CPM bid strategy, but your account tracks conversions. You could get more conversions by choosing to focus on conversions.
                         </p>
                       </div>
                     )}
 
                     {/* Or, select a bid strategy directly toggle */}
-                    <div className="pt-3 border-t border-slate-800/80">
+                    <div className="pt-3 border-t border-slate-200">
                       <button
                         type="button"
                         onClick={() => setShowDirectBidStrategy(true)}
@@ -1180,11 +1180,11 @@ export default function WebsiteTrafficDisplayPage() {
                   /* Direct Bid Strategy View */
                   <div className="space-y-4 animate-in fade-in duration-200">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-200">Select your bid strategy</span>
+                      <span className="font-semibold text-slate-800">Select your bid strategy</span>
                       <button
                         type="button"
                         onClick={() => setShowDirectBidStrategy(false)}
-                        className="text-[11px] text-slate-400 hover:text-slate-200 underline cursor-pointer"
+                        className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
                       >
                         Back to focus options
                       </button>
@@ -1193,23 +1193,23 @@ export default function WebsiteTrafficDisplayPage() {
                     <select
                       value={directBidStrategy}
                       onChange={(e) => setDirectBidStrategy(e.target.value)}
-                      className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                      className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                     >
                       <option value="Viewable CPM">Viewable CPM</option>
                       <option value="Maximize conversions">Maximize conversions</option>
                       <option value="Target CPA">Target CPA</option>
                     </select>
 
-                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                      <label className="block text-slate-300 font-semibold">Enter your viewable CPM bid for this ad group</label>
+                    <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                      <label className="block text-slate-700 font-semibold">Enter your viewable CPM bid for this ad group</label>
                       <div className="relative max-w-xs">
-                        <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-400">₹</span>
+                        <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
                         <input
                           type="text"
                           value={viewableCpmBid}
                           onChange={(e) => setViewableCpmBid(e.target.value)}
                           placeholder="0.00"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                         />
                       </div>
                     </div>
@@ -1222,18 +1222,18 @@ export default function WebsiteTrafficDisplayPage() {
           {/* STEP 3: TARGETING */}
           {displayStep === "TARGETING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Targeting</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Targeting</h1>
 
               {/* ── SECTION 1: PEOPLE ── */}
               <div className="space-y-4">
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">People</h2>
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">People</h2>
 
                 {/* 1. Audience Segments Card */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">Audience Segments</h3>
-                      <p className="text-[11px] text-slate-400">Suggest who should see your ads. You can create new segments in Audience Manager.</p>
+                      <h3 className="text-sm font-semibold text-slate-900">Audience Segments</h3>
+                      <p className="text-[11px] text-slate-500">Suggest who should see your ads. You can create new segments in Audience Manager.</p>
                     </div>
                     <button
                       type="button"
@@ -1252,28 +1252,28 @@ export default function WebsiteTrafficDisplayPage() {
                         value={audienceSearchInput}
                         onChange={(e) => setAudienceSearchInput(e.target.value)}
                         placeholder='Try "luxury shoppers"'
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-medium"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-medium"
                       />
                     </div>
 
-                    <p className="text-[11px] text-slate-400">You’ll see recently selected segments and ideas here.</p>
-                    <p className="text-[11px] text-slate-400 italic">Use search to start looking for a segment.</p>
+                    <p className="text-[11px] text-slate-500">You’ll see recently selected segments and ideas here.</p>
+                    <p className="text-[11px] text-slate-500 italic">Use search to start looking for a segment.</p>
 
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <p className="font-semibold text-slate-300">
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="font-semibold text-slate-700">
                         {selectedAudiences.length > 0 ? `Selected (${selectedAudiences.length}): ${selectedAudiences.join(", ")}` : "None selected"}
                       </p>
-                      <p className="text-[11px] text-slate-400">Select one or more segments to target.</p>
+                      <p className="text-[11px] text-slate-500">Select one or more segments to target.</p>
                     </div>
                   </div>
                 </div>
 
                 {/* 2. Demographics Card */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">Demographics</h3>
-                      <p className="text-[11px] text-slate-400">Suggest people based on age, gender, parental status, or household income</p>
+                      <h3 className="text-sm font-semibold text-slate-900">Demographics</h3>
+                      <p className="text-[11px] text-slate-500">Suggest people based on age, gender, parental status, or household income</p>
                     </div>
                     <button
                       type="button"
@@ -1287,70 +1287,70 @@ export default function WebsiteTrafficDisplayPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                     {/* Gender */}
                     <div className="space-y-2">
-                      <h4 className="font-bold text-slate-200 border-b border-slate-800 pb-1">Gender</h4>
+                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Gender</h4>
                       {["Female", "Male", "Unknown"].map((g) => (
                         <label key={g} className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={!!demographicsGender[g]}
                             onChange={(e) => setDemographicsGender(prev => ({ ...prev, [g]: e.target.checked }))}
-                            className="rounded bg-slate-950 border-slate-700 text-primary h-3.5 w-3.5"
+                            className="rounded bg-slate-50 border-slate-300 text-primary h-3.5 w-3.5"
                           />
-                          <span className="text-slate-300">{g}</span>
+                          <span className="text-slate-700">{g}</span>
                         </label>
                       ))}
                     </div>
 
                     {/* Age */}
                     <div className="space-y-2">
-                      <h4 className="font-bold text-slate-200 border-b border-slate-800 pb-1">Age</h4>
+                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Age</h4>
                       {["18 - 24", "25 - 34", "35 - 44", "45 - 54", "55 - 64", "65+", "Unknown"].map((a) => (
                         <label key={a} className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={!!demographicsAge[a]}
                             onChange={(e) => setDemographicsAge(prev => ({ ...prev, [a]: e.target.checked }))}
-                            className="rounded bg-slate-950 border-slate-700 text-primary h-3.5 w-3.5"
+                            className="rounded bg-slate-50 border-slate-300 text-primary h-3.5 w-3.5"
                           />
-                          <span className="text-slate-300">{a}</span>
+                          <span className="text-slate-700">{a}</span>
                         </label>
                       ))}
                     </div>
 
                     {/* Parental Status */}
                     <div className="space-y-2">
-                      <h4 className="font-bold text-slate-200 border-b border-slate-800 pb-1">Parental status</h4>
+                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Parental status</h4>
                       {["Not a parent", "Parent", "Unknown"].map((p) => (
                         <label key={p} className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={!!demographicsParental[p]}
                             onChange={(e) => setDemographicsParental(prev => ({ ...prev, [p]: e.target.checked }))}
-                            className="rounded bg-slate-950 border-slate-700 text-primary h-3.5 w-3.5"
+                            className="rounded bg-slate-50 border-slate-300 text-primary h-3.5 w-3.5"
                           />
-                          <span className="text-slate-300">{p}</span>
+                          <span className="text-slate-700">{p}</span>
                         </label>
                       ))}
                     </div>
 
                     {/* Household Income */}
                     <div className="space-y-2">
-                      <h4 className="font-bold text-slate-200 border-b border-slate-800 pb-1">Household income</h4>
+                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Household income</h4>
                       {["Top 10%", "11 - 20%", "21 - 30%", "31 - 40%", "41 - 50%", "Lower 50%", "Unknown"].map((inc) => (
                         <label key={inc} className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={!!demographicsIncome[inc]}
                             onChange={(e) => setDemographicsIncome(prev => ({ ...prev, [inc]: e.target.checked }))}
-                            className="rounded bg-slate-950 border-slate-700 text-primary h-3.5 w-3.5"
+                            className="rounded bg-slate-50 border-slate-300 text-primary h-3.5 w-3.5"
                           />
-                          <span className="text-slate-300">{inc}</span>
+                          <span className="text-slate-700">{inc}</span>
                         </label>
                       ))}
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
+                  <p className="text-[11px] text-slate-500 border-t border-slate-200 pt-2">
                     Note: Household income targeting is only available in select countries. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
                   </p>
                 </div>
@@ -1358,14 +1358,14 @@ export default function WebsiteTrafficDisplayPage() {
 
               {/* ── SECTION 2: CONTENT ── */}
               <div className="space-y-4 pt-2">
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Content</h2>
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Content</h2>
 
                 {/* 3. Keywords Card */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">Keywords</h3>
-                      <p className="text-[11px] text-slate-400">Suggest terms related to your products or services to target relevant websites</p>
+                      <h3 className="text-sm font-semibold text-slate-900">Keywords</h3>
+                      <p className="text-[11px] text-slate-500">Suggest terms related to your products or services to target relevant websites</p>
                     </div>
                     <button
                       type="button"
@@ -1378,42 +1378,42 @@ export default function WebsiteTrafficDisplayPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="block text-slate-300 font-semibold">Enter or paste keywords, one per line</label>
+                      <label className="block text-slate-700 font-semibold">Enter or paste keywords, one per line</label>
                       <textarea
                         rows={5}
                         value={enteredKeywordsText}
                         onChange={(e) => setEnteredKeywordsText(e.target.value)}
                         placeholder="Enter keywords here..."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                       />
                     </div>
 
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
-                      <h4 className="font-bold text-slate-200">Get keyword ideas</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                      <h4 className="font-bold text-slate-800">Get keyword ideas</h4>
                       <div className="space-y-2">
                         <input
                           type="text"
                           value={ideaUrlInput}
                           onChange={(e) => setIdeaUrlInput(e.target.value)}
                           placeholder="Enter a related website"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         />
                         <input
                           type="text"
                           value={ideaProductInput}
                           onChange={(e) => setIdeaProductInput(e.target.value)}
                           placeholder="Enter your product or service"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         />
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
                         We only show keyword ideas that are relevant to your business. To get ideas, enter your landing page, a related website, or words or phrases that describe your product or service in the field above.
                       </p>
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-800 space-y-2">
-                    <h4 className="font-bold text-slate-200">Keyword setting</h4>
+                  <div className="pt-3 border-t border-slate-200 space-y-2">
+                    <h4 className="font-bold text-slate-800">Keyword setting</h4>
                     
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
@@ -1424,8 +1424,8 @@ export default function WebsiteTrafficDisplayPage() {
                         className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
                       />
                       <div>
-                        <span className="font-semibold text-slate-200 block">Audience:</span>
-                        <span className="text-[11px] text-slate-400 block">Show ads to people likely to be interested in these keywords and also on webpages, apps, and videos related to these keywords</span>
+                        <span className="font-semibold text-slate-800 block">Audience:</span>
+                        <span className="text-[11px] text-slate-500 block">Show ads to people likely to be interested in these keywords and also on webpages, apps, and videos related to these keywords</span>
                       </div>
                     </label>
 
@@ -1438,19 +1438,19 @@ export default function WebsiteTrafficDisplayPage() {
                         className="mt-0.5 text-primary focus:ring-primary h-4 w-4"
                       />
                       <div>
-                        <span className="font-semibold text-slate-200 block">Content:</span>
-                        <span className="text-[11px] text-slate-400 block">Only show ads on webpages, apps, and videos related to these keywords</span>
+                        <span className="font-semibold text-slate-800 block">Content:</span>
+                        <span className="text-[11px] text-slate-500 block">Only show ads on webpages, apps, and videos related to these keywords</span>
                       </div>
                     </label>
                   </div>
                 </div>
 
                 {/* 4. Topics Card */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">Topics</h3>
-                      <p className="text-[11px] text-slate-400">Suggest webpages, apps, and videos about a certain topic</p>
+                      <h3 className="text-sm font-semibold text-slate-900">Topics</h3>
+                      <p className="text-[11px] text-slate-500">Suggest webpages, apps, and videos about a certain topic</p>
                     </div>
                     <button
                       type="button"
@@ -1469,7 +1469,7 @@ export default function WebsiteTrafficDisplayPage() {
                         value={topicSearchInput}
                         onChange={(e) => setTopicSearchInput(e.target.value)}
                         placeholder="Search by word, phrase, or URL"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                       />
                     </div>
 
@@ -1483,7 +1483,7 @@ export default function WebsiteTrafficDisplayPage() {
                         "Reference", "Science", "Shopping & Retailers", "Sports",
                         "Travel & Transportation", "World Localities"
                       ].map((topicItem) => (
-                        <label key={topicItem} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-950 cursor-pointer">
+                        <label key={topicItem} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={selectedTopics.includes(topicItem)}
@@ -1491,28 +1491,28 @@ export default function WebsiteTrafficDisplayPage() {
                               if (e.target.checked) setSelectedTopics(prev => [...prev, topicItem]);
                               else setSelectedTopics(prev => prev.filter(t => t !== topicItem));
                             }}
-                            className="rounded bg-slate-950 border-slate-700 text-primary h-3.5 w-3.5"
+                            className="rounded bg-slate-50 border-slate-300 text-primary h-3.5 w-3.5"
                           />
-                          <span className="text-slate-300 truncate">{topicItem}</span>
+                          <span className="text-slate-700 truncate">{topicItem}</span>
                         </label>
                       ))}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <p className="font-semibold text-slate-300">
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="font-semibold text-slate-700">
                         {selectedTopics.length > 0 ? `Selected Topics (${selectedTopics.length}): ${selectedTopics.join(", ")}` : "None selected"}
                       </p>
-                      <p className="text-[11px] text-slate-400">Your ad will show to all topics that match your other targeting. Add specific topics to narrow your targeting.</p>
+                      <p className="text-[11px] text-slate-500">Your ad will show to all topics that match your other targeting. Add specific topics to narrow your targeting.</p>
                     </div>
                   </div>
                 </div>
 
                 {/* 5. Placements Card */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">Placements</h3>
-                      <p className="text-[11px] text-slate-400">Suggest websites, videos, or apps where you'd like to show your ads</p>
+                      <h3 className="text-sm font-semibold text-slate-900">Placements</h3>
+                      <p className="text-[11px] text-slate-500">Suggest websites, videos, or apps where you'd like to show your ads</p>
                     </div>
                     <button
                       type="button"
@@ -1531,7 +1531,7 @@ export default function WebsiteTrafficDisplayPage() {
                         value={placementSearchInput}
                         onChange={(e) => setPlacementSearchInput(e.target.value)}
                         placeholder="Search by word, phrase, URL, or video ID"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                       />
                     </div>
 
@@ -1540,18 +1540,18 @@ export default function WebsiteTrafficDisplayPage() {
                         <button
                           key={plcCat}
                           type="button"
-                          className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-primary text-slate-300 hover:text-white transition-all cursor-pointer font-medium"
+                          className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-primary text-slate-700 hover:text-slate-900 transition-all cursor-pointer font-medium"
                         >
                           {plcCat}
                         </button>
                       ))}
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <p className="font-semibold text-slate-300">
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="font-semibold text-slate-700">
                         {selectedPlacements.length > 0 ? `Selected Placements (${selectedPlacements.length}): ${selectedPlacements.join(", ")}` : "None selected"}
                       </p>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
                         Your ad can appear on any YouTube or Display Network placements that match your other targeting. Add specific placements to narrow your targeting. If a specific website you target has an equivalent app, your ads can also show there.
                       </p>
                     </div>
@@ -1559,10 +1559,10 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* 6. Optimized Targeting Card */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-sm font-semibold text-slate-100">Optimized targeting</h3>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <h3 className="text-sm font-semibold text-slate-900">Optimized targeting</h3>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -1570,11 +1570,11 @@ export default function WebsiteTrafficDisplayPage() {
                       type="checkbox"
                       checked={useOptimizedTargeting}
                       onChange={(e) => setUseOptimizedTargeting(e.target.checked)}
-                      className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                      className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                     />
                     <div>
-                      <span className="font-semibold text-slate-200 block">Use optimized targeting</span>
-                      <span className="text-[11px] text-slate-400 block mt-0.5 leading-relaxed">
+                      <span className="font-semibold text-slate-800 block">Use optimized targeting</span>
+                      <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
                         Optimized targeting helps you get more viewable impressions by using information such as your landing page and assets. You can opt out or speed up optimization by adding targeting first.
                       </span>
                     </div>
@@ -1588,32 +1588,32 @@ export default function WebsiteTrafficDisplayPage() {
           {displayStep === "ADS" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold text-white tracking-tight">Ads</h1>
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Ads</h1>
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-400">Ad strength:</span>
+                  <span className="text-slate-500">Ad strength:</span>
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">Incomplete</span>
                 </div>
               </div>
 
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
-                <h2 className="text-base font-semibold text-white border-b border-slate-800 pb-3">Ad creation</h2>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
+                <h2 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-3">Ad creation</h2>
 
                 {/* Final URL & Business Name */}
                 <div className="space-y-4 text-xs">
                   <div className="space-y-1">
-                    <label className="block font-semibold text-slate-300">Final URL <span className="text-rose-400">*</span></label>
+                    <label className="block font-semibold text-slate-700">Final URL <span className="text-rose-400">*</span></label>
                     <input
                       type="text"
                       value={finalUrl}
                       onChange={(e) => setFinalUrl(e.target.value)}
                       placeholder="https://www.example.com"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="block font-semibold text-slate-300">Business name <span className="text-rose-400">*</span></label>
+                      <label className="block font-semibold text-slate-700">Business name <span className="text-rose-400">*</span></label>
                       <span className="text-[10px] text-slate-500 font-mono">{businessName.length} / 25</span>
                     </div>
                     <input
@@ -1622,18 +1622,18 @@ export default function WebsiteTrafficDisplayPage() {
                       onChange={(e) => setBusinessName(e.target.value)}
                       maxLength={25}
                       placeholder="Business name"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                     />
                     <span className="text-[10px] text-slate-500 block">Text is {businessName.length} characters out of 25</span>
                   </div>
                 </div>
 
                 {/* Assets: Images, Logos, Videos with proper image/video preview & link */}
-                <div className="space-y-4 pt-2 border-t border-slate-800 text-xs">
+                <div className="space-y-4 pt-2 border-t border-slate-200 text-xs">
                   {/* Images Card */}
-                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200">Images</h3>
+                      <h3 className="font-semibold text-slate-800">Images</h3>
                       <label className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer">
                         <Plus className="h-3.5 w-3.5" /> Add images
                         <input
@@ -1654,13 +1654,13 @@ export default function WebsiteTrafficDisplayPage() {
                         />
                       </label>
                     </div>
-                    <p className="text-[11px] text-slate-400">Add up to 15 images. At least 1 landscape image and 1 square image required. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline">Learn more</a></p>
+                    <p className="text-[11px] text-slate-500">Add up to 15 images. At least 1 landscape image and 1 square image required. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline">Learn more</a></p>
 
                     {imagesList.length > 0 && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
                         {imagesList.map((imgUrl, i) => (
-                          <div key={i} className="relative group p-2 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                            <div className="h-24 w-full rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                          <div key={i} className="relative group p-2 rounded-xl bg-white border border-slate-200 space-y-2">
+                            <div className="h-24 w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center">
                               <img src={imgUrl} alt={`Upload ${i + 1}`} className="h-full w-full object-cover" />
                             </div>
                             <div className="flex items-center justify-between gap-1">
@@ -1682,9 +1682,9 @@ export default function WebsiteTrafficDisplayPage() {
                   </div>
 
                   {/* Logos Card */}
-                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200">Logos</h3>
+                      <h3 className="font-semibold text-slate-800">Logos</h3>
                       <label className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer">
                         <Plus className="h-3.5 w-3.5" /> Add logos
                         <input
@@ -1705,13 +1705,13 @@ export default function WebsiteTrafficDisplayPage() {
                         />
                       </label>
                     </div>
-                    <p className="text-[11px] text-slate-400">Add up to 5 logos</p>
+                    <p className="text-[11px] text-slate-500">Add up to 5 logos</p>
 
                     {logosList.length > 0 && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
                         {logosList.map((logoUrl, i) => (
-                          <div key={i} className="relative group p-2 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                            <div className="h-20 w-full rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center p-1">
+                          <div key={i} className="relative group p-2 rounded-xl bg-white border border-slate-200 space-y-2">
+                            <div className="h-20 w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center p-1">
                               <img src={logoUrl} alt={`Logo ${i + 1}`} className="h-full w-full object-contain" />
                             </div>
                             <div className="flex items-center justify-between gap-1">
@@ -1733,9 +1733,9 @@ export default function WebsiteTrafficDisplayPage() {
                   </div>
 
                   {/* Videos Card */}
-                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-200">Videos</h3>
+                      <h3 className="font-semibold text-slate-800">Videos</h3>
                       <label className="text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer">
                         <Plus className="h-3.5 w-3.5" /> Add videos
                         <input
@@ -1756,13 +1756,13 @@ export default function WebsiteTrafficDisplayPage() {
                         />
                       </label>
                     </div>
-                    <p className="text-[11px] text-slate-400">Optional (portrait and landscape around 30 seconds work best)</p>
+                    <p className="text-[11px] text-slate-500">Optional (portrait and landscape around 30 seconds work best)</p>
 
                     {videosList.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                         {videosList.map((vidUrl, i) => (
-                          <div key={i} className="relative group p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                            <div className="h-32 w-full rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                          <div key={i} className="relative group p-2.5 rounded-xl bg-white border border-slate-200 space-y-2">
+                            <div className="h-32 w-full rounded-lg overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center">
                               <video src={vidUrl} controls className="h-full w-full object-cover" />
                             </div>
                             <div className="flex items-center justify-between gap-1">
@@ -1785,15 +1785,15 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Headlines */}
-                <div className="space-y-3 pt-2 border-t border-slate-800 text-xs">
+                <div className="space-y-3 pt-2 border-t border-slate-200 text-xs">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-slate-200">Headlines</h3>
-                    <span className="text-[11px] text-slate-400">Add up to 5 headlines</span>
+                    <h3 className="font-semibold text-slate-800">Headlines</h3>
+                    <span className="text-[11px] text-slate-500">Add up to 5 headlines</span>
                   </div>
                   {headlines.map((hl, idx) => (
                     <div key={idx} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] text-slate-400">Headline {idx + 1} <span className="text-rose-400">*</span></label>
+                        <label className="text-[11px] text-slate-500">Headline {idx + 1} <span className="text-rose-400">*</span></label>
                         <span className="text-[10px] text-slate-500 font-mono">{hl.length} / 30</span>
                       </div>
                       <input
@@ -1806,7 +1806,7 @@ export default function WebsiteTrafficDisplayPage() {
                         }}
                         maxLength={30}
                         placeholder="Headline"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </div>
                   ))}
@@ -1822,15 +1822,15 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Long Headlines (With Multi Add Button) */}
-                <div className="space-y-3 pt-2 border-t border-slate-800 text-xs">
+                <div className="space-y-3 pt-2 border-t border-slate-200 text-xs">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-slate-200">Long headlines</h3>
-                    <span className="text-[11px] text-slate-400">Add up to 5 long headlines</span>
+                    <h3 className="font-semibold text-slate-800">Long headlines</h3>
+                    <span className="text-[11px] text-slate-500">Add up to 5 long headlines</span>
                   </div>
                   {longHeadlines.map((lhl, idx) => (
                     <div key={idx} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] text-slate-400">Long headline {idx + 1} <span className="text-rose-400">*</span></label>
+                        <label className="text-[11px] text-slate-500">Long headline {idx + 1} <span className="text-rose-400">*</span></label>
                         <span className="text-[10px] text-slate-500 font-mono">{lhl.length} / 90</span>
                       </div>
                       <input
@@ -1843,7 +1843,7 @@ export default function WebsiteTrafficDisplayPage() {
                         }}
                         maxLength={90}
                         placeholder="Long headline"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </div>
                   ))}
@@ -1859,15 +1859,15 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Descriptions */}
-                <div className="space-y-3 pt-2 border-t border-slate-800 text-xs">
+                <div className="space-y-3 pt-2 border-t border-slate-200 text-xs">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-slate-200">Descriptions</h3>
-                    <span className="text-[11px] text-slate-400">Add up to 5 descriptions</span>
+                    <h3 className="font-semibold text-slate-800">Descriptions</h3>
+                    <span className="text-[11px] text-slate-500">Add up to 5 descriptions</span>
                   </div>
                   {descriptions.map((desc, idx) => (
                     <div key={idx} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] text-slate-400">Description {idx + 1} <span className="text-rose-400">*</span></label>
+                        <label className="text-[11px] text-slate-500">Description {idx + 1} <span className="text-rose-400">*</span></label>
                         <span className="text-[10px] text-slate-500 font-mono">{desc.length} / 90</span>
                       </div>
                       <input
@@ -1880,7 +1880,7 @@ export default function WebsiteTrafficDisplayPage() {
                         }}
                         maxLength={90}
                         placeholder="Description"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </div>
                   ))}
@@ -1896,9 +1896,9 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Asset Optimization Section */}
-                <div className="p-5 rounded-xl border border-slate-800 bg-slate-950 space-y-4 text-xs">
+                <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4 text-xs">
                   <div className="space-y-1">
-                    <h4 className="font-bold text-slate-200">Select all options to optimize your ad's reach and performance.</h4>
+                    <h4 className="font-bold text-slate-800">Select all options to optimize your ad's reach and performance.</h4>
                   </div>
 
                   <div className="space-y-3">
@@ -1907,11 +1907,11 @@ export default function WebsiteTrafficDisplayPage() {
                         type="checkbox"
                         checked={useAssetEnhancements}
                         onChange={(e) => setUseAssetEnhancements(e.target.checked)}
-                        className="mt-0.5 rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="mt-0.5 rounded bg-white border-slate-300 text-primary h-4 w-4"
                       />
                       <div>
-                        <span className="font-semibold text-slate-200 block">Use asset enhancements</span>
-                        <span className="text-[11px] text-slate-400 block mt-0.5 leading-relaxed">
+                        <span className="font-semibold text-slate-800 block">Use asset enhancements</span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
                           Let Google enhance your assets and optimize your ad layouts. This could improve ad performance. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more</a>
                         </span>
                       </div>
@@ -1922,11 +1922,11 @@ export default function WebsiteTrafficDisplayPage() {
                         type="checkbox"
                         checked={useAutoGeneratedVideo}
                         onChange={(e) => setUseAutoGeneratedVideo(e.target.checked)}
-                        className="mt-0.5 rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="mt-0.5 rounded bg-white border-slate-300 text-primary h-4 w-4"
                       />
                       <div>
-                        <span className="font-semibold text-slate-200 block">Use auto-generated video</span>
-                        <span className="text-[11px] text-slate-400 block mt-0.5 leading-relaxed">
+                        <span className="font-semibold text-slate-800 block">Use auto-generated video</span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
                           Let Google create your video ads using your headlines, descriptions and images. If you've added your own video content, then your ads won't use auto-generated video. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more</a>
                         </span>
                       </div>
@@ -1937,11 +1937,11 @@ export default function WebsiteTrafficDisplayPage() {
                         type="checkbox"
                         checked={useNativeFormats}
                         onChange={(e) => setUseNativeFormats(e.target.checked)}
-                        className="mt-0.5 rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                        className="mt-0.5 rounded bg-white border-slate-300 text-primary h-4 w-4"
                       />
                       <div>
-                        <span className="font-semibold text-slate-200 block">Use native formats</span>
-                        <span className="text-[11px] text-slate-400 block mt-0.5 leading-relaxed">
+                        <span className="font-semibold text-slate-800 block">Use native formats</span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
                           Include native formats to expand your reach to more publishers. Adding native formats might also improve ad performance. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more</a>
                         </span>
                       </div>
@@ -1950,9 +1950,9 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Ad URL Options & Design Settings with More Options & Checkboxes */}
-                <div className="p-5 rounded-xl border border-slate-800 bg-slate-950 space-y-4 text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <h4 className="font-bold text-slate-200">Ad URL options</h4>
+                <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4 text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="font-bold text-slate-800">Ad URL options</h4>
                     <button
                       type="button"
                       onClick={() => setShowAdUrlMoreOptions(!showAdUrlMoreOptions)}
@@ -1966,15 +1966,15 @@ export default function WebsiteTrafficDisplayPage() {
                   {showAdUrlMoreOptions && (
                     <div className="space-y-4 animate-in fade-in duration-200">
                       {/* Checkbox Options Selection */}
-                      <div className="space-y-2 pb-2 border-b border-slate-800">
+                      <div className="space-y-2 pb-2 border-b border-slate-200">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={enableCallToAction}
                             onChange={(e) => setEnableCallToAction(e.target.checked)}
-                            className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                            className="rounded bg-white border-slate-300 text-primary h-4 w-4"
                           />
-                          <span className="font-semibold text-slate-200">Call to action text</span>
+                          <span className="font-semibold text-slate-800">Call to action text</span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1982,9 +1982,9 @@ export default function WebsiteTrafficDisplayPage() {
                             type="checkbox"
                             checked={enableCustomColors}
                             onChange={(e) => setEnableCustomColors(e.target.checked)}
-                            className="rounded bg-slate-900 border-slate-700 text-primary h-4 w-4"
+                            className="rounded bg-white border-slate-300 text-primary h-4 w-4"
                           />
-                          <span className="font-semibold text-slate-200">Custom colors</span>
+                          <span className="font-semibold text-slate-800">Custom colors</span>
                         </label>
                       </div>
 
@@ -1993,11 +1993,11 @@ export default function WebsiteTrafficDisplayPage() {
                         {/* Call to action text */}
                         {enableCallToAction && (
                           <div className="space-y-1">
-                            <label className="block text-slate-300 font-semibold">Call to action text</label>
+                            <label className="block text-slate-700 font-semibold">Call to action text</label>
                             <select
                               value={callToActionText}
                               onChange={(e) => setCallToActionText(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                             >
                               <option value="Automated">Automated</option>
                               <option value="Apply Now">Apply Now</option>
@@ -2014,16 +2014,16 @@ export default function WebsiteTrafficDisplayPage() {
                         {/* Custom colors */}
                         {enableCustomColors && (
                           <div className="space-y-2">
-                            <label className="block text-slate-300 font-semibold">Custom colors</label>
+                            <label className="block text-slate-700 font-semibold">Custom colors</label>
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
                                 <input
                                   type="color"
                                   value={mainCustomColor}
                                   onChange={(e) => setMainCustomColor(e.target.value)}
-                                  className="h-8 w-8 rounded bg-transparent cursor-pointer border border-slate-800"
+                                  className="h-8 w-8 rounded bg-transparent cursor-pointer border border-slate-200"
                                 />
-                                <span className="text-[11px] font-mono text-slate-300">{mainCustomColor}</span>
+                                <span className="text-[11px] font-mono text-slate-700">{mainCustomColor}</span>
                               </div>
 
                               <div className="flex items-center gap-2">
@@ -2031,9 +2031,9 @@ export default function WebsiteTrafficDisplayPage() {
                                   type="color"
                                   value={accentCustomColor}
                                   onChange={(e) => setAccentCustomColor(e.target.value)}
-                                  className="h-8 w-8 rounded bg-transparent cursor-pointer border border-slate-800"
+                                  className="h-8 w-8 rounded bg-transparent cursor-pointer border border-slate-200"
                                 />
-                                <span className="text-[11px] font-mono text-slate-300">{accentCustomColor}</span>
+                                <span className="text-[11px] font-mono text-slate-700">{accentCustomColor}</span>
                               </div>
                             </div>
                           </div>
@@ -2044,8 +2044,8 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Preview Warning Notice */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 text-xs text-slate-400 leading-relaxed space-y-1">
-                  <p className="font-semibold text-slate-200">To unlock this format, add the following assets:</p>
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-500 leading-relaxed space-y-1">
+                  <p className="font-semibold text-slate-800">To unlock this format, add the following assets:</p>
                   <ul className="list-disc pl-5 space-y-0.5">
                     <li>1 headline or long headline</li>
                     <li>1 disclaimer or description</li>
@@ -2063,7 +2063,7 @@ export default function WebsiteTrafficDisplayPage() {
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               {/* Fix Errors Warning Header Box */}
               <div className="space-y-2">
-                <p className="font-semibold text-slate-300">Fix these errors to publish your campaign</p>
+                <p className="font-semibold text-slate-700">Fix these errors to publish your campaign</p>
 
                 {!viewableCpmBid && biddingFocus === "Impressions" && (
                   <div className="p-3.5 rounded-xl border border-rose-500/40 bg-rose-500/10 flex items-center justify-between text-rose-300">
@@ -2074,7 +2074,7 @@ export default function WebsiteTrafficDisplayPage() {
                     <button
                       type="button"
                       onClick={() => setDisplayStep("BUDGET_BIDDING")}
-                      className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all cursor-pointer shadow"
+                      className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-slate-900 font-bold text-xs transition-all cursor-pointer shadow"
                     >
                       Fix it
                     </button>
@@ -2090,7 +2090,7 @@ export default function WebsiteTrafficDisplayPage() {
                     <button
                       type="button"
                       onClick={() => setDisplayStep("ADS")}
-                      className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all cursor-pointer shadow"
+                      className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-slate-900 font-bold text-xs transition-all cursor-pointer shadow"
                     >
                       Fix it
                     </button>
@@ -2100,7 +2100,7 @@ export default function WebsiteTrafficDisplayPage() {
 
               {/* EEA Personalization Suggestion Notice */}
               <div className="space-y-1.5">
-                <p className="font-semibold text-slate-300">The following suggestions will greatly improve your campaign's performance</p>
+                <p className="font-semibold text-slate-700">The following suggestions will greatly improve your campaign's performance</p>
                 <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-500/10 flex items-center gap-2 text-blue-300">
                   <Info className="h-4 w-4 text-blue-400 shrink-0" />
                   <span>End-user consent signals are required to use ad personalization features in the European Economic Area (EEA). <a href="#" onClick={e => e.preventDefault()} className="underline font-bold">Learn more</a></span>
@@ -2109,56 +2109,56 @@ export default function WebsiteTrafficDisplayPage() {
 
               {/* Main Campaign Review Section */}
               <div className="space-y-6">
-                <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign Review</h1>
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign Review</h1>
 
                 {/* Top Summary Card (Name, Type, Objective, Goal) */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950">
-                      <span className="text-slate-400 font-medium">Campaign name</span>
+                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
+                      <span className="text-slate-500 font-medium">Campaign name</span>
                       <input
                         type="text"
                         defaultValue="Website traffic-Display-1"
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-slate-100 font-semibold focus:outline-none focus:border-primary text-right"
+                        className="bg-white border border-slate-300 rounded-lg px-3 py-1 text-slate-900 font-semibold focus:outline-none focus:border-primary text-right"
                       />
                     </div>
 
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950">
-                      <span className="text-slate-400 font-medium">Campaign type</span>
-                      <span className="font-semibold text-slate-200">Display</span>
+                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
+                      <span className="text-slate-500 font-medium">Campaign type</span>
+                      <span className="font-semibold text-slate-800">Display</span>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950">
-                      <span className="text-slate-400 font-medium">Objective</span>
-                      <span className="font-semibold text-slate-200">Website Traffic</span>
+                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
+                      <span className="text-slate-500 font-medium">Objective</span>
+                      <span className="font-semibold text-slate-800">Website Traffic</span>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950">
-                      <span className="text-slate-400 font-medium">Goal</span>
-                      <span className="font-semibold text-slate-200">Downloads, Phone call leads</span>
+                    <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
+                      <span className="text-slate-500 font-medium">Goal</span>
+                      <span className="font-semibold text-slate-800">Downloads, Phone call leads</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Campaign Settings Table Card */}
                 <div className="space-y-2">
-                  <h3 className="font-bold text-slate-300">Campaign settings</h3>
-                  <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                      <span className="text-slate-400 font-semibold w-32">Locations</span>
-                      <span className="text-slate-200 font-medium flex-1">
+                  <h3 className="font-bold text-slate-700">Campaign settings</h3>
+                  <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-slate-500 font-semibold w-32">Locations</span>
+                      <span className="text-slate-800 font-medium flex-1">
                         {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : customLocationInput || "Custom"}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                      <span className="text-slate-400 font-semibold w-32">Languages</span>
-                      <span className="text-slate-200 font-medium flex-1">{selectedLanguages.join(", ") || "English"}</span>
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-slate-500 font-semibold w-32">Languages</span>
+                      <span className="text-slate-800 font-medium flex-1">{selectedLanguages.join(", ") || "English"}</span>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 font-semibold w-32">EU political ads</span>
-                      <span className="text-slate-200 font-medium flex-1">
+                      <span className="text-slate-500 font-semibold w-32">EU political ads</span>
+                      <span className="text-slate-800 font-medium flex-1">
                         {euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}
                       </span>
                     </div>
@@ -2167,16 +2167,16 @@ export default function WebsiteTrafficDisplayPage() {
 
                 {/* Budget and Bidding Table Card */}
                 <div className="space-y-2">
-                  <h3 className="font-bold text-slate-300">Budget and bidding</h3>
-                  <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                      <span className="text-slate-400 font-semibold w-32">Budget</span>
-                      <span className="text-slate-200 font-medium flex-1 font-mono">₹{dailyBudget || "0.00"}/day</span>
+                  <h3 className="font-bold text-slate-700">Budget and bidding</h3>
+                  <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-slate-500 font-semibold w-32">Budget</span>
+                      <span className="text-slate-800 font-medium flex-1 font-mono">₹{dailyBudget || "0.00"}/day</span>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 font-semibold w-32">Bidding</span>
-                      <span className="text-slate-200 font-medium flex-1">
+                      <span className="text-slate-500 font-semibold w-32">Bidding</span>
+                      <span className="text-slate-800 font-medium flex-1">
                         {biddingFocus === "Impressions" ? "Viewable CPM" : biddingFocus === "Conversion value" ? "Maximize conversion value" : "Maximize conversions"}
                       </span>
                     </div>
@@ -2184,12 +2184,12 @@ export default function WebsiteTrafficDisplayPage() {
                 </div>
 
                 {/* Ad Group 1 Card with Edit Icon & Sub-sections */}
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                       Ad group 1
                       <Edit3
-                        className="h-4 w-4 text-slate-400 hover:text-primary cursor-pointer"
+                        className="h-4 w-4 text-slate-500 hover:text-primary cursor-pointer"
                         onClick={() => setDisplayStep("TARGETING")}
                       />
                     </h3>
@@ -2197,9 +2197,9 @@ export default function WebsiteTrafficDisplayPage() {
 
                   {/* Bidding row inside Ad Group */}
                   <div className="space-y-2">
-                    <h4 className="font-bold text-slate-300">Bidding</h4>
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-between">
-                      <span className="text-slate-300 font-semibold">Viewable CPM bid</span>
+                    <h4 className="font-bold text-slate-700">Bidding</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                      <span className="text-slate-700 font-semibold">Viewable CPM bid</span>
                       <span className="text-rose-400 font-bold flex items-center gap-1.5">
                         <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
                         {viewableCpmBid ? `₹${viewableCpmBid}` : "Enter a CPM bid"}
@@ -2209,17 +2209,17 @@ export default function WebsiteTrafficDisplayPage() {
 
                   {/* Targeting row inside Ad Group */}
                   <div className="space-y-2">
-                    <h4 className="font-bold text-slate-300">Targeting</h4>
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
-                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                        <span className="text-slate-400 font-semibold w-36">Demographics</span>
-                        <span className="text-slate-200 font-medium flex-1">
+                    <h4 className="font-bold text-slate-700">Targeting</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <span className="text-slate-500 font-semibold w-36">Demographics</span>
+                        <span className="text-slate-800 font-medium flex-1">
                           Suggest people based on age, gender, parental status, or household income
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-semibold w-36">Optimized targeting</span>
+                        <span className="text-slate-500 font-semibold w-36">Optimized targeting</span>
                         <span className="text-emerald-400 font-bold flex-1">
                           {useOptimizedTargeting ? "On" : "Off"}
                         </span>
@@ -2229,10 +2229,10 @@ export default function WebsiteTrafficDisplayPage() {
 
                   {/* Ads row inside Ad Group */}
                   <div className="space-y-2">
-                    <h4 className="font-bold text-slate-300">Ads</h4>
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-between">
-                      <span className="text-slate-400 font-semibold">Ad creation</span>
-                      <span className={`font-bold ${imagesList.length > 0 ? "text-emerald-400" : "text-slate-400"}`}>
+                    <h4 className="font-bold text-slate-700">Ads</h4>
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                      <span className="text-slate-500 font-semibold">Ad creation</span>
+                      <span className={`font-bold ${imagesList.length > 0 ? "text-emerald-400" : "text-slate-500"}`}>
                         {imagesList.length > 0 ? `${imagesList.length} image(s) added` : "No ads"}
                       </span>
                     </div>
@@ -2246,7 +2246,7 @@ export default function WebsiteTrafficDisplayPage() {
       </div>
 
       {/* ── Fixed Footer Action Bar ── */}
-      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center justify-between z-50">
+      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-50">
         <button
           onClick={() => {
             if (displayStep === "REVIEW") setDisplayStep("ADS");
@@ -2255,7 +2255,7 @@ export default function WebsiteTrafficDisplayPage() {
             else if (displayStep === "BUDGET_BIDDING") setDisplayStep("CAMPAIGN_SETTINGS");
             else router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
           }}
-          className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+          className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
         >
           {displayStep === "CAMPAIGN_SETTINGS" ? "Cancel" : "Back"}
         </button>

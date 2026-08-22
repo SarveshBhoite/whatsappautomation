@@ -137,38 +137,38 @@ export default function LeadsVideoPage() {
   }, [customerId]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ────────────────── */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-all flex items-center gap-1 text-xs cursor-pointer"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all flex items-center gap-1 text-xs cursor-pointer"
             title="Back to campaign objectives"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
             <Video className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-slate-200">Google Ads • Leads Video Setup</span>
+            <span className="text-sm font-semibold text-slate-800">Google Ads • Leads Video Setup</span>
           </div>
         </div>
 
         {/* Global Search pill */}
-        <div className="hidden md:flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-4 py-1.5 text-xs max-w-md w-full text-slate-400 shadow-inner">
+        <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-1.5 text-xs max-w-md w-full text-slate-500 shadow-inner">
           <Search className="h-3.5 w-3.5 text-slate-500 shrink-0" />
           <span>"What are my top performing video campaigns?"</span>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
           <span className="font-mono hidden sm:inline">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-white" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
           <button
             onClick={() => router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-all cursor-pointer"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -180,10 +180,10 @@ export default function LeadsVideoPage() {
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sub-Navigation Sidebar */}
-        <aside className="w-64 border-r border-slate-800 p-4 space-y-4 shrink-0 bg-slate-950/60 hidden md:flex flex-col justify-between">
+        <aside className="w-64 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-slate-50/60 hidden md:flex flex-col justify-between">
           <div className="space-y-4">
             {/* Campaign Name Header */}
-            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-200">
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">
               <span className="truncate">{videoCampaignName}</span>
               <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
             </div>
@@ -195,20 +195,20 @@ export default function LeadsVideoPage() {
                 className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
                   videoStep === "CAMPAIGN_SETTINGS"
                     ? "bg-blue-600/20 text-blue-400 font-bold"
-                    : "text-slate-300 hover:bg-slate-900"
+                    : "text-slate-700 hover:bg-white"
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
-                  <LayoutGrid className="h-4 w-4 text-slate-400 shrink-0" />
+                  <LayoutGrid className="h-4 w-4 text-slate-500 shrink-0" />
                   <span className="truncate">{videoCampaignName}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  <MoreVertical className="h-3.5 w-3.5 text-slate-400" />
+                  <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
                 </div>
               </div>
 
-              <div className="border-t border-slate-800 my-2" />
+              <div className="border-t border-slate-200 my-2" />
 
               {/* Dynamic List of Ad Groups with Nested Ads */}
               <div className="space-y-1">
@@ -227,11 +227,11 @@ export default function LeadsVideoPage() {
                           className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
                             isAgActive
                               ? "bg-blue-600/20 text-blue-400 font-bold"
-                              : "text-slate-300 hover:bg-slate-900"
+                              : "text-slate-700 hover:bg-white"
                           }`}
                         >
                           <div className="flex items-center gap-2.5 truncate">
-                            <LayoutGrid className={`h-4 w-4 shrink-0 ${isAgActive ? "text-blue-400" : "text-slate-400"}`} />
+                            <LayoutGrid className={`h-4 w-4 shrink-0 ${isAgActive ? "text-blue-400" : "text-slate-500"}`} />
                             <span className="truncate">{ag.name}</span>
                           </div>
                           <button
@@ -240,7 +240,7 @@ export default function LeadsVideoPage() {
                               e.stopPropagation();
                               setOpenMenuAgId(isMenuOpen ? null : ag.id);
                             }}
-                            className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+                            className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-all cursor-pointer"
                           >
                             <MoreVertical className="h-3.5 w-3.5" />
                           </button>
@@ -248,13 +248,13 @@ export default function LeadsVideoPage() {
 
                         {/* Context Menu Popup */}
                         {isMenuOpen && (
-                          <div className="absolute left-full top-0 ml-2 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 py-1 text-xs animate-in fade-in duration-150">
+                          <div className="absolute left-full top-0 ml-2 w-48 bg-white border border-slate-200 rounded-xl shadow-md z-50 py-1 text-xs animate-in fade-in duration-150">
                             <button
                               onClick={() => {
                                 setOpenMenuAgId(null);
                                 handleDuplicateAdGroup(ag.id);
                               }}
-                              className="w-full text-left px-4 py-2 hover:bg-slate-800 text-slate-200 transition-colors cursor-pointer"
+                              className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-800 transition-colors cursor-pointer"
                             >
                               Duplicate
                             </button>
@@ -263,7 +263,7 @@ export default function LeadsVideoPage() {
                                 setOpenMenuAgId(null);
                                 alert(`${ag.name} status updated`);
                               }}
-                              className="w-full text-left px-4 py-2 hover:bg-slate-800 text-slate-200 transition-colors cursor-pointer"
+                              className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-800 transition-colors cursor-pointer"
                             >
                               Enable
                             </button>
@@ -272,17 +272,17 @@ export default function LeadsVideoPage() {
                                 setOpenMenuAgId(null);
                                 handleDeleteAdGroup(ag.id);
                               }}
-                              className="w-full text-left px-4 py-2 hover:bg-slate-800 text-rose-400 transition-colors cursor-pointer"
+                              className="w-full text-left px-4 py-2 hover:bg-slate-100 text-rose-400 transition-colors cursor-pointer"
                             >
                               Delete
                             </button>
-                            <div className="border-t border-slate-800 my-1" />
+                            <div className="border-t border-slate-200 my-1" />
                             <button
                               onClick={() => {
                                 setOpenMenuAgId(null);
                                 handleCreateNewAdGroup();
                               }}
-                              className="w-full text-left px-4 py-2 hover:bg-slate-800 text-primary font-semibold transition-colors cursor-pointer"
+                              className="w-full text-left px-4 py-2 hover:bg-slate-100 text-primary font-semibold transition-colors cursor-pointer"
                             >
                               Create new ad group
                             </button>
@@ -299,7 +299,7 @@ export default function LeadsVideoPage() {
                         className={`ml-6 p-2 rounded-r-full flex items-center justify-between text-xs font-medium cursor-pointer transition-all ${
                           videoStep === "AD" && activeAdGroupId === ag.id
                             ? "bg-blue-600/20 text-blue-400 font-bold"
-                            : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                            : "text-slate-500 hover:bg-white hover:text-slate-800"
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
@@ -309,7 +309,7 @@ export default function LeadsVideoPage() {
                         <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
                       </div>
 
-                      <div className="border-t border-slate-800/60 my-1.5" />
+                      <div className="border-t border-slate-200 my-1.5" />
                     </div>
                   );
                 })}
@@ -321,10 +321,10 @@ export default function LeadsVideoPage() {
                 className={`p-2.5 rounded-r-full flex items-center gap-2.5 font-semibold cursor-pointer transition-all ${
                   videoStep === "REVIEW"
                     ? "bg-blue-600/20 text-blue-400 font-bold"
-                    : "text-slate-300 hover:bg-slate-900"
+                    : "text-slate-700 hover:bg-white"
                 }`}
               >
-                <Info className="h-4 w-4 text-slate-400" />
+                <Info className="h-4 w-4 text-slate-500" />
                 <span>Review campaign</span>
               </div>
             </nav>
@@ -337,13 +337,13 @@ export default function LeadsVideoPage() {
           {videoStep === "AD_GROUP" ? (
             /* ── AD GROUP SETUP PAGE ── */
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">{activeAdGroup.name}</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">{activeAdGroup.name}</h1>
 
               {/* 1. Ad group name Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-3 shadow-lg">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h2 className="text-sm font-semibold text-slate-100">Ad group name</h2>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">Ad group name</h2>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
                 <div className="space-y-1">
                   <input
@@ -354,7 +354,7 @@ export default function LeadsVideoPage() {
                       setAdGroups(prev => prev.map(ag => ag.id === activeAdGroup.id ? { ...ag, name: updatedName } : ag));
                     }}
                     maxLength={256}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                   />
                   <div className="flex justify-end text-[10px] text-slate-500 font-mono">
                     <span>{activeAdGroup.name.length} / 256</span>
@@ -363,16 +363,16 @@ export default function LeadsVideoPage() {
               </div>
 
               {/* 2. Locations Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-lg">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-slate-100">Locations</h2>
+                    <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
-                <p className="text-xs text-slate-400">Select locations for this campaign</p>
+                <p className="text-xs text-slate-500">Select locations for this campaign</p>
 
                 <div className="space-y-3 text-xs">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -383,7 +383,7 @@ export default function LeadsVideoPage() {
                       onChange={() => setSelectedLocation("ALL")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">All countries and territories</span>
+                    <span className="text-slate-800">All countries and territories</span>
                   </label>
 
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -394,7 +394,7 @@ export default function LeadsVideoPage() {
                       onChange={() => setSelectedLocation("INDIA")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">India</span>
+                    <span className="text-slate-800">India</span>
                   </label>
 
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -405,7 +405,7 @@ export default function LeadsVideoPage() {
                       onChange={() => setSelectedLocation("CUSTOM")}
                       className="text-primary focus:ring-primary h-4 w-4"
                     />
-                    <span className="text-slate-200">Enter another location</span>
+                    <span className="text-slate-800">Enter another location</span>
                   </label>
 
                   {selectedLocation === "CUSTOM" && (
@@ -417,7 +417,7 @@ export default function LeadsVideoPage() {
                           value={customLocationInput}
                           onChange={(e) => setCustomLocationInput(e.target.value)}
                           placeholder="Enter a location to target or exclude"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                         />
                       </div>
                     </div>
@@ -426,16 +426,16 @@ export default function LeadsVideoPage() {
               </div>
 
               {/* 3. Languages Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-lg">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-slate-100">Languages</h2>
+                    <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
-                <p className="text-xs text-slate-400">Select the languages your target leads speak.</p>
+                <p className="text-xs text-slate-500">Select the languages your target leads speak.</p>
 
                 <div className="space-y-3">
                   <div className="relative max-w-md">
@@ -451,12 +451,12 @@ export default function LeadsVideoPage() {
                         }
                       }}
                       placeholder="Start typing or select a language"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                     />
                   </div>
 
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300 font-medium">
+                    <span className="px-3 py-1 rounded-full bg-slate-100 border border-slate-300 text-xs text-slate-700 font-medium">
                       All languages
                     </span>
                     {selectedLanguages.map((lang, idx) => (
@@ -475,23 +475,23 @@ export default function LeadsVideoPage() {
           ) : videoStep === "CAMPAIGN_SETTINGS" ? (
             /* ── CAMPAIGN SETTINGS PAGE ── */
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign settings</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
               
               {/* 1. Prefill campaign Beta */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-lg">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-bold text-slate-200">Prefill campaign</h3>
+                    <h3 className="text-xs font-bold text-slate-800">Prefill campaign</h3>
                     <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold text-[10px]">Beta</span>
                   </div>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className="text-xs text-slate-500 leading-relaxed">
                   Save time by using Google AI to draft a Leads Video campaign with settings & assets from an existing campaign. You can modify any setting before publishing. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a>
                 </p>
                 <div className="flex items-center justify-between text-xs pt-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-400">Source campaign:</span>
+                    <span className="text-slate-500">Source campaign:</span>
                     <button 
                       type="button"
                       onClick={() => setIsCampaignModalOpen(true)}
@@ -513,22 +513,22 @@ export default function LeadsVideoPage() {
 
               {/* Old Campaign List Modal */}
               {isCampaignModalOpen && (
-                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150">
-                    <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+                <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-xl shadow-md overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-150">
+                    <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-100">Select an existing campaign</h3>
-                        <p className="text-xs text-slate-400">Choose a campaign to prefill settings and assets</p>
+                        <h3 className="text-sm font-bold text-slate-900">Select an existing campaign</h3>
+                        <p className="text-xs text-slate-500">Choose a campaign to prefill settings and assets</p>
                       </div>
                       <button 
                         onClick={() => setIsCampaignModalOpen(false)}
-                        className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                        className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800"
                       >
                         <X className="h-5 w-5" />
                       </button>
                     </div>
 
-                    <div className="p-4 border-b border-slate-800">
+                    <div className="p-4 border-b border-slate-200">
                       <div className="relative">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                         <input
@@ -536,7 +536,7 @@ export default function LeadsVideoPage() {
                           placeholder="Search existing campaigns..."
                           value={campaignSearchTerm}
                           onChange={(e) => setCampaignSearchTerm(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-primary"
                         />
                       </div>
                     </div>
@@ -554,19 +554,19 @@ export default function LeadsVideoPage() {
                             className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
                               selectedSourceCampaign === camp.name
                                 ? "bg-primary/10 border-primary text-primary"
-                                : "bg-slate-950 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50 text-slate-200"
+                                : "bg-slate-50 border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-800"
                             }`}
                           >
                             <div>
                               <p className="text-xs font-bold">{camp.name}</p>
-                              <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
+                              <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
                                 <span>Type: {camp.type}</span>
                                 <span>•</span>
                                 <span>Budget: {camp.budget}</span>
                               </div>
                             </div>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              camp.status === "Active" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400"
+                              camp.status === "Active" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-100 text-slate-500"
                             }`}>
                               {camp.status}
                             </span>
@@ -574,10 +574,10 @@ export default function LeadsVideoPage() {
                         ))}
                     </div>
 
-                    <div className="p-4 border-t border-slate-800 bg-slate-950 flex justify-end gap-2 text-xs">
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs">
                       <button
                         onClick={() => setIsCampaignModalOpen(false)}
-                        className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                        className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-700 text-slate-700 font-semibold"
                       >
                         Cancel
                       </button>
@@ -587,9 +587,9 @@ export default function LeadsVideoPage() {
               )}
 
               {/* 2. Campaign Name Card */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-lg">
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-200">Campaign name</label>
+                  <label className="block text-xs font-bold text-slate-800">Campaign name</label>
                   <span className="text-[11px] text-slate-500 font-mono">{videoCampaignName.length} / 256</span>
                 </div>
                 <input
@@ -597,16 +597,16 @@ export default function LeadsVideoPage() {
                   value={videoCampaignName}
                   onChange={(e) => setVideoCampaignName(e.target.value)}
                   maxLength={256}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                 />
                 <p className="text-[11px] text-slate-500">Text is {videoCampaignName.length} characters out of 256</p>
               </div>
 
               {/* 3. Campaign Goal Card */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-lg">
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-200">Campaign goal</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Select the goal for your Leads Video campaign</p>
+                  <h3 className="text-xs font-bold text-slate-800">Campaign goal</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Select the goal for your Leads Video campaign</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   {[
@@ -621,11 +621,11 @@ export default function LeadsVideoPage() {
                         key={goalItem.id}
                         onClick={() => setVideoGoal(goalItem.id as any)}
                         className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                          isSelected ? "bg-primary/10 border-primary" : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                          isSelected ? "bg-primary/10 border-primary" : "bg-slate-50 border-slate-200 hover:border-slate-300"
                         }`}
                       >
-                        <h4 className={`font-bold mb-1 ${isSelected ? "text-primary" : "text-slate-100"}`}>{goalItem.title}</h4>
-                        <p className="text-[11px] text-slate-400 leading-relaxed">{goalItem.desc}</p>
+                        <h4 className={`font-bold mb-1 ${isSelected ? "text-primary" : "text-slate-900"}`}>{goalItem.title}</h4>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">{goalItem.desc}</p>
                       </div>
                     );
                   })}
@@ -633,55 +633,55 @@ export default function LeadsVideoPage() {
               </div>
 
               {/* 4. Budget and dates */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-lg">
-                <div className="border-b border-slate-800 pb-2.5 flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-200">Budget and dates</h3>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                <div className="border-b border-slate-200 pb-2.5 flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-800">Budget and dates</h3>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="space-y-3 text-xs">
-                  <p className="font-semibold text-slate-300">Enter budget type and amount</p>
+                  <p className="font-semibold text-slate-700">Enter budget type and amount</p>
 
                   <div className="flex flex-wrap items-center gap-4">
                     <select
                       value={videoBudgetType}
                       onChange={(e) => setVideoBudgetType(e.target.value)}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 font-medium"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 font-medium"
                     >
                       <option value="Daily">Daily</option>
                       <option value="Campaign Total">Campaign Total</option>
                     </select>
 
                     <div className="relative w-48">
-                      <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-400">₹</span>
+                      <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
                       <input
                         type="text"
                         value={videoBudgetAmount}
                         onChange={(e) => setVideoBudgetAmount(e.target.value)}
                         placeholder="Required"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 placeholder-amber-400/70 font-medium"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 placeholder-amber-400/70 font-medium"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-800 bg-slate-950">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
                     <div className="space-y-1.5">
-                      <label className="block text-slate-300 font-medium">Start date</label>
+                      <label className="block text-slate-700 font-medium">Start date</label>
                       <input
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="block text-slate-300 font-medium">End date (optional)</label>
+                      <label className="block text-slate-700 font-medium">End date (optional)</label>
                       <input
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         placeholder="Select end date"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                       />
                     </div>
                   </div>
@@ -689,11 +689,11 @@ export default function LeadsVideoPage() {
               </div>
 
               {/* All Ad Groups List Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 shadow-lg">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-100">Ad groups ({adGroups.length})</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Manage all current and newly created ad groups for this campaign</p>
+                    <h2 className="text-sm font-semibold text-slate-900">Ad groups ({adGroups.length})</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Manage all current and newly created ad groups for this campaign</p>
                   </div>
                   <button
                     type="button"
@@ -706,9 +706,9 @@ export default function LeadsVideoPage() {
 
                 <div className="space-y-3">
                   {adGroups.map((ag, idx) => (
-                    <div key={ag.id} className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex flex-wrap items-center justify-between gap-4 text-xs">
+                    <div key={ag.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-4 text-xs">
                       <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-[10px] text-slate-400 font-bold">
+                        <span className="w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold">
                           {idx + 1}
                         </span>
                         <div>
@@ -719,7 +719,7 @@ export default function LeadsVideoPage() {
                               const newName = e.target.value;
                               setAdGroups(prev => prev.map(item => item.id === ag.id ? { ...item, name: newName } : item));
                             }}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 focus:outline-none focus:border-primary"
+                            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-primary"
                           />
                         </div>
                       </div>
@@ -731,7 +731,7 @@ export default function LeadsVideoPage() {
                             setActiveAdGroupId(ag.id);
                             setVideoStep("AD_GROUP");
                           }}
-                          className="px-3 py-1 rounded-lg bg-slate-800 text-primary hover:bg-slate-750 font-semibold cursor-pointer"
+                          className="px-3 py-1 rounded-lg bg-slate-100 text-primary hover:bg-slate-200 font-semibold cursor-pointer"
                         >
                           Edit Settings
                         </button>
@@ -744,32 +744,32 @@ export default function LeadsVideoPage() {
           ) : videoStep === "AD" ? (
             /* ── AD CREATION PAGE ── */
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">{adName}</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">{adName}</h1>
 
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4">
-                <label className="block text-xs font-semibold text-slate-300">Ad name</label>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4">
+                <label className="block text-xs font-semibold text-slate-700">Ad name</label>
                 <input
                   type="text"
                   value={adName}
                   onChange={(e) => setAdName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900"
                 />
 
-                <label className="block text-xs font-semibold text-slate-300 pt-2">Final URL</label>
+                <label className="block text-xs font-semibold text-slate-700 pt-2">Final URL</label>
                 <input
                   type="text"
                   value={adFinalUrl}
                   onChange={(e) => setAdFinalUrl(e.target.value)}
                   placeholder="https://example.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900"
                 />
               </div>
             </div>
           ) : (
             /* ── REVIEW CAMPAIGN PAGE ── */
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Review campaign</h1>
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 text-xs text-slate-300 space-y-2">
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Review campaign</h1>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white text-xs text-slate-700 space-y-2">
                 <p>Objective: <strong className="text-primary">Leads</strong></p>
                 <p>Campaign: <strong>{videoCampaignName}</strong></p>
                 <p>Ad Group: <strong>{activeAdGroup.name}</strong></p>
@@ -783,10 +783,10 @@ export default function LeadsVideoPage() {
       </div>
 
       {/* ── Fixed Footer Action Bar ── */}
-      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center justify-between z-50">
+      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-50">
         <button
           onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
-          className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+          className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
         >
           Cancel
         </button>

@@ -447,32 +447,32 @@ export default function SalesSearchPage() {
     : Number(selectedPresetBudget) || 1556.83;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-all cursor-pointer"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-4 text-xs font-semibold">
-            <span className="text-slate-400">Sales</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
+            <span className="text-slate-500">Sales</span>
             <span className="text-slate-600">/</span>
-            <span className="text-slate-200 font-bold flex items-center gap-1.5">
+            <span className="text-slate-800 font-bold flex items-center gap-1.5">
               <SearchIcon className="h-3.5 w-3.5 text-primary" />
               Search Setup
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
           <span className="font-mono">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "658-735-5041 JISNU Digital Solutions PVT LTD"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-white" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
         </div>
       </header>
 
@@ -480,9 +480,9 @@ export default function SalesSearchPage() {
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sidebar Navigation */}
-        <aside className="w-64 border-r border-slate-800 p-4 space-y-4 shrink-0 bg-slate-950/60 hidden md:flex flex-col justify-between">
+        <aside className="w-64 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-slate-50/60 hidden md:flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2 text-xs font-semibold text-slate-200">
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
               <SearchIcon className="h-4 w-4 text-primary shrink-0" />
               <span>Search</span>
             </div>
@@ -495,16 +495,16 @@ export default function SalesSearchPage() {
                   className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     wizardStep === "BIDDING"
                       ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</div>
                   <span>Bidding</span>
                 </div>
                 {wizardStep === "BIDDING" && (
-                  <div className="ml-6 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                  <div className="ml-6 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
                     <p className="text-primary font-medium">Bidding</p>
-                    <p className="hover:text-slate-200">Customer acquisition</p>
+                    <p className="hover:text-slate-800">Customer acquisition</p>
                   </div>
                 )}
               </div>
@@ -516,25 +516,25 @@ export default function SalesSearchPage() {
                   className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     wizardStep === "CAMPAIGN_SETTINGS"
                       ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</div>
                   <span>Campaign settings</span>
                 </div>
                 {wizardStep === "CAMPAIGN_SETTINGS" && (
-                  <div className="ml-6 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                  <div className="ml-6 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
                     <p className="text-primary font-medium">Campaign settings</p>
-                    <p className="hover:text-slate-200">Network</p>
-                    <p className="hover:text-slate-200">Locations</p>
-                    <p className="hover:text-slate-200">Languages</p>
-                    <p className="hover:text-slate-200">EU political ads</p>
-                    <p className="hover:text-slate-200">Audiences</p>
-                    <p className="hover:text-slate-200">Ad rotation</p>
-                    <p className="hover:text-slate-200">Start and end dates</p>
-                    <p className="hover:text-slate-200">Ad Schedule</p>
-                    <p className="hover:text-slate-200">Campaign URL options</p>
-                    <p className="hover:text-slate-200">Page Feeds</p>
+                    <p className="hover:text-slate-800">Network</p>
+                    <p className="hover:text-slate-800">Locations</p>
+                    <p className="hover:text-slate-800">Languages</p>
+                    <p className="hover:text-slate-800">EU political ads</p>
+                    <p className="hover:text-slate-800">Audiences</p>
+                    <p className="hover:text-slate-800">Ad rotation</p>
+                    <p className="hover:text-slate-800">Start and end dates</p>
+                    <p className="hover:text-slate-800">Ad Schedule</p>
+                    <p className="hover:text-slate-800">Campaign URL options</p>
+                    <p className="hover:text-slate-800">Page Feeds</p>
                   </div>
                 )}
               </div>
@@ -545,7 +545,7 @@ export default function SalesSearchPage() {
                 className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                   wizardStep === "AI_MAX"
                     ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
                 }`}
               >
                 <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">3</div>
@@ -559,14 +559,14 @@ export default function SalesSearchPage() {
                   className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     wizardStep === "KEYWORD_ASSET_GEN"
                       ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">4</div>
                   <span className="truncate">Keyword and asset generation</span>
                 </div>
                 {wizardStep === "KEYWORD_ASSET_GEN" && (
-                  <div className="ml-6 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                  <div className="ml-6 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
                     <p className="text-primary font-medium">Keyword and asset generation</p>
                   </div>
                 )}
@@ -579,17 +579,17 @@ export default function SalesSearchPage() {
                   className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     wizardStep === "KEYWORDS_ADS"
                       ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">5</div>
                   <span>Keywords and ads</span>
                 </div>
                 {wizardStep === "KEYWORDS_ADS" && (
-                  <div className="ml-6 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
-                    <p className="hover:text-slate-200">Keywords</p>
-                    <p className="hover:text-slate-200">AI Max</p>
-                    <p className="hover:text-slate-200">Ads</p>
+                  <div className="ml-6 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                    <p className="hover:text-slate-800">Keywords</p>
+                    <p className="hover:text-slate-800">AI Max</p>
+                    <p className="hover:text-slate-800">Ads</p>
                   </div>
                 )}
               </div>
@@ -601,14 +601,14 @@ export default function SalesSearchPage() {
                   className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                     wizardStep === "BUDGET"
                       ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                      : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
                   <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">6</div>
                   <span>Budget</span>
                 </div>
                 {wizardStep === "BUDGET" && (
-                  <div className="ml-6 space-y-1 text-[11px] text-slate-400 border-l border-slate-800 pl-3 py-1">
+                  <div className="ml-6 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
                     <p className="text-primary font-medium">Budget</p>
                   </div>
                 )}
@@ -620,7 +620,7 @@ export default function SalesSearchPage() {
                 className={`p-2 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
                   wizardStep === "SUMMARY"
                     ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
-                    : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                    : "text-slate-500 hover:bg-white hover:text-slate-800"
                 }`}
               >
                 <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">7</div>
@@ -636,23 +636,23 @@ export default function SalesSearchPage() {
           {/* STEP 1: BIDDING */}
           {wizardStep === "BIDDING" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-white tracking-tight">Bidding</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Bidding</h1>
 
               {/* Card 1: Bidding Focus */}
               {openBiddingSetting === "bidding" ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenBiddingSetting(null)}>
-                    <h2 className="text-base font-semibold text-white">Bidding</h2>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenBiddingSetting(null)}>
+                    <h2 className="text-base font-semibold text-slate-900">Bidding</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
                   <div className="space-y-4 text-xs">
                     <div className="space-y-1.5">
-                      <label className="block text-slate-300 font-semibold">What do you want to focus on?</label>
+                      <label className="block text-slate-700 font-semibold">What do you want to focus on?</label>
                       <select
                         value={biddingFocus}
                         onChange={(e) => setBiddingFocus(e.target.value as any)}
-                        className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                        className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                       >
                         <optgroup label="Recommended">
                           <option value="Conversions">Maximize conversions</option>
@@ -669,7 +669,7 @@ export default function SalesSearchPage() {
 
                     {/* i) Conversions */}
                     {biddingFocus === "Conversions" && (
-                      <div className="pt-2 animate-in fade-in duration-150 max-w-md text-slate-400">
+                      <div className="pt-2 animate-in fade-in duration-150 max-w-md text-slate-500">
                         <span>No additional settings required for Maximize conversions.</span>
                       </div>
                     )}
@@ -677,15 +677,15 @@ export default function SalesSearchPage() {
                     {/* ii) Target CPA */}
                     {biddingFocus === "Target CPA" && (
                       <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                        <label className="block text-slate-300 font-semibold">Target CPA</label>
+                        <label className="block text-slate-700 font-semibold">Target CPA</label>
                         <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                           <input
                             type="number"
                             value={targetCpaValue}
                             onChange={(e) => setTargetCpaValue(e.target.value)}
                             placeholder="0.00"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           />
                         </div>
                         <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
@@ -696,7 +696,7 @@ export default function SalesSearchPage() {
 
                     {/* iii) Conversion value */}
                     {biddingFocus === "Conversion value" && (
-                      <div className="pt-2 animate-in fade-in duration-150 max-w-md text-slate-400">
+                      <div className="pt-2 animate-in fade-in duration-150 max-w-md text-slate-500">
                         <span>No additional settings required for Maximize conversion value.</span>
                       </div>
                     )}
@@ -704,16 +704,16 @@ export default function SalesSearchPage() {
                     {/* iv) Target ROAS */}
                     {biddingFocus === "Target ROAS" && (
                       <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                        <label className="block text-slate-300 font-semibold">Target ROAS</label>
+                        <label className="block text-slate-700 font-semibold">Target ROAS</label>
                         <div className="relative">
                           <input
                             type="number"
                             value={targetRoasValue}
                             onChange={(e) => setTargetRoasValue(e.target.value)}
                             placeholder="200"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           />
-                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-medium">%</span>
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
                         </div>
                         <p className="text-[10px] text-amber-500 mt-1 leading-relaxed font-semibold">
                           Before opting into target ROAS, wait until the account that set up conversion tracking has received at least 15 conversions in the last 30 days.
@@ -734,20 +734,20 @@ export default function SalesSearchPage() {
                             onChange={(e) => setSetMaxCpc(e.target.checked)}
                             className="mt-0.5 rounded text-primary h-4 w-4"
                           />
-                          <span className="text-xs text-slate-300 font-medium">Set a maximum cost per click bid limit</span>
+                          <span className="text-xs text-slate-700 font-medium">Set a maximum cost per click bid limit</span>
                         </label>
                         
                         {setMaxCpc && (
                           <div className="space-y-1 ml-6 animate-in slide-in-from-left-2 duration-150">
-                            <label className="block text-[11px] text-slate-400">Maximum CPC bid limit</label>
+                            <label className="block text-[11px] text-slate-500">Maximum CPC bid limit</label>
                             <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                               <input
                                 type="number"
                                 value={maxCpcLimit}
                                 onChange={(e) => setMaxCpcLimit(e.target.value)}
                                 placeholder="0.00"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                               />
                             </div>
                           </div>
@@ -763,11 +763,11 @@ export default function SalesSearchPage() {
                     {biddingFocus === "Impression share" && (
                       <div className="pt-2 space-y-3 animate-in fade-in duration-150 max-w-md">
                         <div className="space-y-1">
-                          <label className="block text-slate-300 font-semibold">Where do you want your ads to appear</label>
+                          <label className="block text-slate-700 font-semibold">Where do you want your ads to appear</label>
                           <select
                             value={impressionShareLocation}
                             onChange={(e) => setImpressionShareLocation(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
                           >
                             <option value="Anywhere on results page">Anywhere on results page</option>
                             <option value="Top of results page">Top of results page</option>
@@ -776,34 +776,34 @@ export default function SalesSearchPage() {
                         </div>
 
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-400">Percent (%) impression share to target</label>
+                          <label className="block text-[11px] text-slate-500">Percent (%) impression share to target</label>
                           <div className="relative">
                             <input
                               type="number"
                               value={targetImpressionSharePercent}
                               onChange={(e) => setTargetImpressionSharePercent(e.target.value)}
                               placeholder="10"
-                              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                             />
-                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-medium">%</span>
+                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
                           </div>
                         </div>
 
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-400">Maximum CPC bid limit</label>
+                          <label className="block text-[11px] text-slate-500">Maximum CPC bid limit</label>
                           <div className="relative">
-                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
+                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                             <input
                               type="number"
                               value={maxCpcImpressionShare}
                               onChange={(e) => setMaxCpcImpressionShare(e.target.value)}
                               placeholder="0.00"
-                              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                             />
                           </div>
                         </div>
 
-                        <p className="text-[10px] text-slate-400 leading-relaxed bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/80">
+                        <p className="text-[10px] text-slate-500 leading-relaxed bg-slate-50/40 p-2.5 rounded-lg border border-slate-200">
                           <strong>Tip:</strong> Bid more efficiently with Maximize clicks: Get more clicks with a fully automated bid strategy.
                         </p>
                       </div>
@@ -811,34 +811,34 @@ export default function SalesSearchPage() {
 
 
                     {/* Portfolio Strategy Disclaimer Notice */}
-                    <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
+                    <p className="text-[11px] text-slate-500 pt-2 border-t border-slate-200">
                       Alternative bid strategies like portfolios are available in settings after you create your campaign
                     </p>
                   </div>
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenBiddingSetting("bidding")}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Bidding</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Bidding</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       Focus: {biddingFocus}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
               {/* Card 2: Customer Acquisition */}
               {openBiddingSetting === "acquisition" ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenBiddingSetting(null)}>
-                    <h2 className="text-base font-semibold text-white">Customer acquisition</h2>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenBiddingSetting(null)}>
+                    <h2 className="text-base font-semibold text-slate-900">Customer acquisition</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
                   <div className="space-y-3 text-xs">
@@ -847,35 +847,35 @@ export default function SalesSearchPage() {
                         type="checkbox"
                         checked={onlyBidNewCustomers}
                         onChange={(e) => setOnlyBidNewCustomers(e.target.checked)}
-                        className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                        className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                       />
                       <div className="space-y-1">
-                        <span className="text-slate-200 font-semibold block">Only bid for new customers</span>
-                        <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        <span className="text-slate-800 font-semibold block">Only bid for new customers</span>
+                        <span className="text-[11px] text-slate-500 block leading-relaxed">
                           Your campaign will be limited to only new customers, regardless of your bid strategy
                         </span>
                       </div>
                     </label>
 
-                    <p className="text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/60">
+                    <p className="text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
                       By default, your campaign bids equally for new and existing customers. However, you can configure your customer acquisition settings to optimize for acquiring new customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about customer acquisition</a>
                     </p>
                   </div>
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenBiddingSetting("acquisition")}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Customer acquisition</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Customer acquisition</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {onlyBidNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
             </div>
@@ -885,16 +885,16 @@ export default function SalesSearchPage() {
           {wizardStep === "CAMPAIGN_SETTINGS" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div>
-                <h1 className="text-2xl font-semibold text-white tracking-tight">Campaign settings</h1>
-                <p className="text-xs text-slate-400 mt-1">To reach the right people, start by defining key settings for your campaign</p>
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
+                <p className="text-xs text-slate-500 mt-1">To reach the right people, start by defining key settings for your campaign</p>
               </div>
 
               {/* 1. Networks */}
               {openMainSetting === "networks" ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
-                    <h2 className="text-sm font-semibold text-slate-100">Networks</h2>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
+                    <h2 className="text-sm font-semibold text-slate-900">Networks</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="space-y-4 text-xs">
                     <label className="flex items-start gap-3 cursor-pointer">
@@ -902,26 +902,26 @@ export default function SalesSearchPage() {
                         type="checkbox"
                         checked={searchPartnersNetwork}
                         onChange={(e) => setSearchPartnersNetwork(e.target.checked)}
-                        className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                        className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                       />
                       <div className="space-y-1">
-                        <span className="text-slate-200 font-semibold block">Google Search Partners Network (recommended)</span>
-                        <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        <span className="text-slate-800 font-semibold block">Google Search Partners Network (recommended)</span>
+                        <span className="text-[11px] text-slate-500 block leading-relaxed">
                           Ads can appear near Google Search results and on other Google Search Partners websites when people search for terms that are relevant to your keywords. Search Partners can include hundreds of non-Google websites, Parked Domains, as well as YouTube and other Google sites.
                         </span>
                       </div>
                     </label>
 
-                    <label className="flex items-start gap-3 cursor-pointer border-t border-slate-800/60 pt-3">
+                    <label className="flex items-start gap-3 cursor-pointer border-t border-slate-200 pt-3">
                       <input
                         type="checkbox"
                         checked={displayNetwork}
                         onChange={(e) => setDisplayNetwork(e.target.checked)}
-                        className="mt-0.5 rounded bg-slate-950 border-slate-700 text-primary h-4 w-4"
+                        className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                       />
                       <div className="space-y-1">
-                        <span className="text-slate-200 font-semibold block">Google Display Network (recommended)</span>
-                        <span className="text-[11px] text-slate-400 block leading-relaxed">
+                        <span className="text-slate-800 font-semibold block">Google Display Network (recommended)</span>
+                        <span className="text-[11px] text-slate-500 block leading-relaxed">
                           Ads can appear on relevant sites, videos, and apps across Google (like YouTube) and the Internet when you have leftover Search budget
                         </span>
                       </div>
@@ -930,27 +930,27 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("networks")}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Networks</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Networks</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {[searchPartnersNetwork ? "Search partners" : null, displayNetwork ? "Display Network" : null].filter(Boolean).join(", ") || "None"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
               {/* 2. Locations */}
               {openMainSetting === "locations" ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
-                    <h2 className="text-sm font-semibold text-slate-100">Locations</h2>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
+                    <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="space-y-3 text-xs">
                     <label className="flex items-center gap-3 cursor-pointer">
@@ -961,7 +961,7 @@ export default function SalesSearchPage() {
                         onChange={() => setSelectedLocation("ALL")}
                         className="text-primary focus:ring-primary h-4 w-4"
                       />
-                      <span className="text-slate-200 font-medium">All countries and territories</span>
+                      <span className="text-slate-800 font-medium">All countries and territories</span>
                     </label>
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
@@ -971,7 +971,7 @@ export default function SalesSearchPage() {
                         onChange={() => setSelectedLocation("INDIA")}
                         className="text-primary focus:ring-primary h-4 w-4"
                       />
-                      <span className="text-slate-200 font-medium">India</span>
+                      <span className="text-slate-800 font-medium">India</span>
                     </label>
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
@@ -981,7 +981,7 @@ export default function SalesSearchPage() {
                         onChange={() => setSelectedLocation("CUSTOM")}
                         className="text-primary focus:ring-primary h-4 w-4"
                       />
-                      <span className="text-slate-200 font-medium">Enter another location</span>
+                      <span className="text-slate-800 font-medium">Enter another location</span>
                     </label>
 
                     {selectedLocation === "CUSTOM" && (
@@ -993,17 +993,17 @@ export default function SalesSearchPage() {
                             value={customLocationInput}
                             onChange={(e) => setCustomLocationInput(e.target.value)}
                             placeholder="Enter a location to target or exclude"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                           />
                         </div>
 
                         {/* Suggestions List */}
                         {customLocationInput.trim() && (
-                          <div className="border border-slate-800 bg-slate-950 rounded-xl max-w-md overflow-hidden space-y-1 p-1">
+                          <div className="border border-slate-200 bg-slate-50 rounded-xl max-w-md overflow-hidden space-y-1 p-1">
                             {locationSuggestionsList.filter(l => l.name.toLowerCase().includes(customLocationInput.toLowerCase())).map((loc, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2 hover:bg-slate-900 rounded-lg text-xs">
+                              <div key={idx} className="flex items-center justify-between p-2 hover:bg-white rounded-lg text-xs">
                                 <div>
-                                  <span className="font-semibold text-slate-200 block">{loc.name}</span>
+                                  <span className="font-semibold text-slate-800 block">{loc.name}</span>
                                   <span className="text-[10px] text-slate-500">{loc.type} • Reach: {loc.reach}</span>
                                 </div>
                                 <button
@@ -1023,9 +1023,9 @@ export default function SalesSearchPage() {
                         )}
 
                         {targetLocations.map((loc, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-800 bg-slate-950 max-w-md">
+                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 max-w-md">
                             <div>
-                              <span className="font-semibold text-slate-200 block">{loc.name}</span>
+                              <span className="font-semibold text-slate-800 block">{loc.name}</span>
                               <span className="text-[10px] text-slate-500">{loc.type} • Reach: {loc.reach}</span>
                             </div>
                             <button onClick={() => setTargetLocations(prev => prev.filter((_, i) => i !== idx))}>
@@ -1036,7 +1036,7 @@ export default function SalesSearchPage() {
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-slate-800">
+                    <div className="pt-2 border-t border-slate-200">
                       <button
                         type="button"
                         onClick={() => setShowLocationOptions(!showLocationOptions)}
@@ -1056,7 +1056,7 @@ export default function SalesSearchPage() {
                               onChange={() => setLocationTargetingType("PRESENCE_INTEREST")}
                               className="text-primary h-4 w-4"
                             />
-                            <span className="text-slate-300">Presence or interest: People in, regularly in, or who've shown interest in your targeted locations (recommended)</span>
+                            <span className="text-slate-700">Presence or interest: People in, regularly in, or who've shown interest in your targeted locations (recommended)</span>
                           </label>
                           <label className="flex items-center gap-3 cursor-pointer">
                             <input
@@ -1066,7 +1066,7 @@ export default function SalesSearchPage() {
                               onChange={() => setLocationTargetingType("PRESENCE")}
                               className="text-primary h-4 w-4"
                             />
-                            <span className="text-slate-300">Presence: People in or regularly in your targeted locations</span>
+                            <span className="text-slate-700">Presence: People in or regularly in your targeted locations</span>
                           </label>
                         </div>
                       )}
@@ -1075,27 +1075,27 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("locations")}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Locations</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Locations</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : targetLocations.map(l => l.name).join(", ") || "Custom locations"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
               {/* 3. Languages */}
               {openMainSetting === "languages" ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
-                    <h2 className="text-sm font-semibold text-slate-100">Languages</h2>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
+                    <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="space-y-3 text-xs">
                     <div className="relative max-w-md">
@@ -1109,17 +1109,17 @@ export default function SalesSearchPage() {
                           setShowLanguageDropdown(true);
                         }}
                         placeholder="Start typing or select a language"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                       />
                     </div>
 
                     {/* Languages Checkbox Grid - Only Shown on Click/Focus/Type */}
                     {(showLanguageDropdown || languageSearchInput.trim().length > 0) && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 max-h-40 overflow-y-auto p-2 border border-slate-800 rounded-xl bg-slate-950 animate-in fade-in duration-200">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 max-h-40 overflow-y-auto p-2 border border-slate-200 rounded-xl bg-slate-50 animate-in fade-in duration-200">
                         {languagesList.filter(l => l.toLowerCase().includes(languageSearchInput.toLowerCase())).map((lang, idx) => {
                           const isSelected = selectedLanguages.includes(lang);
                           return (
-                            <label key={idx} className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white p-1 rounded hover:bg-slate-900">
+                            <label key={idx} className="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-slate-900 p-1 rounded hover:bg-white">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -1150,33 +1150,33 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("languages")}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Languages</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Languages</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
               {/* 4. EU political ads */}
               {openMainSetting === "eu_political" ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-slate-100">EU political ads</h2>
+                      <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
                       <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">Required</span>
                     </div>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="space-y-3 text-xs">
-                    <p className="font-semibold text-slate-200">Does your campaign have European Union political ads?</p>
+                    <p className="font-semibold text-slate-800">Does your campaign have European Union political ads?</p>
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="radio"
@@ -1185,7 +1185,7 @@ export default function SalesSearchPage() {
                         onChange={() => setEuPoliticalAds("YES")}
                         className="text-primary h-4 w-4"
                       />
-                      <span className="text-slate-200">Yes, this campaign has EU political ads</span>
+                      <span className="text-slate-800">Yes, this campaign has EU political ads</span>
                     </label>
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
@@ -1195,7 +1195,7 @@ export default function SalesSearchPage() {
                         onChange={() => setEuPoliticalAds("NO")}
                         className="text-primary h-4 w-4"
                       />
-                      <span className="text-slate-200">No, this campaign doesn't have EU political ads</span>
+                      <span className="text-slate-800">No, this campaign doesn't have EU political ads</span>
                     </label>
                     {euPoliticalAds === "YES" && (
                       <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-[11px] leading-relaxed">
@@ -1206,54 +1206,54 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("eu_political")}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">EU political ads</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">EU political ads</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {euPoliticalAds === "YES" ? "Yes, this campaign has EU political ads" : "No, this campaign doesn't have EU political ads"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
               {/* 5. Audience segments */}
               {openMainSetting === "audience" ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
                     <div>
-                      <h2 className="text-sm font-semibold text-slate-100">Audience segments</h2>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Select audience segments to add to your campaign. You can create new Your data segments by clicking on <span className="font-semibold text-slate-200">+ New segment</span> in the Search tab. <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
+                      <h2 className="text-sm font-semibold text-slate-900">Audience segments</h2>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Select audience segments to add to your campaign. You can create new Your data segments by clicking on <span className="font-semibold text-slate-800">+ New segment</span> in the Search tab. <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                       </p>
                     </div>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
                   {/* Split Card Layout */}
-                  <div className="border border-slate-800 rounded-xl bg-slate-950 overflow-hidden text-xs">
+                  <div className="border border-slate-200 rounded-xl bg-slate-50 overflow-hidden text-xs">
                     <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-800">
                       
                       {/* Left Column: Search/Browse & Results */}
                       <div className="p-4 space-y-4 flex flex-col justify-between min-h-[260px]">
                         <div className="space-y-3">
                           {/* Tabs Header */}
-                          <div className="flex items-center gap-6 border-b border-slate-800 pb-2">
+                          <div className="flex items-center gap-6 border-b border-slate-200 pb-2">
                             <button
                               type="button"
                               onClick={() => setAudienceTab("SEARCH")}
-                              className={`font-semibold pb-1 border-b-2 transition-all cursor-pointer ${audienceTab === "SEARCH" ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+                              className={`font-semibold pb-1 border-b-2 transition-all cursor-pointer ${audienceTab === "SEARCH" ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-800"}`}
                             >
                               Search
                             </button>
                             <button
                               type="button"
                               onClick={() => setAudienceTab("BROWSE")}
-                              className={`font-semibold pb-1 border-b-2 transition-all cursor-pointer ${audienceTab === "BROWSE" ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+                              className={`font-semibold pb-1 border-b-2 transition-all cursor-pointer ${audienceTab === "BROWSE" ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-800"}`}
                             >
                               Browse
                             </button>
@@ -1267,17 +1267,17 @@ export default function SalesSearchPage() {
                               value={audienceSearchQuery}
                               onChange={(e) => setAudienceSearchQuery(e.target.value)}
                               placeholder='Try "banking & finance"'
-                              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                             />
                           </div>
 
                           {/* Search Results / Default Empty Search Placeholder */}
                           {audienceTab === "SEARCH" && !audienceSearchQuery.trim() && (
                             <div className="py-8 text-center space-y-2">
-                              <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-400">
+                              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-500">
                                 <SearchIcon className="h-5 w-5" />
                               </div>
-                              <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                              <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto">
                                 You’ll see recently selected segments and ideas here.<br />Use search to start looking for a segment.
                               </p>
                             </div>
@@ -1291,7 +1291,7 @@ export default function SalesSearchPage() {
                                 .map((seg, idx) => {
                                   const isChecked = selectedAudienceSegments.includes(seg);
                                   return (
-                                    <label key={idx} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-900 cursor-pointer text-slate-200">
+                                    <label key={idx} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-white cursor-pointer text-slate-800">
                                       <input
                                         type="checkbox"
                                         checked={isChecked}
@@ -1310,7 +1310,7 @@ export default function SalesSearchPage() {
                         </div>
 
                         {/* Bottom + New segment button */}
-                        <div className="pt-2 border-t border-slate-800">
+                        <div className="pt-2 border-t border-slate-200">
                           <button
                             type="button"
                             onClick={() => setShowNewSegmentModal(true)}
@@ -1323,10 +1323,10 @@ export default function SalesSearchPage() {
                       </div>
 
                       {/* Right Column: Selected Segments Header & Clear All */}
-                      <div className="p-4 space-y-3 bg-slate-950/40 min-h-[260px] flex flex-col justify-between">
+                      <div className="p-4 space-y-3 bg-slate-50/40 min-h-[260px] flex flex-col justify-between">
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                            <span className="font-semibold text-slate-300">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <span className="font-semibold text-slate-700">
                               {selectedAudienceSegments.length > 0 ? `${selectedAudienceSegments.length} selected` : "None selected"}
                             </span>
                             {selectedAudienceSegments.length > 0 && (
@@ -1345,10 +1345,10 @@ export default function SalesSearchPage() {
                           ) : (
                             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                               {selectedAudienceSegments.map((seg, i) => (
-                                <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
-                                  <span className="text-slate-200 font-medium truncate max-w-[200px]">{seg}</span>
+                                <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 text-xs">
+                                  <span className="text-slate-800 font-medium truncate max-w-[200px]">{seg}</span>
                                   <button type="button" onClick={() => setSelectedAudienceSegments(prev => prev.filter((_, idx) => idx !== i))}>
-                                    <X className="h-3.5 w-3.5 text-slate-400 hover:text-rose-400" />
+                                    <X className="h-3.5 w-3.5 text-slate-500 hover:text-rose-400" />
                                   </button>
                                 </div>
                               ))}
@@ -1362,7 +1362,7 @@ export default function SalesSearchPage() {
 
                   {/* Targeting setting for this campaign */}
                   <div className="space-y-3 pt-2">
-                    <label className="block text-slate-300 font-semibold">
+                    <label className="block text-slate-700 font-semibold">
                       Targeting setting for this campaign <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                     </label>
                     <div className="space-y-3">
@@ -1375,8 +1375,8 @@ export default function SalesSearchPage() {
                           className="mt-0.5 text-primary h-4 w-4"
                         />
                         <div className="space-y-0.5">
-                          <span className="text-slate-200 font-semibold block">Targeting</span>
-                          <span className="text-[11px] text-slate-400 block leading-relaxed">Narrow the reach of your campaign to the selected segments, with the option to adjust the bids</span>
+                          <span className="text-slate-800 font-semibold block">Targeting</span>
+                          <span className="text-[11px] text-slate-500 block leading-relaxed">Narrow the reach of your campaign to the selected segments, with the option to adjust the bids</span>
                         </div>
                       </label>
 
@@ -1389,8 +1389,8 @@ export default function SalesSearchPage() {
                           className="mt-0.5 text-primary h-4 w-4"
                         />
                         <div className="space-y-0.5">
-                          <span className="text-slate-200 font-semibold block">Observation (recommended)</span>
-                          <span className="text-[11px] text-slate-400 block leading-relaxed">Don't narrow the reach of your campaign, with the option to adjust the bids on the selected segments</span>
+                          <span className="text-slate-800 font-semibold block">Observation (recommended)</span>
+                          <span className="text-[11px] text-slate-500 block leading-relaxed">Don't narrow the reach of your campaign, with the option to adjust the bids on the selected segments</span>
                         </div>
                       </label>
                     </div>
@@ -1398,18 +1398,18 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenMainSetting("audience")}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Audience segments</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Audience segments</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {selectedAudienceSegments.length > 0 ? selectedAudienceSegments.join(", ") : "Select audience segments to add to your campaign."}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
@@ -1418,7 +1418,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setShowMoreSettings(!showMoreSettings)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-850 text-xs font-semibold text-primary transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-primary transition-all cursor-pointer"
                 >
                   <Settings className="h-4 w-4" />
                   More settings
@@ -1426,23 +1426,23 @@ export default function SalesSearchPage() {
                 </button>
 
                 {showMoreSettings && (
-                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl divide-y divide-slate-800 text-xs animate-in fade-in duration-200 overflow-hidden">
+                  <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-800 text-xs animate-in fade-in duration-200 overflow-hidden">
                     
                     {/* 1. Ad rotation */}
                     <div className="divide-y divide-slate-800">
                       {openSetting === "ad_rotation" ? (
-                        <div className="p-6 space-y-4 bg-slate-900/50">
+                        <div className="p-6 space-y-4 bg-slate-50">
                           <div className="flex items-center justify-between cursor-pointer" onClick={() => setOpenSetting(null)}>
                             <div className="space-y-0.5">
-                              <h3 className="font-semibold text-slate-200 text-sm">Ad rotation</h3>
-                              <p className="text-[11px] text-slate-400">
+                              <h3 className="font-semibold text-slate-800 text-sm">Ad rotation</h3>
+                              <p className="text-[11px] text-slate-500">
                                 {adRotationMode === "OPTIMIZE" ? "Optimize: Prefer best performing ads" : "Do not optimize: Rotate ads indefinitely"}
                               </p>
                             </div>
                             <Edit3 className="h-4 w-4 text-primary" />
                           </div>
 
-                          <div className="space-y-3 text-xs pt-4 border-t border-slate-800/40">
+                          <div className="space-y-3 text-xs pt-4 border-t border-slate-200/40">
                             <label className="flex items-start gap-3 cursor-pointer">
                               <input
                                 type="radio"
@@ -1452,11 +1452,11 @@ export default function SalesSearchPage() {
                                 className="mt-0.5 text-primary h-4 w-4"
                               />
                               <div>
-                                <span className="text-slate-200 font-semibold block">Optimize: Prefer best performing ads</span>
-                                <span className="text-[11px] text-slate-400 block">Show ads that are expected to get more clicks or conversions. Recommended for most advertisers.</span>
+                                <span className="text-slate-800 font-semibold block">Optimize: Prefer best performing ads</span>
+                                <span className="text-[11px] text-slate-500 block">Show ads that are expected to get more clicks or conversions. Recommended for most advertisers.</span>
                               </div>
                             </label>
-                            <label className="flex items-start gap-3 cursor-pointer border-t border-slate-800/60 pt-2.5">
+                            <label className="flex items-start gap-3 cursor-pointer border-t border-slate-200 pt-2.5">
                               <input
                                 type="radio"
                                 name="searchAdRot"
@@ -1465,26 +1465,26 @@ export default function SalesSearchPage() {
                                 className="mt-0.5 text-primary h-4 w-4"
                               />
                               <div>
-                                <span className="text-slate-200 font-semibold block">Do not optimize: Rotate ads indefinitely</span>
-                                <span className="text-[11px] text-slate-400 block">Rotates your ads more evenly into the ad auction, but does not optimize for clicks or conversions.</span>
+                                <span className="text-slate-800 font-semibold block">Do not optimize: Rotate ads indefinitely</span>
+                                <span className="text-[11px] text-slate-500 block">Rotates your ads more evenly into the ad auction, but does not optimize for clicks or conversions.</span>
                               </div>
                             </label>
                           </div>
                         </div>
                       ) : (
                         <div 
-                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors"
+                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors"
                           onClick={() => setOpenSetting("ad_rotation")}
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <h3 className="font-semibold text-slate-200 text-sm">Ad rotation</h3>
+                              <h3 className="font-semibold text-slate-800 text-sm">Ad rotation</h3>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {adRotationMode === "OPTIMIZE" ? "Optimize: Prefer best performing ads" : "Do not optimize: Rotate ads indefinitely"}
                             </div>
                           </div>
-                          <Edit3 className="h-4 w-4 text-slate-400" />
+                          <Edit3 className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
@@ -1492,55 +1492,55 @@ export default function SalesSearchPage() {
                     {/* 2. Start and end dates */}
                     <div className="divide-y divide-slate-800">
                       {openSetting === "dates" ? (
-                        <div className="p-6 space-y-4 bg-slate-900/50">
+                        <div className="p-6 space-y-4 bg-slate-50">
                           <div className="flex items-center justify-between cursor-pointer" onClick={() => setOpenSetting(null)}>
                             <div className="space-y-0.5">
-                              <h3 className="font-semibold text-slate-200 text-sm">Start and end dates</h3>
-                              <p className="text-[11px] text-slate-400">
+                              <h3 className="font-semibold text-slate-800 text-sm">Start and end dates</h3>
+                              <p className="text-[11px] text-slate-500">
                                 Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
                               </p>
                             </div>
                             <Edit3 className="h-4 w-4 text-primary" />
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md text-xs pt-4 border-t border-slate-800/40">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md text-xs pt-4 border-t border-slate-200/40">
                             <div className="space-y-1">
-                              <label className="block text-[11px] text-slate-400 font-semibold">Start date</label>
+                              <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                               <input
                                 type="date"
                                 value={startDate}
                                 onChange={(e) => setStartDate(e.target.value)}
                                 onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
+                              <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                               <input
                                 type="date"
                                 value={endDate}
                                 onChange={(e) => setEndDate(e.target.value)}
                                 onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary cursor-pointer"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
                               />
                             </div>
                           </div>
-                          <p className="text-[11px] text-slate-400">Your ads will continue to run unless you specify an end date.</p>
+                          <p className="text-[11px] text-slate-500">Your ads will continue to run unless you specify an end date.</p>
                         </div>
                       ) : (
                         <div 
-                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors"
+                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors"
                           onClick={() => setOpenSetting("dates")}
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <h3 className="font-semibold text-slate-200 text-sm">Start and end dates</h3>
+                              <h3 className="font-semibold text-slate-800 text-sm">Start and end dates</h3>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
                             </div>
                           </div>
-                          <Edit3 className="h-4 w-4 text-slate-400" />
+                          <Edit3 className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
@@ -1548,11 +1548,11 @@ export default function SalesSearchPage() {
                     {/* 3. Ad schedule */}
                     <div className="divide-y divide-slate-800">
                       {openSetting === "schedule" ? (
-                        <div className="p-6 space-y-4 bg-slate-900/50">
+                        <div className="p-6 space-y-4 bg-slate-50">
                           <div className="flex items-center justify-between cursor-pointer" onClick={() => setOpenSetting(null)}>
                             <div className="space-y-0.5">
-                              <h3 className="font-semibold text-slate-200 text-sm">Ad schedule</h3>
-                              <p className="text-[11px] text-slate-400">
+                              <h3 className="font-semibold text-slate-800 text-sm">Ad schedule</h3>
+                              <p className="text-[11px] text-slate-500">
                                 {adScheduleList.length === 1 && adScheduleList[0].day === "All days" && adScheduleList[0].start === "00:00" && adScheduleList[0].end === "00:00"
                                   ? "All day"
                                   : adScheduleList.map(s => `${s.day}: ${s.start} - ${s.end}`).join(", ")
@@ -1562,7 +1562,7 @@ export default function SalesSearchPage() {
                             <Edit3 className="h-4 w-4 text-primary" />
                           </div>
 
-                          <div className="space-y-3 text-xs pt-4 border-t border-slate-800/40">
+                          <div className="space-y-3 text-xs pt-4 border-t border-slate-200/40">
                             {adScheduleList.map((sched, idx) => (
                               <div key={idx} className="flex flex-wrap items-center gap-3">
                                 <select
@@ -1572,14 +1572,14 @@ export default function SalesSearchPage() {
                                     updated[idx].day = e.target.value;
                                     setAdScheduleList(updated);
                                   }}
-                                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-semibold"
+                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-semibold"
                                 >
                                   {dayOptions.map((d, i) => (
                                     <option key={i} value={d}>{d}</option>
                                   ))}
                                 </select>
 
-                                <span className="text-slate-400">from</span>
+                                <span className="text-slate-500">from</span>
 
                                 <select
                                   value={sched.start}
@@ -1588,14 +1588,14 @@ export default function SalesSearchPage() {
                                     updated[idx].start = e.target.value;
                                     setAdScheduleList(updated);
                                   }}
-                                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                                 >
                                   {timeOptions.map((t, i) => (
                                     <option key={i} value={t}>{t}</option>
                                   ))}
                                 </select>
 
-                                <span className="text-slate-400">to</span>
+                                <span className="text-slate-500">to</span>
 
                                 <select
                                   value={sched.end}
@@ -1604,7 +1604,7 @@ export default function SalesSearchPage() {
                                     updated[idx].end = e.target.value;
                                     setAdScheduleList(updated);
                                   }}
-                                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                                 >
                                   {timeOptions.map((t, i) => (
                                     <option key={i} value={t}>{t}</option>
@@ -1615,7 +1615,7 @@ export default function SalesSearchPage() {
                                   <button
                                     type="button"
                                     onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
-                                    className="p-1.5 text-slate-400 hover:text-rose-400"
+                                    className="p-1.5 text-slate-500 hover:text-rose-400"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
@@ -1632,28 +1632,28 @@ export default function SalesSearchPage() {
                               Add ad schedule
                             </button>
 
-                            <p className="text-[11px] text-slate-400 leading-relaxed">To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more</p>
+                            <p className="text-[11px] text-slate-500 leading-relaxed">To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more</p>
                             <p className="text-[11px] text-slate-500 font-mono">Based on account time zone: (GMT+05:30) India Standard Time</p>
-                            <p className="text-[11px] text-slate-400">To limit when your ads can run, set an ad schedule. Keep in mind that your ads will only run during these times.</p>
+                            <p className="text-[11px] text-slate-500">To limit when your ads can run, set an ad schedule. Keep in mind that your ads will only run during these times.</p>
                           </div>
                         </div>
                       ) : (
                         <div 
-                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors"
+                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors"
                           onClick={() => setOpenSetting("schedule")}
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <h3 className="font-semibold text-slate-200 text-sm">Ad schedule</h3>
+                              <h3 className="font-semibold text-slate-800 text-sm">Ad schedule</h3>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {adScheduleList.length === 1 && adScheduleList[0].day === "All days" && adScheduleList[0].start === "00:00" && adScheduleList[0].end === "00:00"
                                 ? "All day"
                                 : adScheduleList.map(s => `${s.day}: ${s.start} - ${s.end}`).join(", ")
                               }
                             </div>
                           </div>
-                          <Edit3 className="h-4 w-4 text-slate-400" />
+                          <Edit3 className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
@@ -1661,11 +1661,11 @@ export default function SalesSearchPage() {
                     {/* 4. Campaign URL options */}
                     <div className="divide-y divide-slate-800">
                       {openSetting === "url_options" ? (
-                        <div className="p-6 space-y-4 bg-slate-900/50">
+                        <div className="p-6 space-y-4 bg-slate-50">
                           <div className="flex items-center justify-between cursor-pointer" onClick={() => setOpenSetting(null)}>
                             <div className="space-y-0.5">
-                              <h3 className="font-semibold text-slate-200 text-sm">Campaign URL options</h3>
-                              <p className="text-[11px] text-slate-400">
+                              <h3 className="font-semibold text-slate-800 text-sm">Campaign URL options</h3>
+                              <p className="text-[11px] text-slate-500">
                                 {trackingTemplate || finalUrlSuffix || (customParams.length > 0 && customParams[0].name)
                                   ? "Options set"
                                   : "No options set"
@@ -1675,31 +1675,31 @@ export default function SalesSearchPage() {
                             <Edit3 className="h-4 w-4 text-primary" />
                           </div>
 
-                          <div className="space-y-4 text-xs pt-4 border-t border-slate-800/40">
+                          <div className="space-y-4 text-xs pt-4 border-t border-slate-200/40">
                             <div className="space-y-1">
-                              <label className="block text-slate-300 font-semibold">Tracking template</label>
+                              <label className="block text-slate-700 font-semibold">Tracking template</label>
                               <input
                                 type="text"
                                 value={trackingTemplate}
                                 onChange={(e) => setTrackingTemplate(e.target.value)}
                                 placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                               />
                             </div>
 
                             <div className="space-y-1">
-                              <label className="block text-slate-300 font-semibold">Final URL suffix</label>
+                              <label className="block text-slate-700 font-semibold">Final URL suffix</label>
                               <input
                                 type="text"
                                 value={finalUrlSuffix}
                                 onChange={(e) => setFinalUrlSuffix(e.target.value)}
                                 placeholder="Example: param1=value1&param2=value2"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                               />
                             </div>
 
-                            <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                              <label className="block text-slate-300 font-semibold">Custom parameters</label>
+                            <div className="space-y-2 pt-2 border-t border-slate-200">
+                              <label className="block text-slate-700 font-semibold">Custom parameters</label>
                               {customParams.map((param, idx) => (
                                 <div key={idx} className="flex items-center gap-2 max-w-md">
                                   <span className="text-slate-500 font-mono">{`{_`}</span>
@@ -1712,10 +1712,10 @@ export default function SalesSearchPage() {
                                       setCustomParams(updated);
                                     }}
                                     placeholder="Name"
-                                    className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                                    className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                                   />
                                   <span className="text-slate-500 font-mono">{`}`}</span>
-                                  <span className="text-slate-400 font-bold">=</span>
+                                  <span className="text-slate-500 font-bold">=</span>
                                   <input
                                     type="text"
                                     value={param.value}
@@ -1725,7 +1725,7 @@ export default function SalesSearchPage() {
                                       setCustomParams(updated);
                                     }}
                                     placeholder="Value"
-                                    className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono"
+                                    className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
                                   />
                                 </div>
                               ))}
@@ -1738,28 +1738,28 @@ export default function SalesSearchPage() {
                               </button>
                             </div>
 
-                            <p className="text-[11px] text-slate-400 pt-1">
+                            <p className="text-[11px] text-slate-500 pt-1">
                               Tracking template is the URL you want the ad click to go to for tracking. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more</a>
                             </p>
                           </div>
                         </div>
                       ) : (
                         <div 
-                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors"
+                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors"
                           onClick={() => setOpenSetting("url_options")}
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <h3 className="font-semibold text-slate-200 text-sm">Campaign URL options</h3>
+                              <h3 className="font-semibold text-slate-800 text-sm">Campaign URL options</h3>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {trackingTemplate || finalUrlSuffix || (customParams.length > 0 && customParams[0].name)
                                 ? "Options set"
                                 : "No options set"
                               }
                             </div>
                           </div>
-                          <Edit3 className="h-4 w-4 text-slate-400" />
+                          <Edit3 className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
@@ -1767,26 +1767,26 @@ export default function SalesSearchPage() {
                     {/* 5. Page feeds */}
                     <div className="divide-y divide-slate-800">
                       {openSetting === "page_feeds" ? (
-                        <div className="p-6 space-y-4 bg-slate-900/50">
+                        <div className="p-6 space-y-4 bg-slate-50">
                           <div className="flex items-center justify-between cursor-pointer" onClick={() => setOpenSetting(null)}>
                             <div className="space-y-0.5">
-                              <h3 className="font-semibold text-slate-200 text-sm">Page feeds</h3>
-                              <p className="text-[11px] text-slate-400">
+                              <h3 className="font-semibold text-slate-800 text-sm">Page feeds</h3>
+                              <p className="text-[11px] text-slate-500">
                                 {pageFeeds.length > 0 ? `${pageFeeds.length} feeds added` : "Add page feeds to your campaign"}
                               </p>
                             </div>
                             <Edit3 className="h-4 w-4 text-primary" />
                           </div>
 
-                          <div className="space-y-3 text-xs pt-4 border-t border-slate-800/40">
-                            <p className="text-[11px] text-slate-400">Use page feeds to target specific URLs from your website. Feeds are useful when you want to target specific pages or products.</p>
+                          <div className="space-y-3 text-xs pt-4 border-t border-slate-200/40">
+                            <p className="text-[11px] text-slate-500">Use page feeds to target specific URLs from your website. Feeds are useful when you want to target specific pages or products.</p>
                             
                             <div className="flex items-center gap-2 max-w-md">
                               <input
                                 id="pageFeedInput"
                                 type="text"
                                 placeholder="Enter page feed URL"
-                                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
                                     const val = (e.target as HTMLInputElement).value.trim();
@@ -1816,8 +1816,8 @@ export default function SalesSearchPage() {
                             {pageFeeds.length > 0 && (
                               <div className="space-y-1.5 max-w-md">
                                 {pageFeeds.map((feed, idx) => (
-                                  <div key={idx} className="flex items-center justify-between p-2 rounded-xl border border-slate-800 bg-slate-950">
-                                    <span className="font-mono text-slate-200 truncate pr-2">{feed}</span>
+                                  <div key={idx} className="flex items-center justify-between p-2 rounded-xl border border-slate-200 bg-slate-50">
+                                    <span className="font-mono text-slate-800 truncate pr-2">{feed}</span>
                                     <button
                                       type="button"
                                       onClick={() => setPageFeeds(prev => prev.filter((_, i) => i !== idx))}
@@ -1833,18 +1833,18 @@ export default function SalesSearchPage() {
                         </div>
                       ) : (
                         <div 
-                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors"
+                          className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors"
                           onClick={() => setOpenSetting("page_feeds")}
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <h3 className="font-semibold text-slate-200 text-sm">Page feeds</h3>
+                              <h3 className="font-semibold text-slate-800 text-sm">Page feeds</h3>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {pageFeeds.length > 0 ? `${pageFeeds.length} feeds added` : "Add page feeds to your campaign"}
                             </div>
                           </div>
-                          <Edit3 className="h-4 w-4 text-slate-400" />
+                          <Edit3 className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
@@ -1860,45 +1860,45 @@ export default function SalesSearchPage() {
           {wizardStep === "AI_MAX" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <div>
-                <h1 className="text-2xl font-semibold text-white tracking-tight">AI Max for Search campaigns</h1>
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">AI Max for Search campaigns</h1>
               </div>
 
               {/* Main Container Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
                 
                 {/* Header Banner: Get the best AI-powered performance */}
-                <div className="p-5 rounded-xl border border-slate-800 bg-slate-950 space-y-4">
+                <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
                       <Sparkles className="h-6 w-6" />
                     </div>
                     <div className="space-y-1">
-                      <h2 className="text-sm font-bold text-slate-100">Get the best AI-powered performance on Google Search</h2>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <h2 className="text-sm font-bold text-slate-900">Get the best AI-powered performance on Google Search</h2>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
                         Advertisers that activate AI Max in Search Campaigns will typically see 14% more conversions or conversion value at a similar CPA / ROAS.
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-2 border-t border-slate-800/60 text-[11px]">
-                    <div className="flex items-start gap-3 text-slate-300">
+                  <div className="space-y-3 pt-2 border-t border-slate-200 text-[11px]">
+                    <div className="flex items-start gap-3 text-slate-700">
                       <Zap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                       <span>
-                        <strong className="text-slate-100">Engage more customers and boost performance.</strong> Easily expand your keywords with broad match technology and let Google AI match content from your landing pages and assets to help you show up on more relevant searches. New ad group settings help you guide which customers you reach.
+                        <strong className="text-slate-900">Engage more customers and boost performance.</strong> Easily expand your keywords with broad match technology and let Google AI match content from your landing pages and assets to help you show up on more relevant searches. New ad group settings help you guide which customers you reach.
                       </span>
                     </div>
 
-                    <div className="flex items-start gap-3 text-slate-300">
+                    <div className="flex items-start gap-3 text-slate-700">
                       <Edit3 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                       <span>
-                        <strong className="text-slate-100">Tailor your ads and keep them fresh.</strong> Use Google AI to serve the most relevant ad copy and landing pages to each customer based on their unique interest and intent.
+                        <strong className="text-slate-900">Tailor your ads and keep them fresh.</strong> Use Google AI to serve the most relevant ad copy and landing pages to each customer based on their unique interest and intent.
                       </span>
                     </div>
 
-                    <div className="flex items-start gap-3 text-slate-300">
+                    <div className="flex items-start gap-3 text-slate-700">
                       <SlidersHorizontal className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                       <span>
-                        <strong className="text-slate-100">Take charge and understand how the newest and best Google AI is working for you.</strong> You'll get new actionable insights in search term reports that show how AI Max improves performance.
+                        <strong className="text-slate-900">Take charge and understand how the newest and best Google AI is working for you.</strong> You'll get new actionable insights in search term reports that show how AI Max improves performance.
                       </span>
                     </div>
 
@@ -1915,25 +1915,25 @@ export default function SalesSearchPage() {
                       onChange={(e) => setEnableAiMax(e.target.checked)}
                       className="rounded text-primary h-4 w-4"
                     />
-                    <span className="font-bold text-slate-100 text-sm">Optimize your campaign with AI Max</span>
+                    <span className="font-bold text-slate-900 text-sm">Optimize your campaign with AI Max</span>
                   </label>
                 </div>
 
                 {/* Asset Optimization Accordion Card */}
                 {enableAiMax && (
-                  <div className="p-6 rounded-xl border border-slate-800 bg-slate-950 space-y-6 animate-in fade-in duration-200">
+                  <div className="p-6 rounded-xl border border-slate-200 bg-slate-50 space-y-6 animate-in fade-in duration-200">
                     {showAssetOptimization ? (
                       <>
                         <div 
                           onClick={() => setShowAssetOptimization(false)}
-                          className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer select-none"
+                          className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                         >
-                          <h3 className="font-bold text-slate-100 text-sm">Asset optimization</h3>
-                          <ChevronUp className="h-4 w-4 text-slate-400" />
+                          <h3 className="font-bold text-slate-900 text-sm">Asset optimization</h3>
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
                         </div>
 
                         {/* Sub-Card 1: Text Customization */}
-                        <div className="p-5 rounded-xl border border-slate-800 bg-slate-900 space-y-4">
+                        <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
                           <div className="flex items-center justify-between">
                             <label className="flex items-center gap-3 cursor-pointer">
                               <input
@@ -1942,11 +1942,11 @@ export default function SalesSearchPage() {
                                 onChange={(e) => setEnableTextCustomization(e.target.checked)}
                                 className="rounded text-primary h-4 w-4"
                               />
-                              <span className="font-bold text-slate-100">Text customization</span>
+                              <span className="font-bold text-slate-900">Text customization</span>
                             </label>
                           </div>
 
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
                             Match your ad copy to what people are searching for with new headlines and descriptions using your website and assets. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline font-semibold">Learn more about text customization</a>
                           </p>
 
@@ -1956,42 +1956,42 @@ export default function SalesSearchPage() {
                           </div>
 
                           {/* Before / After Sponsored Result Ad Visual Preview */}
-                          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                             <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-2">
                               
                               {/* Original Ad Card */}
-                              <div className="w-full md:w-64 p-3 rounded-lg border border-slate-800 bg-slate-900 space-y-2">
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                              <div className="w-full md:w-64 p-3 rounded-lg border border-slate-200 bg-white space-y-2">
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">
                                   <SearchIcon className="h-3 w-3 text-slate-500" />
                                   <span className="truncate">Blue wall paint delivery</span>
                                 </div>
-                                <span className="text-[10px] font-bold text-slate-400 block">Sponsored result</span>
+                                <span className="text-[10px] font-bold text-slate-500 block">Sponsored result</span>
                                 <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
                                     <span className="truncate">Beahm's https://www.beahms.com/</span>
                                   </div>
                                   <h4 className="text-xs font-bold text-blue-400 line-clamp-1">Blue Paint Colors | Expert Picks</h4>
-                                  <p className="text-[10px] text-slate-400 line-clamp-2">Make your house a home with our range of painting and decorating essentials.</p>
+                                  <p className="text-[10px] text-slate-500 line-clamp-2">Make your house a home with our range of painting and decorating essentials.</p>
                                 </div>
                               </div>
 
                               <ArrowRight className="h-5 w-5 text-slate-500 shrink-0 rotate-90 md:rotate-0" />
 
                               {/* Dynamic Tailored Ad Card */}
-                              <div className="w-full md:w-72 p-3.5 rounded-lg border border-blue-500/30 bg-slate-900 space-y-2 shadow-lg">
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                              <div className="w-full md:w-72 p-3.5 rounded-lg border border-blue-500/30 bg-white space-y-2 shadow-lg">
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">
                                   <SearchIcon className="h-3 w-3 text-slate-500" />
                                   <span className="truncate">Blue wall paint delivery</span>
                                 </div>
-                                <span className="text-[10px] font-bold text-slate-400 block">Sponsored result</span>
+                                <span className="text-[10px] font-bold text-slate-500 block">Sponsored result</span>
                                 <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
                                     <span className="truncate">Beahm's https://www.beahms.com/</span>
                                   </div>
                                   <h4 className="text-xs font-bold text-blue-400 line-clamp-1">Blue Wall Paint, Next-Day Delivery | Expert Picks</h4>
-                                  <p className="text-[10px] text-slate-400 line-clamp-2">Make your house a home with our range of painting and decorating essentials.</p>
+                                  <p className="text-[10px] text-slate-500 line-clamp-2">Make your house a home with our range of painting and decorating essentials.</p>
                                 </div>
                               </div>
 
@@ -2001,7 +2001,7 @@ export default function SalesSearchPage() {
                         </div>
 
                         {/* Sub-Card 2: Final URL Expansion */}
-                        <div className="p-5 rounded-xl border border-slate-800 bg-slate-900 space-y-4">
+                        <div className="p-5 rounded-xl border border-slate-200 bg-white space-y-4">
                           <div className="flex items-center justify-between">
                             <label className="flex items-center gap-3 cursor-pointer">
                               <input
@@ -2010,11 +2010,11 @@ export default function SalesSearchPage() {
                                 onChange={(e) => setEnableFinalUrlExpansion(e.target.checked)}
                                 className="rounded text-primary h-4 w-4"
                               />
-                              <span className="font-bold text-slate-100">Final URL expansion</span>
+                              <span className="font-bold text-slate-900">Final URL expansion</span>
                             </label>
                           </div>
 
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
                             Direct people to the most relevant content by matching your landing pages with user searches. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline font-semibold">Learn more about Final URL expansion</a>
                           </p>
                           <p className="text-[11px] text-amber-400 font-semibold">Requires text customization to be turned on to ensure ad copy matches landing page</p>
@@ -2024,18 +2024,18 @@ export default function SalesSearchPage() {
                           </div>
 
                           {/* Before / After Final URL Expansion Visual Preview */}
-                          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                             <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-2">
                               
                               {/* Original Landing Card */}
-                              <div className="w-full md:w-64 p-3 rounded-lg border border-slate-800 bg-slate-900 space-y-2">
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                              <div className="w-full md:w-64 p-3 rounded-lg border border-slate-200 bg-white space-y-2">
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">
                                   <SearchIcon className="h-3 w-3 text-slate-500" />
                                   <span className="truncate">Blue wall paint delivery</span>
                                 </div>
-                                <span className="text-[10px] font-bold text-slate-400 block">Sponsored result</span>
+                                <span className="text-[10px] font-bold text-slate-500 block">Sponsored result</span>
                                 <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
                                     <span className="truncate">Beahm's https://www.beahms.com/</span>
                                   </div>
@@ -2046,16 +2046,16 @@ export default function SalesSearchPage() {
                               <ArrowRight className="h-5 w-5 text-slate-500 shrink-0 rotate-90 md:rotate-0" />
 
                               {/* Expanded Landing URL Card */}
-                              <div className="w-full md:w-72 p-3.5 rounded-lg border border-blue-500/30 bg-slate-900 space-y-2 shadow-lg">
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                              <div className="w-full md:w-72 p-3.5 rounded-lg border border-blue-500/30 bg-white space-y-2 shadow-lg">
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200">
                                   <SearchIcon className="h-3 w-3 text-slate-500" />
                                   <span className="truncate">Blue wall paint delivery</span>
                                 </div>
-                                <span className="text-[10px] font-bold text-slate-400 block">Sponsored result</span>
+                                <span className="text-[10px] font-bold text-slate-500 block">Sponsored result</span>
                                 <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
-                                    <span className="truncate font-semibold text-slate-200">Beahm's https://www.beahms.com/<strong className="text-blue-400 font-bold">/paint/blue</strong></span>
+                                    <span className="truncate font-semibold text-slate-800">Beahm's https://www.beahms.com/<strong className="text-blue-400 font-bold">/paint/blue</strong></span>
                                   </div>
                                   <h4 className="text-xs font-bold text-blue-400 line-clamp-1">Blue Wall Paint, Next-Day Delivery | Expert Picks</h4>
                                 </div>
@@ -2073,38 +2073,38 @@ export default function SalesSearchPage() {
                       >
                         <div className="flex items-center gap-16">
                           <div className="w-48">
-                            <h3 className="font-bold text-slate-100 text-sm">Asset optimization</h3>
+                            <h3 className="font-bold text-slate-900 text-sm">Asset optimization</h3>
                           </div>
-                          <div className="text-[11px] text-slate-400">
+                          <div className="text-[11px] text-slate-500">
                             {[enableTextCustomization ? "Text customization" : null, enableFinalUrlExpansion ? "Final URL expansion" : null].filter(Boolean).join(", ") || "Off"}
                           </div>
                         </div>
-                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                        <ChevronDown className="h-4 w-4 text-slate-500" />
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Brands Card */}
-                <div className="p-6 rounded-xl border border-slate-800 bg-slate-950 space-y-5 shadow-xl">
+                <div className="p-6 rounded-xl border border-slate-200 bg-slate-50 space-y-5 shadow-sm">
                   {showBrands ? (
                     <>
                       <div 
                         onClick={() => setShowBrands(false)}
-                        className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer select-none"
+                        className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                       >
-                        <h3 className="font-bold text-slate-100 text-sm">Brands</h3>
-                        <ChevronUp className="h-4 w-4 text-slate-400" />
+                        <h3 className="font-bold text-slate-900 text-sm">Brands</h3>
+                        <ChevronUp className="h-4 w-4 text-slate-500" />
                       </div>
 
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
                         Use brand settings to ensure your campaign meets your branded traffic needs. You can add up to 20 brand lists across your brand inclusions and exclusions. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline font-semibold">Learn more about brand settings</a>
                       </p>
 
                       {/* Brand inclusions */}
                       <div className="space-y-2">
-                        <label className="block font-bold text-slate-200">Brand inclusions</label>
-                        <p className="text-[11px] text-slate-400">
+                        <label className="block font-bold text-slate-800">Brand inclusions</label>
+                        <p className="text-[11px] text-slate-500">
                           Your ads will only show on searches that match your keywords and mention selected brands, including related products and services. Brand inclusions will limit search traffic, so apply only necessary brands.
                         </p>
                         <div className="relative max-w-xl">
@@ -2117,7 +2117,7 @@ export default function SalesSearchPage() {
                               setShowBrandListModal(true);
                             }}
                             placeholder="Add brand lists"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary cursor-pointer"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary cursor-pointer"
                           />
                         </div>
                         {brandInclusions.length > 0 && (
@@ -2135,9 +2135,9 @@ export default function SalesSearchPage() {
                       </div>
 
                       {/* Brand exclusions */}
-                      <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                        <label className="block font-bold text-slate-200">Brand exclusions</label>
-                        <p className="text-[11px] text-slate-400">
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                        <label className="block font-bold text-slate-800">Brand exclusions</label>
+                        <p className="text-[11px] text-slate-500">
                           Your ads won't show on searches that mention selected brands or related products and services. If you exclude and include the same brand, only the exclusion will work.
                         </p>
                         <div className="relative max-w-xl">
@@ -2150,7 +2150,7 @@ export default function SalesSearchPage() {
                               setShowBrandListModal(true);
                             }}
                             placeholder="Add brand lists"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary cursor-pointer"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary cursor-pointer"
                           />
                         </div>
                         {brandExclusions.length > 0 && (
@@ -2174,13 +2174,13 @@ export default function SalesSearchPage() {
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-48">
-                          <h3 className="font-bold text-slate-100 text-sm">Brands</h3>
+                          <h3 className="font-bold text-slate-900 text-sm">Brands</h3>
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[11px] text-slate-500">
                           {[brandInclusions.length > 0 ? `${brandInclusions.length} Inclusions` : null, brandExclusions.length > 0 ? `${brandExclusions.length} Exclusions` : null].filter(Boolean).join(", ") || "No brand settings applied"}
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
                   )}
                 </div>
@@ -2193,33 +2193,33 @@ export default function SalesSearchPage() {
           {wizardStep === "KEYWORD_ASSET_GEN" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <div>
-                <h1 className="text-2xl font-semibold text-white tracking-tight">Keyword and asset generation</h1>
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Keyword and asset generation</h1>
               </div>
 
               {/* Main Card */}
               {openKeywordAssetCard ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer" onClick={() => setOpenKeywordAssetCard(false)}>
-                    <h2 className="text-sm font-semibold text-slate-100">Keyword and asset generation</h2>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenKeywordAssetCard(false)}>
+                    <h2 className="text-sm font-semibold text-slate-900">Keyword and asset generation</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
                   <div className="space-y-5">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-slate-100 text-sm">Get help creating your ad</h3>
+                      <h3 className="font-bold text-slate-900 text-sm">Get help creating your ad</h3>
                       <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold tracking-wider uppercase">BETA</span>
                     </div>
 
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
                       Google AI will use your URL and the information you provide to create assets, like keywords, headlines, and descriptions for you to review. Generated content may be inaccurate or offensive, so please review and check the responses. To improve Google AI, human reviewers may read, annotate, and process the information you provide. Don't enter anything you wouldn't want reviewed or used.
                     </p>
 
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-slate-500">
                       Your use is subject to Google's <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline font-semibold">Terms of Service</a> and <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline font-semibold">Generative AI Prohibited Use Policy</a>. Your data is handled as explained in the Google <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline font-semibold">Privacy Policy</a>.
                     </p>
 
-                    <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                      <label className="block font-bold text-slate-200 text-sm">Where will people go when they click your ad?</label>
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <label className="block font-bold text-slate-800 text-sm">Where will people go when they click your ad?</label>
 
                       {/* Red Outline Input Card for Final URL (required)* */}
                       <div className="space-y-1">
@@ -2242,18 +2242,18 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setOpenKeywordAssetCard(true)}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Keyword and asset generation</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Keyword and asset generation</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
+                    <div className="text-[11px] text-slate-500 font-mono">
                       URL: {aiGenFinalUrl || "Not set"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
@@ -2262,7 +2262,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setWizardStep("KEYWORDS_ADS")}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   Skip
                 </button>
@@ -2278,7 +2278,7 @@ export default function SalesSearchPage() {
                   className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow ${
                     aiGenFinalUrl.trim()
                       ? "bg-primary text-slate-950 hover:bg-secondary cursor-pointer shadow-primary/20"
-                      : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50"
+                      : "bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-300/50"
                   }`}
                 >
                   <Sparkles className="h-4 w-4" />
@@ -2292,33 +2292,33 @@ export default function SalesSearchPage() {
           {wizardStep === "KEYWORDS_ADS" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <div>
-                <h1 className="text-2xl font-semibold text-white tracking-tight">Keywords and ads</h1>
-                <p className="text-xs text-slate-400 mt-1">
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Keywords and ads</h1>
+                <p className="text-xs text-slate-500 mt-1">
                   Ad groups help you organize your ads around a common theme. For the best results, focus your ads and keywords on one product or service.
                 </p>
               </div>
 
               <div className="space-y-1">
-                <h2 className="text-base font-bold text-slate-100">Add details to match your ads to the right searches</h2>
+                <h2 className="text-base font-bold text-slate-900">Add details to match your ads to the right searches</h2>
               </div>
 
               {/* Card 1: Keywords Card */}
               {showKeywordsSection ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
                   <div 
                     onClick={() => setShowKeywordsSection(false)}
-                    className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer select-none"
+                    className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                   >
-                    <h3 className="font-bold text-slate-100 text-sm">Keywords</h3>
-                    <ChevronUp className="h-4 w-4 text-slate-400" />
+                    <h3 className="font-bold text-slate-900 text-sm">Keywords</h3>
+                    <ChevronUp className="h-4 w-4 text-slate-500" />
                   </div>
 
                   <div className="space-y-5">
                     {/* Get keyword suggestions (optional) */}
                     <div className="space-y-3">
                       <div>
-                        <h4 className="font-bold text-slate-200">Get keyword suggestions (optional)</h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <h4 className="font-bold text-slate-800">Get keyword suggestions (optional)</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
                           Google Ads can find keywords for you by scanning a web page or seeing what's working for similar products or services
                         </p>
                       </div>
@@ -2331,7 +2331,7 @@ export default function SalesSearchPage() {
                             value={keywordScanUrl}
                             onChange={(e) => setKeywordScanUrl(e.target.value)}
                             placeholder="Final URL"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-mono"
                           />
                         </div>
 
@@ -2342,14 +2342,14 @@ export default function SalesSearchPage() {
                             value={keywordProductsInput}
                             onChange={(e) => setKeywordProductsInput(e.target.value)}
                             placeholder="Enter products or services to advertise"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                           />
                         </div>
 
                         <button
                           type="button"
                           onClick={() => alert("Scanning web page for keyword suggestions...")}
-                          className="text-slate-400 hover:text-white font-semibold text-[11px] cursor-pointer"
+                          className="text-slate-500 hover:text-slate-900 font-semibold text-[11px] cursor-pointer"
                         >
                           Get keyword suggestions
                         </button>
@@ -2357,12 +2357,12 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Enter keywords */}
-                    <div className="space-y-2 pt-3 border-t border-slate-800/60">
+                    <div className="space-y-2 pt-3 border-t border-slate-200">
                       <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-slate-200">Enter keywords</h4>
+                        <h4 className="font-bold text-slate-800">Enter keywords</h4>
                         <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                       </div>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-slate-500">
                         Keywords are words or phrases that are used to match your ads with the terms people are searching for
                       </p>
 
@@ -2371,37 +2371,37 @@ export default function SalesSearchPage() {
                         value={keywordsText}
                         onChange={(e) => setKeywordsText(e.target.value)}
                         placeholder="Enter or paste keywords. You can separate each keyword by commas or enter one per line."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                       />
                     </div>
                   </div>
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setShowKeywordsSection(true)}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Keywords</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Keywords</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {keywordsText ? `${keywordsText.split(/[\n,]+/).filter(Boolean).length} keywords added` : "No keywords added"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
               {/* Card 2: Ad group settings for AI Max */}
               {showAdGroupSettingsSection ? (
-                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
                   <div 
                     onClick={() => setShowAdGroupSettingsSection(false)}
-                    className="flex items-center justify-between border-b border-slate-800 pb-3 cursor-pointer select-none"
+                    className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                   >
-                    <h3 className="font-bold text-slate-100 text-sm">Ad group settings for AI Max</h3>
-                    <ChevronUp className="h-4 w-4 text-slate-400" />
+                    <h3 className="font-bold text-slate-900 text-sm">Ad group settings for AI Max</h3>
+                    <ChevronUp className="h-4 w-4 text-slate-500" />
                   </div>
 
                   <div className="space-y-5">
@@ -2412,24 +2412,24 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Sub-Card 1: Search term matching */}
-                    <div className="p-5 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       <div 
                         onClick={() => setShowSearchTermMatchingSection(!showSearchTermMatchingSection)}
-                        className="flex items-center justify-between border-b border-slate-800 pb-2 cursor-pointer select-none"
+                        className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                       >
                         <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-200">Search term matching</h4>
+                          <h4 className="font-bold text-slate-800">Search term matching</h4>
                           <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">BETA</span>
                         </div>
                         {showSearchTermMatchingSection ? (
-                          <ChevronUp className="h-4 w-4 text-slate-400" />
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         )}
                       </div>
                       {showSearchTermMatchingSection && (
                         <>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
                             Search term matching expands your keywords to broad match and lets Google AI match content from your landing pages and assets to help you show up on more relevant searches
                           </p>
                           <label className="flex items-center gap-3 cursor-pointer pt-1">
@@ -2439,28 +2439,28 @@ export default function SalesSearchPage() {
                               onChange={(e) => setUseSearchTermMatchingAdGroup(e.target.checked)}
                               className="rounded text-primary h-4 w-4"
                             />
-                            <span className="font-semibold text-slate-200">Use search term matching for this ad group</span>
+                            <span className="font-semibold text-slate-800">Use search term matching for this ad group</span>
                           </label>
                         </>
                       )}
                     </div>
 
                     {/* Sub-Card 3: Locations of Interest */}
-                    <div className="p-5 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       <div 
                         onClick={() => setShowLocationsOfInterestSection(!showLocationsOfInterestSection)}
-                        className="flex items-center justify-between border-b border-slate-800 pb-2 cursor-pointer select-none"
+                        className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                       >
-                        <h4 className="font-bold text-slate-200">Locations of Interest</h4>
+                        <h4 className="font-bold text-slate-800">Locations of Interest</h4>
                         {showLocationsOfInterestSection ? (
-                          <ChevronUp className="h-4 w-4 text-slate-400" />
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         )}
                       </div>
                       {showLocationsOfInterestSection && (
                         <>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
                             Use locations of interest to reach customers searching for or interested in specific geographic areas. The locations you selected in your campaign settings still apply. For best results, use locations of interest with phrase and broad match keywords. <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                           </p>
                           <div className="space-y-1 max-w-xl">
@@ -2469,7 +2469,7 @@ export default function SalesSearchPage() {
                               <input
                                 type="text"
                                 placeholder="Add locations of interest"
-                                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                               />
                             </div>
                             <span className="text-[10px] text-slate-500 block">For example, a country, city, region, or postal code</span>
@@ -2479,21 +2479,21 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Sub-Card 4: URL Inclusions */}
-                    <div className="p-5 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       <div 
                         onClick={() => setShowUrlInclusionsSection(!showUrlInclusionsSection)}
-                        className="flex items-center justify-between border-b border-slate-800 pb-2 cursor-pointer select-none"
+                        className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                       >
-                        <h4 className="font-bold text-slate-200">URL Inclusions</h4>
+                        <h4 className="font-bold text-slate-800">URL Inclusions</h4>
                         {showUrlInclusionsSection ? (
-                          <ChevronUp className="h-4 w-4 text-slate-400" />
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         )}
                       </div>
                       {showUrlInclusionsSection && (
                         <>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
                             Google AI selects the best performing landing page from your website. To use only certain pages, create URL rules or choose custom labels from your page feeds.
                           </p>
                           <button
@@ -2508,21 +2508,21 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Sub-Card 2: Brand Inclusions */}
-                    <div className="p-5 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       <div 
                         onClick={() => setShowBrandInclusionsSection(!showBrandInclusionsSection)}
-                        className="flex items-center justify-between border-b border-slate-800 pb-2 cursor-pointer select-none"
+                        className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                       >
-                        <h4 className="font-bold text-slate-200">Brand Inclusions</h4>
+                        <h4 className="font-bold text-slate-800">Brand Inclusions</h4>
                         {showBrandInclusionsSection ? (
-                          <ChevronUp className="h-4 w-4 text-slate-400" />
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
                         ) : (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         )}
                       </div>
                       {showBrandInclusionsSection && (
                         <>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
                             Add brand inclusions to limit traffic to serve only on search queries related to the specified brands. Your ad group brand inclusions will be used instead of campaign-level brand inclusions. <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                           </p>
                           <div className="relative max-w-xl">
@@ -2535,7 +2535,7 @@ export default function SalesSearchPage() {
                                 setShowBrandListModal(true);
                               }}
                               placeholder="Add brand lists"
-                              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary cursor-pointer"
+                              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary cursor-pointer"
                             />
                           </div>
                         </>
@@ -2545,62 +2545,62 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-850/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
                   onClick={() => setShowAdGroupSettingsSection(true)}
                 >
                   <div className="flex items-center gap-16">
                     <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-200">Ad group settings for AI Max</h2>
+                      <h2 className="text-sm font-semibold text-slate-800">Ad group settings for AI Max</h2>
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500">
                       {[useSearchTermMatchingAdGroup ? "Search term matching enabled" : null].filter(Boolean).join(", ") || "Active"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
               )}
 
               {/* Create ads to get more sales Section Header */}
               <div className="space-y-1 pt-4">
-                <h2 className="text-base font-bold text-slate-100">Create ads to get more sales</h2>
+                <h2 className="text-base font-bold text-slate-900">Create ads to get more sales</h2>
               </div>
 
               {/* Main Ads Container Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
                 {/* Header: Ad Strength & Checklist */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex flex-wrap items-center justify-between gap-4">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full border-2 border-amber-500/40 bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold">
                       <HelpCircle className="h-5 w-5" />
                     </div>
                     <div>
-                      <span className="font-bold text-slate-100 text-xs block">Ad strength</span>
+                      <span className="font-bold text-slate-900 text-xs block">Ad strength</span>
                       <span className="text-[11px] text-amber-400 font-semibold">Incomplete</span>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-[11px]">
-                    <div className="flex items-center gap-1.5 text-slate-400">
+                    <div className="flex items-center gap-1.5 text-slate-500">
                       <span className="w-2 h-2 rounded-full bg-slate-600"></span>
                       <span>Add headlines</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline text-[10px]">View ideas</a>
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-400">
+                    <div className="flex items-center gap-1.5 text-slate-500">
                       <span className="w-2 h-2 rounded-full bg-slate-600"></span>
                       <span>Include popular keywords</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline text-[10px]">View ideas</a>
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-400">
+                    <div className="flex items-center gap-1.5 text-slate-500">
                       <span className="w-2 h-2 rounded-full bg-slate-600"></span>
                       <span>Make headlines unique</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline text-[10px]">View ideas</a>
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-400">
+                    <div className="flex items-center gap-1.5 text-slate-500">
                       <span className="w-2 h-2 rounded-full bg-slate-600"></span>
                       <span>Make descriptions unique</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline text-[10px]">View ideas</a>
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-400">
+                    <div className="flex items-center gap-1.5 text-slate-500">
                       <span className="w-2 h-2 rounded-full bg-slate-600"></span>
                       <span>Add more sitelinks</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline text-[10px]">View ideas</a>
@@ -2614,25 +2614,25 @@ export default function SalesSearchPage() {
                               <div className="lg:col-span-7 space-y-4">
                     
                     {/* 1. Final URL Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                       {showFinalUrlCard ? (
                         <>
                           <div 
                             onClick={() => setShowFinalUrlCard(false)}
                             className="flex items-center justify-between cursor-pointer select-none"
                           >
-                            <label className="flex items-center gap-1.5 font-bold text-slate-200 cursor-pointer">
+                            <label className="flex items-center gap-1.5 font-bold text-slate-800 cursor-pointer">
                               <span>Final URL</span>
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </label>
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
+                            <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
                           <input
                             type="text"
                             value={finalUrl}
                             onChange={(e) => setFinalUrl(e.target.value)}
                             placeholder="Final URL"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           />
                           <span className="text-[10px] text-slate-500 block">This will be used to suggest assets for your ad</span>
                         </>
@@ -2643,30 +2643,30 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <label className="font-bold text-slate-200 cursor-pointer">Final URL</label>
+                              <label className="font-bold text-slate-800 cursor-pointer">Final URL</label>
                             </div>
-                            <div className="text-[11px] text-slate-400 font-mono truncate max-w-[200px]">
+                            <div className="text-[11px] text-slate-500 font-mono truncate max-w-[200px]">
                               {finalUrl || "No URL set"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 2. Display path Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                       {showDisplayPathCard ? (
                         <>
                           <div 
                             onClick={() => setShowDisplayPathCard(false)}
                             className="flex items-center justify-between cursor-pointer select-none"
                           >
-                            <label className="flex items-center gap-1.5 font-bold text-slate-200 cursor-pointer">
+                            <label className="flex items-center gap-1.5 font-bold text-slate-800 cursor-pointer">
                               <span>Display path</span>
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </label>
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
+                            <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-slate-500 font-mono text-[11px]">www.example.com/</span>
@@ -2675,7 +2675,7 @@ export default function SalesSearchPage() {
                               value={displayPath1}
                               onChange={(e) => setDisplayPath1(e.target.value)}
                               maxLength={15}
-                              className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-medium"
+                              className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
                             />
                             <span className="text-slate-600 font-bold">/</span>
                             <input
@@ -2683,7 +2683,7 @@ export default function SalesSearchPage() {
                               value={displayPath2}
                               onChange={(e) => setDisplayPath2(e.target.value)}
                               maxLength={15}
-                              className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-medium"
+                              className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-medium"
                             />
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-500">
@@ -2698,34 +2698,34 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <label className="font-bold text-slate-200 cursor-pointer">Display path</label>
+                              <label className="font-bold text-slate-800 cursor-pointer">Display path</label>
                             </div>
-                            <div className="text-[11px] text-slate-400 font-mono">
+                            <div className="text-[11px] text-slate-500 font-mono">
                               {(displayPath1 || displayPath2) ? `www.example.com/${displayPath1}/${displayPath2}` : "No path set"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 4. Calls Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       {showCallsCard ? (
                         <>
                           <div 
                             onClick={() => setShowCallsCard(false)}
                             className="flex items-center justify-between cursor-pointer select-none"
                           >
-                            <label className="flex items-center gap-1.5 font-bold text-slate-200 cursor-pointer">
-                              <PhoneCall className="h-4 w-4 text-slate-400" />
+                            <label className="flex items-center gap-1.5 font-bold text-slate-800 cursor-pointer">
+                              <PhoneCall className="h-4 w-4 text-slate-500" />
                               <span>Calls</span>
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </label>
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
+                            <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
-                          <p className="text-[11px] text-slate-400">Add a phone number</p>
-                          <span className="text-[11px] text-slate-400 block border-b border-dashed border-slate-700 pb-1 w-max cursor-pointer">Account-level calls</span>
+                          <p className="text-[11px] text-slate-500">Add a phone number</p>
+                          <span className="text-[11px] text-slate-500 block border-b border-dashed border-slate-300 pb-1 w-max cursor-pointer">Account-level calls</span>
                           <button
                             type="button"
                             onClick={() => setActiveModal("CALLS")}
@@ -2741,34 +2741,34 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48 flex items-center gap-1.5">
-                              <PhoneCall className="h-4 w-4 text-slate-400" />
-                              <label className="font-bold text-slate-200 cursor-pointer">Calls</label>
+                              <PhoneCall className="h-4 w-4 text-slate-500" />
+                              <label className="font-bold text-slate-800 cursor-pointer">Calls</label>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {callPhone ? `Phone: ${callPhone}` : "No phone number added"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 5. Headlines Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       {showHeadlinesCard ? (
                         <>
                           <div 
                             onClick={() => setShowHeadlinesCard(false)}
-                            className="flex items-center justify-between border-b border-slate-800 pb-2 cursor-pointer select-none"
+                            className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-100">Headlines</span>
-                              <span className="text-slate-400 text-[11px] font-mono">{headlines.filter(h => h.trim()).length} / 15</span>
+                              <span className="font-bold text-slate-900">Headlines</span>
+                              <span className="text-slate-500 text-[11px] font-mono">{headlines.filter(h => h.trim()).length} / 15</span>
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </div>
                             <div className="flex items-center gap-3">
                               <button type="button" className="text-blue-400 text-[11px] font-semibold hover:underline" onClick={(e) => e.stopPropagation()}>View ideas</button>
-                              <ChevronUp className="h-4 w-4 text-slate-400" />
+                              <ChevronUp className="h-4 w-4 text-slate-500" />
                             </div>
                           </div>
 
@@ -2785,7 +2785,7 @@ export default function SalesSearchPage() {
                                   }}
                                   placeholder="Headline"
                                   maxLength={30}
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                                 />
                                 <div className="flex justify-between text-[9px] text-slate-500 px-1">
                                   <span>Required</span>
@@ -2812,33 +2812,33 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <label className="font-bold text-slate-200 cursor-pointer">Headlines</label>
+                              <label className="font-bold text-slate-800 cursor-pointer">Headlines</label>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {headlines.filter(h => h.trim()).length} headlines added
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 6. Descriptions Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       {showDescriptionsCard ? (
                         <>
                           <div 
                             onClick={() => setShowDescriptionsCard(false)}
-                            className="flex items-center justify-between border-b border-slate-800 pb-2 cursor-pointer select-none"
+                            className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-100">Descriptions</span>
-                              <span className="text-slate-400 text-[11px] font-mono">{descriptions.filter(d => d.trim()).length} / 4</span>
+                              <span className="font-bold text-slate-900">Descriptions</span>
+                              <span className="text-slate-500 text-[11px] font-mono">{descriptions.filter(d => d.trim()).length} / 4</span>
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </div>
                             <div className="flex items-center gap-3">
                               <button type="button" className="text-blue-400 text-[11px] font-semibold hover:underline" onClick={(e) => e.stopPropagation()}>View ideas</button>
-                              <ChevronUp className="h-4 w-4 text-slate-400" />
+                              <ChevronUp className="h-4 w-4 text-slate-500" />
                             </div>
                           </div>
 
@@ -2855,7 +2855,7 @@ export default function SalesSearchPage() {
                                   }}
                                   placeholder="Description"
                                   maxLength={90}
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                                 />
                                 <div className="flex justify-between text-[9px] text-slate-500 px-1">
                                   <span>Required</span>
@@ -2882,37 +2882,37 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <label className="font-bold text-slate-200 cursor-pointer">Descriptions</label>
+                              <label className="font-bold text-slate-800 cursor-pointer">Descriptions</label>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {descriptions.filter(d => d.trim()).length} descriptions added
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 7. Business name Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-2">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                       {showBusinessNameCard ? (
                         <>
                           <div 
                             onClick={() => setShowBusinessNameCard(false)}
                             className="flex items-center justify-between cursor-pointer select-none"
                           >
-                            <label className="block font-bold text-slate-200 cursor-pointer">Business name</label>
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
+                            <label className="block font-bold text-slate-800 cursor-pointer">Business name</label>
+                            <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
-                            This name should match your URL or your verified advertiser name, which is <strong className="text-slate-200">JISNU DIGITAL SOLUTIONS PRIVATE LIMITED</strong>.
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
+                            This name should match your URL or your verified advertiser name, which is <strong className="text-slate-800">JISNU DIGITAL SOLUTIONS PRIVATE LIMITED</strong>.
                           </p>
                           <input
                             type="text"
                             value={businessName}
                             onChange={(e) => setBusinessName(e.target.value)}
                             maxLength={25}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 font-medium"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium"
                           />
                           <div className="flex justify-between text-[10px] text-slate-500">
                             <span>Until you add an approved name, your campaign will run with a placeholder name created from your URL.</span>
@@ -2926,29 +2926,29 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <label className="font-bold text-slate-200 cursor-pointer">Business name</label>
+                              <label className="font-bold text-slate-800 cursor-pointer">Business name</label>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {businessName || "Not set"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 8. Business logo Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       {showBusinessLogoCard ? (
                         <>
                           <div 
                             onClick={() => setShowBusinessLogoCard(false)}
                             className="flex items-center justify-between cursor-pointer select-none"
                           >
-                            <label className="block font-bold text-slate-200 cursor-pointer">Business logo</label>
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
+                            <label className="block font-bold text-slate-800 cursor-pointer">Business logo</label>
+                            <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
-                          <p className="text-[11px] text-slate-400">Add business logo to your campaign</p>
+                          <p className="text-[11px] text-slate-500">Add business logo to your campaign</p>
 
                           <input
                             id="logo-file-input"
@@ -2976,12 +2976,12 @@ export default function SalesSearchPage() {
                           {businessLogos.length > 0 && (
                             <div className="flex flex-wrap gap-3 pt-1">
                               {businessLogos.map((logoUrl, i) => (
-                                <div key={i} className="relative group w-14 h-14 rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow">
+                                <div key={i} className="relative group w-14 h-14 rounded-xl border border-slate-200 bg-white overflow-hidden shadow">
                                   <img src={logoUrl} alt={`Logo ${i+1}`} className="w-full h-full object-cover" />
                                   <button
                                     type="button"
                                     onClick={() => setBusinessLogos(prev => prev.filter((_, idx) => idx !== i))}
-                                    className="absolute top-1 right-1 p-0.5 rounded-full bg-slate-950/80 text-slate-300 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all"
+                                    className="absolute top-1 right-1 p-0.5 rounded-full bg-slate-50/80 text-slate-700 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all"
                                   >
                                     <X className="h-3 w-3" />
                                   </button>
@@ -3005,32 +3005,32 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <label className="font-bold text-slate-200 cursor-pointer">Business logo</label>
+                              <label className="font-bold text-slate-800 cursor-pointer">Business logo</label>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {businessLogos.length > 0 ? `${businessLogos.length} logos added` : "No logos added"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 11. Sitelinks Card */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       {showSitelinksCard ? (
                         <>
                           <div 
                             onClick={() => setShowSitelinksCard(false)}
                             className="flex items-center justify-between cursor-pointer select-none"
                           >
-                            <label className="flex items-center gap-1.5 font-bold text-slate-200 cursor-pointer">
+                            <label className="flex items-center gap-1.5 font-bold text-slate-800 cursor-pointer">
                               <span>Sitelinks</span>
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </label>
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
+                            <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
-                          <p className="text-[11px] text-slate-400">Add links to your ads to take people to specific pages on your website.</p>
+                          <p className="text-[11px] text-slate-500">Add links to your ads to take people to specific pages on your website.</p>
                           <button
                             type="button"
                             onClick={() => setActiveModal("SITELINKS")}
@@ -3046,13 +3046,13 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <label className="font-bold text-slate-200 cursor-pointer">Sitelinks</label>
+                              <label className="font-bold text-slate-800 cursor-pointer">Sitelinks</label>
                             </div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[11px] text-slate-500">
                               {sitelinks.filter(s => s.text.trim()).length} sitelinks added
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
@@ -3062,13 +3062,13 @@ export default function SalesSearchPage() {
                       <div className="flex items-center gap-3">
                         <Sparkles className="h-6 w-6 text-blue-400 shrink-0" />
                         <div className="space-y-0.5">
-                          <p className="text-xs font-semibold text-slate-200">Want more personalized help? Chat with Ads Advisor to get keyword & asset suggestions.</p>
+                          <p className="text-xs font-semibold text-slate-800">Want more personalized help? Chat with Ads Advisor to get keyword & asset suggestions.</p>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => alert("Opening Ads Advisor chat...")}
-                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shrink-0 shadow cursor-pointer"
+                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-slate-900 font-bold text-xs shrink-0 shadow cursor-pointer"
                       >
                         Open chat
                       </button>
@@ -3077,27 +3077,27 @@ export default function SalesSearchPage() {
                     <span className="text-[10px] text-slate-500 block italic">Google is choosing the assets <HelpCircle className="inline h-3 w-3" /></span>
 
                     {/* 10. More asset types (0/7) Accordion */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-4">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
                       {showMoreAssetTypesCard ? (
                         <>
                           <div 
                             onClick={() => setShowMoreAssetTypesCard(false)}
-                            className="flex items-center justify-between border-b border-slate-800 pb-2 select-none cursor-pointer"
+                            className="flex items-center justify-between border-b border-slate-200 pb-2 select-none cursor-pointer"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-100">More asset types</span>
-                              <span className="text-slate-400 text-[11px] font-mono">(0/7)</span>
+                              <span className="font-bold text-slate-900">More asset types</span>
+                              <span className="text-slate-500 text-[11px] font-mono">(0/7)</span>
                             </div>
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
+                            <ChevronUp className="h-4 w-4 text-slate-500" />
                           </div>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
                             Improve your ad performance and make your ad more interactive by adding more details about your business and website
                           </p>
 
                           <div className="space-y-3 pt-1">
                             {/* Promotions */}
-                            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-1">
-                              <span className="font-bold text-slate-200 block text-xs">Promotions</span>
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                              <span className="font-bold text-slate-800 block text-xs">Promotions</span>
                               <button
                                 type="button"
                                 onClick={() => setActiveModal("PROMOTIONS")}
@@ -3108,8 +3108,8 @@ export default function SalesSearchPage() {
                             </div>
 
                             {/* Prices */}
-                            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-1">
-                              <span className="font-bold text-slate-200 block text-xs">Prices</span>
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                              <span className="font-bold text-slate-800 block text-xs">Prices</span>
                               <button
                                 type="button"
                                 onClick={() => setActiveModal("PRICES")}
@@ -3120,8 +3120,8 @@ export default function SalesSearchPage() {
                             </div>
 
                             {/* Messages */}
-                            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-1">
-                              <span className="font-bold text-slate-200 block text-xs">Messages</span>
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                              <span className="font-bold text-slate-800 block text-xs">Messages</span>
                               <button
                                 type="button"
                                 onClick={() => setActiveModal("MESSAGES")}
@@ -3132,8 +3132,8 @@ export default function SalesSearchPage() {
                             </div>
 
                             {/* Structured snippets */}
-                            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-1">
-                              <span className="font-bold text-slate-200 block text-xs">Structured snippets</span>
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                              <span className="font-bold text-slate-800 block text-xs">Structured snippets</span>
                               <button
                                 type="button"
                                 onClick={() => setActiveModal("SNIPPETS")}
@@ -3144,8 +3144,8 @@ export default function SalesSearchPage() {
                             </div>
 
                             {/* Lead forms */}
-                            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-1">
-                              <span className="font-bold text-slate-200 block text-xs">Lead forms</span>
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                              <span className="font-bold text-slate-800 block text-xs">Lead forms</span>
                               <button
                                 type="button"
                                 onClick={() => setActiveModal("LEAD_FORMS")}
@@ -3156,12 +3156,12 @@ export default function SalesSearchPage() {
                             </div>
 
                             {/* Callouts */}
-                            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-1">
-                              <span className="font-bold text-slate-200 block text-xs">Callouts</span>
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                              <span className="font-bold text-slate-800 block text-xs">Callouts</span>
                               {callouts.length > 0 && (
                                 <div className="flex flex-wrap gap-2 pt-1 pb-1">
                                   {callouts.map((c, i) => (
-                                    <span key={i} className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 font-semibold">
+                                    <span key={i} className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-700 font-semibold">
                                       {c}
                                     </span>
                                   ))}
@@ -3177,8 +3177,8 @@ export default function SalesSearchPage() {
                             </div>
 
                             {/* Apps */}
-                            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-1">
-                              <span className="font-bold text-slate-200 block text-xs">Apps</span>
+                            <div className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-1">
+                              <span className="font-bold text-slate-800 block text-xs">Apps</span>
                               <button
                                 type="button"
                                 onClick={() => setActiveModal("APPS")}
@@ -3196,24 +3196,24 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <span className="font-bold text-slate-200">More asset types</span>
+                              <span className="font-bold text-slate-800">More asset types</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 font-mono">
+                            <div className="text-[11px] text-slate-500 font-mono">
                               (0/7)
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* 3. Ad URL options Accordion */}
-                    <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-4">
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
                       {showAdUrlOptionsCard ? (
                         <>
                           <div 
                             onClick={() => setShowAdUrlOptionsCard(false)}
-                            className="flex items-center justify-between cursor-pointer border-b border-slate-800 pb-2 select-none"
+                            className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-2 select-none"
                           >
                             <span className="font-bold text-blue-400 text-xs flex items-center gap-1">
                               <ChevronUp className="h-4 w-4" /> Ad URL options
@@ -3229,7 +3229,7 @@ export default function SalesSearchPage() {
                                   value={sitelinkTrackingTemplate}
                                   onChange={(e) => setSitelinkTrackingTemplate(e.target.value)}
                                   placeholder="Tracking template"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary pr-9 font-mono"
+                                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary pr-9 font-mono"
                                 />
                                 <HelpCircle className="absolute right-3.5 top-2.5 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                               </div>
@@ -3244,7 +3244,7 @@ export default function SalesSearchPage() {
                                   value={sitelinkFinalUrlSuffix}
                                   onChange={(e) => setSitelinkFinalUrlSuffix(e.target.value)}
                                   placeholder="Final URL suffix"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary pr-9 font-mono"
+                                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary pr-9 font-mono"
                                 />
                                 <HelpCircle className="absolute right-3.5 top-2.5 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                               </div>
@@ -3253,35 +3253,35 @@ export default function SalesSearchPage() {
 
                             {/* Custom parameter */}
                             <div className="space-y-1">
-                              <div className="flex items-center gap-1 text-slate-300 font-semibold">
+                              <div className="flex items-center gap-1 text-slate-700 font-semibold">
                                 <span>Custom parameter</span>
                                 <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                               </div>
                               <div className="flex items-center gap-3">
-                                <div className="flex-1 flex items-center bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+                                <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-xl px-3 py-1.5">
                                   <span className="text-slate-500 font-mono text-xs pr-1">{`{_`}</span>
                                   <input
                                     type="text"
                                     value={sitelinkCustomParamName}
                                     onChange={(e) => setSitelinkCustomParamName(e.target.value)}
                                     placeholder="Name"
-                                    className="w-full bg-transparent text-xs text-slate-100 focus:outline-none font-mono"
+                                    className="w-full bg-transparent text-xs text-slate-900 focus:outline-none font-mono"
                                   />
                                   <span className="text-slate-500 font-mono text-xs pl-1">{`}`}</span>
                                 </div>
-                                <span className="text-slate-400 font-bold">=</span>
+                                <span className="text-slate-500 font-bold">=</span>
                                 <input
                                   type="text"
                                   value={sitelinkCustomParamValue}
                                   onChange={(e) => setSitelinkCustomParamValue(e.target.value)}
                                   placeholder="Value"
-                                  className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                                  className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                                 />
                               </div>
                             </div>
 
                             {/* Use a different final URL for mobile */}
-                            <div className="space-y-2 pt-1 border-t border-slate-800/60">
+                            <div className="space-y-2 pt-1 border-t border-slate-200">
                               <label className="flex items-center gap-3 cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -3289,7 +3289,7 @@ export default function SalesSearchPage() {
                                   onChange={(e) => setUseDifferentMobileUrl(e.target.checked)}
                                   className="rounded text-primary h-4 w-4"
                                 />
-                                <span className="text-slate-300 font-semibold">Use a different final URL for mobile</span>
+                                <span className="text-slate-700 font-semibold">Use a different final URL for mobile</span>
                               </label>
 
                               {useDifferentMobileUrl && (
@@ -3298,7 +3298,7 @@ export default function SalesSearchPage() {
                                   value={mobileFinalUrl}
                                   onChange={(e) => setMobileFinalUrl(e.target.value)}
                                   placeholder="Final URL for mobile"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono animate-in fade-in duration-150"
+                                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-mono animate-in fade-in duration-150"
                                 />
                               )}
                             </div>
@@ -3311,24 +3311,24 @@ export default function SalesSearchPage() {
                         >
                           <div className="flex items-center gap-16">
                             <div className="w-48">
-                              <span className="font-bold text-slate-200">Ad URL options</span>
+                              <span className="font-bold text-slate-800">Ad URL options</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 font-mono">
+                            <div className="text-[11px] text-slate-500 font-mono">
                               {sitelinkTrackingTemplate ? `Template: ${sitelinkTrackingTemplate}` : "None"}
                             </div>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                       )}
                     </div>
 
                     {/* Optimization Tips Banners */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                      <p className="text-slate-300">
-                        <strong className="text-slate-100">Add callouts:</strong> Help your ads show more prominently by adding callouts.
+                    <div className="space-y-2 pt-2 border-t border-slate-200 text-[11px]">
+                      <p className="text-slate-700">
+                        <strong className="text-slate-900">Add callouts:</strong> Help your ads show more prominently by adding callouts.
                       </p>
-                      <p className="text-slate-300">
-                        <strong className="text-slate-100">Add sitelinks:</strong> Draw more attention to your ads by adding at least 4 sitelinks.
+                      <p className="text-slate-700">
+                        <strong className="text-slate-900">Add sitelinks:</strong> Draw more attention to your ads by adding at least 4 sitelinks.
                       </p>
                     </div>
 
@@ -3337,9 +3337,9 @@ export default function SalesSearchPage() {
                   {/* Right Column: Sticky Mobile Search Ad Preview (5 Cols) */}
                   <div className="lg:col-span-5">
                     <div className="sticky top-24 space-y-4">
-                      <div className="p-6 rounded-2xl border border-slate-800 bg-slate-950 space-y-4 shadow-xl text-center">
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-3 text-xs">
-                          <span className="font-bold text-slate-200">Preview</span>
+                      <div className="p-6 rounded-2xl border border-slate-200 bg-slate-50 space-y-4 shadow-sm text-center">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3 text-xs">
+                          <span className="font-bold text-slate-800">Preview</span>
                           <div className="flex items-center gap-3">
                             <button type="button" className="text-blue-400 text-[11px] font-semibold hover:underline">Share</button>
                             <button type="button" className="text-blue-400 text-[11px] font-semibold hover:underline">Preview ads</button>
@@ -3347,16 +3347,16 @@ export default function SalesSearchPage() {
                         </div>
 
                         {/* Mobile Phone Mockup Frame */}
-                        <div className="relative mx-auto max-w-[280px] p-4 rounded-[32px] border-4 border-slate-800 bg-slate-900 shadow-2xl text-left space-y-3">
+                        <div className="relative mx-auto max-w-[280px] p-4 rounded-[32px] border-4 border-slate-200 bg-white shadow-md text-left space-y-3">
                           {/* Search Header Mockup */}
-                          <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-[10px] text-slate-400">
-                            <span className="font-bold text-white">Google</span>
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-2 text-[10px] text-slate-500">
+                            <span className="font-bold text-slate-900">Google</span>
                             <SearchIcon className="h-3 w-3 text-slate-500" />
                           </div>
 
                           {/* Sponsored Search Ad Preview */}
                           <div className="space-y-1.5 text-xs">
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
                               <span className="truncate">{finalUrl || "www.example.com"}</span>
                             </div>
@@ -3365,12 +3365,12 @@ export default function SalesSearchPage() {
                               {headlines[0] || "Headline 1"} - {headlines[1] || "Headline 2"}
                             </h4>
 
-                            <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">
+                            <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2">
                               {descriptions[0] || "Description 1 placeholder text..."}
                             </p>
 
                             {/* Call Action Preview */}
-                            <div className="p-2 rounded-lg bg-slate-950 border border-slate-800 flex items-center gap-2 text-[11px] text-slate-200">
+                            <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 flex items-center gap-2 text-[11px] text-slate-800">
                               <Phone className="h-3.5 w-3.5 text-primary" />
                               <span>Call {callPhone || "091580 38487"}</span>
                             </div>
@@ -3401,11 +3401,11 @@ export default function SalesSearchPage() {
           {wizardStep === "BUDGET" && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div>
-                <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">Budget</h1>
-                <p className="text-xs text-slate-400">Decide how much you want to spend.</p>
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Budget</h1>
+                <p className="text-xs text-slate-500">Decide how much you want to spend.</p>
               </div>
 
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 shadow-xl text-xs">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm text-xs">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                   
                   {/* Left Main Controls Column (8 Cols) */}
@@ -3419,13 +3419,13 @@ export default function SalesSearchPage() {
                     </div>
 
                     <div className="space-y-4">
-                      <span className="font-bold text-slate-100 text-xs block">Select budget type</span>
+                      <span className="font-bold text-slate-900 text-xs block">Select budget type</span>
 
                       {/* Option 1: Average daily budget */}
                       <label
                         onClick={() => setBudgetType("DAILY")}
                         className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                          budgetType === "DAILY" ? "border-primary bg-primary/10" : "border-slate-800 bg-slate-950 hover:border-slate-700"
+                          budgetType === "DAILY" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
                         }`}
                       >
                         <input
@@ -3436,18 +3436,18 @@ export default function SalesSearchPage() {
                           className="mt-1 text-primary h-4 w-4"
                         />
                         <div className="space-y-1">
-                          <span className="font-bold text-slate-100 block">Average daily budget</span>
-                          <span className="text-slate-400 block text-[11px]">Set your average daily budget for this campaign</span>
+                          <span className="font-bold text-slate-900 block">Average daily budget</span>
+                          <span className="text-slate-500 block text-[11px]">Set your average daily budget for this campaign</span>
                           {budgetType === "DAILY" && (
                             <div className="pt-2">
                               <div className="relative max-w-xs">
-                                <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-mono">₹</span>
+                                <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
                                 <input
                                   type="text"
                                   value={customBudgetValue || selectedPresetBudget}
                                   onChange={(e) => setCustomBudgetValue(e.target.value)}
                                   placeholder="Enter daily amount"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                                  className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                                 />
                               </div>
                             </div>
@@ -3459,7 +3459,7 @@ export default function SalesSearchPage() {
                       <label
                         onClick={() => setBudgetType("TOTAL")}
                         className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${
-                          budgetType === "TOTAL" ? "border-primary bg-primary/10" : "border-slate-800 bg-slate-950 hover:border-slate-700"
+                          budgetType === "TOTAL" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:border-slate-300"
                         }`}
                       >
                         <input
@@ -3470,30 +3470,30 @@ export default function SalesSearchPage() {
                           className="mt-1 text-primary h-4 w-4"
                         />
                         <div className="space-y-1 flex-1">
-                          <span className="font-bold text-slate-100 block">Campaign total budget</span>
-                          <span className="text-slate-400 block text-[11px]">Set a budget for the duration of your campaign</span>
+                          <span className="font-bold text-slate-900 block">Campaign total budget</span>
+                          <span className="text-slate-500 block text-[11px]">Set a budget for the duration of your campaign</span>
                           
                           {budgetType === "TOTAL" && (
                             <div className="pt-2 space-y-4">
                               <div className="relative max-w-xs">
-                                <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-mono">₹</span>
+                                <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
                                 <input
                                   type="text"
                                   value={customBudgetValue}
                                   onChange={(e) => setCustomBudgetValue(e.target.value)}
                                   placeholder=""
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                                  className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                                 />
                               </div>
 
                               {/* Start Date & End Date Info Card */}
-                              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/80 flex items-center justify-between">
+                              <div className="p-4 rounded-xl border border-slate-200 bg-white flex items-center justify-between">
                                 <div className="space-y-1 text-xs">
-                                  <p className="text-slate-200">
-                                    <span className="text-slate-400 font-semibold">Start date:</span> August 11, 2026
+                                  <p className="text-slate-800">
+                                    <span className="text-slate-500 font-semibold">Start date:</span> August 11, 2026
                                   </p>
-                                  <p className="text-slate-200">
-                                    <span className="text-slate-400 font-semibold">End date:</span> None
+                                  <p className="text-slate-800">
+                                    <span className="text-slate-500 font-semibold">End date:</span> None
                                   </p>
                                 </div>
                                 <button
@@ -3513,8 +3513,8 @@ export default function SalesSearchPage() {
                   </div>
 
                   {/* Right Help Column (4 Cols) */}
-                  <div className="lg:col-span-4 border-l border-slate-800/80 pl-6 space-y-3">
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <div className="lg:col-span-4 border-l border-slate-200 pl-6 space-y-3">
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
                       Your campaign total budget is what the campaign should spend over its runtime. To use a campaign total budget, you must add an end date for your campaign.
                     </p>
                   </div>
@@ -3528,14 +3528,14 @@ export default function SalesSearchPage() {
           {wizardStep === "SUMMARY" && (
             <div className="space-y-6 animate-in fade-in duration-200 text-xs">
               <div>
-                <h1 className="text-2xl font-semibold text-slate-100 tracking-tight">Your campaign is almost ready to publish</h1>
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Your campaign is almost ready to publish</h1>
               </div>
 
               {/* 1. Issues Section */}
               <div className="space-y-2">
                 <div className="space-y-0.5">
-                  <h3 className="font-bold text-slate-200 text-xs">Issues</h3>
-                  <p className="text-[11px] text-slate-400">Fix these issues to run your campaign</p>
+                  <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
+                  <p className="text-[11px] text-slate-500">Fix these issues to run your campaign</p>
                 </div>
 
                 <div className="space-y-2">
@@ -3543,8 +3543,8 @@ export default function SalesSearchPage() {
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-200">
-                        <strong className="text-white font-bold">Create an ad:</strong> Get your ads running by adding ads to your ad group
+                      <p className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">Create an ad:</strong> Get your ads running by adding ads to your ad group
                       </p>
                     </div>
                     <button
@@ -3560,8 +3560,8 @@ export default function SalesSearchPage() {
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-200">
-                        <strong className="text-white font-bold">Add keywords:</strong> Get your ads running by adding keywords to your ad group
+                      <p className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">Add keywords:</strong> Get your ads running by adding keywords to your ad group
                       </p>
                     </div>
                     <button
@@ -3577,8 +3577,8 @@ export default function SalesSearchPage() {
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-200">
-                        <strong className="text-white font-bold">Add a budget:</strong> To publish your campaign, enter a budget
+                      <p className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">Add a budget:</strong> To publish your campaign, enter a budget
                       </p>
                     </div>
                     <button
@@ -3594,8 +3594,8 @@ export default function SalesSearchPage() {
                   <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-200">
-                        <strong className="text-white font-bold">Budget:</strong> Value is required
+                      <p className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">Budget:</strong> Value is required
                       </p>
                     </div>
                     <button
@@ -3613,21 +3613,21 @@ export default function SalesSearchPage() {
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-200 text-xs">Recommendations</h3>
-                    <p className="text-[11px] text-slate-400">Apply these recommendations to optimize campaign performance</p>
+                    <h3 className="font-bold text-slate-800 text-xs">Recommendations</h3>
+                    <p className="text-[11px] text-slate-500">Apply these recommendations to optimize campaign performance</p>
                   </div>
-                  <div className="flex items-center gap-2 text-slate-400 font-mono text-[11px]">
-                    <ChevronLeft className="h-4 w-4 cursor-pointer hover:text-white" />
+                  <div className="flex items-center gap-2 text-slate-500 font-mono text-[11px]">
+                    <ChevronLeft className="h-4 w-4 cursor-pointer hover:text-slate-900" />
                     <span>1 / 3</span>
-                    <ChevronRight className="h-4 w-4 cursor-pointer hover:text-white" />
+                    <ChevronRight className="h-4 w-4 cursor-pointer hover:text-slate-900" />
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-500/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Sparkles className="h-4 w-4 text-blue-400 shrink-0" />
-                    <p className="text-slate-200">
-                      <strong className="text-white font-bold">Add sitelinks:</strong> Draw more attention to your ads by adding at least 4 sitelinks. <HelpCircle className="inline h-3 w-3 text-slate-400" />
+                    <p className="text-slate-800">
+                      <strong className="text-slate-900 font-bold">Add sitelinks:</strong> Draw more attention to your ads by adding at least 4 sitelinks. <HelpCircle className="inline h-3 w-3 text-slate-500" />
                     </p>
                   </div>
                   <button
@@ -3642,85 +3642,85 @@ export default function SalesSearchPage() {
 
               {/* 3. Overview Table */}
               <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-200 text-xs">Overview</h3>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden divide-y divide-slate-800">
+                <h3 className="font-bold text-slate-800 text-xs">Overview</h3>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Campaign name</span>
+                    <span className="text-slate-500 w-48 font-medium">Campaign name</span>
                     <input
                       type="text"
                       value={campaignName}
                       onChange={(e) => setCampaignName(e.target.value)}
-                      className="flex-1 max-w-xs bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-primary"
+                      className="flex-1 max-w-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                     />
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Campaign type</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Search</span>
+                    <span className="text-slate-500 w-48 font-medium">Campaign type</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Search</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Objective</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Sales</span>
+                    <span className="text-slate-500 w-48 font-medium">Objective</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Sales</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Goal</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Downloads, Phone call leads</span>
+                    <span className="text-slate-500 w-48 font-medium">Goal</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Downloads, Phone call leads</span>
                   </div>
                 </div>
               </div>
 
               {/* 4. Bidding Table */}
               <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-200 text-xs">Bidding</h3>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden divide-y divide-slate-800">
+                <h3 className="font-bold text-slate-800 text-xs">Bidding</h3>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Bidding</span>
-                    <span className="flex-1 text-slate-100 font-semibold">{biddingFocus}</span>
+                    <span className="text-slate-500 w-48 font-medium">Bidding</span>
+                    <span className="flex-1 text-slate-900 font-semibold">{biddingFocus}</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Customer acquisition</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Bid equally for new and existing customers</span>
+                    <span className="text-slate-500 w-48 font-medium">Customer acquisition</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Bid equally for new and existing customers</span>
                   </div>
                 </div>
               </div>
 
               {/* 5. Campaign Settings Table */}
               <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-200 text-xs">Campaign settings</h3>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden divide-y divide-slate-800">
+                <h3 className="font-bold text-slate-800 text-xs">Campaign settings</h3>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Networks</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Search partners, Display Network</span>
+                    <span className="text-slate-500 w-48 font-medium">Networks</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Search partners, Display Network</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Locations</span>
-                    <span className="flex-1 text-slate-100 font-semibold">All countries and territories</span>
+                    <span className="text-slate-500 w-48 font-medium">Locations</span>
+                    <span className="flex-1 text-slate-900 font-semibold">All countries and territories</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Languages</span>
-                    <span className="flex-1 text-slate-100 font-semibold">English</span>
+                    <span className="text-slate-500 w-48 font-medium">Languages</span>
+                    <span className="flex-1 text-slate-900 font-semibold">English</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">EU political ads</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Doesn&apos;t have EU political ads</span>
+                    <span className="text-slate-500 w-48 font-medium">EU political ads</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Doesn&apos;t have EU political ads</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Audiences</span>
-                    <span className="flex-1 text-slate-100 font-semibold">No segments</span>
+                    <span className="text-slate-500 w-48 font-medium">Audiences</span>
+                    <span className="flex-1 text-slate-900 font-semibold">No segments</span>
                   </div>
                 </div>
               </div>
 
               {/* 6. AI Max Table */}
               <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-200 text-xs">AI Max</h3>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden divide-y divide-slate-800">
+                <h3 className="font-bold text-slate-800 text-xs">AI Max</h3>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Asset optimization</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Text customization and Final URL expansion turned on</span>
+                    <span className="text-slate-500 w-48 font-medium">Asset optimization</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Text customization and Final URL expansion turned on</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Brands</span>
-                    <div className="flex-1 space-y-0.5 font-semibold text-slate-100">
+                    <span className="text-slate-500 w-48 font-medium">Brands</span>
+                    <div className="flex-1 space-y-0.5 font-semibold text-slate-900">
                       <p>Limiting to: 0 brand lists</p>
                       <p>Excluding: 0 brand lists</p>
                     </div>
@@ -3730,42 +3730,42 @@ export default function SalesSearchPage() {
 
               {/* 7. Keywords and Ads Table */}
               <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-200 text-xs">Keywords and ads</h3>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden divide-y divide-slate-800">
+                <h3 className="font-bold text-slate-800 text-xs">Keywords and ads</h3>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Keywords</span>
-                    <span className="flex-1 text-slate-100 font-semibold">None</span>
+                    <span className="text-slate-500 w-48 font-medium">Keywords</span>
+                    <span className="flex-1 text-slate-900 font-semibold">None</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Search term matching</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Expanding your keywords with Google AI</span>
+                    <span className="text-slate-500 w-48 font-medium">Search term matching</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Expanding your keywords with Google AI</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Brand inclusions</span>
-                    <span className="flex-1 text-slate-100 font-semibold">Limiting to: 0 brand lists</span>
+                    <span className="text-slate-500 w-48 font-medium">Brand inclusions</span>
+                    <span className="flex-1 text-slate-900 font-semibold">Limiting to: 0 brand lists</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Locations of interest</span>
-                    <span className="flex-1 text-slate-100 font-semibold">None</span>
+                    <span className="text-slate-500 w-48 font-medium">Locations of interest</span>
+                    <span className="flex-1 text-slate-900 font-semibold">None</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">URL inclusions</span>
-                    <span className="flex-1 text-slate-100 font-semibold">No URL inclusions</span>
+                    <span className="text-slate-500 w-48 font-medium">URL inclusions</span>
+                    <span className="flex-1 text-slate-900 font-semibold">No URL inclusions</span>
                   </div>
                   <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-400 w-48 font-medium">Ads</span>
-                    <span className="flex-1 text-slate-100 font-semibold">None</span>
+                    <span className="text-slate-500 w-48 font-medium">Ads</span>
+                    <span className="flex-1 text-slate-900 font-semibold">None</span>
                   </div>
                 </div>
               </div>
 
               {/* 8. Budget Table */}
               <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-200 text-xs">Budget</h3>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden p-4 flex items-center justify-between">
-                  <span className="text-slate-400 w-48 font-medium">Budget</span>
+                <h3 className="font-bold text-slate-800 text-xs">Budget</h3>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden p-4 flex items-center justify-between">
+                  <span className="text-slate-500 w-48 font-medium">Budget</span>
                   <div className="flex-1 space-y-1">
-                    <span className="text-slate-100 font-bold">Campaign total: ₹0.00</span>
+                    <span className="text-slate-900 font-bold">Campaign total: ₹0.00</span>
                     <span className="text-rose-400 font-semibold flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
                       Value is required
@@ -3781,7 +3781,7 @@ export default function SalesSearchPage() {
       </div>
 
       {/* ── Fixed Footer Action Bar ── */}
-      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center justify-between z-50">
+      <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-50">
         <button
           onClick={() => {
             if (wizardStep === "SUMMARY") setWizardStep("BUDGET");
@@ -3792,7 +3792,7 @@ export default function SalesSearchPage() {
             else if (wizardStep === "CAMPAIGN_SETTINGS") setWizardStep("BIDDING");
             else router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
           }}
-          className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+          className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
         >
           {wizardStep === "BIDDING" ? "Cancel" : "Back"}
         </button>
@@ -3830,16 +3830,16 @@ export default function SalesSearchPage() {
 
       {/* ── New Segment Modal ── */}
       {showNewSegmentModal && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[100] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Top Bar */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setShowNewSegmentModal(false)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">New segment</h2>
+            <h2 className="text-base font-semibold text-slate-900">New segment</h2>
           </div>
 
           {/* Modal Body Content */}
@@ -3847,7 +3847,7 @@ export default function SalesSearchPage() {
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-5xl w-full mx-auto space-y-8">
               {/* Top Group: Available segment types */}
               <div className="space-y-4">
-                <div className="flex items-center gap-1.5 text-slate-300 font-semibold text-sm">
+                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-sm">
                   <span>Available segment types</span>
                   <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
@@ -3859,7 +3859,7 @@ export default function SalesSearchPage() {
                     className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
                       selectedNewSegmentType === "CUSTOMER_LIST"
                         ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                        : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {selectedNewSegmentType === "CUSTOMER_LIST" && (
@@ -3869,8 +3869,8 @@ export default function SalesSearchPage() {
                     )}
                     <Users className="h-6 w-6 text-primary" />
                     <div>
-                      <h3 className="font-bold text-slate-100 text-sm">Customer list</h3>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">List of customer data that you've collected</p>
+                      <h3 className="font-bold text-slate-900 text-sm">Customer list</h3>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">List of customer data that you've collected</p>
                     </div>
                   </div>
 
@@ -3880,7 +3880,7 @@ export default function SalesSearchPage() {
                     className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
                       selectedNewSegmentType === "LEAD_FORM"
                         ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                        : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {selectedNewSegmentType === "LEAD_FORM" && (
@@ -3888,10 +3888,10 @@ export default function SalesSearchPage() {
                         <Check className="h-3.5 w-3.5" />
                       </div>
                     )}
-                    <FileText className="h-6 w-6 text-slate-400" />
+                    <FileText className="h-6 w-6 text-slate-500" />
                     <div>
-                      <h3 className="font-bold text-slate-100 text-sm">Lead form segment</h3>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">People who have submitted your lead form</p>
+                      <h3 className="font-bold text-slate-900 text-sm">Lead form segment</h3>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">People who have submitted your lead form</p>
                     </div>
                   </div>
 
@@ -3901,7 +3901,7 @@ export default function SalesSearchPage() {
                     className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
                       selectedNewSegmentType === "YOUTUBE"
                         ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                        : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {selectedNewSegmentType === "YOUTUBE" && (
@@ -3909,10 +3909,10 @@ export default function SalesSearchPage() {
                         <Check className="h-3.5 w-3.5" />
                       </div>
                     )}
-                    <VideoIcon className="h-6 w-6 text-slate-400" />
+                    <VideoIcon className="h-6 w-6 text-slate-500" />
                     <div>
-                      <h3 className="font-bold text-slate-100 text-sm">YouTube users</h3>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">People who interacted with your YouTube channel or videos</p>
+                      <h3 className="font-bold text-slate-900 text-sm">YouTube users</h3>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">People who interacted with your YouTube channel or videos</p>
                     </div>
                   </div>
 
@@ -3922,7 +3922,7 @@ export default function SalesSearchPage() {
                     className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
                       selectedNewSegmentType === "GA4"
                         ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                        : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {selectedNewSegmentType === "GA4" && (
@@ -3930,18 +3930,18 @@ export default function SalesSearchPage() {
                         <Check className="h-3.5 w-3.5" />
                       </div>
                     )}
-                    <SlidersHorizontal className="h-6 w-6 text-slate-400" />
+                    <SlidersHorizontal className="h-6 w-6 text-slate-500" />
                     <div>
-                      <h3 className="font-bold text-slate-100 text-sm">Google Analytics 4 segment</h3>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">Create Web/App segment using Google Analytics audience builder</p>
+                      <h3 className="font-bold text-slate-900 text-sm">Google Analytics 4 segment</h3>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">Create Web/App segment using Google Analytics audience builder</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Bottom Group: Audience Manager segment types */}
-              <div className="space-y-4 pt-6 border-t border-slate-800">
-                <p className="text-slate-400 text-xs">
+              <div className="space-y-4 pt-6 border-t border-slate-200">
+                <p className="text-slate-500 text-xs">
                   Create other segment types in <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 font-semibold hover:underline">Audience manager</a>
                 </p>
 
@@ -3952,7 +3952,7 @@ export default function SalesSearchPage() {
                     className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
                       selectedNewSegmentType === "APP_USERS"
                         ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                        : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {selectedNewSegmentType === "APP_USERS" && (
@@ -3960,10 +3960,10 @@ export default function SalesSearchPage() {
                         <Check className="h-3.5 w-3.5" />
                       </div>
                     )}
-                    <Smartphone className="h-6 w-6 text-slate-400" />
+                    <Smartphone className="h-6 w-6 text-slate-500" />
                     <div>
-                      <h3 className="font-bold text-slate-100 text-sm">App users</h3>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">People who've downloaded your mobile app</p>
+                      <h3 className="font-bold text-slate-900 text-sm">App users</h3>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">People who've downloaded your mobile app</p>
                     </div>
                   </div>
 
@@ -3973,7 +3973,7 @@ export default function SalesSearchPage() {
                     className={`p-5 rounded-2xl border transition-all cursor-pointer relative space-y-3 ${
                       selectedNewSegmentType === "WEBSITE_VISITORS"
                         ? "bg-primary/10 border-primary ring-2 ring-primary/50"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                        : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {selectedNewSegmentType === "WEBSITE_VISITORS" && (
@@ -3981,10 +3981,10 @@ export default function SalesSearchPage() {
                         <Check className="h-3.5 w-3.5" />
                       </div>
                     )}
-                    <Globe className="h-6 w-6 text-slate-400" />
+                    <Globe className="h-6 w-6 text-slate-500" />
                     <div>
-                      <h3 className="font-bold text-slate-100 text-sm">Website visitors</h3>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">People who visited your website or landing pages</p>
+                      <h3 className="font-bold text-slate-900 text-sm">Website visitors</h3>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">People who visited your website or landing pages</p>
                     </div>
                   </div>
                 </div>
@@ -3993,25 +3993,25 @@ export default function SalesSearchPage() {
           ) : customerListStep === "CUSTOMER_LIST_DETAILS" ? (
             /* CUSTOMER LIST SETUP DETAILS SCREEN */
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">Segment type</span>
-                  <span className="font-bold text-slate-100 text-sm">Customer list</span>
+                  <span className="text-slate-500">Segment type</span>
+                  <span className="font-bold text-slate-900 text-sm">Customer list</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCustomerListStep("SELECT_TYPE")}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                  className="p-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
               </div>
 
               {/* Card 1: Choose a data source */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
                 <div>
-                  <h3 className="font-bold text-slate-100 text-sm">Choose a data source</h3>
-                  <p className="text-[11px] text-slate-400 mt-1">Help your business gain more insights about customers or improve measurement</p>
+                  <h3 className="font-bold text-slate-900 text-sm">Choose a data source</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">Help your business gain more insights about customers or improve measurement</p>
                 </div>
 
                 <div className="space-y-4">
@@ -4026,8 +4026,8 @@ export default function SalesSearchPage() {
                         className="mt-0.5 text-primary h-4 w-4"
                       />
                       <div>
-                        <span className="font-bold text-slate-100 block">Connect a new product</span>
-                        <span className="text-[11px] text-slate-400 block">Choose from products available for connections</span>
+                        <span className="font-bold text-slate-900 block">Connect a new product</span>
+                        <span className="text-[11px] text-slate-500 block">Choose from products available for connections</span>
                       </div>
                     </label>
 
@@ -4038,12 +4038,12 @@ export default function SalesSearchPage() {
                           <input
                             type="text"
                             placeholder="Search products or data sources"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <span className="font-semibold text-slate-300 text-[11px] block">Featured products</span>
+                          <span className="font-semibold text-slate-700 text-[11px] block">Featured products</span>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {[
                               "Shopify", "HubSpot", "Zoho CRM", "ActiveCampaign",
@@ -4059,7 +4059,7 @@ export default function SalesSearchPage() {
                                 className={`p-3 rounded-xl border flex items-center justify-between text-left font-semibold text-xs transition-all cursor-pointer ${
                                   selectedDataSourceProduct === prod
                                     ? "bg-primary/10 border-primary text-primary"
-                                    : "bg-slate-950 border-slate-800 text-slate-200 hover:border-slate-700"
+                                    : "bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300"
                                 }`}
                               >
                                 <span className="truncate">{prod}</span>
@@ -4073,7 +4073,7 @@ export default function SalesSearchPage() {
                   </div>
 
                   {/* Option 2: Upload a file manually */}
-                  <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-slate-800/60">
+                  <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-slate-200">
                     <input
                       type="radio"
                       name="custDataSrc"
@@ -4082,13 +4082,13 @@ export default function SalesSearchPage() {
                       className="mt-0.5 text-primary h-4 w-4"
                     />
                     <div>
-                      <span className="font-bold text-slate-100 block">Upload a file manually</span>
-                      <span className="text-[11px] text-slate-400 block">Create an audience segment by manually uploading a customer list</span>
+                      <span className="font-bold text-slate-900 block">Upload a file manually</span>
+                      <span className="text-[11px] text-slate-500 block">Create an audience segment by manually uploading a customer list</span>
                     </div>
                   </label>
 
                   {/* Option 3: Skip this step */}
-                  <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-slate-800/60">
+                  <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-slate-200">
                     <input
                       type="radio"
                       name="custDataSrc"
@@ -4097,16 +4097,16 @@ export default function SalesSearchPage() {
                       className="mt-0.5 text-primary h-4 w-4"
                     />
                     <div>
-                      <span className="font-bold text-slate-100 block">Skip this step and set up a data source later</span>
-                      <span className="text-[11px] text-slate-400 block">Create an audience segment to connect to a data source later in the segment details or in Tools &gt; Data manager</span>
+                      <span className="font-bold text-slate-900 block">Skip this step and set up a data source later</span>
+                      <span className="text-[11px] text-slate-500 block">Create an audience segment to connect to a data source later in the segment details or in Tools &gt; Data manager</span>
                     </div>
                   </label>
                 </div>
               </div>
 
               {/* Card 2: Customer data Compliance */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h3 className="font-bold text-slate-100 text-sm">Customer data</h3>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h3 className="font-bold text-slate-900 text-sm">Customer data</h3>
 
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -4115,12 +4115,12 @@ export default function SalesSearchPage() {
                     onChange={(e) => setCustomerMatchComplianceChecked(e.target.checked)}
                     className="mt-0.5 rounded text-primary h-4 w-4"
                   />
-                  <span className="text-slate-200 font-semibold leading-relaxed">
+                  <span className="text-slate-800 font-semibold leading-relaxed">
                     This data was collected and is being shared with Google in compliance with <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Google's Customer Match policies</a>
                   </span>
                 </label>
 
-                <div className="space-y-2 text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/60">
+                <div className="space-y-2 text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
                   <p>In particular, you confirm that your privacy policy discloses that you share customer data with third parties to perform services on your behalf, and that you obtain consent for such sharing where required by law or any applicable Google policies governing personalized ads and/or user consent including Google's <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">EU user consent policy</a>.</p>
                   <p>The data files you upload will only be used to match your customers to Google accounts and to ensure your Customer Match campaigns comply with our policies. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more</a></p>
                   <p>To comply with the General Data Protection Regulation (GDPR), we've included the <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Google Ads Data Processing Terms</a> that apply to Customer Match in the Google Ads terms of service. Under these terms, Google acts as a "processor" of the personal data you may share with us for Customer Match. In your <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Account settings</a>, confirm that the contact information for you (the primary contact) and your data protection officer and/or EU representative (if applicable) are up-to-date.</p>
@@ -4130,55 +4130,55 @@ export default function SalesSearchPage() {
           ) : customerListStep === "LEAD_FORM_DETAILS" ? (
             /* LEAD FORM SEGMENT SETUP DETAILS SCREEN */
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">Segment type</span>
-                  <span className="font-bold text-slate-100 text-sm">Lead form segment</span>
+                  <span className="text-slate-500">Segment type</span>
+                  <span className="font-bold text-slate-900 text-sm">Lead form segment</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCustomerListStep("SELECT_TYPE")}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                  className="p-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
               </div>
 
               {/* Segment name Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-2 shadow-xl">
-                <label className="block font-semibold text-slate-200">Segment name</label>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-sm">
+                <label className="block font-semibold text-slate-800">Segment name</label>
                 <input
                   type="text"
                   value={leadFormSegmentName}
                   onChange={(e) => setLeadFormSegmentName(e.target.value)}
                   placeholder="Audience segment name"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                 />
               </div>
 
               {/* Customer type Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                <div className="flex items-center gap-1.5 text-slate-200 font-semibold">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-800 font-semibold">
                   <span>Add customer types (optional)</span>
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   Customer type helps you define customer groups that you can use for new customer acquisitions and other goals. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more about Customer types</a>
                 </p>
 
-                <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950 flex flex-wrap items-center gap-2">
+                <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-wrap items-center gap-2">
                   {selectedCustomerTypes.map((type, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-xs text-slate-200 font-semibold">
+                    <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white border border-slate-300 text-xs text-slate-800 font-semibold">
                       {type}
                       <button type="button" onClick={() => setSelectedCustomerTypes(prev => prev.filter((_, idx) => idx !== i))}>
-                        <X className="h-3 w-3 text-slate-400 hover:text-rose-400" />
+                        <X className="h-3 w-3 text-slate-500 hover:text-rose-400" />
                       </button>
                     </span>
                   ))}
                   <input
                     type="text"
                     placeholder="Select customer type"
-                    className="bg-transparent text-xs text-slate-100 focus:outline-none flex-1 min-w-[140px]"
+                    className="bg-transparent text-xs text-slate-900 focus:outline-none flex-1 min-w-[140px]"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && e.currentTarget.value.trim()) {
                         setSelectedCustomerTypes(prev => [...prev, e.currentTarget.value.trim()]);
@@ -4190,11 +4190,11 @@ export default function SalesSearchPage() {
               </div>
 
               {/* Lead forms Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                <h3 className="font-bold text-slate-100 text-sm">Lead forms</h3>
-                <p className="text-[11px] text-slate-400">Select lead forms</p>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <h3 className="font-bold text-slate-900 text-sm">Lead forms</h3>
+                <p className="text-[11px] text-slate-500">Select lead forms</p>
 
-                <div className="border border-slate-800 rounded-xl bg-slate-950 overflow-hidden text-xs">
+                <div className="border border-slate-200 rounded-xl bg-slate-50 overflow-hidden text-xs">
                   <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-800 min-h-[220px]">
                     <div className="p-3 space-y-3">
                       <div className="relative">
@@ -4202,14 +4202,14 @@ export default function SalesSearchPage() {
                         <input
                           type="text"
                           placeholder="Search"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                         />
                       </div>
                       <p className="text-[11px] text-slate-500 p-2">No lead form</p>
                     </div>
 
                     <div className="p-3">
-                      <span className="text-slate-400 font-semibold block">None selected</span>
+                      <span className="text-slate-500 font-semibold block">None selected</span>
                     </div>
                   </div>
                 </div>
@@ -4223,84 +4223,84 @@ export default function SalesSearchPage() {
                 </div>
 
                 {/* Compliance Checkbox */}
-                <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-slate-800/60">
+                <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-slate-200">
                   <input
                     type="checkbox"
                     checked={customerMatchComplianceChecked}
                     onChange={(e) => setCustomerMatchComplianceChecked(e.target.checked)}
                     className="mt-0.5 rounded text-primary h-4 w-4"
                   />
-                  <span className="text-slate-200 font-semibold leading-relaxed">
+                  <span className="text-slate-800 font-semibold leading-relaxed">
                     This data was collected and is being shared with Google in compliance with <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Google's Customer Match policies</a>
                   </span>
                 </label>
 
-                <div className="space-y-2 text-[11px] text-slate-400 leading-relaxed">
+                <div className="space-y-2 text-[11px] text-slate-500 leading-relaxed">
                   <p>The lead forms that you use will only be used to match your customers to Google accounts and to ensure your Customer Match campaigns comply with our policies. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more</a></p>
                   <p>To comply with the General Data Protection Regulation (GDPR), we've included the <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Google Ads Data Processing Terms</a> that apply to Customer Match in the Google Ads terms of service. Under these terms, Google acts as a "processor" of the personal data you may share with us for Customer Match. In your <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Account Preferences</a>, confirm that the contact information for you (the primary contact) and your data protection officer and/or EU representative (if applicable) are up-to-date. Any notices under the Google Ads Data Processing Terms will be sent to the primary contact.</p>
                 </div>
               </div>
 
               {/* Submission dates Card */}
-              <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/90 flex items-center justify-between shadow-xl">
+              <div className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between shadow-sm">
                 <div>
-                  <h4 className="font-semibold text-slate-200">Submission dates</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Include lead form submissions from the past {submissionDays} days</p>
+                  <h4 className="font-semibold text-slate-800">Submission dates</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Include lead form submissions from the past {submissionDays} days</p>
                 </div>
-                <ChevronDown className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <ChevronDown className="h-4 w-4 text-slate-500 cursor-pointer" />
               </div>
             </div>
           ) : customerListStep === "YOUTUBE_DETAILS" ? (
             /* YOUTUBE USERS SEGMENT SETUP DETAILS SCREEN */
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">Segment type</span>
-                  <span className="font-bold text-slate-100 text-sm">YouTube users</span>
+                  <span className="text-slate-500">Segment type</span>
+                  <span className="font-bold text-slate-900 text-sm">YouTube users</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCustomerListStep("SELECT_TYPE")}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                  className="p-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
               </div>
 
               {/* Segment name Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-2 shadow-xl">
-                <label className="block font-semibold text-slate-200">Segment name</label>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-sm">
+                <label className="block font-semibold text-slate-800">Segment name</label>
                 <input
                   type="text"
                   value={youtubeSegmentName}
                   onChange={(e) => setYoutubeSegmentName(e.target.value)}
                   placeholder="Audience segment name"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                 />
               </div>
 
               {/* Customer type Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                <div className="flex items-center gap-1.5 text-slate-200 font-semibold">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-800 font-semibold">
                   <span>Customer type</span>
-                  <span className="text-slate-400 text-[11px] font-normal">Add customer types (optional)</span>
+                  <span className="text-slate-500 text-[11px] font-normal">Add customer types (optional)</span>
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   Customer type helps you define customer groups that you can use for new customer acquisitions and other goals. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more about Customer types</a>
                 </p>
                 <input
                   type="text"
                   placeholder="Select customer type"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                 />
               </div>
 
               {/* YouTube channel or video Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                 <div>
-                  <h3 className="font-bold text-slate-100 text-sm">YouTube channel or video</h3>
-                  <p className="text-[11px] text-slate-400 mt-1">Select the YouTube channel or video made by a YouTube creator of this audience segment</p>
+                  <h3 className="font-bold text-slate-900 text-sm">YouTube channel or video</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">Select the YouTube channel or video made by a YouTube creator of this audience segment</p>
                 </div>
 
                 <div className="flex items-center gap-6 pt-1">
@@ -4312,7 +4312,7 @@ export default function SalesSearchPage() {
                       onChange={() => setYoutubeSelectionMode("CHANNEL")}
                       className="text-primary h-4 w-4"
                     />
-                    <span className="text-slate-200 font-semibold">Select a channel</span>
+                    <span className="text-slate-800 font-semibold">Select a channel</span>
                   </label>
 
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -4323,14 +4323,14 @@ export default function SalesSearchPage() {
                       onChange={() => setYoutubeSelectionMode("CREATOR_VIDEO")}
                       className="text-primary h-4 w-4"
                     />
-                    <span className="text-slate-200 font-semibold">Select a video made by a YouTube creator</span>
+                    <span className="text-slate-800 font-semibold">Select a video made by a YouTube creator</span>
                     <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 text-[10px] font-bold">NEW</span>
                   </label>
                 </div>
 
                 {/* Actions Box */}
-                <div className="pt-2 border-t border-slate-800/60">
-                  <span className="font-bold text-slate-200 block mb-2">Actions</span>
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="font-bold text-slate-800 block mb-2">Actions</span>
                   <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-[11px] flex items-center gap-2.5">
                     <Info className="h-4 w-4 text-blue-400 shrink-0" />
                     <span>To create a YouTube user segment, you'll need to select a YouTube channel or video.</span>
@@ -4339,15 +4339,15 @@ export default function SalesSearchPage() {
               </div>
 
               {/* Pre-fill options Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 shadow-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h3 className="font-bold text-slate-100 text-sm">Pre-fill options</h3>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h3 className="font-bold text-slate-900 text-sm">Pre-fill options</h3>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
                   <div className="md:col-span-2 space-y-3">
-                    <p className="text-[11px] text-slate-400">Choose between pre-filling the segment or starting with an empty one</p>
+                    <p className="text-[11px] text-slate-500">Choose between pre-filling the segment or starting with an empty one</p>
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="radio"
@@ -4356,7 +4356,7 @@ export default function SalesSearchPage() {
                         onChange={() => setYoutubePrefillOption("PREFILL")}
                         className="mt-0.5 text-primary h-4 w-4"
                       />
-                      <span className="text-slate-200 font-semibold">Pre-fill segment with people who matched the rules within the past 30 days</span>
+                      <span className="text-slate-800 font-semibold">Pre-fill segment with people who matched the rules within the past 30 days</span>
                     </label>
 
                     <label className="flex items-start gap-3 cursor-pointer">
@@ -4367,62 +4367,62 @@ export default function SalesSearchPage() {
                         onChange={() => setYoutubePrefillOption("EMPTY")}
                         className="mt-0.5 text-primary h-4 w-4"
                       />
-                      <span className="text-slate-200 font-semibold">Start with an empty segment</span>
+                      <span className="text-slate-800 font-semibold">Start with an empty segment</span>
                     </label>
                   </div>
 
-                  <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 text-[11px] text-slate-400 leading-relaxed self-start">
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-500 leading-relaxed self-start">
                     Google Ads can pre-fill your segment with people who have interacted with your business in the previous 30 days, or you can start with an empty segment.
                   </div>
                 </div>
               </div>
 
               {/* Description Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h3 className="font-bold text-slate-100 text-sm">Description</h3>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h3 className="font-bold text-slate-900 text-sm">Description</h3>
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
-                <p className="text-[11px] text-slate-400">Enter details about this segment</p>
+                <p className="text-[11px] text-slate-500">Enter details about this segment</p>
                 <textarea
                   value={youtubeDescription}
                   onChange={(e) => setYoutubeDescription(e.target.value)}
                   placeholder="Add a segment description (optional)"
                   rows={2}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-primary resize-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-primary resize-none"
                 />
               </div>
 
               {/* Policy Disclaimer */}
-              <p className="text-[11px] text-slate-400 pt-2">
+              <p className="text-[11px] text-slate-500 pt-2">
                 Your data segments must comply with the <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Personalized advertising policy</a> and the <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Google EU user consent policy</a>.
               </p>
             </div>
           ) : customerListStep === "GA4_DETAILS" ? (
             /* GA4 SEGMENT DETAILS SCREEN */
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">Segment type</span>
-                  <span className="font-bold text-slate-100 text-sm">Google Analytics 4 segment</span>
+                  <span className="text-slate-500">Segment type</span>
+                  <span className="font-bold text-slate-900 text-sm">Google Analytics 4 segment</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCustomerListStep("SELECT_TYPE")}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                  className="p-1 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
               </div>
 
               {/* Card 1: Select a Google Analytics property */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-slate-100 text-sm">Select a Google Analytics property</h3>
+                  <h3 className="font-bold text-slate-900 text-sm">Select a Google Analytics property</h3>
                   <button
                     type="button"
                     onClick={() => setCustomerListStep("GA4_LINK_PROPERTY")}
-                    className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer transition-all shadow"
+                    className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-slate-900 font-bold text-xs cursor-pointer transition-all shadow"
                   >
                     Link new property
                   </button>
@@ -4435,19 +4435,19 @@ export default function SalesSearchPage() {
                     value={ga4SearchProperty}
                     onChange={(e) => setGa4SearchProperty(e.target.value)}
                     placeholder="Search linked Google Analytics property"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                   />
                 </div>
 
                 {/* Property Card */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-between">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
                       GA4
                     </div>
                     <div>
-                      <span className="font-bold text-slate-100 block">Jisnu Digital Solutions</span>
-                      <span className="text-[11px] text-slate-400 font-mono">Property ID: 531372646</span>
+                      <span className="font-bold text-slate-900 block">Jisnu Digital Solutions</span>
+                      <span className="text-[11px] text-slate-500 font-mono">Property ID: 531372646</span>
                     </div>
                   </div>
                   <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">LINKED</span>
@@ -4458,49 +4458,49 @@ export default function SalesSearchPage() {
             /* GA4 LINK PROPERTY STEP SCREEN */
             <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6 text-xs">
               <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">Link a Google Analytics (GA4) property</h2>
-                <p className="text-xs text-slate-400 mt-1">Link setup</p>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">Link a Google Analytics (GA4) property</h2>
+                <p className="text-xs text-slate-500 mt-1">Link setup</p>
               </div>
 
               {/* Progress Steps Header */}
-              <div className="flex items-center gap-4 border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">1</span>
+              <div className="flex items-center gap-4 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <span className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700">1</span>
                   <span className="font-medium">Select Google Analytics properties</span>
                 </div>
                 <span className="text-slate-600 font-bold">›</span>
                 <div className="flex items-center gap-2 text-primary">
                   <span className="w-6 h-6 rounded-full bg-primary text-slate-950 flex items-center justify-center text-xs font-bold">2</span>
-                  <span className="font-bold text-slate-100">Configure settings and submit</span>
+                  <span className="font-bold text-slate-900">Configure settings and submit</span>
                 </div>
               </div>
 
               {/* Property Info Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-3 shadow-xl">
-                <span className="text-slate-400 text-[11px] font-semibold block">Google Analytics property to be linked</span>
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                <span className="text-slate-500 text-[11px] font-semibold block">Google Analytics property to be linked</span>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
                     GA4
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-100 text-sm">Jisnu Digital Solutions</h3>
-                    <p className="text-[11px] text-slate-400 font-mono">531372646</p>
+                    <h3 className="font-bold text-slate-900 text-sm">Jisnu Digital Solutions</h3>
+                    <p className="text-[11px] text-slate-500 font-mono">531372646</p>
                   </div>
                 </div>
               </div>
 
               {/* Data Sharing Card */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
                 <div>
-                  <h3 className="font-bold text-slate-100 text-sm">Data sharing</h3>
-                  <p className="text-[11px] text-slate-400 mt-1">Data shared from Google Analytics (GA4) to Google Ads</p>
+                  <h3 className="font-bold text-slate-900 text-sm">Data sharing</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">Data shared from Google Analytics (GA4) to Google Ads</p>
                 </div>
 
                 {/* Setting 1: Import app and web metrics */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex items-start justify-between gap-4">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <span className="font-bold text-slate-100 text-xs block">Import app and web metrics</span>
-                    <p className="text-[11px] text-slate-400 leading-relaxed max-w-xl">
+                    <span className="font-bold text-slate-900 text-xs block">Import app and web metrics</span>
+                    <p className="text-[11px] text-slate-500 leading-relaxed max-w-xl">
                       Turn on to use Google Analytics app and web metrics to give you a more customer-centric measurement of how users interact with your ads. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more about using GA4 metrics in Google Ads</a>
                     </p>
                   </div>
@@ -4508,7 +4508,7 @@ export default function SalesSearchPage() {
                     type="button"
                     onClick={() => setImportAppWebMetrics(prev => !prev)}
                     className={`px-3 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${
-                      importAppWebMetrics ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-800 text-slate-400"
+                      importAppWebMetrics ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-100 text-slate-500"
                     }`}
                   >
                     {importAppWebMetrics ? "On" : "Off"}
@@ -4516,10 +4516,10 @@ export default function SalesSearchPage() {
                 </div>
 
                 {/* Setting 2: Import Google Analytics audiences */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 flex items-start justify-between gap-4">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <span className="font-bold text-slate-100 text-xs block">Import Google Analytics audiences</span>
-                    <p className="text-[11px] text-slate-400 leading-relaxed max-w-xl">
+                    <span className="font-bold text-slate-900 text-xs block">Import Google Analytics audiences</span>
+                    <p className="text-[11px] text-slate-500 leading-relaxed max-w-xl">
                       Turn on to publish your Google Analytics audiences to the linked Google Ads account. You can change this setting anytime in Google Analytics. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more about remarketing audiences</a>
                     </p>
                   </div>
@@ -4527,7 +4527,7 @@ export default function SalesSearchPage() {
                     type="button"
                     onClick={() => setImportGa4Audiences(prev => !prev)}
                     className={`px-3 py-1 rounded-full font-bold text-xs transition-all cursor-pointer ${
-                      importGa4Audiences ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-800 text-slate-400"
+                      importGa4Audiences ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-100 text-slate-500"
                     }`}
                   >
                     {importGa4Audiences ? "On" : "Off"}
@@ -4535,8 +4535,8 @@ export default function SalesSearchPage() {
                 </div>
 
                 {/* Important notices */}
-                <div className="space-y-2 text-[11px] text-slate-400 leading-relaxed pt-2 border-t border-slate-800/60">
-                  <p><strong className="text-slate-300">Important notice:</strong> Data exported from your Analytics property into Ads is subject to the Ads terms of service, while Ads data imported into Analytics is subject to the Analytics terms of service. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">View the terms of service</a></p>
+                <div className="space-y-2 text-[11px] text-slate-500 leading-relaxed pt-2 border-t border-slate-200">
+                  <p><strong className="text-slate-700">Important notice:</strong> Data exported from your Analytics property into Ads is subject to the Ads terms of service, while Ads data imported into Analytics is subject to the Analytics terms of service. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">View the terms of service</a></p>
                   <p>Your GA4 property may be set to measure Google paid channels only or both paid and organic channels. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more about GA4 creditable channels</a></p>
                 </div>
               </div>
@@ -4544,7 +4544,7 @@ export default function SalesSearchPage() {
           )}
 
           {/* Bottom Footer Actions */}
-          <div className="h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center gap-4 shrink-0">
+          <div className="h-16 bg-white border-t border-slate-200 px-8 flex items-center gap-4 shrink-0">
             {customerListStep === "SELECT_TYPE" ? (
               <button
                 onClick={() => {
@@ -4597,7 +4597,7 @@ export default function SalesSearchPage() {
                 setShowNewSegmentModal(false);
                 setCustomerListStep("SELECT_TYPE");
               }}
-              className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+              className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
             >
               Cancel
             </button>
@@ -4607,41 +4607,41 @@ export default function SalesSearchPage() {
 
       {/* ── New Account-Level Brand List Modal ── */}
       {showBrandListModal && (
-        <div className="fixed inset-0 z-[110] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[110] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Top Bar */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setShowBrandListModal(false)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">New account-level brand list</h2>
+            <h2 className="text-base font-semibold text-slate-900">New account-level brand list</h2>
           </div>
 
           {/* Modal Content */}
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
-            <p className="text-slate-400 text-xs">
+            <p className="text-slate-500 text-xs">
               Brand lists let you choose whether your ads show on searches that mention specific brands
             </p>
 
             {/* List name Card */}
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-2 shadow-xl">
-              <label className="block font-bold text-slate-200">List name</label>
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-sm">
+              <label className="block font-bold text-slate-800">List name</label>
               <input
                 type="text"
                 value={brandListNameInput}
                 onChange={(e) => setBrandListNameInput(e.target.value)}
                 placeholder="Enter list name"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
               />
             </div>
 
             {/* Brands Search & Select Grid Card */}
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
               <div className="space-y-1">
-                <h3 className="font-bold text-slate-100 text-sm">Brands</h3>
-                <p className="text-[11px] text-slate-400">Add brands to your list</p>
+                <h3 className="font-bold text-slate-900 text-sm">Brands</h3>
+                <p className="text-[11px] text-slate-500">Add brands to your list</p>
               </div>
 
               {/* Search Box */}
@@ -4652,14 +4652,14 @@ export default function SalesSearchPage() {
                   value={brandSearchQuery}
                   onChange={(e) => setBrandSearchQuery(e.target.value)}
                   placeholder="Enter a brand name or website URL"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                 />
               </div>
 
               {/* Selected Brands Chips */}
               {selectedBrandListBrands.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-slate-800">
-                  <span className="text-slate-300 font-semibold text-[11px]">
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <span className="text-slate-700 font-semibold text-[11px]">
                     {selectedBrandListBrands.length} brand{selectedBrandListBrands.length > 1 ? "s" : ""} selected
                   </span>
                   <div className="flex flex-wrap gap-2">
@@ -4677,8 +4677,8 @@ export default function SalesSearchPage() {
 
               {/* Brands Scrollable Options Grid */}
               <div className="space-y-1.5 pt-2">
-                <span className="text-slate-400 font-semibold text-[11px] block">Popular & Searched Brands ({presetBrandsList.length})</span>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto p-2 border border-slate-800 rounded-xl bg-slate-950">
+                <span className="text-slate-500 font-semibold text-[11px] block">Popular & Searched Brands ({presetBrandsList.length})</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto p-2 border border-slate-200 rounded-xl bg-slate-50">
                   {presetBrandsList
                     .filter(b => !brandSearchQuery.trim() || b.name.toLowerCase().includes(brandSearchQuery.toLowerCase()) || b.url.toLowerCase().includes(brandSearchQuery.toLowerCase()))
                     .map((b, idx) => {
@@ -4696,7 +4696,7 @@ export default function SalesSearchPage() {
                           className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
                             isSelected
                               ? "bg-primary/10 border-primary text-primary"
-                              : "bg-slate-900 border-slate-800/80 hover:border-slate-700 text-slate-200"
+                              : "bg-white border-slate-200 hover:border-slate-300 text-slate-800"
                           }`}
                         >
                           <div className="truncate pr-2">
@@ -4713,7 +4713,7 @@ export default function SalesSearchPage() {
           </div>
 
           {/* Bottom Actions */}
-          <div className="h-16 bg-slate-900 border-t border-slate-800 px-8 flex items-center gap-4 shrink-0">
+          <div className="h-16 bg-white border-t border-slate-200 px-8 flex items-center gap-4 shrink-0">
             <button
               onClick={() => {
                 const label = brandListNameInput.trim() || (selectedBrandListBrands.length > 0 ? selectedBrandListBrands.map(b => b.name).join(", ") : "Custom Brand List");
@@ -4736,7 +4736,7 @@ export default function SalesSearchPage() {
                 setBrandListNameInput("");
                 setSelectedBrandListBrands([]);
               }}
-              className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+              className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
             >
               Cancel
             </button>
@@ -4746,21 +4746,21 @@ export default function SalesSearchPage() {
 
       {/* ── Add URL Inclusions Modal Overlay ── */}
       {showUrlInclusionsModal && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Top Header Bar */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setShowUrlInclusionsModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+                className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
-              <h2 className="text-base font-semibold text-white">Add URL Inclusions</h2>
+              <h2 className="text-base font-semibold text-slate-900">Add URL Inclusions</h2>
             </div>
             <button
               onClick={() => setShowUrlInclusionsModal(false)}
-              className="px-4 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs cursor-pointer"
+              className="px-4 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:text-slate-900 font-semibold text-xs cursor-pointer"
             >
               Done
             </button>
@@ -4768,28 +4768,28 @@ export default function SalesSearchPage() {
 
           {/* Modal Main Content Container */}
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-5xl w-full mx-auto space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-4">
-                <span className="font-bold text-slate-200">URL inclusions</span>
-                <span className="text-slate-400 text-xs">Select specific pages from your website that you want Google AI to include</span>
+                <span className="font-bold text-slate-800">URL inclusions</span>
+                <span className="text-slate-500 text-xs">Select specific pages from your website that you want Google AI to include</span>
               </div>
             </div>
 
             {/* Split Card Container (Left 65% Controls, Right 35% Selection Summary) */}
-            <div className="grid grid-cols-1 md:grid-cols-12 rounded-2xl border border-slate-800 bg-slate-900/90 overflow-hidden shadow-2xl min-h-[400px]">
+            <div className="grid grid-cols-1 md:grid-cols-12 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-md min-h-[400px]">
               
               {/* Left Column Controls (8 cols) */}
-              <div className="md:col-span-8 p-6 space-y-6 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col justify-between">
+              <div className="md:col-span-8 p-6 space-y-6 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between">
                 <div className="space-y-5">
                   
                   {/* 3 Tabs Header: URLs / Custom labels / Rules */}
-                  <div className="flex items-center gap-8 border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-8 border-b border-slate-200 pb-3">
                     <button
                       onClick={() => setUrlInclusionsTab("URLS")}
                       className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${
                         urlInclusionsTab === "URLS"
                           ? "border-blue-500 text-blue-400 font-bold"
-                          : "border-transparent text-slate-400 hover:text-slate-200"
+                          : "border-transparent text-slate-500 hover:text-slate-800"
                       }`}
                     >
                       URLs
@@ -4799,7 +4799,7 @@ export default function SalesSearchPage() {
                       className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${
                         urlInclusionsTab === "CUSTOM_LABELS"
                           ? "border-blue-500 text-blue-400 font-bold"
-                          : "border-transparent text-slate-400 hover:text-slate-200"
+                          : "border-transparent text-slate-500 hover:text-slate-800"
                       }`}
                     >
                       Custom labels
@@ -4809,7 +4809,7 @@ export default function SalesSearchPage() {
                       className={`font-semibold pb-2 border-b-2 transition-all cursor-pointer ${
                         urlInclusionsTab === "RULES"
                           ? "border-blue-500 text-blue-400 font-bold"
-                          : "border-transparent text-slate-400 hover:text-slate-200"
+                          : "border-transparent text-slate-500 hover:text-slate-800"
                       }`}
                     >
                       Rules
@@ -4819,14 +4819,14 @@ export default function SalesSearchPage() {
                   {/* Tab 1: URLs */}
                   {urlInclusionsTab === "URLS" && (
                     <div className="space-y-3 animate-in fade-in duration-150">
-                      <label className="block font-bold text-slate-200">Enter URLs to include:</label>
+                      <label className="block font-bold text-slate-800">Enter URLs to include:</label>
                       <div className="space-y-1">
                         <textarea
                           rows={5}
                           value={urlInclusionsText}
                           onChange={(e) => setUrlInclusionsText(e.target.value)}
                           placeholder="Enter or paste your webpages, one URL per line"
-                          className="w-full bg-slate-950 border border-rose-500/80 rounded-xl p-4 text-xs text-rose-300 placeholder-rose-400/80 font-mono focus:outline-none focus:border-rose-500"
+                          className="w-full bg-slate-50 border border-rose-500/80 rounded-xl p-4 text-xs text-rose-300 placeholder-rose-400/80 font-mono focus:outline-none focus:border-rose-500"
                         />
                         {!urlInclusionsText.trim() && (
                           <span className="text-[11px] text-rose-400 font-semibold block pl-1">Please enter at least one URL.</span>
@@ -4838,13 +4838,13 @@ export default function SalesSearchPage() {
                   {/* Tab 2: Custom labels */}
                   {urlInclusionsTab === "CUSTOM_LABELS" && (
                     <div className="space-y-3 animate-in fade-in duration-150">
-                      <label className="block font-bold text-slate-200">Select custom labels from page feeds:</label>
+                      <label className="block font-bold text-slate-800">Select custom labels from page feeds:</label>
                       <input
                         type="text"
                         value={urlInclusionsCustomLabel}
                         onChange={(e) => setUrlInclusionsCustomLabel(e.target.value)}
                         placeholder="Enter custom label name"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                       />
                     </div>
                   )}
@@ -4852,12 +4852,12 @@ export default function SalesSearchPage() {
                   {/* Tab 3: Rules */}
                   {urlInclusionsTab === "RULES" && (
                     <div className="space-y-3 animate-in fade-in duration-150">
-                      <label className="block font-bold text-slate-200">Create URL rules to include:</label>
+                      <label className="block font-bold text-slate-800">Create URL rules to include:</label>
                       <div className="flex flex-col md:flex-row gap-3">
                         <select
                           value={urlInclusionsRuleField}
                           onChange={(e) => setUrlInclusionsRuleField(e.target.value)}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         >
                           <option value="URL_CONTAINS">URL contains</option>
                           <option value="PAGE_TITLE_CONTAINS">Page title contains</option>
@@ -4868,7 +4868,7 @@ export default function SalesSearchPage() {
                           value={urlInclusionsRuleValue}
                           onChange={(e) => setUrlInclusionsRuleValue(e.target.value)}
                           placeholder="Enter rule text"
-                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-mono"
                         />
                       </div>
                     </div>
@@ -4877,7 +4877,7 @@ export default function SalesSearchPage() {
                 </div>
 
                 {/* Left Column Bottom Add Action */}
-                <div className="pt-4 border-t border-slate-800/60">
+                <div className="pt-4 border-t border-slate-200">
                   <button
                     type="button"
                     onClick={() => {
@@ -4901,9 +4901,9 @@ export default function SalesSearchPage() {
               </div>
 
               {/* Right Column: Selected Targets Summary (4 cols) */}
-              <div className="md:col-span-4 p-6 bg-slate-950/40 flex flex-col justify-between space-y-4">
+              <div className="md:col-span-4 p-6 bg-slate-50/40 flex flex-col justify-between space-y-4">
                 <div>
-                  <h3 className="font-bold text-slate-200 border-b border-slate-800 pb-2">
+                  <h3 className="font-bold text-slate-800 border-b border-slate-200 pb-2">
                     {selectedUrlInclusionTargets.length > 0 ? `${selectedUrlInclusionTargets.length} selected` : "None selected"}
                   </h3>
 
@@ -4914,8 +4914,8 @@ export default function SalesSearchPage() {
                   ) : (
                     <div className="space-y-2 pt-3 max-h-64 overflow-y-auto">
                       {selectedUrlInclusionTargets.map((target, idx) => (
-                        <div key={idx} className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 text-xs">
-                          <span className="truncate text-slate-300 font-mono text-[11px]">{target}</span>
+                        <div key={idx} className="p-2 rounded-lg bg-white border border-slate-200 flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate text-slate-700 font-mono text-[11px]">{target}</span>
                           <button
                             type="button"
                             onClick={() => setSelectedUrlInclusionTargets(prev => prev.filter((_, i) => i !== idx))}
@@ -4937,16 +4937,16 @@ export default function SalesSearchPage() {
 
       {/* ── Add Calls to Your Campaign Modal Overlay ── */}
       {activeModal === "CALLS" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Top Header */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setActiveModal(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">Add calls to your campaign</h2>
+            <h2 className="text-base font-semibold text-slate-900">Add calls to your campaign</h2>
           </div>
 
           {/* Main Content Scroll Container */}
@@ -4955,15 +4955,15 @@ export default function SalesSearchPage() {
             {/* Section 1: Campaign-level calls */}
             <div className="space-y-3">
               <div>
-                <h3 className="font-bold text-slate-100 text-sm">Campaign-level calls</h3>
-                <p className="text-[11px] text-slate-400">Add calls to this campaign. Any calls added here can be used across campaigns.</p>
+                <h3 className="font-bold text-slate-900 text-sm">Campaign-level calls</h3>
+                <p className="text-[11px] text-slate-500">Add calls to this campaign. Any calls added here can be used across campaigns.</p>
               </div>
 
               {/* Add New Call Container Box */}
-              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
                 <div className="space-y-1">
-                  <span className="font-bold text-slate-200 block text-xs">Add new call</span>
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <span className="font-bold text-slate-800 block text-xs">Add new call</span>
+                  <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
                     <span>Call reporting on, call recording off</span>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
@@ -4975,7 +4975,7 @@ export default function SalesSearchPage() {
                     <select
                       value={callCountry}
                       onChange={(e) => setCallCountry(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                     >
                       <option value="United States">United States</option>
                       <option value="India (+91)">India (+91)</option>
@@ -4990,7 +4990,7 @@ export default function SalesSearchPage() {
                         value={callPhone}
                         onChange={(e) => setCallPhone(e.target.value)}
                         placeholder="Phone number"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-mono"
                       />
                       <HelpCircle className="absolute right-3.5 top-2.5 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                     </div>
@@ -5000,14 +5000,14 @@ export default function SalesSearchPage() {
 
                 {/* Conversion Action */}
                 <div className="space-y-1.5 max-w-sm">
-                  <div className="flex items-center gap-1 text-slate-300 font-semibold">
+                  <div className="flex items-center gap-1 text-slate-700 font-semibold">
                     <span>Conversion action</span>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
                   <select
                     value={callConversionAction}
                     onChange={(e) => setCallConversionAction(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     <option value="Use account settings (Calls from ads)">Use account settings (Calls from ads)</option>
                     <option value="Calls from ads">Calls from ads</option>
@@ -5018,14 +5018,14 @@ export default function SalesSearchPage() {
                 </div>
 
                 {/* Advanced Options Accordion */}
-                <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-4">
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-4">
                   <div className="flex items-center justify-between cursor-pointer">
                     <span className="font-bold text-blue-400 text-xs">Advanced options</span>
                     <ChevronUp className="h-4 w-4 text-blue-400" />
                   </div>
 
-                  <div className="space-y-3 pt-1 border-t border-slate-800/60">
-                    <span className="font-bold text-slate-200 block text-xs">Days and hours</span>
+                  <div className="space-y-3 pt-1 border-t border-slate-200">
+                    <span className="font-bold text-slate-800 block text-xs">Days and hours</span>
 
                     <div className="space-y-2">
                       {callSchedules.map((sched, idx) => (
@@ -5037,7 +5037,7 @@ export default function SalesSearchPage() {
                               updated[idx].day = e.target.value;
                               setCallSchedules(updated);
                             }}
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                            className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                           >
                             <option value="All days">All days</option>
                             <option value="Mondays - Fridays">Mondays - Fridays</option>
@@ -5058,14 +5058,14 @@ export default function SalesSearchPage() {
                               updated[idx].start = e.target.value;
                               setCallSchedules(updated);
                             }}
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                            className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           >
                             {timeOptions.map((t) => (
                               <option key={t} value={t}>{t}</option>
                             ))}
                           </select>
 
-                          <span className="text-slate-400">to</span>
+                          <span className="text-slate-500">to</span>
 
                           <select
                             value={sched.end}
@@ -5074,7 +5074,7 @@ export default function SalesSearchPage() {
                               updated[idx].end = e.target.value;
                               setCallSchedules(updated);
                             }}
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                            className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           >
                             {timeOptions.map((t) => (
                               <option key={t} value={t}>{t}</option>
@@ -5102,7 +5102,7 @@ export default function SalesSearchPage() {
                       + Add Schedule
                     </button>
 
-                    <div className="space-y-1 text-[11px] text-slate-400 pt-2 border-t border-slate-800/40">
+                    <div className="space-y-1 text-[11px] text-slate-500 pt-2 border-t border-slate-200/40">
                       <p>To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more</a></p>
                       <p className="text-[10px] text-slate-500">Based on account time zone: (GMT+05:30) India Standard Time</p>
                     </div>
@@ -5114,14 +5114,14 @@ export default function SalesSearchPage() {
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow cursor-pointer"
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-slate-900 font-bold text-xs shadow cursor-pointer"
                   >
                     Save
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveModal(null)}
-                    className="px-4 py-2 text-slate-400 hover:text-white font-semibold text-xs cursor-pointer"
+                    className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold text-xs cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -5131,14 +5131,14 @@ export default function SalesSearchPage() {
             </div>
 
             {/* Section 2: Account-level calls */}
-            <div className="space-y-3 pt-4 border-t border-slate-800/80">
+            <div className="space-y-3 pt-4 border-t border-slate-200">
               <div>
-                <h3 className="font-bold text-slate-100 text-sm">Account-level calls</h3>
-                <p className="text-[11px] text-slate-400">The following calls are from your account and will be used in this campaign.</p>
+                <h3 className="font-bold text-slate-900 text-sm">Account-level calls</h3>
+                <p className="text-[11px] text-slate-500">The following calls are from your account and will be used in this campaign.</p>
               </div>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/90 max-w-xs shadow">
-                <span className="font-mono text-xs font-bold text-slate-100 tracking-wider">077099 36965</span>
+              <div className="p-4 rounded-xl border border-slate-200 bg-white max-w-xs shadow">
+                <span className="font-mono text-xs font-bold text-slate-900 tracking-wider">077099 36965</span>
               </div>
             </div>
 
@@ -5148,17 +5148,17 @@ export default function SalesSearchPage() {
 
       {/* ── Create Sitelink Modal Overlay ── */}
       {activeModal === "SITELINKS" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Top Header Bar */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+                className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
-              <h2 className="text-base font-semibold text-white">Create sitelink</h2>
+              <h2 className="text-base font-semibold text-slate-900">Create sitelink</h2>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -5169,7 +5169,7 @@ export default function SalesSearchPage() {
               </button>
               <button
                 onClick={() => setActiveModal(null)}
-                className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
               >
                 Cancel
               </button>
@@ -5183,19 +5183,19 @@ export default function SalesSearchPage() {
             {sitelinks.map((st, idx) => {
               const isOpen = openSitelinkIdx === idx;
               return (
-                <div key={idx} className="rounded-2xl border border-slate-800 bg-slate-900/90 overflow-hidden shadow-xl">
+                <div key={idx} className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
                   {/* Accordion Header */}
                   <div
                     onClick={() => setOpenSitelinkIdx(isOpen ? -1 : idx)}
-                    className="p-4 bg-slate-900/90 flex items-center justify-between cursor-pointer hover:bg-slate-800/60 transition-all"
+                    className="p-4 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-all"
                   >
-                    <span className="font-bold text-slate-100 text-xs">Sitelink {idx + 1}</span>
-                    {isOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                    <span className="font-bold text-slate-900 text-xs">Sitelink {idx + 1}</span>
+                    {isOpen ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
                   </div>
 
                   {/* Accordion Body Form Controls */}
                   {isOpen && (
-                    <div className="p-6 border-t border-slate-800 bg-slate-950 space-y-4 animate-in fade-in duration-150">
+                    <div className="p-6 border-t border-slate-200 bg-slate-50 space-y-4 animate-in fade-in duration-150">
                       
                       {/* Sitelink text */}
                       <div className="space-y-1">
@@ -5210,7 +5210,7 @@ export default function SalesSearchPage() {
                             }}
                             placeholder="Sitelink text"
                             maxLength={25}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-medium"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-medium"
                           />
                         </div>
                         <span className="text-[10px] text-slate-500 block text-right font-mono">{st.text.length} / 25</span>
@@ -5229,7 +5229,7 @@ export default function SalesSearchPage() {
                             }}
                             placeholder="Description line 1 (recommended)"
                             maxLength={35}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary pr-9 font-medium"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary pr-9 font-medium"
                           />
                           <HelpCircle className="absolute right-3.5 top-3 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                         </div>
@@ -5249,7 +5249,7 @@ export default function SalesSearchPage() {
                             }}
                             placeholder="Description line 2 (recommended)"
                             maxLength={35}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-medium"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-medium"
                           />
                         </div>
                         <span className="text-[10px] text-slate-500 block text-right font-mono">{st.desc2.length} / 35</span>
@@ -5267,7 +5267,7 @@ export default function SalesSearchPage() {
                               setSitelinks(updated);
                             }}
                             placeholder="Final URL"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary pr-9 font-mono"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary pr-9 font-mono"
                           />
                           <HelpCircle className="absolute right-3.5 top-3 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                         </div>
@@ -5292,8 +5292,8 @@ export default function SalesSearchPage() {
             </button>
 
             {/* Sitelink URL Options Expandable */}
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-              <div className="flex items-center justify-between cursor-pointer border-b border-slate-800 pb-3">
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+              <div className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-3">
                 <span className="font-bold text-blue-400 text-xs flex items-center gap-1.5">
                   <ChevronUp className="h-4 w-4" /> Sitelink URL options
                 </span>
@@ -5308,7 +5308,7 @@ export default function SalesSearchPage() {
                       value={sitelinkTrackingTemplate}
                       onChange={(e) => setSitelinkTrackingTemplate(e.target.value)}
                       placeholder="Tracking template"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary pr-9 font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary pr-9 font-mono"
                     />
                     <HelpCircle className="absolute right-3.5 top-3 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
@@ -5323,7 +5323,7 @@ export default function SalesSearchPage() {
                       value={sitelinkFinalUrlSuffix}
                       onChange={(e) => setSitelinkFinalUrlSuffix(e.target.value)}
                       placeholder="Final URL suffix"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary pr-9 font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary pr-9 font-mono"
                     />
                     <HelpCircle className="absolute right-3.5 top-3 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
@@ -5332,29 +5332,29 @@ export default function SalesSearchPage() {
 
                 {/* Custom parameter */}
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-slate-300 font-semibold">
+                  <div className="flex items-center gap-1 text-slate-700 font-semibold">
                     <span>Custom parameter</span>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="flex-1 flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
+                    <div className="flex-1 flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                       <span className="text-slate-500 font-mono text-xs pr-1">{`{_`}</span>
                       <input
                         type="text"
                         value={sitelinkCustomParamName}
                         onChange={(e) => setSitelinkCustomParamName(e.target.value)}
                         placeholder="Name"
-                        className="w-full bg-transparent text-xs text-slate-100 focus:outline-none font-mono"
+                        className="w-full bg-transparent text-xs text-slate-900 focus:outline-none font-mono"
                       />
                       <span className="text-slate-500 font-mono text-xs pl-1">{`)`}</span>
                     </div>
-                    <span className="text-slate-400 font-bold">=</span>
+                    <span className="text-slate-500 font-bold">=</span>
                     <input
                       type="text"
                       value={sitelinkCustomParamValue}
                       onChange={(e) => setSitelinkCustomParamValue(e.target.value)}
                       placeholder="Value"
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                     />
                     <button type="button" className="p-2 text-blue-400 hover:text-blue-300">
                       <Plus className="h-4 w-4" />
@@ -5370,14 +5370,14 @@ export default function SalesSearchPage() {
                     onChange={(e) => setUseDifferentMobileUrl(e.target.checked)}
                     className="rounded text-primary h-4 w-4"
                   />
-                  <span className="text-slate-300 font-semibold">Use a different final URL for mobile</span>
+                  <span className="text-slate-700 font-semibold">Use a different final URL for mobile</span>
                 </label>
               </div>
             </div>
 
             {/* Advanced Options Expandable */}
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-              <div className="flex items-center justify-between cursor-pointer border-b border-slate-800 pb-3">
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+              <div className="flex items-center justify-between cursor-pointer border-b border-slate-200 pb-3">
                 <span className="font-bold text-blue-400 text-xs flex items-center gap-1.5">
                   <ChevronUp className="h-4 w-4" /> Advanced options
                 </span>
@@ -5385,15 +5385,15 @@ export default function SalesSearchPage() {
 
               <div className="space-y-4 pt-1 text-xs">
                 <div className="space-y-1">
-                  <h4 className="font-bold text-slate-200">Asset scheduling</h4>
-                  <p className="text-[11px] text-slate-400">Select when your assets will be eligible to show</p>
+                  <h4 className="font-bold text-slate-800">Asset scheduling</h4>
+                  <p className="text-[11px] text-slate-500">Select when your assets will be eligible to show</p>
                 </div>
 
                 {/* Start Date & End Date Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Start Date */}
                   <div className="space-y-2">
-                    <span className="font-semibold text-slate-300 block text-[11px]">Start date</span>
+                    <span className="font-semibold text-slate-700 block text-[11px]">Start date</span>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
@@ -5402,7 +5402,7 @@ export default function SalesSearchPage() {
                         onChange={() => setAssetStartDateMode("NONE")}
                         className="text-primary h-4 w-4"
                       />
-                      <span className="text-slate-300">None</span>
+                      <span className="text-slate-700">None</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -5419,14 +5419,14 @@ export default function SalesSearchPage() {
                           setAssetStartDate(e.target.value);
                           setAssetStartDateMode("CUSTOM");
                         }}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </label>
                   </div>
 
                   {/* End Date */}
                   <div className="space-y-2">
-                    <span className="font-semibold text-slate-300 block text-[11px]">End date</span>
+                    <span className="font-semibold text-slate-700 block text-[11px]">End date</span>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
@@ -5435,7 +5435,7 @@ export default function SalesSearchPage() {
                         onChange={() => setAssetEndDateMode("NONE")}
                         className="text-primary h-4 w-4"
                       />
-                      <span className="text-slate-300">None</span>
+                      <span className="text-slate-700">None</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -5452,15 +5452,15 @@ export default function SalesSearchPage() {
                           setAssetEndDate(e.target.value);
                           setAssetEndDateMode("CUSTOM");
                         }}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </label>
                   </div>
                 </div>
 
                 {/* Days and hours schedule */}
-                <div className="space-y-3 pt-3 border-t border-slate-800/60">
-                  <span className="font-bold text-slate-200 block text-xs">Days and hours</span>
+                <div className="space-y-3 pt-3 border-t border-slate-200">
+                  <span className="font-bold text-slate-800 block text-xs">Days and hours</span>
 
                   <div className="space-y-2">
                     {sitelinkSchedules.map((sched, idx) => (
@@ -5472,7 +5472,7 @@ export default function SalesSearchPage() {
                             updated[idx].day = e.target.value;
                             setSitelinkSchedules(updated);
                           }}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         >
                           <option value="All days">All days</option>
                           <option value="Mondays - Fridays">Mondays - Fridays</option>
@@ -5493,14 +5493,14 @@ export default function SalesSearchPage() {
                             updated[idx].start = e.target.value;
                             setSitelinkSchedules(updated);
                           }}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                         >
                           {["12:00 AM", "01:00 AM", "02:00 AM", "03:00 AM", "04:00 AM", "05:00 AM", "06:00 AM", "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM", "07:00 PM", "08:00 PM", "09:00 PM", "10:00 PM", "11:00 PM"].map(t => (
                             <option key={t} value={t}>{t}</option>
                           ))}
                         </select>
 
-                        <span className="text-slate-400">to</span>
+                        <span className="text-slate-500">to</span>
 
                         <select
                           value={sched.end}
@@ -5509,7 +5509,7 @@ export default function SalesSearchPage() {
                             updated[idx].end = e.target.value;
                             setSitelinkSchedules(updated);
                           }}
-                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-primary"
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                         >
                           {["12:00 AM", "01:00 AM", "02:00 AM", "03:00 AM", "04:00 AM", "05:00 AM", "06:00 AM", "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM", "07:00 PM", "08:00 PM", "09:00 PM", "10:00 PM", "11:00 PM"].map(t => (
                             <option key={t} value={t}>{t}</option>
@@ -5537,7 +5537,7 @@ export default function SalesSearchPage() {
                     + Add Schedule
                   </button>
 
-                  <div className="space-y-1 text-[11px] text-slate-400 pt-2 border-t border-slate-800/40">
+                  <div className="space-y-1 text-[11px] text-slate-500 pt-2 border-t border-slate-200/40">
                     <p>To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-blue-400 hover:underline">Learn more</a></p>
                     <p className="text-[10px] text-slate-500">Based on account time zone: (GMT+05:30) India Standard Time</p>
                   </div>
@@ -5552,38 +5552,38 @@ export default function SalesSearchPage() {
 
       {/* ── Add Promotions to Your Campaign Modal Overlay ── */}
       {activeModal === "PROMOTIONS" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Header */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setActiveModal(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">Add promotions to your campaign</h2>
+            <h2 className="text-base font-semibold text-slate-900">Add promotions to your campaign</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
             <div className="space-y-1">
-              <h3 className="font-bold text-slate-100 text-sm">Campaign-level promotions</h3>
-              <p className="text-[11px] text-slate-400">Add promotions to this campaign. Any promotions added here can be used across campaigns.</p>
+              <h3 className="font-bold text-slate-900 text-sm">Campaign-level promotions</h3>
+              <p className="text-[11px] text-slate-500">Add promotions to this campaign. Any promotions added here can be used across campaigns.</p>
             </div>
 
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
               <div className="space-y-1">
-                <span className="font-bold text-slate-200 text-xs block">Add new promotion</span>
+                <span className="font-bold text-slate-800 text-xs block">Add new promotion</span>
                 
                 {/* Occasion */}
                 <div className="space-y-1 max-w-xs pt-1">
-                  <div className="flex items-center gap-1 text-slate-300 font-semibold">
+                  <div className="flex items-center gap-1 text-slate-700 font-semibold">
                     <span>Occasion</span>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
                   <select
                     value={promoOccasion}
                     onChange={(e) => setPromoOccasion(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     <option value="None">None</option>
                     <option value="New Year's">New Year's</option>
@@ -5605,11 +5605,11 @@ export default function SalesSearchPage() {
               {/* Language & Currency */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-300">Language</label>
+                  <label className="block font-semibold text-slate-700">Language</label>
                   <select
                     value={promoLanguage}
                     onChange={(e) => setPromoLanguage(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     <option value="English">English</option>
                     <option value="Spanish">Spanish</option>
@@ -5620,14 +5620,14 @@ export default function SalesSearchPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-slate-300 font-semibold">
+                  <div className="flex items-center gap-1 text-slate-700 font-semibold">
                     <span>Currency</span>
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                   </div>
                   <select
                     value={promoCurrency}
                     onChange={(e) => setPromoCurrency(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     <option value="USD">USD</option>
                     <option value="INR">INR</option>
@@ -5641,7 +5641,7 @@ export default function SalesSearchPage() {
 
               {/* Promotion type */}
               <div className="space-y-1 max-w-xl">
-                <div className="flex items-center gap-1 text-slate-300 font-semibold">
+                <div className="flex items-center gap-1 text-slate-700 font-semibold">
                   <span>Promotion type</span>
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
@@ -5649,14 +5649,14 @@ export default function SalesSearchPage() {
                   <select
                     value={promoType}
                     onChange={(e) => setPromoType(e.target.value as "MONETARY" | "PERCENT")}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     <option value="MONETARY">Monetary discount</option>
                     <option value="PERCENT">Percent discount</option>
                   </select>
 
                   <div className="relative">
-                    <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-mono">
+                    <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">
                       {promoType === "MONETARY" ? "$" : "%"}
                     </span>
                     <input
@@ -5664,7 +5664,7 @@ export default function SalesSearchPage() {
                       value={promoValue}
                       onChange={(e) => setPromoValue(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                     />
                   </div>
                 </div>
@@ -5679,7 +5679,7 @@ export default function SalesSearchPage() {
                     onChange={(e) => setPromoItem(e.target.value)}
                     placeholder="Item"
                     maxLength={20}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary pr-9 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary pr-9 font-medium"
                   />
                   <HelpCircle className="absolute right-3.5 top-3 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
@@ -5694,7 +5694,7 @@ export default function SalesSearchPage() {
                     value={promoFinalUrl}
                     onChange={(e) => setPromoFinalUrl(e.target.value)}
                     placeholder="Final URL"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary pr-9 font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary pr-9 font-mono"
                   />
                   <HelpCircle className="absolute right-3.5 top-3 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
@@ -5702,14 +5702,14 @@ export default function SalesSearchPage() {
 
               {/* Promotion details */}
               <div className="space-y-1 max-w-xs">
-                <div className="flex items-center gap-1 text-slate-300 font-semibold">
+                <div className="flex items-center gap-1 text-slate-700 font-semibold">
                   <span>Promotion details</span>
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
                 <select
                   value={promoDetails}
                   onChange={(e) => setPromoDetails(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                 >
                   <option value="None">None</option>
                   <option value="On orders over">On orders over</option>
@@ -5718,17 +5718,17 @@ export default function SalesSearchPage() {
               </div>
 
               {/* Displayed promotion dates */}
-              <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                <div className="flex items-center gap-1 text-slate-300 font-semibold">
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <div className="flex items-center gap-1 text-slate-700 font-semibold">
                   <span>Displayed promotion dates</span>
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
-                <span className="text-[11px] text-slate-400 block">Show the dates of your promotion</span>
+                <span className="text-[11px] text-slate-500 block">Show the dates of your promotion</span>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-xl">
                   {/* Start Date */}
                   <div className="space-y-2">
-                    <span className="font-semibold text-slate-300 block text-[11px]">Start date</span>
+                    <span className="font-semibold text-slate-700 block text-[11px]">Start date</span>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
@@ -5737,7 +5737,7 @@ export default function SalesSearchPage() {
                         onChange={() => setPromoStartDateMode("NONE")}
                         className="text-primary h-4 w-4"
                       />
-                      <span className="text-slate-300">None</span>
+                      <span className="text-slate-700">None</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -5754,14 +5754,14 @@ export default function SalesSearchPage() {
                           setPromoStartDate(e.target.value);
                           setPromoStartDateMode("CUSTOM");
                         }}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </label>
                   </div>
 
                   {/* End Date */}
                   <div className="space-y-2">
-                    <span className="font-semibold text-slate-300 block text-[11px]">End date</span>
+                    <span className="font-semibold text-slate-700 block text-[11px]">End date</span>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
@@ -5770,7 +5770,7 @@ export default function SalesSearchPage() {
                         onChange={() => setPromoEndDateMode("NONE")}
                         className="text-primary h-4 w-4"
                       />
-                      <span className="text-slate-300">None</span>
+                      <span className="text-slate-700">None</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -5787,7 +5787,7 @@ export default function SalesSearchPage() {
                           setPromoEndDate(e.target.value);
                           setPromoEndDateMode("CUSTOM");
                         }}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </label>
                   </div>
@@ -5795,7 +5795,7 @@ export default function SalesSearchPage() {
               </div>
 
               {/* Save / Cancel */}
-              <div className="flex items-center gap-4 pt-3 border-t border-slate-800/80">
+              <div className="flex items-center gap-4 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
@@ -5806,7 +5806,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -5819,25 +5819,25 @@ export default function SalesSearchPage() {
 
       {/* ── Add Callouts to Your Campaign Modal Overlay ── */}
       {activeModal === "CALLOUTS" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setActiveModal(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">Add callouts to your campaign</h2>
+            <h2 className="text-base font-semibold text-slate-900">Add callouts to your campaign</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
             <div className="space-y-1">
-              <h3 className="font-bold text-slate-100 text-sm">Campaign-level callouts</h3>
-              <p className="text-[11px] text-slate-400">Add callouts to this campaign. Any callouts added here can be used across campaigns.</p>
+              <h3 className="font-bold text-slate-900 text-sm">Campaign-level callouts</h3>
+              <p className="text-[11px] text-slate-500">Add callouts to this campaign. Any callouts added here can be used across campaigns.</p>
             </div>
 
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
-              <span className="font-bold text-slate-200 text-xs block">Add new callout</span>
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+              <span className="font-bold text-slate-800 text-xs block">Add new callout</span>
 
               <div className="space-y-4 max-w-xl">
                 {calloutInputList.map((text, idx) => (
@@ -5852,7 +5852,7 @@ export default function SalesSearchPage() {
                       }}
                       placeholder={`Callout text ${idx + 1}`}
                       maxLength={25}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                     />
                     <span className="text-[10px] text-slate-500 block text-right font-mono">{text.length} / 25</span>
                   </div>
@@ -5868,7 +5868,7 @@ export default function SalesSearchPage() {
               </div>
 
               {/* Form Buttons */}
-              <div className="flex items-center gap-4 pt-4 border-t border-slate-800/80">
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => {
@@ -5882,7 +5882,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -5894,22 +5894,22 @@ export default function SalesSearchPage() {
 
       {/* ── Create Structured Snippet Modal Overlay ── */}
       {activeModal === "SNIPPETS" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setActiveModal(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">Create structured snippet</h2>
+            <h2 className="text-base font-semibold text-slate-900">Create structured snippet</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
               {/* Header */}
               <div className="space-y-2">
-                <div className="flex items-center gap-1 text-slate-200 font-bold text-xs">
+                <div className="flex items-center gap-1 text-slate-800 font-bold text-xs">
                   <span>Header</span>
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
@@ -5917,7 +5917,7 @@ export default function SalesSearchPage() {
                   <select
                     value={snippetLanguage}
                     onChange={(e) => setSnippetLanguage(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     {[
                       "Arabic", "Bulgarian", "Catalan", "Chinese (Hong Kong)", "Chinese (Simplified)",
@@ -5937,7 +5937,7 @@ export default function SalesSearchPage() {
                   <select
                     value={snippetHeaderType}
                     onChange={(e) => setSnippetHeaderType(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     <option value="Select header type">Select header type</option>
                     <option value="Amenities">Amenities</option>
@@ -5959,7 +5959,7 @@ export default function SalesSearchPage() {
 
               {/* Values */}
               <div className="space-y-3">
-                <div className="flex items-center gap-1 text-slate-200 font-bold text-xs">
+                <div className="flex items-center gap-1 text-slate-800 font-bold text-xs">
                   <span>Values</span>
                   <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                 </div>
@@ -5978,7 +5978,7 @@ export default function SalesSearchPage() {
                           }}
                           placeholder={`Value ${idx + 1}`}
                           maxLength={25}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary font-medium"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
                         />
                         <button
                           type="button"
@@ -6002,7 +6002,7 @@ export default function SalesSearchPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 pt-4 border-t border-slate-800/80">
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
@@ -6013,7 +6013,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -6026,24 +6026,24 @@ export default function SalesSearchPage() {
 
       {/* ── Create Lead Form Modal Overlay ── */}
       {activeModal === "LEAD_FORMS" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Top Header */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setActiveModal(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">Add a lead form to your campaign</h2>
+            <h2 className="text-base font-semibold text-slate-900">Add a lead form to your campaign</h2>
           </div>
 
           {/* Scrollable Container with Split-screen columns */}
           <div className="flex-1 overflow-y-auto p-6 md:p-10 w-full mx-auto space-y-6">
             <div className="max-w-6xl mx-auto">
               <div className="space-y-1 pb-4">
-                <h3 className="font-bold text-slate-100 text-sm">Campaign-level lead forms</h3>
-                <p className="text-[11px] text-slate-400">Add lead forms to this campaign. Any lead forms added here can be used across campaigns.</p>
+                <h3 className="font-bold text-slate-900 text-sm">Campaign-level lead forms</h3>
+                <p className="text-[11px] text-slate-500">Add lead forms to this campaign. Any lead forms added here can be used across campaigns.</p>
               </div>
 
               {/* Grid split: 60% Left form inputs, 40% Right sticky preview */}
@@ -6053,18 +6053,18 @@ export default function SalesSearchPage() {
                 <div className="lg:col-span-7 space-y-6">
                   
                   {/* Card 1: Create your lead form */}
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                    <h4 className="font-bold text-slate-200 border-b border-slate-800/60 pb-1 text-xs">Create your lead form</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Create your lead form</h4>
                     
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Headline</label>
+                      <label className="block text-slate-700 font-semibold">Headline</label>
                       <input
                         type="text"
                         maxLength={30}
                         value={lfHeadline}
                         onChange={(e) => setLfHeadline(e.target.value)}
                         placeholder="Headline"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <span className="text-[10px] text-slate-500 block font-mono">
                         {lfHeadline.length} / 30 (Text is {lfHeadline.length} characters out of 30)
@@ -6072,14 +6072,14 @@ export default function SalesSearchPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Business name</label>
+                      <label className="block text-slate-700 font-semibold">Business name</label>
                       <input
                         type="text"
                         maxLength={25}
                         value={lfBusinessName}
                         onChange={(e) => setLfBusinessName(e.target.value)}
                         placeholder="Business name"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <span className="text-[10px] text-slate-500 block font-mono">
                         {lfBusinessName.length} / 25 (Text is {lfBusinessName.length} characters out of 25)
@@ -6087,14 +6087,14 @@ export default function SalesSearchPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Description</label>
+                      <label className="block text-slate-700 font-semibold">Description</label>
                       <textarea
                         rows={3}
                         maxLength={200}
                         value={lfDescription}
                         onChange={(e) => setLfDescription(e.target.value)}
                         placeholder="Description"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <span className="text-[10px] text-slate-500 block text-right font-mono">
                         {lfDescription.length} / 200 (Text is {lfDescription.length} characters out of 200)
@@ -6103,18 +6103,18 @@ export default function SalesSearchPage() {
                   </div>
 
                   {/* Card 2: Questions */}
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
-                    <h4 className="font-bold text-slate-200 border-b border-slate-800/60 pb-1 text-xs">Questions</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
+                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Questions</h4>
 
                     {/* Contact information */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <h5 className="font-semibold text-slate-300">Contact information</h5>
-                        <span className="text-[11px] text-slate-400">Add Field (Optional)</span>
+                        <h5 className="font-semibold text-slate-700">Contact information</h5>
+                        <span className="text-[11px] text-slate-500">Add Field (Optional)</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
                         {Object.keys(lfContactFields).map((field) => (
-                          <div key={field} className="space-y-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                          <div key={field} className="space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <label className="flex items-center justify-between cursor-pointer">
                               <div className="flex items-center gap-2">
                                 <input
@@ -6123,14 +6123,14 @@ export default function SalesSearchPage() {
                                   onChange={(e) => setLfContactFields({ ...lfContactFields, [field]: e.target.checked })}
                                   className="rounded text-primary h-3.5 w-3.5"
                                 />
-                                <span className="text-slate-200 font-medium">{field}</span>
+                                <span className="text-slate-800 font-medium">{field}</span>
                               </div>
-                              <span className="text-[10px] text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">Pre-filled</span>
+                              <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">Pre-filled</span>
                             </label>
 
                             {/* Name Options */}
                             {field === "Name" && lfContactFields["Name"] && (
-                              <div className="pl-6 pt-1 flex items-center gap-3 text-[10px] text-slate-400 border-t border-slate-900 mt-1">
+                              <div className="pl-6 pt-1 flex items-center gap-3 text-[10px] text-slate-500 border-t border-slate-900 mt-1">
                                 <label className="flex items-center gap-1 cursor-pointer">
                                   <input
                                     type="radio"
@@ -6159,14 +6159,14 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Work information */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
                       <div className="flex items-center justify-between">
-                        <h5 className="font-semibold text-slate-300">Work information</h5>
-                        <span className="text-[11px] text-slate-400">Add Field (Optional)</span>
+                        <h5 className="font-semibold text-slate-700">Work information</h5>
+                        <span className="text-[11px] text-slate-500">Add Field (Optional)</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
                         {Object.keys(lfWorkFields).map((field) => (
-                          <label key={field} className="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 hover:bg-slate-900 cursor-pointer">
+                          <label key={field} className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 hover:bg-white cursor-pointer">
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -6174,53 +6174,53 @@ export default function SalesSearchPage() {
                                 onChange={(e) => setLfWorkFields({ ...lfWorkFields, [field]: e.target.checked })}
                                 className="rounded text-primary h-3.5 w-3.5"
                               />
-                              <span className="text-slate-200 font-medium">{field}</span>
+                              <span className="text-slate-800 font-medium">{field}</span>
                             </div>
-                            <span className="text-[10px] text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">Optional</span>
+                            <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">Optional</span>
                           </label>
                         ))}
                       </div>
                     </div>
 
                     {/* Additional information */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
                       <div className="flex items-center justify-between">
-                        <h5 className="font-semibold text-slate-300">Additional information</h5>
-                        <span className="text-[11px] text-slate-400">Add Field (Optional)</span>
+                        <h5 className="font-semibold text-slate-700">Additional information</h5>
+                        <span className="text-[11px] text-slate-500">Add Field (Optional)</span>
                       </div>
                       <div className="space-y-2">
-                        <label className="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 cursor-pointer max-w-md">
+                        <label className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 cursor-pointer max-w-md">
                           <input
                             type="checkbox"
                             checked={lfAgeQuestion}
                             onChange={(e) => setLfAgeQuestion(e.target.checked)}
                             className="rounded text-primary h-3.5 w-3.5"
                           />
-                          <span className="text-slate-200 text-xs">Are you over</span>
+                          <span className="text-slate-800 text-xs">Are you over</span>
                           <select
                             value={lfAgeYears}
                             onChange={(e) => setLfAgeYears(e.target.value)}
-                            className="bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-xs text-slate-100 font-mono"
+                            className="bg-white border border-slate-200 rounded px-2 py-0.5 text-xs text-slate-900 font-mono"
                           >
                             {["18", "19", "20", "21", "25"].map((yr) => (
                               <option key={yr} value={yr}>{yr}</option>
                             ))}
                           </select>
-                          <span className="text-slate-200 text-xs">years of age?</span>
+                          <span className="text-slate-800 text-xs">years of age?</span>
                         </label>
                       </div>
                     </div>
 
                     {/* Custom questions */}
-                    <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                    <div className="space-y-3 pt-2 border-t border-slate-200">
                       <div className="flex items-center justify-between">
-                        <h5 className="font-semibold text-slate-300">Custom questions</h5>
+                        <h5 className="font-semibold text-slate-700">Custom questions</h5>
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-400">Language:</span>
+                          <span className="text-[11px] text-slate-500">Language:</span>
                           <select
                             value={lfCustomLanguage}
                             onChange={(e) => setLfCustomLanguage(e.target.value)}
-                            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-100"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900"
                           >
                             {[
                               "Arabic", "Bulgarian", "Catalan", "Chinese (Hong Kong)", "Chinese (Simplified)", "Chinese (Traditional)",
@@ -6235,7 +6235,7 @@ export default function SalesSearchPage() {
                         </div>
                       </div>
 
-                      <p className="text-[11px] text-slate-400">Setup lead scoring by choosing 1 question to qualify form submits as a strong lead for your business.</p>
+                      <p className="text-[11px] text-slate-500">Setup lead scoring by choosing 1 question to qualify form submits as a strong lead for your business.</p>
 
                       {/* Added custom questions list */}
                       {lfCustomQuestions.map((cq, idx) => (
@@ -6249,9 +6249,9 @@ export default function SalesSearchPage() {
                               setLfCustomQuestions(updated);
                             }}
                             placeholder={`Custom Question ${idx + 1}`}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none"
                           />
-                          <button type="button" onClick={() => setLfCustomQuestions(prev => prev.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-rose-400">
+                          <button type="button" onClick={() => setLfCustomQuestions(prev => prev.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400">
                             <X className="h-4 w-4" />
                           </button>
                         </div>
@@ -6269,69 +6269,69 @@ export default function SalesSearchPage() {
                   </div>
 
                   {/* Card 3: Privacy Policy & Background Image */}
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                    <h4 className="font-bold text-slate-200 border-b border-slate-800/60 pb-1 text-xs">Privacy & Design</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Privacy & Design</h4>
                     
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Privacy policy URL</label>
+                      <label className="block text-slate-700 font-semibold">Privacy policy URL</label>
                       <input
                         type="url"
                         value={lfPrivacyPolicyUrl}
                         onChange={(e) => setLfPrivacyPolicyUrl(e.target.value)}
                         placeholder="https://example.com/privacy"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Background image URL</label>
+                      <label className="block text-slate-700 font-semibold">Background image URL</label>
                       <input
                         type="url"
                         value={lfBackgroundImage}
                         onChange={(e) => setLfBackgroundImage(e.target.value)}
                         placeholder="https://example.com/bg-image.jpg"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-primary"
                       />
                     </div>
                   </div>
 
                   {/* Card 4: Form Submission Message */}
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                    <h4 className="font-bold text-slate-200 border-b border-slate-800/60 pb-1 text-xs">Create form submission message</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Create form submission message</h4>
                     
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Headline</label>
+                      <label className="block text-slate-700 font-semibold">Headline</label>
                       <input
                         type="text"
                         maxLength={30}
                         value={lfSubHeadline}
                         onChange={(e) => setLfSubHeadline(e.target.value)}
                         placeholder="Thank you."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <span className="text-[10px] text-slate-500 block font-mono">{lfSubHeadline.length} / 30 (Text is {lfSubHeadline.length} characters out of 30)</span>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Description</label>
+                      <label className="block text-slate-700 font-semibold">Description</label>
                       <textarea
                         rows={2}
                         maxLength={200}
                         value={lfSubDescription}
                         onChange={(e) => setLfSubDescription(e.target.value)}
                         placeholder="We'll contact you soon."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <span className="text-[10px] text-slate-500 block text-right font-mono">{lfSubDescription.length} / 200 (Text is {lfSubDescription.length} characters out of 200)</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-slate-300 font-semibold mb-1">Call-to-action</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Call-to-action</label>
                         <select
                           value={lfSubCta}
                           onChange={(e) => setLfSubCta(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
                         >
                           {["None", "Visit site", "Download", "Learn more", "Shop now"].map((cta, idx) => (
                             <option key={idx} value={cta}>{cta}</option>
@@ -6339,32 +6339,32 @@ export default function SalesSearchPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-slate-300 font-semibold mb-1">Call-to-action URL</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Call-to-action URL</label>
                         <input
                           type="url"
                           value={lfSubCtaUrl}
                           onChange={(e) => setLfSubCtaUrl(e.target.value)}
                           placeholder="https://example.com/thank-you"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Card 5: Select a call-to-action for your ad */}
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                     <div>
-                      <h4 className="font-bold text-slate-200 text-xs">Select a call-to-action for your ad</h4>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">Select a compelling call-to-action that empowers people to engage with your business or service</p>
+                      <h4 className="font-bold text-slate-800 text-xs">Select a call-to-action for your ad</h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">Select a compelling call-to-action that empowers people to engage with your business or service</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-slate-300 font-semibold mb-1">Call-to-action</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Call-to-action</label>
                         <select
                           value={lfAdCta}
                           onChange={(e) => setLfAdCta(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
                         >
                           {[
                             "Apply now", "Book now", "Contact us", "Download", "Get info", "Get offer",
@@ -6376,14 +6376,14 @@ export default function SalesSearchPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-slate-300 font-semibold mb-1">Call-to-action description</label>
+                        <label className="block text-slate-700 font-semibold mb-1">Call-to-action description</label>
                         <input
                           type="text"
                           maxLength={30}
                           value={lfAdCtaDescription}
                           onChange={(e) => setLfAdCtaDescription(e.target.value)}
                           placeholder="Call-to-action description"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
                         />
                         <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                           <span>Text is {lfAdCtaDescription.length} characters out of 30</span>
@@ -6394,104 +6394,104 @@ export default function SalesSearchPage() {
                   </div>
 
                   {/* Card 6: Lead Delivery Options */}
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                    <h4 className="font-bold text-slate-200 text-xs border-b border-slate-800 pb-1">Lead delivery option</h4>
-                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-[11px] text-slate-300 space-y-1">
-                      <span className="font-semibold block text-slate-100">Download collected leads in ad extensions table</span>
-                      <p className="text-slate-400">You can only download leads that've been collected within the last 30 days</p>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <h4 className="font-bold text-slate-800 text-xs border-b border-slate-200 pb-1">Lead delivery option</h4>
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 space-y-1">
+                      <span className="font-semibold block text-slate-900">Download collected leads in ad extensions table</span>
+                      <p className="text-slate-500">You can only download leads that've been collected within the last 30 days</p>
                     </div>
 
                     <div className="space-y-3 pt-2">
-                      <h5 className="font-semibold text-slate-300 text-xs">Webhook integration (optional)</h5>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <h5 className="font-semibold text-slate-700 text-xs">Webhook integration (optional)</h5>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
                         Send lead form data directly to your CRM software in real time. Otherwise, you can download data from the extensions table. <a href="https://support.google.com/google-ads/answer/10089407?hl=en_US" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">Learn more</a>
                       </p>
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[11px] text-slate-400 font-semibold mb-1">Webhook URL</label>
+                          <label className="block text-[11px] text-slate-500 font-semibold mb-1">Webhook URL</label>
                           <input
                             type="url"
                             value={lfWebhookUrl}
                             onChange={(e) => setLfWebhookUrl(e.target.value)}
                             placeholder="https://example.com/webhook"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-400 font-semibold mb-1">Key</label>
+                          <label className="block text-[11px] text-slate-500 font-semibold mb-1">Key</label>
                           <input
                             type="text"
                             maxLength={50}
                             value={lfWebhookKey}
                             onChange={(e) => setLfWebhookKey(e.target.value)}
                             placeholder="Key"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
                           />
                         </div>
                       </div>
 
-                      <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-1 text-[11px]">
-                        <span className="font-semibold text-slate-300 block">Don't have a webhook?</span>
-                        <p className="text-slate-400">
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-[11px]">
+                        <span className="font-semibold text-slate-700 block">Don't have a webhook?</span>
+                        <p className="text-slate-500">
                           Zapier allows you to quickly connect your lead form with over 3,000 apps. <a href="https://zapier.com/apps/google-ads/integrations" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">Connect with Zapier</a>
                         </p>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
-                      <h5 className="font-semibold text-slate-300 text-xs">Notifications (optional)</h5>
-                      <p className="text-[11px] text-slate-400">To get an email notification for every lead, enter 1 or more email addresses.</p>
+                    <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                      <h5 className="font-semibold text-slate-700 text-xs">Notifications (optional)</h5>
+                      <p className="text-[11px] text-slate-500">To get an email notification for every lead, enter 1 or more email addresses.</p>
                       <input
                         type="text"
                         value={lfNotificationEmails}
                         onChange={(e) => setLfNotificationEmails(e.target.value)}
                         placeholder="email@example.com"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none"
                       />
                     </div>
                   </div>
 
                   {/* Card 7: Lead Form Type & Terms */}
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
                     <div>
-                      <h4 className="font-bold text-slate-200 text-xs">Lead form type</h4>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">Optimize for leads with higher intent or for more leads overall. <a href="https://support.google.com/google-ads/answer/10089406?hl=en_US#optimization" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">Learn more</a></p>
+                      <h4 className="font-bold text-slate-800 text-xs">Lead form type</h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">Optimize for leads with higher intent or for more leads overall. <a href="https://support.google.com/google-ads/answer/10089406?hl=en_US#optimization" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">Learn more</a></p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <label className={`p-3.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${lfFormType === "MORE_VOLUME" ? "border-primary bg-primary/10" : "border-slate-800 bg-slate-950 hover:bg-slate-900/40"}`}>
+                      <label className={`p-3.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${lfFormType === "MORE_VOLUME" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:bg-white/40"}`}>
                         <div className="flex items-center gap-2">
                           <input type="radio" name="lfFormType" checked={lfFormType === "MORE_VOLUME"} onChange={() => setLfFormType("MORE_VOLUME")} className="text-primary" />
-                          <span className="font-bold text-slate-200 text-xs">More volume</span>
+                          <span className="font-bold text-slate-800 text-xs">More volume</span>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1.5">This may result in leads with lower intent.</p>
+                        <p className="text-[10px] text-slate-500 mt-1.5">This may result in leads with lower intent.</p>
                       </label>
 
-                      <label className={`p-3.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${lfFormType === "MORE_QUALIFIED" ? "border-primary bg-primary/10" : "border-slate-800 bg-slate-950 hover:bg-slate-900/40"}`}>
+                      <label className={`p-3.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${lfFormType === "MORE_QUALIFIED" ? "border-primary bg-primary/10" : "border-slate-200 bg-slate-50 hover:bg-white/40"}`}>
                         <div className="flex items-center gap-2">
                           <input type="radio" name="lfFormType" checked={lfFormType === "MORE_QUALIFIED"} onChange={() => setLfFormType("MORE_QUALIFIED")} className="text-primary" />
-                          <span className="font-bold text-slate-200 text-xs">More qualified</span>
+                          <span className="font-bold text-slate-800 text-xs">More qualified</span>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1.5">This may result in fewer leads or a higher cost per lead.</p>
+                        <p className="text-[10px] text-slate-500 mt-1.5">This may result in fewer leads or a higher cost per lead.</p>
                       </label>
                     </div>
 
-                    <p className="text-[10px] text-slate-500 pt-2 border-t border-slate-800/60">
+                    <p className="text-[10px] text-slate-500 pt-2 border-t border-slate-200">
                       To create new lead form extensions, accept the Terms of Service.
                     </p>
                   </div>
 
                   {/* Optimize conversion checkbox */}
-                  <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-slate-800 bg-slate-900/30">
+                  <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border border-slate-200 bg-white/30">
                     <input
                       type="checkbox"
                       checked={optimizeForMessageAds}
                       onChange={(e) => setOptimizeForMessageAds(e.target.checked)}
                       className="mt-0.5 rounded text-primary h-4 w-4"
                     />
-                    <span className="text-slate-300 leading-relaxed">
-                      Optimize your campaign for lead form submissions. This will add a <strong className="text-slate-100 font-bold">submit lead form</strong> conversion action to your campaign. <a href="https://support.google.com/google-ads/answer/10995103?hl=en_US" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline font-semibold">Learn more about conversions</a>
+                    <span className="text-slate-700 leading-relaxed">
+                      Optimize your campaign for lead form submissions. This will add a <strong className="text-slate-900 font-bold">submit lead form</strong> conversion action to your campaign. <a href="https://support.google.com/google-ads/answer/10995103?hl=en_US" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline font-semibold">Learn more about conversions</a>
                     </span>
                   </label>
 
@@ -6499,40 +6499,40 @@ export default function SalesSearchPage() {
 
                 {/* Right Column (Sticky Smartphone Preview) */}
                 <div className="lg:col-span-5 lg:sticky lg:top-8">
-                  <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-4 shadow-xl">
-                    <span className="font-bold text-slate-200 text-xs block pb-1 border-b border-slate-800/60">Preview</span>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <span className="font-bold text-slate-800 text-xs block pb-1 border-b border-slate-200">Preview</span>
                     
                     {/* Smartphone Mockup Body */}
-                    <div className="relative mx-auto max-w-[280px] rounded-[32px] border-4 border-slate-800 bg-slate-950 p-4 shadow-2xl text-left space-y-3">
+                    <div className="relative mx-auto max-w-[280px] rounded-[32px] border-4 border-slate-200 bg-slate-50 p-4 shadow-md text-left space-y-3">
                       {/* Form Header */}
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">{lfBusinessName || "Business name"}</span>
-                        <h4 className="text-xs font-bold text-slate-200">{lfHeadline || "Headline"}</h4>
-                        <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-3">{lfDescription || "Description text goes here..."}</p>
+                        <h4 className="text-xs font-bold text-slate-800">{lfHeadline || "Headline"}</h4>
+                        <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-3">{lfDescription || "Description text goes here..."}</p>
                       </div>
 
                       {/* Form Fields Preview */}
-                      <div className="space-y-2 pt-2 border-t border-slate-800">
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
                         {lfContactFields["Name"] && (
                           <div className="space-y-1">
-                            <span className="text-[9px] text-slate-400 font-medium">Full name</span>
-                            <div className="w-full h-8 bg-slate-900 rounded-lg border border-slate-800 px-3 flex items-center text-[10px] text-slate-600 select-none">
+                            <span className="text-[9px] text-slate-500 font-medium">Full name</span>
+                            <div className="w-full h-8 bg-white rounded-lg border border-slate-200 px-3 flex items-center text-[10px] text-slate-600 select-none">
                               John Doe
                             </div>
                           </div>
                         )}
                         {lfContactFields["Email"] && (
                           <div className="space-y-1">
-                            <span className="text-[9px] text-slate-400 font-medium">Email</span>
-                            <div className="w-full h-8 bg-slate-900 rounded-lg border border-slate-800 px-3 flex items-center text-[10px] text-slate-600 select-none">
+                            <span className="text-[9px] text-slate-500 font-medium">Email</span>
+                            <div className="w-full h-8 bg-white rounded-lg border border-slate-200 px-3 flex items-center text-[10px] text-slate-600 select-none">
                               johndoe@example.com
                             </div>
                           </div>
                         )}
                         {lfContactFields["Phone number"] && (
                           <div className="space-y-1">
-                            <span className="text-[9px] text-slate-400 font-medium">Phone number</span>
-                            <div className="w-full h-8 bg-slate-900 rounded-lg border border-slate-800 px-3 flex items-center text-[10px] text-slate-600 select-none">
+                            <span className="text-[9px] text-slate-500 font-medium">Phone number</span>
+                            <div className="w-full h-8 bg-white rounded-lg border border-slate-200 px-3 flex items-center text-[10px] text-slate-600 select-none">
                               +91 98765 43210
                             </div>
                           </div>
@@ -6541,8 +6541,8 @@ export default function SalesSearchPage() {
                         {/* Dynamic fields showing in preview */}
                         {Object.keys(lfContactFields).filter(f => f !== "Name" && f !== "Email" && f !== "Phone number" && lfContactFields[f]).map(field => (
                           <div key={field} className="space-y-1 animate-in fade-in duration-100">
-                            <span className="text-[9px] text-slate-400 font-medium">{field}</span>
-                            <div className="w-full h-8 bg-slate-900 rounded-lg border border-slate-800 px-3 flex items-center text-[10px] text-slate-600 select-none">
+                            <span className="text-[9px] text-slate-500 font-medium">{field}</span>
+                            <div className="w-full h-8 bg-white rounded-lg border border-slate-200 px-3 flex items-center text-[10px] text-slate-600 select-none">
                               Value for {field}
                             </div>
                           </div>
@@ -6551,7 +6551,7 @@ export default function SalesSearchPage() {
 
                       {/* Disclosure */}
                       <p className="text-[8px] text-slate-500 leading-normal pt-2 border-t border-slate-900">
-                        By submitting, you agree to send your info to <span className="font-semibold text-slate-400">{lfBusinessName || "Business name"}</span> so they can contact you about the above request. <span className="font-semibold text-slate-400">{lfBusinessName || "Business name"}</span> agrees to use your info in accordance with their privacy policy. Google will not use the content of your responses for ads targeting or measurement. Google may otherwise use your submission in accordance with our privacy policy.
+                        By submitting, you agree to send your info to <span className="font-semibold text-slate-500">{lfBusinessName || "Business name"}</span> so they can contact you about the above request. <span className="font-semibold text-slate-500">{lfBusinessName || "Business name"}</span> agrees to use your info in accordance with their privacy policy. Google will not use the content of your responses for ads targeting or measurement. Google may otherwise use your submission in accordance with our privacy policy.
                       </p>
 
                       {/* Submit button */}
@@ -6584,7 +6584,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -6597,31 +6597,31 @@ export default function SalesSearchPage() {
 
       {/* ── Add Messages to Your Campaign Modal Overlay ── */}
       {activeModal === "MESSAGES" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setActiveModal(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">Add messages to your campaign</h2>
+            <h2 className="text-base font-semibold text-slate-900">Add messages to your campaign</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-4xl w-full mx-auto space-y-6">
             <div className="space-y-1">
-              <h3 className="font-bold text-slate-100 text-sm">Campaign-level messages</h3>
-              <p className="text-[11px] text-slate-400">Add messages to this campaign. Any messages added here can be used across campaigns.</p>
+              <h3 className="font-bold text-slate-900 text-sm">Campaign-level messages</h3>
+              <p className="text-[11px] text-slate-500">Add messages to this campaign. Any messages added here can be used across campaigns.</p>
             </div>
 
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <span className="font-bold text-slate-200 text-xs block">Set up your message asset</span>
+                  <span className="font-bold text-slate-800 text-xs block">Set up your message asset</span>
                   <select
                     value={selectedMessagePlatform}
                     onChange={(e) => setSelectedMessagePlatform(e.target.value)}
-                    className="w-full max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                    className="w-full max-w-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary"
                   >
                     <option value="Select message platform">Select message platform</option>
                     <option value="WhatsApp">WhatsApp</option>
@@ -6631,13 +6631,13 @@ export default function SalesSearchPage() {
                 </div>
 
                 {selectedMessagePlatform === "WhatsApp" && (
-                  <div className="space-y-4 p-5 rounded-xl border border-slate-800 bg-slate-950 max-w-xl animate-in fade-in duration-150">
-                    <span className="font-bold text-slate-200 block text-xs">WhatsApp phone number</span>
+                  <div className="space-y-4 p-5 rounded-xl border border-slate-200 bg-slate-50 max-w-xl animate-in fade-in duration-150">
+                    <span className="font-bold text-slate-800 block text-xs">WhatsApp phone number</span>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <select
                         value={msgCountry}
                         onChange={(e) => setMsgCountry(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       >
                         <option value="India (+91)">India (+91)</option>
                         <option value="United States (+1)">United States (+1)</option>
@@ -6652,7 +6652,7 @@ export default function SalesSearchPage() {
                           value={msgPhone}
                           onChange={(e) => setMsgPhone(e.target.value)}
                           placeholder="WhatsApp phone number"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary font-mono"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-mono"
                         />
                         <HelpCircle className="absolute right-3.5 top-2.5 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                       </div>
@@ -6663,14 +6663,14 @@ export default function SalesSearchPage() {
 
                     {/* Starter Message */}
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Starter message</label>
+                      <label className="block text-slate-700 font-semibold">Starter message</label>
                       <textarea
                         rows={2}
                         maxLength={140}
                         value={msgStarterMessage}
                         onChange={(e) => setMsgStarterMessage(e.target.value)}
                         placeholder="Can I get started with a delivery?"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                         <span>Text is {msgStarterMessage.length} characters out of 140</span>
@@ -6679,18 +6679,18 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Call To Action */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
                       <div>
-                        <label className="block text-slate-300 font-semibold">Select a call-to-action for your ad</label>
-                        <p className="text-[11px] text-slate-400">Select a compelling call-to-action that empowers people to engage with your business or service</p>
+                        <label className="block text-slate-700 font-semibold">Select a call-to-action for your ad</label>
+                        <p className="text-[11px] text-slate-500">Select a compelling call-to-action that empowers people to engage with your business or service</p>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Call-to-action</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">Call-to-action</label>
                         <select
                           value={msgCallToAction}
                           onChange={(e) => setMsgCallToAction(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         >
                           {["None", "Apply now", "Book now", "Contact us", "Get info", "Get offer", "Get quote", "Get started", "Learn more"].map((cta, idx) => (
                             <option key={idx} value={cta}>{cta}</option>
@@ -6699,14 +6699,14 @@ export default function SalesSearchPage() {
                       </div>
 
                       <div className="space-y-1 pt-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Call-to-action description</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">Call-to-action description</label>
                         <input
                           type="text"
                           maxLength={30}
                           value={msgCtaDescription}
                           onChange={(e) => setMsgCtaDescription(e.target.value)}
                           placeholder="Call-to-action description"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         />
                         <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                           <span>Text is {msgCtaDescription.length} characters out of 30</span>
@@ -6718,8 +6718,8 @@ export default function SalesSearchPage() {
                 )}
 
                 {selectedMessagePlatform === "Messenger" && (
-                  <div className="space-y-4 p-5 rounded-xl border border-slate-800 bg-slate-950 max-w-xl animate-in fade-in duration-150">
-                    <span className="font-bold text-slate-200 block text-xs font-semibold">Messenger URL username</span>
+                  <div className="space-y-4 p-5 rounded-xl border border-slate-200 bg-slate-50 max-w-xl animate-in fade-in duration-150">
+                    <span className="font-bold text-slate-800 block text-xs font-semibold">Messenger URL username</span>
                     <div className="relative">
                       <span className="absolute left-3.5 top-2 text-slate-500 font-mono text-xs">https://m.me/</span>
                       <input
@@ -6728,7 +6728,7 @@ export default function SalesSearchPage() {
                         value={msgCustomUrlName}
                         onChange={(e) => setMsgCustomUrlName(e.target.value)}
                         placeholder="username"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-[96px] pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                        className="w-full bg-white border border-slate-200 rounded-xl pl-[96px] pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                       />
                     </div>
                     <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
@@ -6738,14 +6738,14 @@ export default function SalesSearchPage() {
 
                     {/* Starter Message */}
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Starter message</label>
+                      <label className="block text-slate-700 font-semibold">Starter message</label>
                       <textarea
                         rows={2}
                         maxLength={140}
                         value={msgStarterMessage}
                         onChange={(e) => setMsgStarterMessage(e.target.value)}
                         placeholder="Can I get started with a delivery?"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                         <span>Text is {msgStarterMessage.length} characters out of 140</span>
@@ -6754,18 +6754,18 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Call To Action */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
                       <div>
-                        <label className="block text-slate-300 font-semibold">Select a call-to-action for your ad</label>
-                        <p className="text-[11px] text-slate-400">Select a compelling call-to-action that empowers people to engage with your business or service</p>
+                        <label className="block text-slate-700 font-semibold">Select a call-to-action for your ad</label>
+                        <p className="text-[11px] text-slate-500">Select a compelling call-to-action that empowers people to engage with your business or service</p>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Call-to-action</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">Call-to-action</label>
                         <select
                           value={msgCallToAction}
                           onChange={(e) => setMsgCallToAction(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         >
                           {["None", "Apply now", "Book now", "Contact us", "Get info", "Get offer", "Get quote", "Get started", "Learn more"].map((cta, idx) => (
                             <option key={idx} value={cta}>{cta}</option>
@@ -6774,14 +6774,14 @@ export default function SalesSearchPage() {
                       </div>
 
                       <div className="space-y-1 pt-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Call-to-action description</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">Call-to-action description</label>
                         <input
                           type="text"
                           maxLength={30}
                           value={msgCtaDescription}
                           onChange={(e) => setMsgCtaDescription(e.target.value)}
                           placeholder="Call-to-action description"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         />
                         <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                           <span>Text is {msgCtaDescription.length} characters out of 30</span>
@@ -6793,8 +6793,8 @@ export default function SalesSearchPage() {
                 )}
 
                 {selectedMessagePlatform === "Zalo" && (
-                  <div className="space-y-4 p-5 rounded-xl border border-slate-800 bg-slate-950 max-w-xl animate-in fade-in duration-150">
-                    <span className="font-bold text-slate-200 block text-xs font-semibold">Zalo ID / Custom URL name / Official account ID</span>
+                  <div className="space-y-4 p-5 rounded-xl border border-slate-200 bg-slate-50 max-w-xl animate-in fade-in duration-150">
+                    <span className="font-bold text-slate-800 block text-xs font-semibold">Zalo ID / Custom URL name / Official account ID</span>
                     <div className="relative">
                       <span className="absolute left-3.5 top-2 text-slate-500 font-mono text-xs">https://zalo.me/</span>
                       <input
@@ -6803,7 +6803,7 @@ export default function SalesSearchPage() {
                         value={msgCustomUrlName}
                         onChange={(e) => setMsgCustomUrlName(e.target.value)}
                         placeholder="Custom URL name"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-[96px] pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary font-mono"
+                        className="w-full bg-white border border-slate-200 rounded-xl pl-[96px] pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                       />
                     </div>
                     <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
@@ -6813,14 +6813,14 @@ export default function SalesSearchPage() {
 
                     {/* Starter Message */}
                     <div className="space-y-1">
-                      <label className="block text-slate-300 font-semibold">Starter message</label>
+                      <label className="block text-slate-700 font-semibold">Starter message</label>
                       <textarea
                         rows={2}
                         maxLength={140}
                         value={msgStarterMessage}
                         onChange={(e) => setMsgStarterMessage(e.target.value)}
                         placeholder="Can I get started with a delivery?"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-primary"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                         <span>Text is {msgStarterMessage.length} characters out of 140</span>
@@ -6829,18 +6829,18 @@ export default function SalesSearchPage() {
                     </div>
 
                     {/* Call To Action */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
                       <div>
-                        <label className="block text-slate-300 font-semibold">Select a call-to-action for your ad</label>
-                        <p className="text-[11px] text-slate-400">Select a compelling call-to-action that empowers people to engage with your business or service</p>
+                        <label className="block text-slate-700 font-semibold">Select a call-to-action for your ad</label>
+                        <p className="text-[11px] text-slate-500">Select a compelling call-to-action that empowers people to engage with your business or service</p>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Call-to-action</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">Call-to-action</label>
                         <select
                           value={msgCallToAction}
                           onChange={(e) => setMsgCallToAction(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         >
                           {["None", "Apply now", "Book now", "Contact us", "Get info", "Get offer", "Get quote", "Get started", "Learn more"].map((cta, idx) => (
                             <option key={idx} value={cta}>{cta}</option>
@@ -6849,14 +6849,14 @@ export default function SalesSearchPage() {
                       </div>
 
                       <div className="space-y-1 pt-1">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Call-to-action description</label>
+                        <label className="block text-[11px] text-slate-500 font-semibold">Call-to-action description</label>
                         <input
                           type="text"
                           maxLength={30}
                           value={msgCtaDescription}
                           onChange={(e) => setMsgCtaDescription(e.target.value)}
                           placeholder="Call-to-action description"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-primary"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
                         />
                         <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                           <span>Text is {msgCtaDescription.length} characters out of 30</span>
@@ -6874,13 +6874,13 @@ export default function SalesSearchPage() {
                     onChange={(e) => setOptimizeForMessageAds(e.target.checked)}
                     className="mt-0.5 rounded text-primary h-4 w-4"
                   />
-                  <span className="text-slate-300 leading-relaxed">
-                    Optimize your campaign for message ads. This will add a <strong className="text-slate-100 font-bold">leads from messages</strong> conversion action to your campaign. <a href="https://support.google.com/google-ads/answer/10995103?hl=en_US" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Learn more about conversions</a>
+                  <span className="text-slate-700 leading-relaxed">
+                    Optimize your campaign for message ads. This will add a <strong className="text-slate-900 font-bold">leads from messages</strong> conversion action to your campaign. <a href="https://support.google.com/google-ads/answer/10995103?hl=en_US" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Learn more about conversions</a>
                   </span>
                 </label>
               </div>
 
-              <div className="flex items-center gap-4 pt-4 border-t border-slate-800/80">
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
@@ -6891,7 +6891,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -6904,36 +6904,36 @@ export default function SalesSearchPage() {
 
       {/* ── Create Apps Modal Overlay ── */}
       {activeModal === "APPS" && (
-        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
+        <div className="fixed inset-0 z-[120] bg-white backdrop-blur-sm flex flex-col animate-in fade-in duration-200 text-xs">
           {/* Header */}
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center gap-4">
+          <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center gap-4">
             <button
               onClick={() => setActiveModal(null)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
-            <h2 className="text-base font-semibold text-white">Add apps to your campaign</h2>
+            <h2 className="text-base font-semibold text-slate-900">Add apps to your campaign</h2>
           </div>
 
           {/* Form Content */}
           <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-3xl w-full mx-auto space-y-6">
             <div className="space-y-1">
-              <h3 className="font-bold text-slate-100 text-sm">Campaign-level apps</h3>
-              <p className="text-[11px] text-slate-400">Add apps to this campaign. Any apps added here can be used across campaigns.</p>
+              <h3 className="font-bold text-slate-900 text-sm">Campaign-level apps</h3>
+              <p className="text-[11px] text-slate-500">Add apps to this campaign. Any apps added here can be used across campaigns.</p>
             </div>
 
-            <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/90 space-y-6 shadow-xl">
+            <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
               
               {/* Add new app details */}
               <div className="space-y-4">
-                <span className="font-bold text-slate-200 text-xs block">Add new app</span>
+                <span className="font-bold text-slate-800 text-xs block">Add new app</span>
                 
                 {/* Platform */}
                 <div className="space-y-2">
-                  <span className="text-slate-300 font-semibold block">Select your mobile app's platform</span>
+                  <span className="text-slate-700 font-semibold block">Select your mobile app's platform</span>
                   <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-700">
                       <input
                         type="radio"
                         name="appPlatform"
@@ -6943,7 +6943,7 @@ export default function SalesSearchPage() {
                       />
                       <span>Android</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-700">
                       <input
                         type="radio"
                         name="appPlatform"
@@ -6958,26 +6958,26 @@ export default function SalesSearchPage() {
 
                 {/* Lookup app */}
                 <div className="space-y-1">
-                  <label className="block text-slate-300 font-semibold">Look up your app</label>
+                  <label className="block text-slate-700 font-semibold">Look up your app</label>
                   <input
                     type="text"
                     value={appSearchQuery}
                     onChange={(e) => setAppSearchQuery(e.target.value)}
                     placeholder="Enter the app name, package name, or publisher"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                   />
                 </div>
 
                 {/* Link Text */}
                 <div className="space-y-1">
-                  <label className="block text-slate-300 font-semibold">Link text</label>
+                  <label className="block text-slate-700 font-semibold">Link text</label>
                   <input
                     type="text"
                     maxLength={25}
                     value={appLinkText}
                     onChange={(e) => setAppLinkText(e.target.value)}
                     placeholder="Link text"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                   />
                   <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
                     <span>Text is {appLinkText.length} characters out of 25</span>
@@ -6986,34 +6986,34 @@ export default function SalesSearchPage() {
                 </div>
 
                 {/* App URL Options */}
-                <div className="pt-2 border-t border-slate-800/80 space-y-4">
-                  <span className="font-bold text-slate-200 text-xs block">App URL options</span>
+                <div className="pt-2 border-t border-slate-200 space-y-4">
+                  <span className="font-bold text-slate-800 text-xs block">App URL options</span>
                   
                   <div className="space-y-1">
-                    <label className="block text-slate-300 font-semibold">Tracking template</label>
+                    <label className="block text-slate-700 font-semibold">Tracking template</label>
                     <input
                       type="url"
                       value={appTrackingTemplate}
                       onChange={(e) => setAppTrackingTemplate(e.target.value)}
                       placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-primary"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-slate-300 font-semibold">Final URL suffix</label>
+                    <label className="block text-slate-700 font-semibold">Final URL suffix</label>
                     <input
                       type="text"
                       value={appFinalUrlSuffix}
                       onChange={(e) => setAppFinalUrlSuffix(e.target.value)}
                       placeholder="Example: param1=value1&param2=value2"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-primary"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-primary"
                     />
                   </div>
 
                   {/* Custom Parameters */}
                   <div className="space-y-2">
-                    <label className="block text-slate-300 font-semibold">Custom parameter</label>
+                    <label className="block text-slate-700 font-semibold">Custom parameter</label>
                     {appCustomParams.map((param, idx) => (
                       <div key={param.id} className="flex items-center gap-3 animate-in fade-in duration-100">
                         <div className="relative flex-1">
@@ -7027,11 +7027,11 @@ export default function SalesSearchPage() {
                               setAppCustomParams(updated);
                             }}
                             placeholder="Name"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-6 pr-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-6 pr-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none"
                           />
                           <span className="absolute right-3 top-2 text-slate-500 font-mono text-xs">{`}`}</span>
                         </div>
-                        <span className="text-slate-400 font-bold text-xs">=</span>
+                        <span className="text-slate-500 font-bold text-xs">=</span>
                         <input
                           type="text"
                           value={param.value}
@@ -7041,9 +7041,9 @@ export default function SalesSearchPage() {
                             setAppCustomParams(updated);
                           }}
                           placeholder="Value"
-                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none"
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none"
                         />
-                        <button type="button" onClick={() => setAppCustomParams(prev => prev.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-rose-400">
+                        <button type="button" onClick={() => setAppCustomParams(prev => prev.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
@@ -7060,74 +7060,74 @@ export default function SalesSearchPage() {
                 </div>
 
                 {/* Advanced Options Accordion */}
-                <div className="pt-2 border-t border-slate-800/80 space-y-4">
+                <div className="pt-2 border-t border-slate-200 space-y-4">
                   <div 
                     onClick={() => setShowAppAdvanced(!showAppAdvanced)}
-                    className="flex items-center justify-between cursor-pointer text-slate-200 font-bold text-xs select-none"
+                    className="flex items-center justify-between cursor-pointer text-slate-800 font-bold text-xs select-none"
                   >
                     <span>Advanced options</span>
                     <span>{showAppAdvanced ? "▲" : "▼"}</span>
                   </div>
 
                   {showAppAdvanced && (
-                    <div className="space-y-4 p-4 rounded-xl border border-slate-800 bg-slate-950 animate-in slide-in-from-top-1 duration-150">
-                      <span className="font-bold text-slate-300 text-xs block">Asset scheduling</span>
-                      <p className="text-[11px] text-slate-400">Select when your assets will be eligible to show</p>
+                    <div className="space-y-4 p-4 rounded-xl border border-slate-200 bg-slate-50 animate-in slide-in-from-top-1 duration-150">
+                      <span className="font-bold text-slate-700 text-xs block">Asset scheduling</span>
+                      <p className="text-[11px] text-slate-500">Select when your assets will be eligible to show</p>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-400 font-semibold">Start date</label>
+                          <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
                           <input
                             type="date"
                             value={appStartDate}
                             onChange={(e) => setAppStartDate(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-400 font-semibold">End date</label>
+                          <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
                           <input
                             type="date"
                             value={appEndDate}
                             onChange={(e) => setAppEndDate(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none"
                           />
                         </div>
                       </div>
 
-                      <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                        <label className="block text-[11px] text-slate-400 font-semibold">Days and hours</label>
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                        <label className="block text-[11px] text-slate-500 font-semibold">Days and hours</label>
                         <div className="flex gap-2 items-center">
                           <select
                             value={appScheduleDays}
                             onChange={(e) => setAppScheduleDays(e.target.value)}
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100"
+                            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900"
                           >
                             <option value="All days">All days</option>
                             <option value="Mondays to Fridays">Mondays to Fridays</option>
                             <option value="Saturdays and Sundays">Saturdays and Sundays</option>
                           </select>
-                          <span className="text-slate-400">from</span>
+                          <span className="text-slate-500">from</span>
                           <input
                             type="time"
                             value={appScheduleStart}
                             onChange={(e) => setAppScheduleStart(e.target.value)}
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 font-mono"
+                            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono"
                           />
-                          <span className="text-slate-400">to</span>
+                          <span className="text-slate-500">to</span>
                           <input
                             type="time"
                             value={appScheduleEnd}
                             onChange={(e) => setAppScheduleEnd(e.target.value)}
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 font-mono"
+                            className="bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono"
                           />
                         </div>
                       </div>
 
-                      <p className="text-[10px] text-slate-500 leading-normal pt-2 border-t border-slate-800/40">
+                      <p className="text-[10px] text-slate-500 leading-normal pt-2 border-t border-slate-200/40">
                         To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="https://support.google.com/google-ads/answer/16913225?hl=en_US" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Learn more</a>
                       </p>
-                      <p className="text-[10px] text-slate-400 font-semibold">Based on account time zone: (GMT+05:30) India Standard Time</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">Based on account time zone: (GMT+05:30) India Standard Time</p>
                     </div>
                   )}
                 </div>
@@ -7135,7 +7135,7 @@ export default function SalesSearchPage() {
               </div>
 
               {/* Footer controls */}
-              <div className="flex items-center gap-4 pt-4 border-t border-slate-800/80">
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => {
@@ -7149,7 +7149,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>

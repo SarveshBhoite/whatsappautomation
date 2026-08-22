@@ -750,7 +750,7 @@ export default function CampaignCreatePage() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-400 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all"
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -766,7 +766,7 @@ export default function CampaignCreatePage() {
             onClick={() => setCreationMode("MANUAL")}
             className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${creationMode === "MANUAL"
                 ? "bg-blue-600 text-white shadow"
-                : "text-slate-400 hover:text-slate-900"
+                : "text-slate-500 hover:text-slate-900"
               }`}
           >
             Manual Creation
@@ -775,7 +775,7 @@ export default function CampaignCreatePage() {
             onClick={() => setCreationMode("AI")}
             className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 ${creationMode === "AI"
                 ? "bg-blue-600 text-white shadow"
-                : "text-slate-400 hover:text-slate-900"
+                : "text-slate-500 hover:text-slate-900"
               }`}
           >
             <Sparkles className="h-3.5 w-3.5" />
@@ -783,11 +783,11 @@ export default function CampaignCreatePage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-3 text-xs text-slate-500">
           <span className="font-mono">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-400 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
         </div>
       </header>
 
@@ -797,7 +797,7 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                 <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
@@ -809,7 +809,7 @@ export default function CampaignCreatePage() {
                   <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">1</div>
                   Bidding
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1">
                   <p className="text-blue-600 font-semibold">Bidding</p>
                   <p className="hover:text-slate-900 cursor-pointer">Customer acquisition</p>
                   <p className="hover:text-slate-900 cursor-pointer">Customer retention</p>
@@ -846,7 +846,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Bidding</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="space-y-2">
@@ -883,9 +883,9 @@ export default function CampaignCreatePage() {
 
                 {setTargetCpa && (
                   <div className="mt-3 ml-7 space-y-1">
-                    <label className="text-xs text-slate-400 block">Target CPA (Cost Per Action)</label>
+                    <label className="text-xs text-slate-500 block">Target CPA (Cost Per Action)</label>
                     <div className="relative w-64">
-                      <span className="absolute left-3 top-2.5 text-xs text-slate-400">₹</span>
+                      <span className="absolute left-3 top-2.5 text-xs text-slate-500">₹</span>
                       <input
                         type="text"
                         value={targetCpaValue}
@@ -903,7 +903,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Customer acquisition</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -917,7 +917,7 @@ export default function CampaignCreatePage() {
                     />
                     <span className="text-xs font-semibold text-slate-900">Only bid for new customers</span>
                   </label>
-                  <p className="text-xs text-slate-400 ml-7">
+                  <p className="text-xs text-slate-500 ml-7">
                     Your campaign will be limited to only new customers, regardless of your bid strategy
                   </p>
 
@@ -937,7 +937,7 @@ export default function CampaignCreatePage() {
                   )}
                 </div>
 
-                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-200 pl-4">
+                <div className="text-xs text-slate-500 max-w-xs leading-relaxed border-l border-slate-200 pl-4">
                   By default, your campaign bids equally for new and existing customers. However, you can configure your customer acquisition settings to optimize for acquiring new customers.{" "}
                   <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about customer acquisition</a>
                 </div>
@@ -948,7 +948,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Customer retention</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -971,7 +971,7 @@ export default function CampaignCreatePage() {
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-200 pl-4">
+                <div className="text-xs text-slate-500 max-w-xs leading-relaxed border-l border-slate-200 pl-4">
                   By default, your campaign does not adjust bidding to re-engage lapsed customers. However, you can configure your customer acquisition settings to optimize for winning back lapsed customers.{" "}
                   <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a>
                 </div>
@@ -994,21 +994,21 @@ export default function CampaignCreatePage() {
 
             <div className="space-y-3 pt-4 border-t border-slate-200">
               <h3 className="text-xs font-semibold text-slate-900">Weekly estimates</h3>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-slate-500 leading-relaxed">
                 Based on your daily budget and bid settings
               </p>
 
               <div className="space-y-3 pt-2 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Weekly conv.</span>
+                  <span className="text-slate-500">Weekly conv.</span>
                   <span className="font-semibold text-slate-900">61</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Cost / Conv.</span>
+                  <span className="text-slate-500">Cost / Conv.</span>
                   <span className="font-semibold text-slate-900">₹166.11</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                  <span className="text-slate-400">Weekly cost</span>
+                  <span className="text-slate-500">Weekly cost</span>
                   <span className="font-bold text-blue-600">₹10,199.00</span>
                 </div>
               </div>
@@ -1020,7 +1020,7 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                 <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
@@ -1029,7 +1029,7 @@ export default function CampaignCreatePage() {
             <nav className="space-y-4 text-xs">
               {selectedType === "SEARCH" ? (
                 <>
-                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
+                  <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                     <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                     Bidding
                   </div>
@@ -1039,7 +1039,7 @@ export default function CampaignCreatePage() {
                       <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">2</div>
                       Campaign settings
                     </div>
-                    <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                    <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1">
                       <p className="hover:text-slate-900 cursor-pointer">Network</p>
                       <p className="hover:text-slate-900 cursor-pointer">Locations</p>
                       <p className="hover:text-slate-900 cursor-pointer">Languages</p>
@@ -1051,7 +1051,7 @@ export default function CampaignCreatePage() {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-slate-400 font-medium">
+                    <div className="flex items-center gap-2 text-slate-500 font-medium">
                       <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">3</div>
                       Keywords and ads
                     </div>
@@ -1062,7 +1062,7 @@ export default function CampaignCreatePage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BUDGET")}>
+                  <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BUDGET")}>
                     <div className="w-4 h-4 rounded-full border border-slate-200 flex items-center justify-center text-[10px]">4</div>
                     Budget
                   </div>
@@ -1074,7 +1074,7 @@ export default function CampaignCreatePage() {
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
+                  <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                     <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                     Bidding
                   </div>
@@ -1084,7 +1084,7 @@ export default function CampaignCreatePage() {
                       <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">2</div>
                       Campaign settings
                     </div>
-                    <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                    <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1">
                       <p className="hover:text-slate-900 cursor-pointer">Network</p>
                       <p className="text-blue-600 font-semibold">Locations</p>
                       <p className="hover:text-slate-900 cursor-pointer">Languages</p>
@@ -1116,14 +1116,14 @@ export default function CampaignCreatePage() {
           <main className="flex-1 p-6 md:p-10 space-y-8 max-w-4xl">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
-              <p className="text-xs text-slate-400 mt-1">To reach the right people, start by defining key settings for your campaign</p>
+              <p className="text-xs text-slate-500 mt-1">To reach the right people, start by defining key settings for your campaign</p>
             </div>
 
             {/* 1. Networks Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Networks</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="space-y-4">
@@ -1136,9 +1136,9 @@ export default function CampaignCreatePage() {
                   />
                   <div className="space-y-0.5">
                     <span className="text-xs font-semibold text-slate-900 block">
-                      Google Search Partners Network <span className="text-slate-400 font-normal">(recommended)</span>
+                      Google Search Partners Network <span className="text-slate-500 font-normal">(recommended)</span>
                     </span>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
                       Ads can appear near Google Search results and on other Google Search Partners websites when people search for terms that are relevant to your keywords. Search Partners can include hundreds of non-Google websites, Parked Domains, as well as YouTube and other Google sites.
                     </p>
                   </div>
@@ -1153,9 +1153,9 @@ export default function CampaignCreatePage() {
                   />
                   <div className="space-y-0.5">
                     <span className="text-xs font-semibold text-slate-900 block">
-                      Google Display Network <span className="text-slate-400 font-normal">(recommended)</span>
+                      Google Display Network <span className="text-slate-500 font-normal">(recommended)</span>
                     </span>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
                       Ads can appear on relevant sites, videos, and apps across Google (like YouTube) and the Internet when you have leftover Search budget
                     </p>
                   </div>
@@ -1167,7 +1167,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Locations</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="space-y-3">
@@ -1246,14 +1246,14 @@ export default function CampaignCreatePage() {
                             }
                           }}
                           placeholder="Enter a location to target or exclude (e.g. Mumbai, Maharashtra, India)"
-                          className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-full"
+                          className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
                         />
                       </div>
 
                       {/* Location Suggestions Dropdown List */}
                       {locationSuggestions.length > 0 && (
-                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1 animate-in fade-in duration-200 max-h-60 overflow-y-auto shadow-2xl z-30">
-                          <p className="text-[11px] text-slate-400 font-semibold px-2 py-1">Matching locations:</p>
+                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1 animate-in fade-in duration-200 max-h-60 overflow-y-auto shadow-md z-30">
+                          <p className="text-[11px] text-slate-500 font-semibold px-2 py-1">Matching locations:</p>
                           {locationSuggestions.map((loc) => (
                             <div
                               key={loc.name}
@@ -1261,7 +1261,7 @@ export default function CampaignCreatePage() {
                             >
                               <div className="space-y-0.5">
                                 <p className="font-semibold text-slate-900">{loc.name}</p>
-                                <p className="text-[11px] text-slate-400">{loc.type} • Reach: {loc.reach}</p>
+                                <p className="text-[11px] text-slate-500">{loc.type} • Reach: {loc.reach}</p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <button
@@ -1285,7 +1285,7 @@ export default function CampaignCreatePage() {
                       {/* Targeted Locations List */}
                       {targetLocations.length > 0 && (
                         <div className="space-y-2 pt-1">
-                          <p className="text-[11px] text-slate-400 font-semibold">Matched and targeted locations:</p>
+                          <p className="text-[11px] text-slate-500 font-semibold">Matched and targeted locations:</p>
                           <div className="space-y-1.5">
                             {targetLocations.map((loc) => (
                               <div key={loc.name} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs">
@@ -1295,7 +1295,7 @@ export default function CampaignCreatePage() {
                                 </div>
                                 <button
                                   onClick={() => setTargetLocations(prev => prev.filter(l => l.name !== loc.name))}
-                                  className="p-1 text-slate-400 hover:text-rose-400 hover:bg-white rounded transition-all"
+                                  className="p-1 text-slate-500 hover:text-rose-400 hover:bg-white rounded transition-all"
                                 >
                                   <X className="h-3.5 w-3.5" />
                                 </button>
@@ -1371,7 +1371,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Languages</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="space-y-3">
@@ -1387,13 +1387,13 @@ export default function CampaignCreatePage() {
                     value={languageSearchInput}
                     onChange={(e) => setLanguageSearchInput(e.target.value)}
                     placeholder="Start typing or select a language"
-                    className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-full"
+                    className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
                   />
                 </div>
 
                 {/* Popular Languages Checkbox List */}
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl max-w-md space-y-2 max-h-52 overflow-y-auto">
-                  <p className="text-[11px] text-slate-400 font-semibold mb-1">Select languages:</p>
+                  <p className="text-[11px] text-slate-500 font-semibold mb-1">Select languages:</p>
                   {[
                     "English", "Hindi", "Bengali", "Marathi", "Telugu", "Tamil", "Gujarati", "Urdu",
                     "Kannada", "Odia", "Malayalam", "Punjabi", "Spanish", "French", "German",
@@ -1424,7 +1424,7 @@ export default function CampaignCreatePage() {
 
                 {/* Selected Languages Chips */}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-[11px] text-slate-400 font-medium">Selected ({selectedLanguages.length}):</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Selected ({selectedLanguages.length}):</span>
                   {selectedLanguages.map((lang) => (
                     <span key={lang} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white/10 border border-blue-500/30 text-xs text-blue-600 font-medium">
                       {lang}
@@ -1444,7 +1444,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">EU political ads</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -1494,7 +1494,7 @@ export default function CampaignCreatePage() {
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-400 max-w-xs leading-relaxed border-l border-slate-200 pl-4 space-y-1">
+                <div className="text-xs text-slate-500 max-w-xs leading-relaxed border-l border-slate-200 pl-4 space-y-1">
                   <p>EU regulation requires Google to ask this question</p>
                   <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline block">Learn how an EU political ad is defined</a>
                 </div>
@@ -1505,7 +1505,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Audience segments</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="space-y-4">
@@ -1519,14 +1519,14 @@ export default function CampaignCreatePage() {
                   <button
                     type="button"
                     onClick={() => setAudienceTab("SEARCH")}
-                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "SEARCH" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
+                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "SEARCH" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-900"}`}
                   >
                     Search
                   </button>
                   <button
                     type="button"
                     onClick={() => setAudienceTab("BROWSE")}
-                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "BROWSE" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
+                    className={`pb-2 border-b-2 transition-all cursor-pointer ${audienceTab === "BROWSE" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-900"}`}
                   >
                     Browse
                   </button>
@@ -1540,7 +1540,7 @@ export default function CampaignCreatePage() {
                       value={audienceSearchInput}
                       onChange={(e) => setAudienceSearchInput(e.target.value)}
                       placeholder='Try "beauty & wellness"'
-                      className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-full"
+                      className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-full"
                     />
                   </div>
                 ) : (
@@ -1556,9 +1556,9 @@ export default function CampaignCreatePage() {
                         <div className="flex items-center justify-between cursor-pointer">
                           <div>
                             <span className="text-xs font-semibold text-slate-900 block">{browseGroup.category}</span>
-                            <span className="text-[11px] text-slate-400 block">{browseGroup.desc}</span>
+                            <span className="text-[11px] text-slate-500 block">{browseGroup.desc}</span>
                           </div>
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
                         </div>
                         <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-200">
                           {browseGroup.items.map(item => (
@@ -1581,7 +1581,7 @@ export default function CampaignCreatePage() {
 
                 {audienceSearchInput && (
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl max-w-md space-y-1 animate-in fade-in duration-200">
-                    <p className="text-[11px] text-slate-400">Search results for "{audienceSearchInput}":</p>
+                    <p className="text-[11px] text-slate-500">Search results for "{audienceSearchInput}":</p>
                     {["Beauty & Personal Care", "Wellness & Fitness Enthusiasts", "Online Shoppers"].filter(s => s.toLowerCase().includes(audienceSearchInput.toLowerCase())).map((seg) => (
                       <div
                         key={seg}
@@ -1601,7 +1601,7 @@ export default function CampaignCreatePage() {
                 {audienceSegments.length === 0 ? (
                   <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1">
                     <p className="text-xs font-semibold text-slate-700">None selected</p>
-                    <p className="text-xs text-slate-400">Select one or more segments to observe.</p>
+                    <p className="text-xs text-slate-500">Select one or more segments to observe.</p>
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-2 pt-1">
@@ -1632,7 +1632,7 @@ export default function CampaignCreatePage() {
                       />
                       <div>
                         <span className="text-xs font-semibold text-slate-900 block">Targeting</span>
-                        <span className="text-[11px] text-slate-400 block">Narrow the reach of your campaign to the selected segments, with the option to adjust the bids</span>
+                        <span className="text-[11px] text-slate-500 block">Narrow the reach of your campaign to the selected segments, with the option to adjust the bids</span>
                       </div>
                     </label>
 
@@ -1646,7 +1646,7 @@ export default function CampaignCreatePage() {
                       />
                       <div>
                         <span className="text-xs font-semibold text-slate-900 block">Observation (recommended)</span>
-                        <span className="text-[11px] text-slate-400 block">Don't narrow the reach of your campaign, with the option to adjust the bids on the selected segments</span>
+                        <span className="text-[11px] text-slate-500 block">Don't narrow the reach of your campaign, with the option to adjust the bids on the selected segments</span>
                       </div>
                     </label>
                   </div>
@@ -1669,7 +1669,7 @@ export default function CampaignCreatePage() {
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-sm font-semibold text-slate-900">Get the best AI-powered performance on Google Search</h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         Advertisers that activate AI Max in Search Campaigns will typically see 14% more conversions or conversion value at a similar CPA / ROAS.
                       </p>
                     </div>
@@ -1721,7 +1721,7 @@ export default function CampaignCreatePage() {
                     <div className="border border-slate-200 rounded-2xl bg-slate-50/40 p-5 space-y-6">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                         <h3 className="text-sm font-semibold text-slate-900">Asset optimization</h3>
-                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                        <ChevronDown className="h-4 w-4 text-slate-500" />
                       </div>
 
                       {/* 1. Text customization */}
@@ -1739,7 +1739,7 @@ export default function CampaignCreatePage() {
                           <span className="text-xs font-semibold text-slate-900">Text customization</span>
                         </div>
 
-                        <p className="text-xs text-slate-400 leading-relaxed pl-12">
+                        <p className="text-xs text-slate-500 leading-relaxed pl-12">
                           Match your ad copy to what people are searching for with new headlines and descriptions using your website and assets. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about text customization</a>
                         </p>
 
@@ -1753,13 +1753,13 @@ export default function CampaignCreatePage() {
                           <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
                             {/* Left Input Mock */}
                             <div className="w-full md:w-5/12 space-y-2">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-400">
+                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-500">
                                 <Search className="h-3.5 w-3.5" />
                                 <span>Blue wall paint delivery</span>
                               </div>
                               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                                   <span>Beahm's https://www.beahms.com/</span>
                                 </div>
@@ -1779,12 +1779,12 @@ export default function CampaignCreatePage() {
                               </div>
                               <div className="p-3 rounded-lg bg-slate-50 border border-blue-500/40 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                                   <span>Beahm's https://www.beahms.com/</span>
                                 </div>
                                 <div className="text-blue-600 font-bold text-xs">Blue Wall Paint, Next-Day Delivery | Expert Picks</div>
-                                <p className="text-[11px] text-slate-400">Make your house a home with our range of painting and decorating essentials.</p>
+                                <p className="text-[11px] text-slate-500">Make your house a home with our range of painting and decorating essentials.</p>
                               </div>
                             </div>
                           </div>
@@ -1808,7 +1808,7 @@ export default function CampaignCreatePage() {
                         </div>
 
                         <div className="pl-12 space-y-1.5">
-                          <p className="text-xs text-slate-400 leading-relaxed">
+                          <p className="text-xs text-slate-500 leading-relaxed">
                             Direct people to the most relevant content by matching your landing pages with user searches. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about Final URL expansion</a>
                           </p>
                           <p className="text-[11px] text-slate-500">Requires text customization to be turned on to ensure ad copy matches landing page</p>
@@ -1823,13 +1823,13 @@ export default function CampaignCreatePage() {
                           <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
                             {/* Left Input Mock */}
                             <div className="w-full md:w-5/12 space-y-2">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-400">
+                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-500">
                                 <Search className="h-3.5 w-3.5" />
                                 <span>Blue wall paint delivery</span>
                               </div>
                               <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                                   <span>Beahm's https://www.beahms.com/</span>
                                 </div>
@@ -1848,7 +1848,7 @@ export default function CampaignCreatePage() {
                               </div>
                               <div className="p-3 rounded-lg bg-slate-50 border border-blue-500/40 text-xs space-y-1">
                                 <div className="text-[10px] text-slate-500">Sponsored result</div>
-                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
                                   <span>Beahm's https://www.beahms.com/<strong className="text-blue-600">paint/blue</strong></span>
                                 </div>
@@ -1865,17 +1865,17 @@ export default function CampaignCreatePage() {
                     <div className="border border-slate-200 rounded-2xl bg-slate-50/40 p-5 space-y-5">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                         <h3 className="text-sm font-semibold text-slate-900">Brands</h3>
-                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                        <ChevronDown className="h-4 w-4 text-slate-500" />
                       </div>
 
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         Use brand settings to ensure your campaign meets your branded traffic needs. You can add up to 20 brand lists across your brand inclusions and exclusions. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand settings</a>
                       </p>
 
                       {/* Brand Inclusions */}
                       <div className="space-y-2">
                         <label className="text-xs font-semibold text-slate-900 block">Brand inclusions</label>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-slate-500">
                           Your ads will only show on searches that match your keywords and mention selected brands, including related products and services. Brand inclusions will limit search traffic, so apply only necessary brands.
                         </p>
                         <div className="relative max-w-xl">
@@ -1891,7 +1891,7 @@ export default function CampaignCreatePage() {
                               }
                             }}
                             placeholder="Add brand lists"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         {brandInclusions.length > 0 && (
@@ -1911,7 +1911,7 @@ export default function CampaignCreatePage() {
                       {/* Brand Exclusions */}
                       <div className="space-y-2 pt-3 border-t border-slate-200">
                         <label className="text-xs font-semibold text-slate-900 block">Brand exclusions</label>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-slate-500">
                           Your ads won't show on searches that mention selected brands or related products and services. If you exclude and include the same brand, only the exclusion will work.
                         </p>
                         <div className="relative max-w-xl">
@@ -1927,7 +1927,7 @@ export default function CampaignCreatePage() {
                               }
                             }}
                             placeholder="Add brand lists"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         {brandExclusions.length > 0 && (
@@ -1959,7 +1959,7 @@ export default function CampaignCreatePage() {
                 <div className="border border-slate-200 rounded-2xl bg-slate-50/60 p-6 space-y-5">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                     <h3 className="text-sm font-semibold text-slate-900">Keyword and asset generation</h3>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
                   <div className="space-y-4">
@@ -1970,11 +1970,11 @@ export default function CampaignCreatePage() {
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <p className="text-xs text-slate-500 leading-relaxed">
                       Google AI will use your URL and the information you provide to create assets, like keywords, headlines, and descriptions for you to review. Generated content may be inaccurate or offensive, so please review and check the responses. To improve Google AI, human reviewers may read, annotate, and process the information you provide. Don't enter anything you wouldn't want reviewed or used.
                     </p>
 
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <p className="text-xs text-slate-500 leading-relaxed">
                       Your use is subject to Google's{" "}
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Terms of Service</a>{" "}
                       and{" "}
@@ -1997,7 +1997,7 @@ export default function CampaignCreatePage() {
                           value={keywordAssetGenerationUrl}
                           onChange={(e) => setKeywordAssetGenerationUrl(e.target.value)}
                           placeholder="Final URL (required)*"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all font-medium"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all font-medium"
                         />
                       </div>
 
@@ -2054,7 +2054,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Ad rotation</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="space-y-3">
@@ -2100,7 +2100,7 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Ad schedule</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
 
                     <div className="space-y-3">
@@ -2143,7 +2143,7 @@ export default function CampaignCreatePage() {
                               ))}
                             </select>
 
-                            <span className="text-slate-400">to</span>
+                            <span className="text-slate-500">to</span>
 
                             <select
                               value={sched.endTime}
@@ -2162,7 +2162,7 @@ export default function CampaignCreatePage() {
                             {adSchedules.length > 1 && (
                               <button
                                 onClick={() => setAdSchedules(prev => prev.filter(s => s.id !== sched.id))}
-                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-100 rounded-lg transition-all"
+                                className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-100 rounded-lg transition-all"
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -2182,7 +2182,7 @@ export default function CampaignCreatePage() {
                         To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a>
                       </div>
 
-                      <p className="text-[11px] text-slate-400">Based on account time zone: <strong>(GMT+05:30) India Standard Time</strong></p>
+                      <p className="text-[11px] text-slate-500">Based on account time zone: <strong>(GMT+05:30) India Standard Time</strong></p>
                       <p className="text-[10px] text-amber-400/90">Saving this removes the settings you changed and adds new ones, resetting any performance data.</p>
                       <p className="text-[11px] text-slate-500">To limit when your ads can run, set an ad schedule. Keep in mind that your ads will only run during these times.</p>
                     </div>
@@ -2192,7 +2192,7 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Start and end dates</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2252,14 +2252,14 @@ export default function CampaignCreatePage() {
                         </div>
                       </div>
                     </div>
-                    <p className="text-[11px] text-slate-400">Your ads will continue to run unless you specify an end date.</p>
+                    <p className="text-[11px] text-slate-500">Your ads will continue to run unless you specify an end date.</p>
                   </div>
 
                   {/* 3. Campaign URL options */}
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Campaign URL options</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
 
                     <div className="space-y-3">
@@ -2268,7 +2268,7 @@ export default function CampaignCreatePage() {
                         <input
                           type="text"
                           placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                         />
                       </div>
 
@@ -2277,7 +2277,7 @@ export default function CampaignCreatePage() {
                         <input
                           type="text"
                           placeholder="Example: param1=value1&param2=value2"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                         />
                       </div>
 
@@ -2297,7 +2297,7 @@ export default function CampaignCreatePage() {
                                 placeholder="{_Name}"
                                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 w-1/3 focus:outline-none focus:border-blue-500"
                               />
-                              <span className="text-slate-400">=</span>
+                              <span className="text-slate-500">=</span>
                               <input
                                 type="text"
                                 value={cp.value}
@@ -2312,7 +2312,7 @@ export default function CampaignCreatePage() {
                               {customParameters.length > 1 && (
                                 <button
                                   onClick={() => setCustomParameters(prev => prev.filter(p => p.id !== cp.id))}
-                                  className="p-1.5 text-slate-400 hover:text-rose-400"
+                                  className="p-1.5 text-slate-500 hover:text-rose-400"
                                 >
                                   <X className="h-4 w-4" />
                                 </button>
@@ -2328,7 +2328,7 @@ export default function CampaignCreatePage() {
                         </button>
                       </div>
 
-                      <p className="text-[11px] text-slate-400">Tracking template is the URL you want the ad click to go to for tracking. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a></p>
+                      <p className="text-[11px] text-slate-500">Tracking template is the URL you want the ad click to go to for tracking. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a></p>
                     </div>
                   </div>
 
@@ -2336,12 +2336,12 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Page feeds</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
                       Add page feeds to specify which URLs to use in your campaign. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about page feeds</a>
                     </p>
-                    <button className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 flex items-center gap-1.5 cursor-pointer">
+                    <button className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-200 flex items-center gap-1.5 cursor-pointer">
                       <Plus className="h-3.5 w-3.5 text-blue-600" /> Add a page feed
                     </button>
                     <p className="text-[11px] text-slate-500 pt-1">
@@ -2353,9 +2353,9 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Devices</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
-                    <p className="text-[11px] text-slate-400">Choose the devices where your ads can appear. <span className="text-rose-400 uppercase text-[10px] font-semibold">Required</span></p>
+                    <p className="text-[11px] text-slate-500">Choose the devices where your ads can appear. <span className="text-rose-400 uppercase text-[10px] font-semibold">Required</span></p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                       {["Computers", "Mobile phones", "Tablets", "TV screens"].map((dev) => (
@@ -2371,9 +2371,9 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Brand exclusions</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
-                    <p className="text-[11px] text-slate-400">Exclude brands so your ads won't show on searches that mention those brands. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand exclusions</a></p>
+                    <p className="text-[11px] text-slate-500">Exclude brands so your ads won't show on searches that mention those brands. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand exclusions</a></p>
 
                     {appliedBrandLists.length > 0 && (
                       <div className="flex flex-wrap gap-2 pt-1">
@@ -2390,7 +2390,7 @@ export default function CampaignCreatePage() {
 
                     <button
                       onClick={() => setShowBrandModal(true)}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 flex items-center gap-1.5 cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-200 flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="h-3.5 w-3.5 text-blue-600" /> Use brand lists to exclude brands
                     </button>
@@ -2400,9 +2400,9 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Demographic exclusions</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
-                    <p className="text-[11px] text-slate-400">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
+                    <p className="text-[11px] text-slate-500">Demographic exclusions will override any specific hints that are active on any asset groups within this campaign.</p>
 
                     <div className="space-y-4">
                       {/* Age Exclusions */}
@@ -2419,7 +2419,7 @@ export default function CampaignCreatePage() {
 
                         {turnOnAgeExclusions && (
                           <div className="ml-6 space-y-2 pt-1 animate-in fade-in duration-200">
-                            <p className="text-[11px] text-slate-400">Select age ranges to exclude from the campaign. Unselected ages will be included.</p>
+                            <p className="text-[11px] text-slate-500">Select age ranges to exclude from the campaign. Unselected ages will be included.</p>
                             <div className="flex flex-wrap gap-2">
                               {["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"].map((age) => (
                                 <label key={age} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs cursor-pointer transition-all ${selectedAgeRanges.includes(age) ? "border-rose-500 bg-rose-500/10 text-rose-300 font-semibold" : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-200"}`}>
@@ -2454,7 +2454,7 @@ export default function CampaignCreatePage() {
 
                         {turnOnGenderExclusions && (
                           <div className="ml-6 space-y-2 pt-1 animate-in fade-in duration-200">
-                            <p className="text-[11px] text-slate-400">Select genders to exclude from the campaign. Unselected genders will be included.</p>
+                            <p className="text-[11px] text-slate-500">Select genders to exclude from the campaign. Unselected genders will be included.</p>
                             <div className="flex flex-wrap gap-2">
                               {["Female", "Male", "Unknown"].map((g) => (
                                 <label key={g} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs cursor-pointer transition-all ${selectedGenders.includes(g) ? "border-rose-500 bg-rose-500/10 text-rose-300 font-semibold" : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-200"}`}>
@@ -2481,7 +2481,7 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-slate-900 text-sm">Your data exclusions</h3>
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer pt-1">
                       <input
@@ -2528,19 +2528,19 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                 <Search className="h-3.5 w-3.5 text-blue-600" />
                 Search
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
@@ -2550,7 +2550,7 @@ export default function CampaignCreatePage() {
                   <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">3</div>
                   Keywords and ads
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1">
                   <p className="hover:text-slate-900 cursor-pointer">Keywords</p>
                   <p className="hover:text-slate-900 cursor-pointer text-emerald-400 font-medium">AI Max</p>
                   <p className="text-blue-600 font-semibold">Ads</p>
@@ -2575,14 +2575,14 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Keywords</h2>
-                <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
               </div>
 
               {/* Get keyword suggestions */}
               <div className="space-y-3">
                 <div>
-                  <h3 className="text-xs font-semibold text-slate-900">Get keyword suggestions <span className="text-slate-400 font-normal">(optional)</span></h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Google Ads can find keywords for you by scanning a web page or seeing what's working for similar products or services</p>
+                  <h3 className="text-xs font-semibold text-slate-900">Get keyword suggestions <span className="text-slate-500 font-normal">(optional)</span></h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Google Ads can find keywords for you by scanning a web page or seeing what's working for similar products or services</p>
                 </div>
 
                 <div className="space-y-3 max-w-2xl">
@@ -2595,7 +2595,7 @@ export default function CampaignCreatePage() {
                       value={assetFinalUrl}
                       onChange={(e) => setAssetFinalUrl(e.target.value)}
                       placeholder="Final URL"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -2606,7 +2606,7 @@ export default function CampaignCreatePage() {
                     <input
                       type="text"
                       placeholder="Enter products or services to advertise"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
@@ -2617,7 +2617,7 @@ export default function CampaignCreatePage() {
                         setKeywordsInput(prev => (prev ? prev + "\ndigital marketing\nseo services\nlead generation\nwhatsapp automation" : "digital marketing\nseo services\nlead generation\nwhatsapp automation"));
                       }
                     }}
-                    className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-blue-600 hover:bg-slate-750 transition-all cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-blue-600 hover:bg-slate-200 transition-all cursor-pointer"
                   >
                     Get keyword suggestions
                   </button>
@@ -2628,7 +2628,7 @@ export default function CampaignCreatePage() {
               <div className="space-y-3 pt-3 border-t border-slate-200">
                 <div>
                   <h3 className="text-xs font-semibold text-slate-900">Enter keywords</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-slate-500 mt-0.5">
                     Keywords are words or phrases that are used to match your ads with the terms people are searching for <HelpCircle className="inline h-3 w-3 text-slate-500" />
                   </p>
                 </div>
@@ -2639,7 +2639,7 @@ export default function CampaignCreatePage() {
                     value={keywordsInput}
                     onChange={(e) => setKeywordsInput(e.target.value)}
                     placeholder="Enter or paste keywords. You can separate each keyword by commas or enter one per line."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono leading-relaxed"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono leading-relaxed"
                   />
                 </div>
               </div>
@@ -2649,7 +2649,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Ad group settings for AI Max</h2>
-                <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
               </div>
 
               <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 text-xs flex items-center gap-2.5">
@@ -2667,10 +2667,10 @@ export default function CampaignCreatePage() {
                         BETA
                       </span>
                     </div>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Search term matching expands your keywords to broad match and lets Google AI match content from your landing pages and assets to help you show up on more relevant searches
                   </p>
 
@@ -2689,17 +2689,17 @@ export default function CampaignCreatePage() {
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold text-slate-900">Brand inclusions</h3>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Add brand inclusions to limit traffic to serve only on search queries related to the specified brands. Your ad group brand inclusions will be used instead of campaign-level brand inclusions.
                   </p>
 
                   <button
                     type="button"
                     onClick={() => setShowBrandModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add brand lists
                   </button>
@@ -2722,10 +2722,10 @@ export default function CampaignCreatePage() {
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold text-slate-900">Locations of interest</h3>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Use locations of interest to reach customers searching for or interested in specific geographic areas. The locations you selected in your campaign settings still apply. For best results, use locations of interest with phrase and broad match keywords.
                   </p>
 
@@ -2742,7 +2742,7 @@ export default function CampaignCreatePage() {
                           }
                         }}
                         placeholder="For example, a country, city, region, or postal code"
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                       />
                       <button
                         type="button"
@@ -2752,7 +2752,7 @@ export default function CampaignCreatePage() {
                             setLocationOfInterestInput("");
                           }
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-blue-600 hover:bg-slate-750 cursor-pointer"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-blue-600 hover:bg-slate-200 cursor-pointer"
                       >
                         Add
                       </button>
@@ -2777,17 +2777,17 @@ export default function CampaignCreatePage() {
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-semibold text-slate-900">URL inclusions</h3>
-                    <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Google AI selects the best performing landing page from your website. To use only certain pages, create URL rules or choose custom labels from your page feeds.
                   </p>
 
                   <button
                     type="button"
                     onClick={() => setShowUrlInclusionsModal(true)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add url inclusions
                   </button>
@@ -2800,7 +2800,7 @@ export default function CampaignCreatePage() {
                           <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 text-xs">
                             <span className="font-mono text-slate-900">{url}</span>
                             <button onClick={() => setSavedUrlInclusions(prev => prev.filter((_, i) => i !== idx))}>
-                              <X className="h-3.5 w-3.5 text-slate-400 hover:text-rose-400" />
+                              <X className="h-3.5 w-3.5 text-slate-500 hover:text-rose-400" />
                             </button>
                           </div>
                         ))}
@@ -2814,14 +2814,14 @@ export default function CampaignCreatePage() {
             {/* Modal: Add URL Inclusions */}
             {showUrlInclusionsModal && (
               <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-                <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden space-y-0">
+                <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl shadow-md overflow-hidden space-y-0">
                   {/* Modal Header */}
                   <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60">
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => setShowUrlInclusionsModal(false)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+                        className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                       >
                         <X className="h-5 w-5" />
                       </button>
@@ -2833,7 +2833,7 @@ export default function CampaignCreatePage() {
                   <div className="p-6 space-y-4">
                     <div className="flex items-start gap-4">
                       <span className="text-xs font-semibold text-slate-700 pt-1 shrink-0">URL inclusions</span>
-                      <p className="text-xs text-slate-400">Select specific pages from your website that you want Google AI to include</p>
+                      <p className="text-xs text-slate-500">Select specific pages from your website that you want Google AI to include</p>
                     </div>
 
                     <div className="border border-slate-200 rounded-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 bg-slate-50">
@@ -2843,21 +2843,21 @@ export default function CampaignCreatePage() {
                           <button
                             type="button"
                             onClick={() => setUrlInclusionsTab("URLs")}
-                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "URLs" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
+                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "URLs" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-900"}`}
                           >
                             URLs
                           </button>
                           <button
                             type="button"
                             onClick={() => setUrlInclusionsTab("CUSTOM_LABELS")}
-                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "CUSTOM_LABELS" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
+                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "CUSTOM_LABELS" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-900"}`}
                           >
                             Custom labels
                           </button>
                           <button
                             type="button"
                             onClick={() => setUrlInclusionsTab("RULES")}
-                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "RULES" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-900"}`}
+                            className={`pb-3 px-4 border-b-2 transition-all cursor-pointer ${urlInclusionsTab === "RULES" ? "border-blue-500 text-blue-600 font-bold" : "border-transparent text-slate-500 hover:text-slate-900"}`}
                           >
                             Rules
                           </button>
@@ -2873,7 +2873,7 @@ export default function CampaignCreatePage() {
                               value={urlInclusionsInput}
                               onChange={(e) => setUrlInclusionsInput(e.target.value)}
                               placeholder="Enter or paste your webpages, one URL per line"
-                              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                             />
                             <button
                               type="button"
@@ -2890,7 +2890,7 @@ export default function CampaignCreatePage() {
                             </button>
                           </div>
                         ) : (
-                          <div className="p-6 text-center text-xs text-slate-400">
+                          <div className="p-6 text-center text-xs text-slate-500">
                             Configure {urlInclusionsTab.toLowerCase()} for advanced page feed routing.
                           </div>
                         )}
@@ -2911,7 +2911,7 @@ export default function CampaignCreatePage() {
                                 <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 text-[11px]">
                                   <span className="truncate text-slate-900 font-mono max-w-[160px]">{url}</span>
                                   <button onClick={() => setSavedUrlInclusions(prev => prev.filter((_, i) => i !== idx))}>
-                                    <X className="h-3 w-3 text-slate-400 hover:text-rose-400" />
+                                    <X className="h-3 w-3 text-slate-500 hover:text-rose-400" />
                                   </button>
                                 </div>
                               ))}
@@ -2923,7 +2923,7 @@ export default function CampaignCreatePage() {
                           <button
                             type="button"
                             onClick={() => setShowUrlInclusionsModal(false)}
-                            className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 cursor-pointer"
+                            className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-200 cursor-pointer"
                           >
                             Done
                           </button>
@@ -2944,7 +2944,7 @@ export default function CampaignCreatePage() {
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <h3 className="text-base font-semibold text-slate-900">Ads</h3>
-                  <ChevronUp className="h-4 w-4 text-slate-400 cursor-pointer" />
+                  <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                 </div>
 
                 {/* Ad Strength Header Bar */}
@@ -2959,22 +2959,22 @@ export default function CampaignCreatePage() {
                         <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                         <span className="text-xs text-amber-400 font-bold">Incomplete</span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Add a Final URL to see headline and description suggestions</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Add a Final URL to see headline and description suggestions</p>
                     </div>
                   </div>
 
                   <div className="space-y-1 text-xs">
-                    <div className="flex items-center gap-2 text-slate-400">
+                    <div className="flex items-center gap-2 text-slate-500">
                       <div className="w-3.5 h-3.5 rounded-full border border-slate-600 flex items-center justify-center text-[9px]">○</div>
                       <span>Add headlines</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 hover:underline font-semibold ml-1">View ideas</a>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-400">
+                    <div className="flex items-center gap-2 text-slate-500">
                       <div className="w-3.5 h-3.5 rounded-full border border-slate-600 flex items-center justify-center text-[9px]">○</div>
                       <span>Include popular keywords</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 hover:underline font-semibold ml-1">View ideas</a>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-400">
+                    <div className="flex items-center gap-2 text-slate-500">
                       <div className="w-3.5 h-3.5 rounded-full border border-slate-600 flex items-center justify-center text-[9px]">○</div>
                       <span>Make headlines unique</span>
                       <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 hover:underline font-semibold ml-1">View ideas</a>
@@ -2999,7 +2999,7 @@ export default function CampaignCreatePage() {
                         value={assetFinalUrl}
                         onChange={(e) => setAssetFinalUrl(e.target.value)}
                         placeholder="https://example.com"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                       />
                       <p className="text-[10px] text-slate-500">This will be used to suggest assets for your ad</p>
                     </div>
@@ -3012,7 +3012,7 @@ export default function CampaignCreatePage() {
                         </label>
                         <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
                       </div>
-                      <p className="text-[11px] text-slate-400">www.example.com</p>
+                      <p className="text-[11px] text-slate-500">www.example.com</p>
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-slate-500 font-mono">/</span>
                         <input
@@ -3044,7 +3044,7 @@ export default function CampaignCreatePage() {
                         <button
                           type="button"
                           onClick={() => setShowCallsModal(true)}
-                          className="px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-200 text-xs font-semibold text-blue-600 transition-all flex items-center gap-1 cursor-pointer"
                         >
                           <Plus className="h-3.5 w-3.5" /> Add call
                         </button>
@@ -3057,7 +3057,7 @@ export default function CampaignCreatePage() {
                               📞 {num}
                             </span>
                             <button onClick={() => setCampaignCallsList(prev => prev.filter((_, i) => i !== idx))}>
-                              <X className="h-3.5 w-3.5 text-slate-400 hover:text-rose-400" />
+                              <X className="h-3.5 w-3.5 text-slate-500 hover:text-rose-400" />
                             </button>
                           </div>
                         ))}
@@ -3134,7 +3134,7 @@ export default function CampaignCreatePage() {
                               <button
                                 type="button"
                                 onClick={() => setHeadlines(prev => prev.filter((_, i) => i !== idx))}
-                                className="p-1 text-slate-400 hover:text-rose-400"
+                                className="p-1 text-slate-500 hover:text-rose-400"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -3216,7 +3216,7 @@ export default function CampaignCreatePage() {
                                 <button
                                   type="button"
                                   onClick={() => setDescriptions(prev => prev.filter((_, i) => i !== idx))}
-                                  className="p-1 text-slate-400 hover:text-rose-400"
+                                  className="p-1 text-slate-500 hover:text-rose-400"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -3237,7 +3237,7 @@ export default function CampaignCreatePage() {
                         <label className="text-xs font-semibold text-slate-900">Business name</label>
                         <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
                       </div>
-                      <p className="text-[11px] text-slate-400">This name should match your URL or verified advertiser name</p>
+                      <p className="text-[11px] text-slate-500">This name should match your URL or verified advertiser name</p>
                       <input
                         type="text"
                         maxLength={25}
@@ -3256,12 +3256,12 @@ export default function CampaignCreatePage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-xs font-semibold text-slate-900">Sitelinks</h3>
-                          <p className="text-[11px] text-slate-400">Add links to your ads to take people to specific pages on your website.</p>
+                          <p className="text-[11px] text-slate-500">Add links to your ads to take people to specific pages on your website.</p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setShowSitelinksModal(true)}
-                          className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1"
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1"
                         >
                           <Plus className="h-3.5 w-3.5" /> Sitelinks
                         </button>
@@ -3279,7 +3279,7 @@ export default function CampaignCreatePage() {
                                   Recommended
                                 </span>
                                 {item.text && (
-                                  <span className="text-xs text-slate-400 font-mono italic">
+                                  <span className="text-xs text-slate-500 font-mono italic">
                                     "{item.text}"
                                   </span>
                                 )}
@@ -3291,7 +3291,7 @@ export default function CampaignCreatePage() {
                                   setActiveSitelinkIndex(idx);
                                   setShowSitelinksModal(true);
                                 }}
-                                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-750 text-xs font-semibold text-blue-600 border border-slate-200 cursor-pointer"
+                                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-blue-600 border border-slate-200 cursor-pointer"
                               >
                                 Edit
                               </button>
@@ -3306,7 +3306,7 @@ export default function CampaignCreatePage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-xs font-semibold text-slate-900">Callouts</h3>
-                          <p className="text-[11px] text-slate-400">Add more business information</p>
+                          <p className="text-[11px] text-slate-500">Add more business information</p>
                         </div>
                         <button
                           type="button"
@@ -3314,7 +3314,7 @@ export default function CampaignCreatePage() {
                             const val = prompt("Enter callout text (e.g. 24/7 Customer Support):");
                             if (val) setCalloutsList(prev => [...prev, val]);
                           }}
-                          className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1"
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1"
                         >
                           <Plus className="h-3.5 w-3.5" /> Callout
                         </button>
@@ -3338,7 +3338,7 @@ export default function CampaignCreatePage() {
                     <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
                       <div>
                         <h3 className="text-xs font-semibold text-slate-900">More asset types (0/7)</h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-slate-500 mt-0.5">
                           Improve your ad performance and make your ad more interactive by adding more details about your business and website
                         </p>
                       </div>
@@ -3351,11 +3351,11 @@ export default function CampaignCreatePage() {
                         >
                           <div>
                             <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Promotions</span>
-                            <span className="text-[10px] text-slate-400">Add promotions</span>
+                            <span className="text-[10px] text-slate-500">Add promotions</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-slate-900 transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3368,11 +3368,11 @@ export default function CampaignCreatePage() {
                         >
                           <div>
                             <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Prices</span>
-                            <span className="text-[10px] text-slate-400">Add prices</span>
+                            <span className="text-[10px] text-slate-500">Add prices</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-slate-900 transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3385,11 +3385,11 @@ export default function CampaignCreatePage() {
                         >
                           <div>
                             <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Messages</span>
-                            <span className="text-[10px] text-slate-400">Add a message</span>
+                            <span className="text-[10px] text-slate-500">Add a message</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-slate-900 transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3402,11 +3402,11 @@ export default function CampaignCreatePage() {
                         >
                           <div>
                             <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Structured snippets</span>
-                            <span className="text-[10px] text-slate-400">Add snippets of text</span>
+                            <span className="text-[10px] text-slate-500">Add snippets of text</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-slate-900 transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3419,11 +3419,11 @@ export default function CampaignCreatePage() {
                         >
                           <div>
                             <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Lead forms</span>
-                            <span className="text-[10px] text-slate-400">Add a form</span>
+                            <span className="text-[10px] text-slate-500">Add a form</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-slate-900 transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3436,11 +3436,11 @@ export default function CampaignCreatePage() {
                         >
                           <div>
                             <span className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors block">Apps</span>
-                            <span className="text-[10px] text-slate-400">Add apps</span>
+                            <span className="text-[10px] text-slate-500">Add apps</span>
                           </div>
                           <button
                             type="button"
-                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-white transition-all cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-blue-600 group-hover:bg-blue-600 text-white group-hover:text-slate-900 transition-all cursor-pointer"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -3463,7 +3463,7 @@ export default function CampaignCreatePage() {
                           value={adTrackingTemplate}
                           onChange={(e) => setAdTrackingTemplate(e.target.value)}
                           placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                         />
                       </div>
 
@@ -3475,7 +3475,7 @@ export default function CampaignCreatePage() {
                           value={adFinalUrlSuffix}
                           onChange={(e) => setAdFinalUrlSuffix(e.target.value)}
                           placeholder="Example: param1=value1&param2=value2"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                         />
                       </div>
 
@@ -3497,7 +3497,7 @@ export default function CampaignCreatePage() {
                         <div className="space-y-2">
                           {customParameters.map((param, idx) => (
                             <div key={param.id || idx} className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-slate-400">{`{_`}</span>
+                              <span className="text-xs font-mono text-slate-500">{`{_`}</span>
                               <input
                                 type="text"
                                 value={param.name}
@@ -3507,10 +3507,10 @@ export default function CampaignCreatePage() {
                                   setCustomParameters(updated);
                                 }}
                                 placeholder="Name"
-                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                               />
-                              <span className="text-xs font-mono text-slate-400">{`}`}</span>
-                              <span className="text-xs font-mono text-slate-400">=</span>
+                              <span className="text-xs font-mono text-slate-500">{`}`}</span>
+                              <span className="text-xs font-mono text-slate-500">=</span>
                               <input
                                 type="text"
                                 value={param.value}
@@ -3520,13 +3520,13 @@ export default function CampaignCreatePage() {
                                   setCustomParameters(updated);
                                 }}
                                 placeholder="Value"
-                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                               />
                               {customParameters.length > 1 && (
                                 <button
                                   type="button"
                                   onClick={() => setCustomParameters(prev => prev.filter((_, i) => i !== idx))}
-                                  className="p-1 text-slate-400 hover:text-rose-400"
+                                  className="p-1 text-slate-500 hover:text-rose-400"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -3556,7 +3556,7 @@ export default function CampaignCreatePage() {
                               value={mobileFinalUrlAd}
                               onChange={(e) => setMobileFinalUrlAd(e.target.value)}
                               placeholder="https://m.example.com"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                             />
                           </div>
                         )}
@@ -3576,9 +3576,9 @@ export default function CampaignCreatePage() {
 
                     {/* Mobile Mock Frame */}
                     <div className="p-6 rounded-3xl border border-slate-200 bg-slate-50 flex flex-col items-center space-y-4">
-                      <div className="w-64 rounded-[32px] border-4 border-slate-200 bg-white p-4 space-y-3 text-xs shadow-2xl">
+                      <div className="w-64 rounded-[32px] border-4 border-slate-200 bg-white p-4 space-y-3 text-xs shadow-md">
                         {/* Google Search Bar Mock */}
-                        <div className="flex items-center gap-2 p-2 rounded-full bg-slate-50 border border-slate-200 text-[11px] text-slate-400">
+                        <div className="flex items-center gap-2 p-2 rounded-full bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
                           <span className="font-bold text-blue-400 text-xs pl-1">G</span>
                           <span className="truncate">{keywordsInput.split("\n")[0] || "search keywords"}</span>
                         </div>
@@ -3590,8 +3590,8 @@ export default function CampaignCreatePage() {
                             <Info className="h-3 w-3 text-slate-500" />
                           </div>
 
-                          <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                            <div className="w-4 h-4 rounded-full bg-blue-600 text-slate-900 font-bold flex items-center justify-center text-[9px]">J</div>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <div className="w-4 h-4 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[9px]">J</div>
                             <span className="truncate">{assetFinalUrl ? new URL(assetFinalUrl.startsWith("http") ? assetFinalUrl : `https://${assetFinalUrl}`).hostname : "example.com"}</span>
                           </div>
 
@@ -3599,7 +3599,7 @@ export default function CampaignCreatePage() {
                             {headlines[0] || "Headline 1"} - {headlines[1] || "Headline 2"}
                           </h4>
 
-                          <p className="text-[10px] text-slate-400 leading-normal">
+                          <p className="text-[10px] text-slate-500 leading-normal">
                             {descriptions[0] || "Description text preview will show here..."}
                           </p>
 
@@ -3639,7 +3639,7 @@ export default function CampaignCreatePage() {
               <button
                 type="button"
                 onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
-                className="px-6 py-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-slate-900 font-semibold text-xs transition-all cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-900 font-semibold text-xs transition-all cursor-pointer"
               >
                 Back
               </button>
@@ -3659,19 +3659,19 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                 <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
@@ -3681,7 +3681,7 @@ export default function CampaignCreatePage() {
                   <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">3</div>
                   Asset group
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1">
                   <p className="text-blue-600 font-semibold">Name</p>
                   <p className="hover:text-slate-900 cursor-pointer">Final URL</p>
                   <p className="hover:text-slate-900 cursor-pointer">Brand guidelines</p>
@@ -3715,9 +3715,9 @@ export default function CampaignCreatePage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-900">Let's start adding ad assets</span>
-                    <span className="text-xs text-slate-400 font-mono">• Ad strength: <strong className="text-amber-400">Incomplete</strong></span>
+                    <span className="text-xs text-slate-500 font-mono">• Ad strength: <strong className="text-amber-400">Incomplete</strong></span>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5">
                     <span className="flex items-center gap-1 text-emerald-400">✓ Images</span>
                     <span className="flex items-center gap-1 text-emerald-400">✓ Headlines</span>
                     <span className="flex items-center gap-1 text-emerald-400">✓ Sitelinks</span>
@@ -3751,7 +3751,7 @@ export default function CampaignCreatePage() {
                   value={assetFinalUrl}
                   onChange={(e) => setAssetFinalUrl(e.target.value)}
                   placeholder="https://yourwebsite.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -3761,11 +3761,11 @@ export default function CampaignCreatePage() {
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">Brand guidelines</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand guidelines</a></p>
+                  <p className="text-xs text-slate-500 mt-0.5">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand guidelines</a></p>
                 </div>
                 <button
                   onClick={() => setShowAddBrandModal(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-750 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-xs font-semibold text-blue-600 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
                 >
                   <Settings className="h-3.5 w-3.5" /> More options
                 </button>
@@ -3889,7 +3889,7 @@ export default function CampaignCreatePage() {
                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                       {idx < 3 ? <span className="text-[10px] text-rose-400 font-semibold uppercase">Req</span> : (
-                        <button onClick={() => setHeadlines(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400">
+                        <button onClick={() => setHeadlines(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-500 hover:text-rose-400">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -3965,7 +3965,7 @@ export default function CampaignCreatePage() {
                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                       {idx === 0 ? <span className="text-[10px] text-rose-400 font-semibold uppercase">Req</span> : (
-                        <button onClick={() => setLongHeadlines(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400">
+                        <button onClick={() => setLongHeadlines(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-500 hover:text-rose-400">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -4041,7 +4041,7 @@ export default function CampaignCreatePage() {
                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                       {idx < 2 ? <span className="text-[10px] text-rose-400 font-semibold uppercase">Req</span> : (
-                        <button onClick={() => setDescriptions(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-400 hover:text-rose-400">
+                        <button onClick={() => setDescriptions(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-slate-500 hover:text-rose-400">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -4090,7 +4090,7 @@ export default function CampaignCreatePage() {
                             <span className="text-emerald-400 font-mono text-[9px]">ImageKit CDN</span>
                             <button
                               onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== idx))}
-                              className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-slate-900"
+                              className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-white"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
@@ -4107,20 +4107,20 @@ export default function CampaignCreatePage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                    <div className="h-32 rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden relative">
+                    <div className="h-32 rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-200 flex items-center justify-center text-slate-500 overflow-hidden relative">
                       <img src="https://ik.imagekit.io/automationjds/sample_web_portfolio.png" alt="Generated" className="w-full h-full object-cover opacity-80" />
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
                       <span className="flex items-center gap-1"><Sparkles className="h-3 w-3 text-blue-600" /> Generated</span>
                       <button className="text-blue-600 font-semibold hover:underline">Select all</button>
                     </div>
                   </div>
 
                   <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                    <div className="h-32 rounded-lg bg-gradient-to-br from-blue-900/40 to-slate-900 border border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden relative">
+                    <div className="h-32 rounded-lg bg-gradient-to-br from-blue-900/40 to-slate-900 border border-slate-200 flex items-center justify-center text-slate-500 overflow-hidden relative">
                       <img src="https://ik.imagekit.io/automationjds/sample_seo_growth.png" alt="Enhanced" className="w-full h-full object-cover opacity-80" />
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
                       <span className="flex items-center gap-1">⚡ Enhanced from URL</span>
                       <button className="text-blue-600 font-semibold hover:underline">View more</button>
                     </div>
@@ -4174,7 +4174,7 @@ export default function CampaignCreatePage() {
                           <span className="text-slate-900 font-medium truncate max-w-[120px]">{vid.name}</span>
                           <button
                             onClick={() => setUploadedVideos(prev => prev.filter((_, i) => i !== idx))}
-                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-slate-900"
+                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-white"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -4191,17 +4191,17 @@ export default function CampaignCreatePage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                    <div className="h-28 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                    <div className="h-28 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500">
                       <Video className="h-7 w-7 text-blue-600" />
                     </div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Instagram ad</span>
+                    <span className="text-[10px] text-slate-500 block font-medium">Instagram ad</span>
                   </div>
 
                   <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                    <div className="h-28 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                    <div className="h-28 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500">
                       <Video className="h-7 w-7 text-blue-600" />
                     </div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Instagram ad</span>
+                    <span className="text-[10px] text-slate-500 block font-medium">Instagram ad</span>
                   </div>
                 </div>
               </div>
@@ -4227,7 +4227,7 @@ export default function CampaignCreatePage() {
                 </button>
               </div>
 
-              <p className="text-xs text-slate-400">New sitelinks suggested by Google AI for your campaign:</p>
+              <p className="text-xs text-slate-500">New sitelinks suggested by Google AI for your campaign:</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {sitelinks.map((sl, idx) => (
@@ -4236,7 +4236,7 @@ export default function CampaignCreatePage() {
                       <p className="text-xs font-semibold text-blue-600">{sl.title}</p>
                       <p className="text-[11px] text-slate-500">{sl.desc}</p>
                     </div>
-                    <div className="flex items-center gap-1 text-slate-400">
+                    <div className="flex items-center gap-1 text-slate-500">
                       <button onClick={() => setSitelinks(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:text-slate-900"><Trash2 className="h-3 w-3" /></button>
                     </div>
                   </div>
@@ -4277,7 +4277,7 @@ export default function CampaignCreatePage() {
                           <span className="text-slate-900 font-medium truncate max-w-[100px]">{clip.name}</span>
                           <button
                             onClick={() => setUploadedAnimatedClips(prev => prev.filter((_, i) => i !== idx))}
-                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-slate-900"
+                            className="p-1 bg-rose-500/80 rounded hover:bg-rose-600 text-white"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -4294,7 +4294,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">More asset types</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Improve your ad performance and make your ad more interactive by adding more details about your business and website
                 </p>
               </div>
@@ -4407,7 +4407,7 @@ export default function CampaignCreatePage() {
                   {showAssetGroupMoreOptions ? (
                     <ChevronUp className="h-4 w-4 text-blue-600" />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-900" />
+                    <ChevronDown className="h-4 w-4 text-slate-500 group-hover:text-slate-900" />
                   )}
                 </div>
 
@@ -4417,7 +4417,7 @@ export default function CampaignCreatePage() {
                     <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                       <h4 className="text-xs font-bold text-slate-900">Display path</h4>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="text-slate-400 font-mono">japatracker-7f759.web.app /</span>
+                        <span className="text-slate-500 font-mono">japatracker-7f759.web.app /</span>
                         <div className="space-y-0.5 flex-1 max-w-[120px]">
                           <input
                             type="text"
@@ -4428,7 +4428,7 @@ export default function CampaignCreatePage() {
                           />
                           <span className="text-[10px] text-slate-500 block text-right">{displayPath1.length} / 15</span>
                         </div>
-                        <span className="text-slate-400 font-mono">/</span>
+                        <span className="text-slate-500 font-mono">/</span>
                         <div className="space-y-0.5 flex-1 max-w-[120px]">
                           <input
                             type="text"
@@ -4472,27 +4472,27 @@ export default function CampaignCreatePage() {
                       <h4 className="text-xs font-bold text-slate-900">Asset group URL options</h4>
                       <div className="space-y-3">
                         <div className="space-y-1">
-                          <label className="block text-slate-400 text-[11px]">Tracking template</label>
+                          <label className="block text-slate-500 text-[11px]">Tracking template</label>
                           <input
                             type="text"
                             value={assetGroupTrackingTemplate}
                             onChange={(e) => setAssetGroupTrackingTemplate(e.target.value)}
                             placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="block text-slate-400 text-[11px]">Final URL suffix</label>
+                          <label className="block text-slate-500 text-[11px]">Final URL suffix</label>
                           <input
                             type="text"
                             value={assetGroupFinalUrlSuffix}
                             onChange={(e) => setAssetGroupFinalUrlSuffix(e.target.value)}
                             placeholder="Example: param1=value1&param2=value2"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                         <div className="space-y-2 pt-1">
-                          <label className="block text-slate-400 text-[11px]">Custom parameter</label>
+                          <label className="block text-slate-500 text-[11px]">Custom parameter</label>
                           {assetGroupCustomParams.map((cp, idx) => (
                             <div key={cp.id} className="flex items-center gap-2">
                               <input
@@ -4506,7 +4506,7 @@ export default function CampaignCreatePage() {
                                 placeholder="{_Name}"
                                 className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 w-1/3 focus:outline-none focus:border-blue-500"
                               />
-                              <span className="text-slate-400">=</span>
+                              <span className="text-slate-500">=</span>
                               <input
                                 type="text"
                                 value={cp.value}
@@ -4525,7 +4525,7 @@ export default function CampaignCreatePage() {
                     {/* URL Rules */}
                     <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                       <h4 className="text-xs font-bold text-slate-900">URL rules</h4>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-500">
                         Create URL rules or specify which URLs from page feeds to use for your ads
                       </p>
                     </div>
@@ -4552,15 +4552,15 @@ export default function CampaignCreatePage() {
             {/* Asset optimization Drawer Bar */}
             <div className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between text-xs text-slate-700">
               <span className="font-semibold text-slate-900">Asset optimization</span>
-              <span className="text-slate-400">Text customization, final URL expansion, and 2 more are turned on</span>
-              <ChevronDown className="h-4 w-4 text-slate-400" />
+              <span className="text-slate-500">Text customization, final URL expansion, and 2 more are turned on</span>
+              <ChevronDown className="h-4 w-4 text-slate-500" />
             </div>
 
             {/* Signals Card (Search Themes & Audience Signals) */}
             <div className="space-y-6 pt-4">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Signals</h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Signals provide valuable information about the people you want to reach. They help guide who sees your ads on Google Search, YouTube, and more.
                 </p>
               </div>
@@ -4569,7 +4569,7 @@ export default function CampaignCreatePage() {
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <h3 className="text-sm font-semibold text-slate-900">Search themes</h3>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
 
                 <div className="space-y-3">
@@ -4580,7 +4580,7 @@ export default function CampaignCreatePage() {
                   <input
                     type="text"
                     placeholder="Add search themes (up to 50)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -4589,7 +4589,7 @@ export default function CampaignCreatePage() {
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <h3 className="text-sm font-semibold text-slate-900">Audience signal</h3>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
@@ -4599,7 +4599,7 @@ export default function CampaignCreatePage() {
                   </p>
                   <button
                     onClick={() => setShowSavedAudienceModal(true)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-750 transition-all shrink-0 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-900 hover:bg-slate-200 transition-all shrink-0 cursor-pointer"
                   >
                     Add saved audience signal
                   </button>
@@ -4609,10 +4609,10 @@ export default function CampaignCreatePage() {
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                     <h4 className="text-xs font-bold text-slate-900">Your data</h4>
-                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                    <ChevronDown className="h-4 w-4 text-slate-500" />
                   </div>
                   
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
                     First-party data can help us reach your customers
                     <HelpCircle className="h-3.5 w-3.5 text-slate-500" />
                   </p>
@@ -4622,7 +4622,7 @@ export default function CampaignCreatePage() {
                     <input
                       type="text"
                       placeholder="Add your data"
-                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -4640,7 +4640,7 @@ export default function CampaignCreatePage() {
                     {showAdditionalSignalsAccordion ? (
                       <ChevronUp className="h-4 w-4 text-blue-600" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
                     )}
                   </div>
 
@@ -4650,7 +4650,7 @@ export default function CampaignCreatePage() {
                       <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2.5">
                         <div>
                           <h4 className="font-bold text-slate-900 text-xs">Interests & detailed demographics</h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
+                          <p className="text-[11px] text-slate-500 mt-0.5">
                             Add any interests, detailed demographics, or life events related to your customers
                           </p>
                         </div>
@@ -4661,7 +4661,7 @@ export default function CampaignCreatePage() {
                             value={additionalInterestsInput}
                             onChange={(e) => setAdditionalInterestsInput(e.target.value)}
                             placeholder="Add in-market segments, life events, and more"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                         </div>
                       </div>
@@ -4672,7 +4672,7 @@ export default function CampaignCreatePage() {
                           <h4 className="font-bold text-slate-900 text-xs">Demographics</h4>
                           <p className="text-[11px] text-emerald-400 font-medium mt-0.5">All demographics (recommended)</p>
                         </div>
-                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                        <ChevronDown className="h-4 w-4 text-slate-500" />
                       </div>
                     </div>
                   )}
@@ -4682,14 +4682,14 @@ export default function CampaignCreatePage() {
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-slate-900 text-xs">Audience name</h4>
-                    <span className="text-[11px] text-slate-400">Add a name for your audience to save it to your library (optional)</span>
+                    <span className="text-[11px] text-slate-500">Add a name for your audience to save it to your library (optional)</span>
                   </div>
                   <input
                     type="text"
                     value={audienceName}
                     onChange={(e) => setAudienceName(e.target.value)}
                     placeholder="Enter audience name"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -4717,7 +4717,7 @@ export default function CampaignCreatePage() {
               </h3>
 
               <div className="p-4 rounded-xl border border-slate-200 bg-white text-xs space-y-2 shadow-lg">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                   <span className="font-bold text-slate-900">Sponsored</span>
                   <span>•</span>
                   <span className="text-slate-700 font-mono truncate">{assetFinalUrl}</span>
@@ -4750,24 +4750,24 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                 <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Asset group
               </div>
@@ -4777,7 +4777,7 @@ export default function CampaignCreatePage() {
                   <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">4</div>
                   Budget
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1">
                   <p className="text-blue-600 font-semibold">Budget</p>
                 </div>
               </div>
@@ -4793,7 +4793,7 @@ export default function CampaignCreatePage() {
           <main className="flex-1 p-6 md:p-10 space-y-8 max-w-4xl">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Budget</h1>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                 Decide how much you want to spend.
               </p>
             </div>
@@ -4801,7 +4801,7 @@ export default function CampaignCreatePage() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h2 className="text-base font-semibold text-slate-900">Budget</h2>
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown className="h-4 w-4 text-slate-500" />
               </div>
 
               <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-xs flex items-start gap-2.5">
@@ -4826,7 +4826,7 @@ export default function CampaignCreatePage() {
                     />
                     <div className="space-y-0.5">
                       <span className="text-xs font-semibold text-slate-900 block">Average daily budget</span>
-                      <span className="text-[11px] text-slate-400 block">Set your average daily budget for this campaign</span>
+                      <span className="text-[11px] text-slate-500 block">Set your average daily budget for this campaign</span>
                     </div>
                   </label>
 
@@ -4850,26 +4850,26 @@ export default function CampaignCreatePage() {
                             <div>
                               <span className="text-xs font-bold text-slate-900">₹6,097.08</span>
                               {selectedPresetBudget === "6097.08" && (
-                                <span className="text-[11px] text-slate-400 block font-normal">Average daily budget</span>
+                                <span className="text-[11px] text-slate-500 block font-normal">Average daily budget</span>
                               )}
                             </div>
                           </div>
-                          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${selectedPresetBudget === "6097.08" ? "rotate-180" : ""}`} />
+                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${selectedPresetBudget === "6097.08" ? "rotate-180" : ""}`} />
                         </label>
 
                         {selectedPresetBudget === "6097.08" && (
                           <div className="p-4 border-t border-slate-200 bg-white space-y-2 animate-in fade-in duration-200">
                             <div className="grid grid-cols-3 gap-4 text-center">
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly conv.</span>
                                 <span className="text-xs font-bold text-slate-900">35</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Cost / conv.</span>
                                 <span className="text-xs font-bold text-slate-900">₹1,188.85</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly cost</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly cost</span>
                                 <span className="text-xs font-bold text-slate-900">₹42,679.56</span>
                               </div>
                             </div>
@@ -4897,30 +4897,30 @@ export default function CampaignCreatePage() {
                                 <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-semibold text-[10px]">Recommended</span>
                               </div>
                               {selectedPresetBudget === "5080.90" && (
-                                <span className="text-[11px] text-slate-400 block font-normal mt-0.5">Average daily budget</span>
+                                <span className="text-[11px] text-slate-500 block font-normal mt-0.5">Average daily budget</span>
                               )}
                             </div>
                           </div>
-                          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${selectedPresetBudget === "5080.90" ? "rotate-180" : ""}`} />
+                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${selectedPresetBudget === "5080.90" ? "rotate-180" : ""}`} />
                         </label>
 
                         {selectedPresetBudget === "5080.90" && (
                           <div className="p-4 border-t border-slate-200 bg-white space-y-3 animate-in fade-in duration-200">
                             <div className="grid grid-cols-3 gap-4 text-center">
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly conv.</span>
                                 <span className="text-xs font-bold text-slate-900">32</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Cost / conv.</span>
                                 <span className="text-xs font-bold text-slate-900">₹1,084.34</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly cost</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly cost</span>
                                 <span className="text-xs font-bold text-slate-900">₹35,566.30</span>
                               </div>
                             </div>
-                            <p className="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-200">
+                            <p className="text-[11px] text-slate-500 leading-relaxed pt-1 border-t border-slate-200">
                               Recommended because of your campaign settings, such as bidding, targeting and ads, as well as the budgets of similar advertisers.
                             </p>
                           </div>
@@ -4944,26 +4944,26 @@ export default function CampaignCreatePage() {
                             <div>
                               <span className="text-xs font-bold text-slate-900">₹4,064.72</span>
                               {selectedPresetBudget === "4064.72" && (
-                                <span className="text-[11px] text-slate-400 block font-normal">Average daily budget</span>
+                                <span className="text-[11px] text-slate-500 block font-normal">Average daily budget</span>
                               )}
                             </div>
                           </div>
-                          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${selectedPresetBudget === "4064.72" ? "rotate-180" : ""}`} />
+                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${selectedPresetBudget === "4064.72" ? "rotate-180" : ""}`} />
                         </label>
 
                         {selectedPresetBudget === "4064.72" && (
                           <div className="p-4 border-t border-slate-200 bg-white space-y-2 animate-in fade-in duration-200">
                             <div className="grid grid-cols-3 gap-4 text-center">
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly conv.</span>
                                 <span className="text-xs font-bold text-slate-900">29</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Cost / conv.</span>
                                 <span className="text-xs font-bold text-slate-900">₹971.09</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly cost</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly cost</span>
                                 <span className="text-xs font-bold text-slate-900">₹28,453.04</span>
                               </div>
                             </div>
@@ -4987,7 +4987,7 @@ export default function CampaignCreatePage() {
                             />
                             <span className="text-xs font-semibold text-slate-900">Set custom budget</span>
                           </div>
-                          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${selectedPresetBudget === "CUSTOM" ? "rotate-180" : ""}`} />
+                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${selectedPresetBudget === "CUSTOM" ? "rotate-180" : ""}`} />
                         </label>
 
                         {selectedPresetBudget === "CUSTOM" && (
@@ -4995,7 +4995,7 @@ export default function CampaignCreatePage() {
                             <div className="space-y-1.5">
                               <label className="block text-xs font-semibold text-slate-700">Set your average daily budget for this campaign</label>
                               <div className="relative w-64">
-                                <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-semibold">₹</span>
+                                <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-semibold">₹</span>
                                 <input
                                   type="text"
                                   value={customBudgetValue}
@@ -5007,15 +5007,15 @@ export default function CampaignCreatePage() {
 
                             <div className="grid grid-cols-3 gap-4 text-center border-t border-slate-200 pt-3">
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly conv.</span>
                                 <span className="text-xs font-bold text-slate-900">29</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Cost / conv.</span>
+                                <span className="text-[10px] text-slate-500 block">Cost / conv.</span>
                                 <span className="text-xs font-bold text-slate-900">₹971.09</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Weekly cost</span>
+                                <span className="text-[10px] text-slate-500 block">Weekly cost</span>
                                 <span className="text-xs font-bold text-slate-900">₹28,453.04</span>
                               </div>
                             </div>
@@ -5033,7 +5033,7 @@ export default function CampaignCreatePage() {
                         </div>
                       )}
 
-                      <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                      <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
                         For the month, you won't pay more than your daily budget times the average number of days in a month. Some days you might spend less than your daily budget, and on others you might spend up to twice as much. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a>
                       </p>
                     </div>
@@ -5052,7 +5052,7 @@ export default function CampaignCreatePage() {
                     />
                     <div className="space-y-0.5">
                       <span className="text-xs font-semibold text-slate-900 block">Campaign total budget</span>
-                      <span className="text-[11px] text-slate-400 block">Set a budget for the duration of your campaign</span>
+                      <span className="text-[11px] text-slate-500 block">Set a budget for the duration of your campaign</span>
                     </div>
                   </label>
 
@@ -5060,7 +5060,7 @@ export default function CampaignCreatePage() {
                     <div className="ml-7 space-y-4 animate-in fade-in duration-200">
                       <div className="space-y-1.5">
                         <div className="relative w-64">
-                          <span className="absolute left-3.5 top-2.5 text-xs text-slate-400 font-semibold">₹</span>
+                          <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-semibold">₹</span>
                           <input
                             type="text"
                             value={customBudgetValue}
@@ -5075,7 +5075,7 @@ export default function CampaignCreatePage() {
                       <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
                         <div>
                           <h4 className="text-xs font-semibold text-slate-900">Campaign dates</h4>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
+                          <p className="text-[11px] text-slate-500 mt-0.5">
                             To set a campaign total budget add the dates of your campaign
                           </p>
                         </div>
@@ -5089,7 +5089,7 @@ export default function CampaignCreatePage() {
                               onChange={(e) => setStartDateValue(e.target.value)}
                               className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                             />
-                            <p className="text-[10px] text-slate-400 font-mono pt-0.5">
+                            <p className="text-[10px] text-slate-500 font-mono pt-0.5">
                               {new Date(startDateValue || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                             </p>
                           </div>
@@ -5105,7 +5105,7 @@ export default function CampaignCreatePage() {
                               }}
                               className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
                             />
-                            <p className="text-[10px] text-slate-400 pt-0.5">
+                            <p className="text-[10px] text-slate-500 pt-0.5">
                               {endDateMode === "NONE" ? "Select a date" : new Date(endDateValue).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                             </p>
                           </div>
@@ -5124,29 +5124,29 @@ export default function CampaignCreatePage() {
           {/* Left Sub-Navigation Sidebar */}
           <aside className="w-64 border-r border-slate-200 p-6 space-y-6 shrink-0 bg-slate-50/50 hidden md:block">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                 <Sparkles className="h-3.5 w-3.5 text-blue-600" />
                 Performance Max
               </div>
             </div>
 
             <nav className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Bidding
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Campaign settings
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Asset group
               </div>
 
-              <div className="flex items-center gap-2 text-slate-400 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BUDGET")}>
+              <div className="flex items-center gap-2 text-slate-500 font-medium cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BUDGET")}>
                 <div className="w-4 h-4 rounded-full border border-slate-600 flex items-center justify-center text-[10px]">✓</div>
                 Budget
               </div>
@@ -5156,7 +5156,7 @@ export default function CampaignCreatePage() {
                   <div className="w-4 h-4 rounded-full border border-blue-500 flex items-center justify-center text-[10px]">5</div>
                   Summary
                 </div>
-                <div className="ml-6 space-y-1 text-slate-400 border-l border-slate-200 pl-3 py-1">
+                <div className="ml-6 space-y-1 text-slate-500 border-l border-slate-200 pl-3 py-1">
                   <p className="text-blue-600 font-semibold">Overview</p>
                 </div>
               </div>
@@ -5171,7 +5171,7 @@ export default function CampaignCreatePage() {
                 Your campaign is ready to publish
               </div>
               <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Summary</h1>
-              <p className="text-xs text-slate-400 mt-1">Review your campaign details before publishing</p>
+              <p className="text-xs text-slate-500 mt-1">Review your campaign details before publishing</p>
             </div>
 
             {/* Recommendations Banner */}
@@ -5180,7 +5180,7 @@ export default function CampaignCreatePage() {
                 <span className="text-xs font-bold text-slate-900">Recommendations</span>
                 <span className="text-[11px] text-slate-500 font-mono">1 / 1</span>
               </div>
-              <p className="text-xs text-slate-400">Apply these recommendations to optimize campaign performance</p>
+              <p className="text-xs text-slate-500">Apply these recommendations to optimize campaign performance</p>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs mt-2">
                 <span className="font-semibold text-slate-900">Add an audience signal for faster optimization</span>
                 <button
@@ -5207,7 +5207,7 @@ export default function CampaignCreatePage() {
               {isEditingOverview ? (
                 <div className="space-y-4 text-xs animate-in fade-in duration-200">
                   <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Campaign name</label>
+                    <label className="text-slate-500 font-semibold">Campaign name</label>
                     <input
                       type="text"
                       value={campaignName}
@@ -5216,7 +5216,7 @@ export default function CampaignCreatePage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Website URL</label>
+                    <label className="text-slate-500 font-semibold">Website URL</label>
                     <input
                       type="text"
                       value={assetFinalUrl}
@@ -5232,24 +5232,24 @@ export default function CampaignCreatePage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
                   <div className="space-y-1">
-                    <span className="text-slate-400">Campaign name</span>
+                    <span className="text-slate-500">Campaign name</span>
                     <p className="font-semibold text-slate-900 text-sm">{campaignName || "Sales-Performance Max-1"}</p>
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-slate-400">Campaign type</span>
+                    <span className="text-slate-500">Campaign type</span>
                     <p className="font-semibold text-slate-900">Performance Max</p>
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-slate-400">Goal</span>
+                    <span className="text-slate-500">Goal</span>
                     <p className="font-semibold text-slate-900">
                       {conversionGoals.length > 0 ? conversionGoals.map(g => g.name).join(", ") : "Phone call leads"}
                     </p>
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-slate-400">Business details</span>
+                    <span className="text-slate-500">Business details</span>
                     <p className="font-semibold text-slate-900 truncate">
                       Website: {assetFinalUrl.trim() || websiteVisitsUrl.trim() || "None specified"}
                     </p>
@@ -5273,7 +5273,7 @@ export default function CampaignCreatePage() {
               {isEditingBidding ? (
                 <div className="space-y-4 text-xs animate-in fade-in duration-200">
                   <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Bidding strategy</label>
+                    <label className="text-slate-500 font-semibold">Bidding strategy</label>
                     <select
                       value={biddingFocus}
                       onChange={(e) => setBiddingFocus(e.target.value as any)}
@@ -5296,21 +5296,21 @@ export default function CampaignCreatePage() {
               ) : (
                 <div className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <span className="text-slate-400">Bidding strategy</span>
+                    <span className="text-slate-500">Bidding strategy</span>
                     <p className="font-semibold text-slate-900">
                       {biddingFocus === "Conversions" ? "Maximize conversions" : "Maximize conversion value"}
                     </p>
                   </div>
 
                   <div className="space-y-1 border-t border-slate-200 pt-2">
-                    <span className="text-slate-400">Customer acquisition</span>
+                    <span className="text-slate-500">Customer acquisition</span>
                     <p className="font-semibold text-slate-900">
                       {onlyNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
                     </p>
                   </div>
 
                   <div className="space-y-1 border-t border-slate-200 pt-2">
-                    <span className="text-slate-400">Customer retention</span>
+                    <span className="text-slate-500">Customer retention</span>
                     <p className="font-semibold text-slate-900">Do not adjust bidding to re-engage lapsed customers</p>
                   </div>
                 </div>
@@ -5332,7 +5332,7 @@ export default function CampaignCreatePage() {
               {isEditingSettings ? (
                 <div className="space-y-4 text-xs animate-in fade-in duration-200">
                   <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Location</label>
+                    <label className="text-slate-500 font-semibold">Location</label>
                     <select
                       value={locationOption}
                       onChange={(e) => setLocationOption(e.target.value as any)}
@@ -5347,21 +5347,21 @@ export default function CampaignCreatePage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                   <div className="space-y-1">
-                    <span className="text-slate-400">Locations</span>
+                    <span className="text-slate-500">Locations</span>
                     <p className="font-semibold text-slate-900">
                       {locationOption === "ALL" ? "All countries and territories" : locationOption === "INDIA" ? "India" : "Selected location"}
                     </p>
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-slate-400">Languages</span>
+                    <span className="text-slate-500">Languages</span>
                     <p className="font-semibold text-slate-900">
                       {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "English"}
                     </p>
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-slate-400">EU political ads</span>
+                    <span className="text-slate-500">EU political ads</span>
                     <p className="font-semibold text-slate-900">Doesn't have EU political ads</p>
                   </div>
                 </div>
@@ -5383,7 +5383,7 @@ export default function CampaignCreatePage() {
               {isEditingAssetGroup ? (
                 <div className="space-y-4 text-xs animate-in fade-in duration-200">
                   <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Asset Group Name</label>
+                    <label className="text-slate-500 font-semibold">Asset Group Name</label>
                     <input
                       type="text"
                       value={assetGroupName}
@@ -5395,31 +5395,31 @@ export default function CampaignCreatePage() {
               ) : (
                 <div className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <span className="text-slate-400">Asset group name</span>
+                    <span className="text-slate-500">Asset group name</span>
                     <p className="font-semibold text-slate-900">{assetGroupName || "Asset Group 1"}</p>
                   </div>
 
                   <div className="space-y-1 border-t border-slate-200 pt-2">
-                    <span className="text-slate-400">Assets</span>
+                    <span className="text-slate-500">Assets</span>
                     <p className="font-semibold text-slate-900">
                       {headlines.filter(h => h.trim()).length} headlines, {longHeadlines.filter(lh => lh.trim()).length} long headlines, {descriptions.filter(d => d.trim()).length} descriptions, {uploadedImages.length} images, {sitelinks.length} sitelinks
                     </p>
                   </div>
 
                   <div className="space-y-1 border-t border-slate-200 pt-2">
-                    <span className="text-slate-400">Asset optimization</span>
+                    <span className="text-slate-500">Asset optimization</span>
                     <p className="font-semibold text-slate-900">Text customization, final URL expansion, and 2 more are turned on</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 border-t border-slate-200 pt-2">
                     <div className="space-y-1">
-                      <span className="text-slate-400">Search themes</span>
+                      <span className="text-slate-500">Search themes</span>
                       <p className="font-medium text-slate-900">
                         {searchThemes.length > 0 ? searchThemes.join(", ") : "No themes added"}
                       </p>
                     </div>
                     <div className="space-y-1">
-                      <span className="text-slate-400">Audience</span>
+                      <span className="text-slate-500">Audience</span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-slate-900">
                           {audienceName || modalAudienceName || "Custom Audience Signal"}
@@ -5447,7 +5447,7 @@ export default function CampaignCreatePage() {
               {isEditingBudget ? (
                 <div className="space-y-4 text-xs animate-in fade-in duration-200">
                   <div className="space-y-1">
-                    <label className="text-slate-400 font-semibold">Select Budget Preset / Custom (₹)</label>
+                    <label className="text-slate-500 font-semibold">Select Budget Preset / Custom (₹)</label>
                     <input
                       type="text"
                       value={customBudgetValue}
@@ -5462,7 +5462,7 @@ export default function CampaignCreatePage() {
                 </div>
               ) : (
                 <div className="space-y-1 text-xs">
-                  <span className="text-slate-400">{budgetType === "DAILY" ? "Average Daily Budget" : "Campaign Total Budget"}</span>
+                  <span className="text-slate-500">{budgetType === "DAILY" ? "Average Daily Budget" : "Campaign Total Budget"}</span>
                   <p className="font-bold text-blue-600 text-base">
                     ₹{selectedPresetBudget === "CUSTOM" ? customBudgetValue : selectedPresetBudget} {budgetType === "DAILY" ? "/ day" : "total"}
                   </p>
@@ -5490,15 +5490,15 @@ export default function CampaignCreatePage() {
 
               <div className="space-y-3 pt-2 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Weekly conv.</span>
+                  <span className="text-slate-500">Weekly conv.</span>
                   <span className="font-bold text-slate-900">16</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Cost / Conv.</span>
+                  <span className="text-slate-500">Cost / Conv.</span>
                   <span className="font-bold text-slate-900">₹664.50</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                  <span className="text-slate-400">Weekly cost</span>
+                  <span className="text-slate-500">Weekly cost</span>
                   <span className="font-bold text-blue-600">₹10,897.81</span>
                 </div>
               </div>
@@ -5511,14 +5511,14 @@ export default function CampaignCreatePage() {
         {/* Step Header */}
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">What's your campaign objective?</h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             Select an objective to tailor your experience to the goals and settings that will work best for your campaign
           </p>
         </div>
 
         {/* Objective Grid */}
         <div className="space-y-3">
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Select the goal that would make this campaign successful to you
           </label>
 
@@ -5539,14 +5539,14 @@ export default function CampaignCreatePage() {
                 >
                   {isSelected && (
                     <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                      <Check className="h-3 w-3 text-white stroke-[3]" />
+                      <Check className="h-3 w-3 text-slate-900 stroke-[3]" />
                     </div>
                   )}
                   <div>
                     <h3 className={`text-sm font-semibold mb-1 pr-5 ${isSelected ? "text-blue-600" : "text-slate-900"}`}>
                       {obj.title}
                     </h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <p className="text-xs text-slate-500 leading-relaxed">
                       {obj.desc}
                     </p>
                   </div>
@@ -5573,7 +5573,7 @@ export default function CampaignCreatePage() {
                     <h2 className="text-base font-semibold text-slate-900">
                       Use these conversion goals to improve {selectedObjective === "SALES" ? "Sales" : selectedObjective === "LEADS" ? "Leads" : "Website traffic"}
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance, even if they don't seem directly related to Sales.
                     </p>
                   </div>
@@ -5588,7 +5588,7 @@ export default function CampaignCreatePage() {
 
                 {/* Goal List Table/Card */}
                 <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
-                  <div className="grid grid-cols-12 px-4 py-2.5 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
+                  <div className="grid grid-cols-12 px-4 py-2.5 bg-white text-xs font-semibold text-slate-500 border-b border-slate-200">
                     <div className="col-span-5">Conversion Goals</div>
                     <div className="col-span-3">Conversion Source</div>
                     <div className="col-span-2 text-right">Conversion Actions</div>
@@ -5604,17 +5604,17 @@ export default function CampaignCreatePage() {
                           <GoalIcon className="h-4 w-4 text-blue-600 shrink-0" />
                           {goal.name}
                         </div>
-                        <div className="col-span-3 text-xs text-slate-400">{goal.source}</div>
-                        <div className="col-span-2 text-right text-xs text-slate-400">{goal.count}</div>
+                        <div className="col-span-3 text-xs text-slate-500">{goal.source}</div>
+                        <div className="col-span-2 text-right text-xs text-slate-500">{goal.count}</div>
                         <div className="col-span-2 text-right relative">
                           <button
                             onClick={() => setOpenGoalMenuId(isMenuOpen ? null : goal.id)}
-                            className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
+                            className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
                           >
                             More actions ▾
                           </button>
                           {isMenuOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-1 text-left">
+                            <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-sm z-30 py-1 text-left">
                               <button
                                 onClick={() => {
                                   setConversionGoals(prev => prev.filter(g => g.id !== goal.id));
@@ -5638,15 +5638,15 @@ export default function CampaignCreatePage() {
             {/* Modal: Add Additional Conversion Goals */}
             {showAddGoalModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm">
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl">
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-md">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                     <h3 className="text-base font-semibold text-slate-900">Add conversion goal</h3>
-                    <button onClick={() => setShowAddGoalModal(false)} className="text-slate-400 hover:text-slate-900 p-1">
+                    <button onClick={() => setShowAddGoalModal(false)} className="text-slate-500 hover:text-slate-900 p-1">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
 
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     Select additional conversion goals to add to your Sales campaign objective:
                   </p>
 
@@ -5664,7 +5664,7 @@ export default function CampaignCreatePage() {
                             <AddIcon className="h-4 w-4 text-blue-600" />
                             <div>
                               <p className="text-sm font-medium text-slate-900">{addGoal.name}</p>
-                              <p className="text-xs text-slate-400">{addGoal.source}</p>
+                              <p className="text-xs text-slate-500">{addGoal.source}</p>
                             </div>
                           </div>
                           <button
@@ -5688,7 +5688,7 @@ export default function CampaignCreatePage() {
                   <div className="flex justify-end pt-2">
                     <button
                       onClick={() => setShowAddGoalModal(false)}
-                      className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-900"
+                      className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900"
                     >
                       Close
                     </button>
@@ -5702,7 +5702,7 @@ export default function CampaignCreatePage() {
               <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">Choose a campaign goal</h2>
-                  <p className="text-xs text-slate-400 mt-1">Each goal determines which metrics the campaign is optimized to deliver.</p>
+                  <p className="text-xs text-slate-500 mt-1">Each goal determines which metrics the campaign is optimized to deliver.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -5745,7 +5745,7 @@ export default function CampaignCreatePage() {
                       >
                         {isSel && (
                           <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                            <Check className="h-3 w-3 text-white stroke-[3]" />
+                            <Check className="h-3 w-3 text-slate-900 stroke-[3]" />
                           </div>
                         )}
                         <div>
@@ -5759,8 +5759,8 @@ export default function CampaignCreatePage() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-400 mb-3">{goal.desc}</p>
-                          <div className="space-y-1.5 pt-2 border-t border-slate-200 text-[11px] text-slate-400">
+                          <p className="text-xs text-slate-500 mb-3">{goal.desc}</p>
+                          <div className="space-y-1.5 pt-2 border-t border-slate-200 text-[11px] text-slate-500">
                             <p><strong className="text-slate-700">Good for:</strong> {goal.goodFor}</p>
                             <p><strong className="text-slate-700">Optimized to get more:</strong> {goal.optimizedFor}</p>
                           </div>
@@ -5853,7 +5853,7 @@ export default function CampaignCreatePage() {
                   <div className="space-y-3">
                     <div>
                       <h2 className="text-base font-semibold text-slate-900">Select a campaign type</h2>
-                      <p className="text-xs text-slate-400">Choose how you want to reach potential buyers</p>
+                      <p className="text-xs text-slate-500">Choose how you want to reach potential buyers</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -5871,7 +5871,7 @@ export default function CampaignCreatePage() {
                           >
                             {isSelected && (
                               <div className="absolute top-3 right-3 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                                <Check className="h-3 w-3 text-white stroke-[3]" />
+                                <Check className="h-3 w-3 text-slate-900 stroke-[3]" />
                               </div>
                             )}
                             <div>
@@ -5881,7 +5881,7 @@ export default function CampaignCreatePage() {
                               <h3 className={`text-sm font-semibold mb-1 ${isSelected ? "text-blue-600" : "text-slate-900"}`}>
                                 {type.title}
                               </h3>
-                              <p className="text-xs text-slate-400 leading-relaxed">
+                              <p className="text-xs text-slate-500 leading-relaxed">
                                 {type.desc}
                               </p>
                             </div>
@@ -5891,7 +5891,7 @@ export default function CampaignCreatePage() {
                     </div>
 
                     {selectedObjective === "LOCAL" && (
-                      <p className="text-xs text-slate-400 leading-relaxed pt-1">
+                      <p className="text-xs text-slate-500 leading-relaxed pt-1">
                         Performance Max has replaced Local campaigns. Performance Max brings you the same optimization benefits, including store visits, call clicks, and directions to help you meet your offline goals.{" "}
                         <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more</a>
                       </p>
@@ -5905,7 +5905,7 @@ export default function CampaignCreatePage() {
                     <div className="mt-6 p-5 rounded-2xl border border-slate-200 bg-white space-y-5 animate-in fade-in duration-200">
                       <div className="space-y-1">
                         <h3 className="text-sm font-semibold text-slate-900">Would you like to resume from an existing campaign draft?</h3>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-slate-500">
                           Your account has existing campaign drafts with the same campaign type, allowing you to continue where you last left off setting up your campaign
                         </p>
                       </div>
@@ -5936,12 +5936,12 @@ export default function CampaignCreatePage() {
                         </div>
                         <div className="space-y-1.5">
                           <label className="block text-xs font-semibold text-slate-700">Where should people go after clicking your ads?</label>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-slate-500">
                             Think about the product or service you want to sell and enter the URL you want people to see after clicking your ads. This might be your homepage or a more specific page on your website.
                           </p>
                           <input
                             placeholder="Final URL (e.g. https://yourwebsite.com/product)"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all mt-2"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all mt-2"
                           />
                         </div>
                       </div>
@@ -5966,7 +5966,7 @@ export default function CampaignCreatePage() {
                           <div className="flex items-start justify-between">
                             <div>
                               <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
-                              <p className="text-xs text-slate-400 mt-0.5">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
+                              <p className="text-xs text-slate-500 mt-0.5">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
                             </div>
                             <button
                               onClick={() => setShowAddGoalModal(true)}
@@ -5977,7 +5977,7 @@ export default function CampaignCreatePage() {
                             </button>
                           </div>
                           <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
-                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
+                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-500 border-b border-slate-200">
                               <div className="col-span-5">Conversion Goals</div>
                               <div className="col-span-3">Conversion Source</div>
                               <div className="col-span-2 text-right">Conversion Actions</div>
@@ -5992,17 +5992,17 @@ export default function CampaignCreatePage() {
                                     <GoalIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                                     {goal.name}
                                   </div>
-                                  <div className="col-span-3 text-slate-400">{goal.source}</div>
-                                  <div className="col-span-2 text-right text-slate-400">{goal.count}</div>
+                                  <div className="col-span-3 text-slate-500">{goal.source}</div>
+                                  <div className="col-span-2 text-right text-slate-500">{goal.count}</div>
                                   <div className="col-span-2 text-right relative">
                                     <button
                                       onClick={() => setOpenGoalMenuId(isMenuOpen ? null : `noguidance-${goal.id}`)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
+                                      className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
                                     >
                                       More actions ▾
                                     </button>
                                     {isMenuOpen && (
-                                      <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-1 text-left">
+                                      <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-sm z-30 py-1 text-left">
                                         <button
                                           onClick={() => {
                                             setConversionGoals(prev => prev.filter(g => g.id !== goal.id));
@@ -6062,7 +6062,7 @@ export default function CampaignCreatePage() {
                                       </select>
                                       <input
                                         placeholder={way.placeholder}
-                                        className="sm:col-span-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                                        className="sm:col-span-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                                       />
                                     </div>
                                   )}
@@ -6075,7 +6075,7 @@ export default function CampaignCreatePage() {
                                           if (way.id === "website_visits") setWebsiteVisitsUrl(e.target.value);
                                         }}
                                         placeholder={way.placeholder}
-                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-medium"
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
                                       />
                                     </div>
                                   )}
@@ -6138,7 +6138,7 @@ export default function CampaignCreatePage() {
                           <div className="flex items-start justify-between">
                             <div>
                               <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
-                              <p className="text-xs text-slate-400 mt-0.5">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
+                              <p className="text-xs text-slate-500 mt-0.5">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
                             </div>
                             <button
                               onClick={() => setShowAddGoalModal(true)}
@@ -6149,7 +6149,7 @@ export default function CampaignCreatePage() {
                             </button>
                           </div>
                           <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
-                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
+                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-500 border-b border-slate-200">
                               <div className="col-span-5">Conversion Goals</div>
                               <div className="col-span-3">Conversion Source</div>
                               <div className="col-span-2 text-right">Conversion Actions</div>
@@ -6164,17 +6164,17 @@ export default function CampaignCreatePage() {
                                     <GoalIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                                     {goal.name}
                                   </div>
-                                  <div className="col-span-3 text-slate-400">{goal.source}</div>
-                                  <div className="col-span-2 text-right text-slate-400">{goal.count}</div>
+                                  <div className="col-span-3 text-slate-500">{goal.source}</div>
+                                  <div className="col-span-2 text-right text-slate-500">{goal.count}</div>
                                   <div className="col-span-2 text-right relative">
                                     <button
                                       onClick={() => setOpenGoalMenuId(isMenuOpen ? null : `noguidance-${goal.id}`)}
-                                      className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
+                                      className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs"
                                     >
                                       More actions ▾
                                     </button>
                                     {isMenuOpen && (
-                                      <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-1 text-left">
+                                      <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-sm z-30 py-1 text-left">
                                         <button
                                           onClick={() => {
                                             setConversionGoals(prev => prev.filter(g => g.id !== goal.id));
@@ -6200,7 +6200,7 @@ export default function CampaignCreatePage() {
                           <label className="block text-xs font-semibold text-slate-700">This is the web page people will go to after clicking your ad</label>
                           <input
                             placeholder="Your business's website (e.g. https://yourwebsite.com)"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all"
                           />
                         </div>
                       )}
@@ -6223,9 +6223,9 @@ export default function CampaignCreatePage() {
                       {selectedObjective === "NO_GUIDANCE" ? (
                         <div className="space-y-3 pt-2 border-t border-slate-200">
                           <h4 className="text-xs font-semibold text-slate-700">Use these conversion goals for campaign performance optimization</h4>
-                          <p className="text-xs text-slate-400">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
+                          <p className="text-xs text-slate-500">Conversion goals labeled as account default will use data from all of your campaigns to improve your bid strategy and campaign performance</p>
                           <div className="border border-slate-200 rounded-lg overflow-visible bg-slate-50">
-                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-400 border-b border-slate-200">
+                            <div className="grid grid-cols-12 px-4 py-2 bg-white text-xs font-semibold text-slate-500 border-b border-slate-200">
                               <div className="col-span-5">Conversion Goals</div>
                               <div className="col-span-3">Conversion Source</div>
                               <div className="col-span-2 text-right">Conversion Actions</div>
@@ -6236,9 +6236,9 @@ export default function CampaignCreatePage() {
                                 <PhoneCall className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                                 Phone call leads (account default)
                               </div>
-                              <div className="col-span-3 text-slate-400">Call from Ads</div>
-                              <div className="col-span-2 text-right text-slate-400">1 action</div>
-                              <div className="col-span-2 text-right text-slate-400">More actions ▾</div>
+                              <div className="col-span-3 text-slate-500">Call from Ads</div>
+                              <div className="col-span-2 text-right text-slate-500">1 action</div>
+                              <div className="col-span-2 text-right text-slate-500">More actions ▾</div>
                             </div>
                           </div>
                         </div>
@@ -6248,7 +6248,7 @@ export default function CampaignCreatePage() {
                             <ShoppingBag className="h-4 w-4 text-blue-600" />
                             Add products to this campaign
                           </h4>
-                          <p className="text-xs text-slate-400 leading-relaxed">
+                          <p className="text-xs text-slate-500 leading-relaxed">
                             To run a Shopping campaign, create a Merchant Center account with the products you want to advertise. You can create the account now and finish setting it up after you've published this campaign.
                           </p>
                         </div>
@@ -6294,7 +6294,7 @@ export default function CampaignCreatePage() {
                               />
                               <div>
                                 <p className="text-xs font-semibold text-slate-900">{sub.title}</p>
-                                <p className="text-[11px] text-slate-400 mt-0.5">{sub.desc}</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">{sub.desc}</p>
                               </div>
                             </label>
                           ))}
@@ -6327,7 +6327,7 @@ export default function CampaignCreatePage() {
                         </label>
                         <input
                           placeholder="Enter the app name, package name, publisher, or Play Store URL"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all"
                         />
                         <p className="text-[11px] text-slate-500 pt-1">
                           If you cannot find your app, please see these steps
@@ -6464,13 +6464,13 @@ export default function CampaignCreatePage() {
       {/* ── New account-level brand list Modal ────────────────────────────── */}
       {showBrandModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-md">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">New account-level brand list</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Brand lists let you choose whether your ads show on searches that mention specific brands</p>
+                <p className="text-xs text-slate-500 mt-0.5">Brand lists let you choose whether your ads show on searches that mention specific brands</p>
               </div>
-              <button onClick={() => setShowBrandModal(false)} className="text-slate-400 hover:text-slate-900">
+              <button onClick={() => setShowBrandModal(false)} className="text-slate-500 hover:text-slate-900">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -6483,20 +6483,20 @@ export default function CampaignCreatePage() {
                   value={brandListName}
                   onChange={(e) => setBrandListName(e.target.value)}
                   placeholder="Enter list name"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-700">Brands</label>
-                <p className="text-[11px] text-slate-400">Add brands to your list</p>
+                <p className="text-[11px] text-slate-500">Add brands to your list</p>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={brandSearchInput}
                     onChange={(e) => setBrandSearchInput(e.target.value)}
                     placeholder="Enter a brand (e.g. Nike, Apple, Samsung)"
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     onClick={() => {
@@ -6553,19 +6553,19 @@ export default function CampaignCreatePage() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-sm" onClick={() => setShowAddBrandModal(false)} />
           
-          <div className="relative z-10 bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative z-10 bg-white border border-slate-200 rounded-2xl shadow-md w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-slate-50/50">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">Add brand guidelines</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about brand guidelines</a>
                 </p>
               </div>
               <button
                 onClick={() => setShowAddBrandModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -6616,31 +6616,31 @@ export default function CampaignCreatePage() {
               <div className="space-y-4 pt-2 border-t border-slate-200">
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">Visual guidelines</h4>
-                  <p className="text-xs text-slate-400 mt-0.5">Add your brand colors and fonts to help Google AI generate on-brand videos and responsive display ads.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Add your brand colors and fonts to help Google AI generate on-brand videos and responsive display ads.</p>
                 </div>
 
                 <div className="space-y-3">
                   <label className="block font-semibold text-slate-700">Custom colors</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="block text-slate-400 text-[11px]">Main color</label>
+                      <label className="block text-slate-500 text-[11px]">Main color</label>
                       <input
                         type="text"
                         value={mainBrandColor}
                         onChange={(e) => setMainBrandColor(e.target.value)}
                         placeholder="Example: #ffffff"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="block text-slate-400 text-[11px]">Accent color</label>
+                      <label className="block text-slate-500 text-[11px]">Accent color</label>
                       <input
                         type="text"
                         value={accentBrandColor}
                         onChange={(e) => setAccentBrandColor(e.target.value)}
                         placeholder="Example: #4285f4"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -6667,7 +6667,7 @@ export default function CampaignCreatePage() {
                   <h4 className="font-bold text-slate-900 text-sm">Text guidelines</h4>
                   <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold text-[10px]">Beta</span>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500">
                   Tell Google AI the rules it needs to follow when it creates relevant, on-brand headlines and descriptions for you. <a href="#" onClick={e => e.preventDefault()} className="text-blue-600 font-semibold hover:underline">Learn more about text guidelines</a>
                 </p>
 
@@ -6690,7 +6690,7 @@ export default function CampaignCreatePage() {
                       }
                     }}
                     placeholder="For example: Cheap, free shipping, etc. Press Enter after each word or phrase."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   />
 
                   {termExclusions.length > 0 && (
@@ -6733,12 +6733,12 @@ export default function CampaignCreatePage() {
                               setMessagingRestrictions(newRestr);
                             }}
                             placeholder={placeh}
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 resize-none"
                           />
                           {messagingRestrictions.length > 1 && (
                             <button
                               onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
-                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-100 rounded-lg transition-all mt-1"
+                              className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-100 rounded-lg transition-all mt-1"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -6787,7 +6787,7 @@ export default function CampaignCreatePage() {
       {/* Saved Audience Signal Modal */}
       {showSavedAudienceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-md overflow-hidden my-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/50 shrink-0">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -6795,7 +6795,7 @@ export default function CampaignCreatePage() {
               </h2>
               <button
                 onClick={() => setShowSavedAudienceModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -6814,7 +6814,7 @@ export default function CampaignCreatePage() {
                   value={modalAudienceName}
                   onChange={(e) => setModalAudienceName(e.target.value)}
                   placeholder="Enter audience name"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -6822,7 +6822,7 @@ export default function CampaignCreatePage() {
               <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                 <div>
                   <h4 className="font-bold text-slate-900 text-xs">Your data</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">People who have previously interacted with your business</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">People who have previously interacted with your business</p>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
@@ -6831,7 +6831,7 @@ export default function CampaignCreatePage() {
                     value={modalYourDataSearch}
                     onChange={(e) => setModalYourDataSearch(e.target.value)}
                     placeholder="Add your data"
-                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -6840,7 +6840,7 @@ export default function CampaignCreatePage() {
               <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                 <div>
                   <h4 className="font-bold text-slate-900 text-xs">Interests & detailed demographics</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">People based on their interests, life events, or detailed demographics</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">People based on their interests, life events, or detailed demographics</p>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
@@ -6849,7 +6849,7 @@ export default function CampaignCreatePage() {
                     value={modalInterestsSearch}
                     onChange={(e) => setModalInterestsSearch(e.target.value)}
                     placeholder="Add in-market segments, life events, and more"
-                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -6858,7 +6858,7 @@ export default function CampaignCreatePage() {
               <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-5">
                 <div>
                   <h4 className="font-bold text-slate-900 text-xs">Demographics</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">People with the following demographics</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">People with the following demographics</p>
                 </div>
 
                 {/* Gender */}
@@ -6910,7 +6910,7 @@ export default function CampaignCreatePage() {
                       <option value="45">45</option>
                       <option value="55">55</option>
                     </select>
-                    <span className="text-slate-400">to</span>
+                    <span className="text-slate-500">to</span>
                     <select
                       value={ageMax}
                       onChange={(e) => setAgeMax(e.target.value)}
@@ -6942,7 +6942,7 @@ export default function CampaignCreatePage() {
 
                   {/* Parental Status */}
                   <div className="space-y-2">
-                    <label className="block text-[11px] font-semibold text-slate-400">Parental status</label>
+                    <label className="block text-[11px] font-semibold text-slate-500">Parental status</label>
                     <div className="flex items-center gap-6">
                       <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
                         <input
@@ -6976,7 +6976,7 @@ export default function CampaignCreatePage() {
 
                   {/* Household Income */}
                   <div className="space-y-2">
-                    <label className="block text-[11px] font-semibold text-slate-400">Household income</label>
+                    <label className="block text-[11px] font-semibold text-slate-500">Household income</label>
                     <div className="flex items-center gap-3">
                       <select
                         value={incomeMin}
@@ -6989,7 +6989,7 @@ export default function CampaignCreatePage() {
                         <option value="31-40%">31-40%</option>
                         <option value="41-50%">41-50%</option>
                       </select>
-                      <span className="text-slate-400">to</span>
+                      <span className="text-slate-500">to</span>
                       <select
                         value={incomeMax}
                         onChange={(e) => setIncomeMax(e.target.value)}
@@ -7047,20 +7047,20 @@ export default function CampaignCreatePage() {
       {/* Modal: New account-level brand list */}
       {showBrandModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden space-y-0">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-md overflow-hidden space-y-0">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setShowBrandModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <X className="h-5 w-5" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">New account-level brand list</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Brand lists let you choose whether your ads show on searches that mention specific brands
                   </p>
                 </div>
@@ -7077,14 +7077,14 @@ export default function CampaignCreatePage() {
                   value={brandListName}
                   onChange={(e) => setBrandListName(e.target.value)}
                   placeholder="Enter list name"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
 
               {/* Brands Section */}
               <div className="space-y-2 pt-2 border-t border-slate-200">
                 <label className="block text-xs font-semibold text-slate-900">Brands</label>
-                <p className="text-[11px] text-slate-400">Add brands to your list</p>
+                <p className="text-[11px] text-slate-500">Add brands to your list</p>
 
                 <div className="relative">
                   <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
@@ -7099,7 +7099,7 @@ export default function CampaignCreatePage() {
                       }
                     }}
                     placeholder="Enter a brand"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-20 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-20 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     type="button"
@@ -7167,20 +7167,20 @@ export default function CampaignCreatePage() {
       {/* Modal: Add calls to your campaign */}
       {showCallsModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden space-y-0">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-md overflow-hidden space-y-0">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setShowCallsModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <X className="h-5 w-5" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Add calls to your campaign</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Campaign-level calls
                   </p>
                 </div>
@@ -7189,14 +7189,14 @@ export default function CampaignCreatePage() {
 
             {/* Modal Content Form */}
             <div className="p-6 space-y-5">
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 Add calls to this campaign. Any calls added here can be used across campaigns.
               </p>
 
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-semibold text-slate-900">Add new call</h3>
-                  <span className="text-[11px] text-slate-400">Call reporting on, call recording off</span>
+                  <span className="text-[11px] text-slate-500">Call reporting on, call recording off</span>
                 </div>
 
                 {/* Country */}
@@ -7225,7 +7225,7 @@ export default function CampaignCreatePage() {
                     value={callsPhoneNumber}
                     onChange={(e) => setCallsPhoneNumber(e.target.value)}
                     placeholder="Example: (201) 555-0123"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
 
@@ -7255,7 +7255,7 @@ export default function CampaignCreatePage() {
                   </button>
 
                   {showCallsAdvancedOptions && (
-                    <div className="mt-3 space-y-3 pl-2 text-xs text-slate-400 animate-in fade-in duration-200">
+                    <div className="mt-3 space-y-3 pl-2 text-xs text-slate-500 animate-in fade-in duration-200">
                       <div className="space-y-1.5">
                         <label className="block text-[11px] font-semibold text-slate-700">Device preference</label>
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -7304,14 +7304,14 @@ export default function CampaignCreatePage() {
       {/* Modal: Create sitelink */}
       {showSitelinksModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-md overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setShowSitelinksModal(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -7331,7 +7331,7 @@ export default function CampaignCreatePage() {
                         <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                           Sitelink {num}
                         </h3>
-                        <span className="text-[11px] text-slate-400 font-mono">
+                        <span className="text-[11px] text-slate-500 font-mono">
                           {item.text.length}/25 characters
                         </span>
                       </div>
@@ -7350,7 +7350,7 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="Enter sitelink text"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                           <p className="text-[10px] text-slate-500">Text is {item.text.length} characters out of 25</p>
                         </div>
@@ -7367,7 +7367,7 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="https://example.com/page"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                           />
                         </div>
 
@@ -7384,7 +7384,7 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="Enter description line 1"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                           <p className="text-[10px] text-slate-500">Text is {item.desc1.length} characters out of 35</p>
                         </div>
@@ -7402,7 +7402,7 @@ export default function CampaignCreatePage() {
                               setSitelinkItems(updated);
                             }}
                             placeholder="Enter description line 2"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                           />
                           <p className="text-[10px] text-slate-500">Text is {item.desc2.length} characters out of 35</p>
                         </div>
@@ -7426,7 +7426,7 @@ export default function CampaignCreatePage() {
                       value={sitelinkTrackingTemplate}
                       onChange={(e) => setSitelinkTrackingTemplate(e.target.value)}
                       placeholder="Example: https://www.trackingtemplate.foo/?url={lpurl}&id=5"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                     />
                   </div>
 
@@ -7437,25 +7437,25 @@ export default function CampaignCreatePage() {
                       value={sitelinkFinalUrlSuffix}
                       onChange={(e) => setSitelinkFinalUrlSuffix(e.target.value)}
                       placeholder="Example: param1=value1&param2=value2"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-mono"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="block font-semibold text-slate-700">Custom parameter</label>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-slate-400">{`{_`}</span>
+                      <span className="font-mono text-slate-500">{`{_`}</span>
                       <input
                         type="text"
                         placeholder="Name"
-                        className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                       />
-                      <span className="font-mono text-slate-400">{`}`}</span>
-                      <span className="font-mono text-slate-400">=</span>
+                      <span className="font-mono text-slate-500">{`}`}</span>
+                      <span className="font-mono text-slate-500">=</span>
                       <input
                         type="text"
                         placeholder="Value"
-                        className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="w-1/2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -7467,7 +7467,7 @@ export default function CampaignCreatePage() {
                 <h3 className="text-xs font-semibold text-slate-900 border-b border-slate-200 pb-2">
                   Advanced options - Asset scheduling
                 </h3>
-                <p className="text-xs text-slate-400">Select when your assets will be eligible to show</p>
+                <p className="text-xs text-slate-500">Select when your assets will be eligible to show</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div className="space-y-1">
@@ -7501,7 +7501,7 @@ export default function CampaignCreatePage() {
                       <option value="08:00">08:00 AM</option>
                       <option value="09:00">09:00 AM</option>
                     </select>
-                    <span className="text-slate-400">to</span>
+                    <span className="text-slate-500">to</span>
                     <select className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer">
                       <option value="00:00">12:00 AM</option>
                       <option value="17:00">05:00 PM</option>
@@ -7512,7 +7512,7 @@ export default function CampaignCreatePage() {
                   <p className="text-[10px] text-slate-500 pt-1 leading-normal">
                     To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. Learn more
                   </p>
-                  <p className="text-[10px] text-slate-400 font-mono">
+                  <p className="text-[10px] text-slate-500 font-mono">
                     Based on account time zone: (GMT+05:30) India Standard Time
                   </p>
                 </div>
@@ -7543,21 +7543,21 @@ export default function CampaignCreatePage() {
       {/* Modal: Promotions */}
       {showPromotionsModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl max-h-[90vh] shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowPromotionsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
+                <button type="button" onClick={() => setShowPromotionsModal(false)} className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Add promotions to your campaign</h2>
-                  <p className="text-xs text-slate-400">Campaign-level promotions</p>
+                  <p className="text-xs text-slate-500">Campaign-level promotions</p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs">
-              <p className="text-slate-400">Add promotions to this campaign. Any promotions added here can be used across campaigns.</p>
+              <p className="text-slate-500">Add promotions to this campaign. Any promotions added here can be used across campaigns.</p>
 
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
                 <h3 className="font-semibold text-slate-900">Add new promotion</h3>
@@ -7618,7 +7618,7 @@ export default function CampaignCreatePage() {
                     value={promoItem}
                     onChange={(e) => setPromoItem(e.target.value)}
                     placeholder="Item name"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-400"
                   />
                   <p className="text-[10px] text-slate-500">Text is {promoItem.length} characters out of 20</p>
                 </div>
@@ -7630,7 +7630,7 @@ export default function CampaignCreatePage() {
                     value={promoFinalUrl}
                     onChange={(e) => setPromoFinalUrl(e.target.value)}
                     placeholder="https://example.com/promo"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-500 font-mono"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 placeholder-slate-400 font-mono"
                   />
                 </div>
 
@@ -7647,11 +7647,11 @@ export default function CampaignCreatePage() {
                   <h4 className="font-semibold text-slate-700">Displayed promotion dates</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] text-slate-400">Start date</label>
+                      <label className="block text-[11px] text-slate-500">Start date</label>
                       <input type="date" value={promoStartDate} onChange={(e) => setPromoStartDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400">End date</label>
+                      <label className="block text-[11px] text-slate-500">End date</label>
                       <input type="date" value={promoEndDate} onChange={(e) => setPromoEndDate(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                     </div>
                   </div>
@@ -7670,21 +7670,21 @@ export default function CampaignCreatePage() {
       {/* Modal: Prices */}
       {showPricesModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowPricesModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
+                <button type="button" onClick={() => setShowPricesModal(false)} className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Add prices to your campaign</h2>
-                  <p className="text-xs text-slate-400">Campaign-level prices</p>
+                  <p className="text-xs text-slate-500">Campaign-level prices</p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-400">Add prices to this campaign. Any prices added here can be used across campaigns.</p>
+              <p className="text-slate-500">Add prices to this campaign. Any prices added here can be used across campaigns.</p>
 
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
                 <h3 className="font-semibold text-slate-900">Add new price</h3>
@@ -7743,24 +7743,24 @@ export default function CampaignCreatePage() {
       {/* Modal: Messages */}
       {showMessagesModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowMessagesModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
+                <button type="button" onClick={() => setShowMessagesModal(false)} className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Add messages to your campaign</h2>
-                  <p className="text-xs text-slate-400">Campaign-level messages</p>
+                  <p className="text-xs text-slate-500">Campaign-level messages</p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-400">Add messages to this campaign. Any messages added here can be used across campaigns.</p>
+              <p className="text-slate-500">Add messages to this campaign. Any messages added here can be used across campaigns.</p>
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
                 <h3 className="font-semibold text-slate-900">Set up your message asset</h3>
-                <p className="text-slate-400">Select message platform</p>
+                <p className="text-slate-500">Select message platform</p>
                 <div className="p-3 rounded-xl bg-white border border-slate-200 text-slate-700">
                   Optimize your campaign for message ads. This will add a leads from messages conversion action to your campaign. Learn more about conversions
                 </div>
@@ -7778,10 +7778,10 @@ export default function CampaignCreatePage() {
       {/* Modal: Structured Snippets */}
       {showSnippetsModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowSnippetsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
+                <button type="button" onClick={() => setShowSnippetsModal(false)} className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <h2 className="text-lg font-semibold text-slate-900">Create structured snippet</h2>
@@ -7813,7 +7813,7 @@ export default function CampaignCreatePage() {
                 <label className="block font-semibold text-slate-700">Values</label>
                 {[0, 1, 2].map((idx) => (
                   <div key={idx} className="space-y-1">
-                    <label className="block text-[11px] text-slate-400">Value {idx + 1}</label>
+                    <label className="block text-[11px] text-slate-500">Value {idx + 1}</label>
                     <input
                       type="text"
                       maxLength={25}
@@ -7843,21 +7843,21 @@ export default function CampaignCreatePage() {
       {/* Modal: Lead Forms */}
       {showLeadFormsModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl max-h-[90vh] shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowLeadFormsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
+                <button type="button" onClick={() => setShowLeadFormsModal(false)} className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Add a lead form to your campaign</h2>
-                  <p className="text-xs text-slate-400">Campaign-level lead forms</p>
+                  <p className="text-xs text-slate-500">Campaign-level lead forms</p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
-              <p className="text-slate-400">Add lead forms to this campaign. Any lead forms added here can be used across campaigns.</p>
+              <p className="text-slate-500">Add lead forms to this campaign. Any lead forms added here can be used across campaigns.</p>
 
               <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-4">
                 <h3 className="font-semibold text-slate-900">Create your lead form</h3>
@@ -7883,7 +7883,7 @@ export default function CampaignCreatePage() {
                 {/* Pre-filled questions */}
                 <div className="space-y-2 pt-2 border-t border-slate-200">
                   <h4 className="font-semibold text-slate-700">Contact information</h4>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500">
                     {["Name", "Email", "Phone number", "Country", "City", "Zip/Postal code", "State/Province", "Street address"].map((q) => (
                       <label key={q} className="flex items-center gap-2">
                         <input type="checkbox" defaultChecked className="rounded bg-white border-slate-200 text-blue-600 h-3.5 w-3.5" />
@@ -7897,11 +7897,11 @@ export default function CampaignCreatePage() {
                 <div className="space-y-3 pt-3 border-t border-slate-200">
                   <h4 className="font-semibold text-slate-700">Create form submission message</h4>
                   <div className="space-y-1">
-                    <label className="block text-slate-400">Headline</label>
+                    <label className="block text-slate-500">Headline</label>
                     <input type="text" maxLength={30} value={leadThankYouHeadline} onChange={(e) => setLeadThankYouHeadline(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-slate-400">Description</label>
+                    <label className="block text-slate-500">Description</label>
                     <textarea rows={2} maxLength={200} value={leadThankYouDesc} onChange={(e) => setLeadThankYouDesc(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900" />
                   </div>
                 </div>
@@ -7923,21 +7923,21 @@ export default function CampaignCreatePage() {
       {/* Modal: Apps */}
       {showAppsModal && (
         <div className="fixed inset-0 z-50 bg-slate-50/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl shadow-md overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60 shrink-0">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setShowAppsModal(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
+                <button type="button" onClick={() => setShowAppsModal(false)} className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer">
                   <X className="h-5 w-5" />
                 </button>
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">Add apps to your campaign</h2>
-                  <p className="text-xs text-slate-400">Campaign-level apps</p>
+                  <p className="text-xs text-slate-500">Campaign-level apps</p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-400">Add apps to this campaign. Any apps added here can be used across campaigns.</p>
+              <p className="text-slate-500">Add apps to this campaign. Any apps added here can be used across campaigns.</p>
 
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-4">
                 <h3 className="font-semibold text-slate-900">Add new app</h3>
@@ -7963,7 +7963,7 @@ export default function CampaignCreatePage() {
                     value={appNameInput}
                     onChange={(e) => setAppNameInput(e.target.value)}
                     placeholder="Enter the app name, package name, or publisher"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400"
                   />
                 </div>
 
@@ -7975,7 +7975,7 @@ export default function CampaignCreatePage() {
                     value={appLinkText}
                     onChange={(e) => setAppLinkText(e.target.value)}
                     placeholder="Download App"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-500"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 placeholder-slate-400"
                   />
                   <p className="text-[10px] text-slate-500">Text is {appLinkText.length} characters out of 25</p>
                 </div>
