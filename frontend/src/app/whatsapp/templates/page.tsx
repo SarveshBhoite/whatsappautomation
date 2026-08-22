@@ -144,7 +144,15 @@ export default function WhatsAppTemplatesPage() {
           variable2: testVariable2
         })
       });
-      const data = await res.json();
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text.substring(0, 150) || "Server error response");
+      }
+
       if (res.ok && data.success) {
         setTestStatus(`SUCCESS: ${data.message}`);
         setTimeout(() => {

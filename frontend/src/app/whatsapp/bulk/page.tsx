@@ -152,16 +152,13 @@ export default function WhatsAppBulkBroadcastPage() {
         organizationId: getOrgId(),
         recipients: parsedRecipients,
         sendType,
-        message: messageText,
+        messageText: messageText || "Template Broadcast",
         mediaUrl: mediaUrl.trim() || undefined,
-        fileName: uploadedFileName || undefined
+        fileName: uploadedFileName || undefined,
+        templateName: selectedTemplate || "jisnu_official_welcome"
       };
 
-      if (sendType === "template") {
-        payload.templateName = selectedTemplate;
-      }
-
-      const res = await fetch(`${BACKEND_URL}/api/messages/broadcast`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/bulk-broadcast`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -170,7 +167,15 @@ export default function WhatsAppBulkBroadcastPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text.substring(0, 150) || "Server error");
+      }
+
       if (res.ok && data.success) {
         setResult({
           success: true,
