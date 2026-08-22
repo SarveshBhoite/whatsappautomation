@@ -1270,6 +1270,56 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
   }
 });
 
+// POST: Send Live Test Template with Dynamic User Name {{1}} & Coupon Code {{2}}
+router.post("/whatsapp/templates/test-send", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { templateName, languageCode, recipientPhone, customerName, variable2 } = req.body;
+
+    if (!recipientPhone) {
+      return res.status(400).json({ error: "Recipient phone number is required" });
+    }
+
+    let waConfig = await prisma.whatsAppConfig.findUnique({
+      where: { organizationId }
+    });
+    if (!waConfig || !waConfig.accessToken) {
+      waConfig = await prisma.whatsAppConfig.findFirst();
+    }
+
+    if (!waConfig?.accessToken || !waConfig?.phoneNumberId) {
+      return res.status(400).json({ error: "WhatsApp credentials missing in system" });
+    }
+
+    const nameVar = (customerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim() || "Valued Customer";
+    const couponVar = (variable2 || "OFFER20").trim();
+
+    const components = WhatsAppService.buildTemplateComponents([nameVar, couponVar]);
+
+    console.log(`[TEST TEMPLATE SEND] Sending "${templateName || 'name_test'}" to ${recipientPhone} with variables: {{1}}="${nameVar}", {{2}}="${couponVar}"`);
+
+    const response = await WhatsAppService.sendTemplateMessage(
+      waConfig.phoneNumberId,
+      waConfig.accessToken,
+      recipientPhone,
+      templateName || "name_test",
+      languageCode || "en_US",
+      components
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Test template sent successfully to ${recipientPhone}!`,
+      resolvedVariables: { name: nameVar, coupon: couponVar },
+      response
+    });
+  } catch (error: any) {
+    const errMsg = error.response?.data?.error?.message || error.message;
+    console.error(`[TEST TEMPLATE ERROR]:`, errMsg);
+    return res.status(500).json({ error: `Failed to send template message: ${errMsg}` });
+  }
+});
+
 // POST: Submit a new WhatsApp message template to Meta for approval
 router.post("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
@@ -1544,16 +1594,23 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
             }
             console.log(`Custom CRM Message SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
           } else {
-            // Dispatch chosen Meta Approved Template per lead
+            // Dispatch chosen Meta Approved Template per lead with dynamic {{1}} (Customer Name) and {{2}} (Coupon/Variable)
+            const recipientCustomerName = (leadName || conversation?.customerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim() || "Valued Customer";
+            const couponVar = req.body.couponCode || req.body.variable2 || "SUMMER20";
+            const dynamicComponents = WhatsAppService.buildTemplateComponents([recipientCustomerName, couponVar]);
+
             try {
               responseData = await WhatsAppService.sendTemplateMessage(
                 waConfig.phoneNumberId,
                 waConfig.accessToken,
                 cleanPhone,
                 targetTemplate,
-                templateLang
+                templateLang,
+                dynamicComponents,
+                recipientCustomerName,
+                couponVar
               );
-              console.log(`Approved Template (${targetTemplate}) SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
+              console.log(`Approved Template (${targetTemplate}) SENT to ${cleanPhone} (Name: ${recipientCustomerName}):`, responseData?.messages?.[0]?.id);
             } catch (tErr: any) {
               const metaErrMsg = tErr.response?.data?.error?.message || tErr.message;
               console.warn(`Template ${targetTemplate} error for ${cleanPhone}:`, metaErrMsg);

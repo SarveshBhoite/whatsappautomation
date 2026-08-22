@@ -458,6 +458,23 @@ export class WhatsAppService {
     }
   }
 
+  // Helper to build Meta template body components for dynamic variables like {{1}} (Customer Name) and {{2}} (Coupon Code)
+  public static buildTemplateComponents(variableValues: (string | number)[] = []): any[] {
+    if (!variableValues || variableValues.length === 0) return [];
+    
+    const parameters = variableValues.map((val) => ({
+      type: "text",
+      text: String(val || "")
+    }));
+
+    return [
+      {
+        type: "body",
+        parameters
+      }
+    ];
+  }
+
   // Send Approved WhatsApp Template Message (Allows initiating conversations outside 24h window)
   public static async sendTemplateMessage(
     phoneNumberId: string,
@@ -465,11 +482,22 @@ export class WhatsAppService {
     to: string,
     templateName: string = "hello_world",
     languageCode: string = "en_US",
-    components: any[] = []
+    components: any[] = [],
+    customerName?: string,
+    variable2?: string
   ) {
     const formattedTo = this.formatPhoneNumber(to);
+
+    // Auto-resolve components for templates with {{1}} (Customer Name) and {{2}} (Coupon / Variable) if components not passed
+    let finalComponents = components;
+    if ((!finalComponents || finalComponents.length === 0) && templateName !== "hello_world") {
+      const nameVal = (customerName || "Valued Customer").replace(/^Lead\s*\(/i, "").replace(/\)$/, "").trim() || "Valued Customer";
+      const couponVal = (variable2 || "OFFER20").trim();
+      finalComponents = this.buildTemplateComponents([nameVal, couponVal]);
+    }
+
     if (this.isMock(phoneNumberId, accessToken)) {
-      console.log(`[MOCK WHATSAPP SEND TEMPLATE] to ${formattedTo}: Template "${templateName}" (${languageCode}) components:`, JSON.stringify(components));
+      console.log(`[MOCK WHATSAPP SEND TEMPLATE] to ${formattedTo}: Template "${templateName}" (${languageCode}) components:`, JSON.stringify(finalComponents));
       return { messages: [{ id: `mock_wa_msg_${Math.random().toString(36).substring(7)}` }] };
     }
     const url = this.getApiUrl(phoneNumberId);
@@ -481,9 +509,11 @@ export class WhatsAppService {
       template: {
         name: templateName,
         language: { code: languageCode },
-        ...(components && components.length > 0 ? { components } : {})
+        ...(finalComponents && finalComponents.length > 0 ? { components: finalComponents } : {})
       }
     };
+
+    console.log(`[WHATSAPP SERVICE] Dispatching Template "${templateName}" to ${formattedTo} with parameters:`, JSON.stringify(finalComponents));
 
     const response = await axios.post(url, data, {
       headers: this.getHeaders(accessToken),

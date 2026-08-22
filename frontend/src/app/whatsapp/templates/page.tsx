@@ -115,6 +115,52 @@ export default function WhatsAppTemplatesPage() {
   const [buttonPhoneNumber, setButtonPhoneNumber] = useState<string>("+919876543210");
   const [buttonCopyCode, setButtonCopyCode] = useState<string>("SUMMER20");
 
+  // Dynamic Variable Test Send Modal States
+  const [showTestModal, setShowTestModal] = useState<boolean>(false);
+  const [testTemplate, setTestTemplate] = useState<MetaTemplate | null>(null);
+  const [testPhone, setTestPhone] = useState<string>("");
+  const [testCustomerName, setTestCustomerName] = useState<string>("Akash");
+  const [testVariable2, setTestVariable2] = useState<string>("SUMMER20");
+  const [testSending, setTestSending] = useState<boolean>(false);
+  const [testStatus, setTestStatus] = useState<string | null>(null);
+
+  const handleSendTestTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testPhone || !testTemplate) return;
+    setTestSending(true);
+    setTestStatus(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates/test-send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          templateName: testTemplate.name,
+          languageCode: testTemplate.language,
+          recipientPhone: testPhone,
+          customerName: testCustomerName,
+          variable2: testVariable2
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestStatus(`SUCCESS: ${data.message}`);
+        setTimeout(() => {
+          setShowTestModal(false);
+          setTestStatus(null);
+        }, 3000);
+      } else {
+        setTestStatus(`ERROR: ${data.error || "Failed to send test message"}`);
+      }
+    } catch (err: any) {
+      setTestStatus(`ERROR: ${err.message}`);
+    } finally {
+      setTestSending(false);
+    }
+  };
+
   const fetchTemplates = async () => {
     try {
       setRefreshing(true);
@@ -475,7 +521,17 @@ export default function WhatsAppTemplatesPage() {
                   </div>
 
                   <div className="pt-2 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-100">
-                    <span className="font-mono text-[10px] text-slate-400">ID: {tpl.id}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTestTemplate(tpl);
+                        setShowTestModal(true);
+                      }}
+                      className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold px-2.5 py-1 rounded-xl border border-purple-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Sparkles className="h-3 w-3 text-purple-600" /> Test Dynamic Send
+                    </button>
+
                     <Link
                       href="/whatsapp/bulk"
                       className="text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1"
@@ -774,6 +830,119 @@ export default function WhatsAppTemplatesPage() {
                   ) : (
                     <>
                       <ShieldCheck className="h-4 w-4 mr-1.5" /> Submit to Meta for Approval
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Variable Test Send Modal */}
+      {showTestModal && testTemplate && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Test Dynamic Template Send</h2>
+                  <p className="text-[11px] text-slate-500">Dispatch <code className="font-mono text-purple-700 font-bold">{testTemplate.name}</code> with dynamic user variables</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTestModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendTestTemplate} className="space-y-4">
+              {/* Recipient Phone */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Recipient Phone Number (with Country Code)</label>
+                <input
+                  type="text"
+                  required
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="e.g. 919876543210"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Variable 1: Customer Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Dynamic Customer Name <code className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{1}}"}</code></span>
+                  <span className="text-[10px] text-slate-400 font-normal">Auto-fetched on broadcast</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={testCustomerName}
+                  onChange={(e) => setTestCustomerName(e.target.value)}
+                  placeholder="e.g. Akash"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-sans focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Variable 2: Coupon / Promo Code */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Dynamic Variable 2 / Coupon Code <code className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{2}}"}</code></span>
+                </label>
+                <input
+                  type="text"
+                  value={testVariable2}
+                  onChange={(e) => setTestVariable2(e.target.value)}
+                  placeholder="e.g. SUMMER20"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Real-time Dynamic Message Preview Box */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Live WhatsApp Delivered Message Preview:</span>
+                <p className="text-xs text-slate-800 leading-relaxed font-sans bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                  Hello <span className="font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{testCustomerName || "Akash"}</span>! Welcome to JISNU Digital Solutions. Use coupon code <span className="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">{testVariable2 || "SUMMER20"}</span> to get 20% off.
+                </p>
+              </div>
+
+              {testStatus && (
+                <div className={`p-3 rounded-xl text-xs font-semibold font-mono ${testStatus.startsWith("SUCCESS") ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                  {testStatus}
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTestModal(false)}
+                  className="border-slate-200 text-slate-700"
+                >
+                  Close
+                </Button>
+
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={testSending}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-sm shadow-purple-500/20"
+                >
+                  {testSending ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Dispatching via Meta...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-1.5" /> Send Live Dynamic Template
                     </>
                   )}
                 </Button>
