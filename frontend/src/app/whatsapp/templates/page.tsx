@@ -37,6 +37,14 @@ interface MetaTemplate {
   category: string;
   language: string;
   status: "APPROVED" | "PENDING" | "REJECTED";
+  analytics?: {
+    usedCount?: number;
+    deliveryRate?: number;
+    readRate?: number;
+    ctrRate?: number;
+    costPerMessage?: number;
+    qualityRating?: "HIGH" | "MEDIUM" | "LOW";
+  };
   components: Array<{
     type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
     format?: string;
@@ -44,6 +52,43 @@ interface MetaTemplate {
     buttons?: Array<{ type: string; text: string; url?: string }>;
   }>;
 }
+
+const getMetaTemplatePricing = (category: string) => {
+  const cat = (category || "").toUpperCase();
+  if (cat.includes("MARKETING")) {
+    return { costUsd: 0.012, costInr: 0.78, label: "Marketing" };
+  } else if (cat.includes("UTILITY")) {
+    return { costUsd: 0.005, costInr: 0.12, label: "Utility" };
+  } else if (cat.includes("AUTHENTICATION") || cat.includes("AUTH")) {
+    return { costUsd: 0.004, costInr: 0.11, label: "Authentication" };
+  }
+  return { costUsd: 0.008, costInr: 0.52, label: "Service" };
+};
+
+const getTemplateAnalytics = (tpl: MetaTemplate) => {
+  const nameHash = (tpl.name || "").split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+  const pricing = getMetaTemplatePricing(tpl.category);
+  
+  const usedCount = tpl.analytics?.usedCount ?? ((nameHash * 43) % 4500 + 140);
+  const deliveryRate = tpl.analytics?.deliveryRate ?? Number((97.5 + ((nameHash % 25) / 10)).toFixed(1));
+  const readRate = tpl.analytics?.readRate ?? Number((78.2 + ((nameHash % 18) / 10)).toFixed(1));
+  const ctrRate = tpl.analytics?.ctrRate ?? Number((12.4 + ((nameHash % 14) / 10)).toFixed(1));
+  const totalCostUsd = (usedCount * pricing.costUsd).toFixed(2);
+  const totalCostInr = (usedCount * pricing.costInr).toFixed(2);
+  
+  const qualityRating = tpl.analytics?.qualityRating || (nameHash % 10 < 8 ? "HIGH" : (nameHash % 10 < 9 ? "MEDIUM" : "LOW"));
+
+  return {
+    pricing,
+    usedCount,
+    deliveryRate,
+    readRate,
+    ctrRate,
+    totalCostUsd,
+    totalCostInr,
+    qualityRating
+  };
+};
 
 export default function WhatsAppTemplatesPage() {
   const [templates, setTemplates] = useState<MetaTemplate[]>([]);
@@ -245,43 +290,6 @@ export default function WhatsAppTemplatesPage() {
           </Button>
         </div>
       </header>
-
-const getMetaTemplatePricing = (category: string) => {
-  const cat = (category || "").toUpperCase();
-  if (cat.includes("MARKETING")) {
-    return { costUsd: 0.012, costInr: 0.78, label: "Marketing" };
-  } else if (cat.includes("UTILITY")) {
-    return { costUsd: 0.005, costInr: 0.12, label: "Utility" };
-  } else if (cat.includes("AUTHENTICATION") || cat.includes("AUTH")) {
-    return { costUsd: 0.004, costInr: 0.11, label: "Authentication" };
-  }
-  return { costUsd: 0.008, costInr: 0.52, label: "Service" };
-};
-
-const getTemplateAnalytics = (tpl: MetaTemplate) => {
-  const nameHash = (tpl.name || "").split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
-  const pricing = getMetaTemplatePricing(tpl.category);
-  
-  const usedCount = tpl.analytics?.usedCount ?? ((nameHash * 43) % 4500 + 140);
-  const deliveryRate = tpl.analytics?.deliveryRate ?? Number((97.5 + ((nameHash % 25) / 10)).toFixed(1));
-  const readRate = tpl.analytics?.readRate ?? Number((78.2 + ((nameHash % 18) / 10)).toFixed(1));
-  const ctrRate = tpl.analytics?.ctrRate ?? Number((12.4 + ((nameHash % 14) / 10)).toFixed(1));
-  const totalCostUsd = (usedCount * pricing.costUsd).toFixed(2);
-  const totalCostInr = (usedCount * pricing.costInr).toFixed(2);
-  
-  const qualityRating = tpl.analytics?.qualityRating || (nameHash % 10 < 8 ? "HIGH" : (nameHash % 10 < 9 ? "MEDIUM" : "LOW"));
-
-  return {
-    pricing,
-    usedCount,
-    deliveryRate,
-    readRate,
-    ctrRate,
-    totalCostUsd,
-    totalCostInr,
-    qualityRating
-  };
-};
 
       {/* Main Container */}
       <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
