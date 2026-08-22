@@ -1323,7 +1323,7 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
 
       if (META_MANAGER_AUTHORITATIVE_DATA[t.name]) {
         const metaAuth = META_MANAGER_AUTHORITATIVE_DATA[t.name];
-        usedCount = Math.max(usedCount, metaAuth.usedCount);
+        usedCount = metaAuth.usedCount;
         totalCostInr = metaAuth.totalCostInr;
         costPerMessageInr = metaAuth.costPerMessageInr;
       }
