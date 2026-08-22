@@ -857,7 +857,7 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
 router.post("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl } = req.body;
+    const { name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl, sampleVariables, buttons } = req.body;
 
     if (!name || !bodyText) {
       return res.status(400).json({ error: "Template name and body text are required" });
@@ -875,15 +875,22 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
 
     const components: any[] = [];
 
-    // Header component handling (TEXT, IMAGE, DOCUMENT, VIDEO, or NONE)
+    // Header component handling (TEXT, IMAGE, DOCUMENT, VIDEO, LOCATION, or NONE)
     const selectedHeaderType = headerType ? headerType.toUpperCase() : (headerText ? "TEXT" : "NONE");
 
     if (selectedHeaderType === "TEXT" && headerText && headerText.trim()) {
-      components.push({
+      const headerObj: any = {
         type: "HEADER",
         format: "TEXT",
-        text: headerText.trim()
-      });
+        text: headerText.trim().substring(0, 60)
+      };
+      const headerMatches = headerText.match(/\{\{\d+\}\}/g);
+      if (headerMatches && headerMatches.length > 0) {
+        headerObj.example = {
+          header_text: ["Sample Header"]
+        };
+      }
+      components.push(headerObj);
     } else if (["IMAGE", "DOCUMENT", "VIDEO"].includes(selectedHeaderType)) {
       const headerObj: any = {
         type: "HEADER",
@@ -892,6 +899,15 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
       if (headerMediaUrl && headerMediaUrl.trim()) {
         headerObj.example = {
           header_handle: [headerMediaUrl.trim()]
+        };
+      } else {
+        const sampleUrl = selectedHeaderType === "IMAGE"
+          ? "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600"
+          : selectedHeaderType === "VIDEO"
+          ? "https://www.w3schools.com/html/mov_bbb.mp4"
+          : "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+        headerObj.example = {
+          header_handle: [sampleUrl]
         };
       }
       components.push(headerObj);
@@ -906,7 +922,9 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
     // Extract placeholders {{1}}, {{2}} to build required example body_text parameters array
     const matches = bodyText.match(/\{\{\d+\}\}/g);
     if (matches && matches.length > 0) {
-      const sampleParams = matches.map((_, idx) => `SampleValue_${idx + 1}`);
+      const sampleParams = Array.isArray(sampleVariables) && sampleVariables.length === matches.length
+        ? sampleVariables
+        : matches.map((_, idx) => `Sample_${idx + 1}`);
       bodyObj.example = {
         body_text: [sampleParams]
       };
@@ -917,20 +935,21 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
     if (footerText && footerText.trim()) {
       components.push({
         type: "FOOTER",
-        text: footerText.trim()
+        text: footerText.trim().substring(0, 60)
       });
     }
 
-    // Button components (URL, QUICK_REPLY, PHONE_NUMBER)
+    // Button components (URL, QUICK_REPLY, PHONE_NUMBER, COPY_CODE)
     const buttonsList: any[] = [];
-    if (req.body.buttons && Array.isArray(req.body.buttons)) {
-      buttonsList.push(...req.body.buttons);
+    if (buttons && Array.isArray(buttons)) {
+      buttonsList.push(...buttons);
     } else if (buttonText && buttonText.trim()) {
       buttonsList.push({
         type: req.body.buttonType || "URL",
         text: buttonText.trim(),
         url: buttonUrl && buttonUrl.trim() ? buttonUrl.trim() : "https://www.jisnudigital.com/",
-        phone_number: req.body.buttonPhoneNumber || ""
+        phone_number: req.body.buttonPhoneNumber || "+919876543210",
+        code: req.body.buttonCopyCode || "DISCOUNT20"
       });
     }
 
@@ -939,12 +958,34 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
         type: "BUTTONS",
         buttons: buttonsList.map((btn: any) => {
           if (btn.type === "PHONE_NUMBER") {
-            return { type: "PHONE_NUMBER", text: btn.text, phone_number: btn.phone_number || "+919876543210" };
+            return {
+              type: "PHONE_NUMBER",
+              text: (btn.text || "Call Us").substring(0, 25),
+              phone_number: btn.phone_number || btn.phoneNumber || "+919876543210"
+            };
           }
           if (btn.type === "QUICK_REPLY") {
-            return { type: "QUICK_REPLY", text: btn.text };
+            return {
+              type: "QUICK_REPLY",
+              text: (btn.text || "Reply").substring(0, 25)
+            };
           }
-          return { type: "URL", text: btn.text, url: btn.url || "https://www.jisnudigital.com/" };
+          if (btn.type === "COPY_CODE") {
+            return {
+              type: "COPY_CODE",
+              example: btn.code || "OFFER20"
+            };
+          }
+          // URL Button
+          const urlObj: any = {
+            type: "URL",
+            text: (btn.text || "Visit Website").substring(0, 25),
+            url: btn.url || "https://www.jisnudigital.com/"
+          };
+          if (urlObj.url.includes("{{1}}")) {
+            urlObj.example = [btn.urlExample || "product-123"];
+          }
+          return urlObj;
         })
       });
     }
@@ -952,7 +993,7 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
     const payload = {
       name: cleanName,
       category: category || "MARKETING",
-      language: language || "en",
+      language: language || "en_US",
       components
     };
 

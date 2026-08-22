@@ -4,6 +4,7 @@ import { io } from "../index";
 import { processChatbotFlow } from "../services/flowEngine";
 import { WhatsAppService } from "../services/whatsappService";
 import { InstagramService } from "../services/instagramService";
+import { InstagramCommentEngine } from "../services/instagramCommentEngine";
 
 const processedComments = new Set<string>();
 
@@ -91,123 +92,21 @@ export const handleWebhook = async (req: Request, res: Response) => {
             setTimeout(() => processedComments.delete(commentId), 10 * 1000);
           }
 
-          // Check for active Instagram Comment-to-DM Automations
+          // Check for active Instagram Comment-to-DM Automations via Production Engine
           if (commentId && commentText) {
             try {
-              const activeAutomations = await (prisma as any).instagramCommentAutomation.findMany({
-                where: {
-                  status: "ACTIVE",
-                  ...(igConfig?.organizationId ? { organizationId: igConfig.organizationId } : {})
-                }
+              const activeToken = process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || igConfig?.pageAccessToken;
+              await InstagramCommentEngine.processIncomingComment({
+                commentId,
+                mediaId,
+                commentText,
+                fromUser,
+                fromUserId,
+                organizationId: igConfig?.organizationId,
+                pageAccessToken: activeToken,
+                pageId: igConfig?.pageId,
+                instagramAccountId: igConfig?.instagramAccountId
               });
-
-              for (const auto of activeAutomations) {
-                // Check if automation applies to this mediaId or ALL media
-                if (auto.mediaId !== "ALL" && auto.mediaId !== mediaId) {
-                  continue;
-                }
-
-                // Check keyword matching (EXACT, CONTAINS, WHOLE_WORD)
-                const textUpper = commentText.toUpperCase().trim();
-                let matchedKw = "";
-                for (const kw of (auto.keywords || [])) {
-                  const targetKw = kw.toUpperCase().trim();
-                  if (!targetKw) continue;
-
-                  if (auto.matchingMode === "EXACT" && textUpper === targetKw) {
-                    matchedKw = kw;
-                    break;
-                  }
-                  if (auto.matchingMode === "CONTAINS" && textUpper.includes(targetKw)) {
-                    matchedKw = kw;
-                    break;
-                  }
-                  if (auto.matchingMode === "WHOLE_WORD") {
-                    const regex = new RegExp(`\\b${targetKw}\\b`, "i");
-                    if (regex.test(textUpper)) {
-                      matchedKw = kw;
-                      break;
-                    }
-                  }
-                }
-
-                if (matchedKw) {
-                  console.log(`[COMMENT-TO-DM AUTOMATION MATCHED] Keyword '${matchedKw}' on post ${mediaId} by @${fromUser}`);
-
-                  // Idempotency check: Ensure only 1 DM is sent per comment ID
-                  const existingLog = await (prisma as any).instagramCommentAuditLog.findUnique({
-                    where: { commentId }
-                  });
-
-                  if (existingLog) {
-                    console.log(`[COMMENT-TO-DM DUPLICATE GUARD] Skip duplicate DM for comment ${commentId}`);
-                    continue;
-                  }
-
-                  // 1. Build private DM message text with document link placeholder
-                  const docLink = auto.documentUrl || "https://www.jisnudigital.com/docs/guide.pdf";
-                  let dmText = auto.privateMessageTemplate.replace(/\{document_link\}/gi, docLink);
-                  dmText = dmText.replace(/\{username\}/gi, fromUser);
-
-                  let dmSentSuccess = false;
-                  let dmError = null;
-
-                  // 2. Send Private DM if token and user ID exist
-                  if (fromUserId && igConfig?.pageAccessToken) {
-                    try {
-                      await InstagramService.sendTextMessage(igConfig.pageAccessToken, fromUserId, dmText, igConfig.pageId);
-                      dmSentSuccess = true;
-                      console.log(`[COMMENT-TO-DM PRIVATE DM SENT] to @${fromUser} (${fromUserId})`);
-                    } catch (err: any) {
-                      dmError = err?.response?.data?.error?.message || err.message;
-                      console.warn(`[COMMENT-TO-DM PRIVATE DM WARN]: ${dmError}`);
-                    }
-                  }
-
-                  // 3. Optional Public Reply under comment
-                  let publicReplyText = null;
-                  if (auto.enablePublicReply && igConfig?.pageAccessToken) {
-                    publicReplyText = (auto.publicReplyTemplate || "Thanks @{username}! Check your DMs for the link 📩").replace(/\{username\}/gi, fromUser);
-                    try {
-                      await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, publicReplyText);
-                      console.log(`[COMMENT-TO-DM PUBLIC REPLY SENT] to comment ${commentId}`);
-                    } catch (err: any) {
-                      console.warn(`[COMMENT-TO-DM PUBLIC REPLY WARN]:`, err?.response?.data?.error?.message || err.message);
-                    }
-                  }
-
-                  // 4. Update automation counters & audit log in DB
-                  await (prisma as any).instagramCommentAutomation.update({
-                    where: { id: auto.id },
-                    data: {
-                      commentsCount: { increment: 1 },
-                      matchesCount: { increment: 1 },
-                      ...(dmSentSuccess ? { dmsSentCount: { increment: 1 } } : {}),
-                      lastTriggeredAt: new Date()
-                    }
-                  });
-
-                  await (prisma as any).instagramCommentAuditLog.create({
-                    data: {
-                      organizationId: auto.organizationId,
-                      automationId: auto.id,
-                      commentId,
-                      mediaId,
-                      commenterUser: fromUser,
-                      commenterId: fromUserId,
-                      commentText,
-                      matchedKeyword: matchedKw,
-                      documentSent: docLink,
-                      publicReplySent: publicReplyText,
-                      privateDmSent: dmSentSuccess,
-                      status: dmSentSuccess ? "SUCCESS" : "FAILED",
-                      errorMessage: dmError
-                    }
-                  });
-
-                  break; // Execute first matching automation rule
-                }
-              }
             } catch (err: any) {
               console.error("[COMMENT-TO-DM ENGINE ERROR]:", err.message || err);
             }

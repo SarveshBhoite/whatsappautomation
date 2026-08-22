@@ -89,8 +89,21 @@ export default function InstagramCommentsPage() {
     mediaType: string;
     mediaUrl: string;
     mediaCaption: string;
+    targetPostSelection: "ALL" | "SPECIFIC" | "MULTIPLE" | "FUTURE";
+    targetPostIds: string[];
     keywordsInput: string;
-    matchingMode: "EXACT" | "CONTAINS" | "WHOLE_WORD";
+    matchingMode: "EXACT" | "CONTAINS" | "WHOLE_WORD" | "ANY_COMMENT" | "STARTS_WITH" | "ENDS_WITH" | "PHRASE" | "PATTERN";
+    isCaseSensitive: boolean;
+    matchBehavior: "ANY" | "ALL";
+    excludedKeywordsInput: string;
+    excludedPhrasesInput: string;
+    cooldownHours: number;
+    maxPerUser: number;
+    priority: number;
+    conflictPolicy: "HIGHEST_PRIORITY_ONLY" | "EXECUTE_ALL" | "FIRST_MATCHING" | "HIGHEST_PRIORITY_AND_STOP";
+    enableSchedule: boolean;
+    startTime: string;
+    endTime: string;
     privateMessageTemplate: string;
     documentUrl: string;
     documentName: string;
@@ -102,8 +115,21 @@ export default function InstagramCommentsPage() {
     mediaType: "POST",
     mediaUrl: "",
     mediaCaption: "",
+    targetPostSelection: "ALL",
+    targetPostIds: [],
     keywordsInput: "PDF, GUIDE, LINK",
     matchingMode: "CONTAINS",
+    isCaseSensitive: false,
+    matchBehavior: "ANY",
+    excludedKeywordsInput: "",
+    excludedPhrasesInput: "",
+    cooldownHours: 24,
+    maxPerUser: 1,
+    priority: 10,
+    conflictPolicy: "HIGHEST_PRIORITY_ONLY",
+    enableSchedule: false,
+    startTime: "09:00",
+    endTime: "18:00",
     privateMessageTemplate: "Hey @{username}! Thanks for your comment. Here is the document you requested: {document_link}",
     documentUrl: "https://www.jisnudigital.com/docs/Official_Guide.pdf",
     documentName: "Official_Guide.pdf",
@@ -132,7 +158,7 @@ export default function InstagramCommentsPage() {
   const fetchMediaList = async () => {
     try {
       setLoadingMedia(true);
-      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/media`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/media?fetchAll=true&limit=100`, {
         headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (res.ok) {
@@ -192,20 +218,52 @@ export default function InstagramCommentsPage() {
   // Save / Update Automation
   const handleSaveAutomation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.keywordsInput || !formData.privateMessageTemplate) return;
+    if (!formData.name || !formData.privateMessageTemplate) return;
+    if (formData.matchingMode !== "ANY_COMMENT" && !formData.keywordsInput) return;
 
-    const keywords = formData.keywordsInput
+    const rawKeywords = (formData.keywordsInput || "")
       .split(",")
       .map((k) => k.trim())
       .filter((k) => k.length > 0);
 
+    const keywords = rawKeywords.length > 0 ? rawKeywords : (formData.matchingMode === "ANY_COMMENT" ? ["*"] : ["PDF"]);
+
+    const excludedKeywords = (formData.excludedKeywordsInput || "")
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean);
+
+    const excludedPhrases = (formData.excludedPhrasesInput || "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+
     const payload = {
       name: formData.name,
-      mediaId: formData.mediaId || "ALL",
+      mediaId: formData.targetPostSelection === "MULTIPLE" && formData.targetPostIds.length > 0 ? formData.targetPostIds[0] : (formData.mediaId || "ALL"),
       mediaType: formData.mediaType,
       mediaUrl: formData.mediaUrl,
       keywords,
       matchingMode: formData.matchingMode,
+      triggerType: formData.matchingMode === "ANY_COMMENT" ? "ANY_COMMENT" : (formData.matchingMode === "PHRASE" ? "PHRASE_MATCH" : (formData.matchingMode === "PATTERN" ? "PATTERN_MATCH" : "SPECIFIC_KEYWORD")),
+      targetPostSelection: formData.targetPostSelection,
+      targetPostIds: formData.targetPostIds,
+      isCaseSensitive: formData.isCaseSensitive,
+      matchBehavior: formData.matchBehavior,
+      excludedKeywords,
+      excludedPhrases,
+      cooldownConfig: {
+        userCooldownSeconds: (formData.cooldownHours || 24) * 3600
+      },
+      limitsConfig: {
+        maxPerUser: formData.maxPerUser || 1
+      },
+      priority: formData.priority || 10,
+      conflictPolicy: formData.conflictPolicy,
+      scheduleConfig: formData.enableSchedule ? {
+        startTime: formData.startTime,
+        endTime: formData.endTime
+      } : null,
       privateMessageTemplate: formData.privateMessageTemplate,
       documentUrl: formData.documentUrl,
       documentName: formData.documentName,
@@ -354,7 +412,7 @@ export default function InstagramCommentsPage() {
     const commentsCount = selectedMedia?.comments_count || 8;
     const postDate = selectedMedia?.timestamp ? new Date(selectedMedia.timestamp).toLocaleDateString() : "August 14, 2026";
 
-    const keywords = formData.keywordsInput.split(",").map(k => k.trim()).filter(Boolean);
+    const keywords = (formData.keywordsInput || "").split(",").map(k => k.trim()).filter(Boolean);
     const sampleUsername = "user123";
     const sampleDocLink = formData.documentUrl || "https://www.jisnudigital.com/docs/Official_Guide.pdf";
     const firstKeyword = keywords[0] || "PDF";
@@ -363,6 +421,10 @@ export default function InstagramCommentsPage() {
     const resolvedDmText = formData.privateMessageTemplate
       ? formData.privateMessageTemplate.replace(/\{username\}/g, sampleUsername).replace(/\{document_link\}/g, sampleDocLink)
       : `Hey @${sampleUsername}! Thanks for commenting.\n\nHere is the document you requested:\n📄 View Document\n\nLet me know if you need anything else. 😊`;
+
+    const resolvedPublicReplyText = formData.publicReplyTemplate
+      ? formData.publicReplyTemplate.replace(/\{username\}/g, sampleUsername)
+      : `Thanks @${sampleUsername}! Check your private messages for details 📩`;
 
     return (
       <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#0d0f12] text-slate-100 p-4 sm:p-6 md:p-7 relative scrollbar-thin">
@@ -439,96 +501,202 @@ export default function InstagramCommentsPage() {
                     <span className="h-6 w-6 rounded-lg bg-purple-500/20 text-purple-400 font-bold text-xs flex items-center justify-center border border-purple-500/30">02</span>
                     <div>
                       <h3 className="font-semibold text-xs text-slate-100 uppercase tracking-wide">Target Content</h3>
-                      <p className="text-[11px] text-slate-400">Choose which Instagram posts should trigger this automation.</p>
+                      <p className="text-[11px] text-slate-400">Choose which Instagram posts or reels should trigger this automation.</p>
                     </div>
                   </div>
-                  {loadingMedia && (
-                    <span className="text-[11px] text-pink-400 animate-pulse font-mono flex items-center gap-1">
-                      <RefreshCw className="h-3 w-3 animate-spin" /> Syncing feed...
-                    </span>
-                  )}
-                </div>
-
-                {/* Global Profile Rule Banner */}
-                <div
-                  onClick={() => setFormData({ ...formData, mediaId: "ALL", mediaType: "ALL", mediaUrl: "", mediaCaption: "Global Rule" })}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                    formData.mediaId === "ALL"
-                      ? "bg-gradient-to-r from-pink-950/30 via-slate-900 to-purple-950/30 border-pink-500/80 text-pink-200 shadow-md ring-1 ring-pink-500/40"
-                      : "bg-[#090b0e] border-slate-800 hover:border-slate-700 text-slate-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-sm shrink-0">🌐</div>
-                    <div>
-                      <span className="text-xs font-semibold text-slate-100 block">Apply to All Reels & Posts (Global Profile Rule)</span>
-                      <span className="text-[11px] text-slate-400">Triggers on any matching comment across your entire Instagram account</span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={fetchMediaList}
+                      disabled={loadingMedia}
+                      className="bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${loadingMedia ? "animate-spin text-pink-400" : ""}`} />
+                      {loadingMedia ? "Syncing Feed..." : `Sync Feed (${mediaList.length} Posts)`}
+                    </button>
                   </div>
-                  {formData.mediaId === "ALL" && (
-                    <span className="text-[11px] font-semibold text-pink-300 bg-pink-500/20 px-2.5 py-1 rounded-lg border border-pink-500/40 flex items-center gap-1">
-                      <Check className="h-3.5 w-3.5" /> Selected
-                    </span>
-                  )}
                 </div>
 
-                <span className="text-[11px] text-slate-400 font-semibold block pt-1">Or select specific posts:</span>
-
-                {/* Post Selection Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
-                  {mediaList.map((m) => {
-                    const isSelected = formData.mediaId === m.id;
-                    const isReel = m.media_product_type === "REELS" || m.media_type === "VIDEO";
-                    return (
-                      <div
-                        key={m.id}
-                        onClick={() => {
-                          setFormData({
-                            ...formData,
-                            mediaId: m.id,
-                            mediaType: isReel ? "REEL" : "POST",
-                            mediaUrl: m.media_url || "",
-                            mediaCaption: m.caption || ""
-                          });
-                        }}
-                        className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 relative ${
-                          isSelected
-                            ? "bg-[#090b0e] border-pink-500 ring-1 ring-pink-500/80 shadow-md"
-                            : "bg-[#090b0e] border-slate-800 hover:border-slate-700"
-                        }`}
-                      >
-                        {/* Checkbox indicator */}
-                        <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-all ${
-                          isSelected ? "bg-pink-500 border-pink-500 text-white" : "border-slate-700 bg-slate-900"
-                        }`}>
-                          {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                        </div>
-
-                        <div className="h-12 w-12 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden relative shrink-0">
-                          {m.thumbnail_url || m.media_url ? (
-                            <img src={m.thumbnail_url || m.media_url} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center text-[10px]">📷</div>
-                          )}
-                          <span className={`absolute top-0.5 left-0.5 text-[8px] font-extrabold px-1 rounded ${isReel ? "bg-pink-600 text-white" : "bg-purple-600 text-white"}`}>
-                            {isReel ? "REEL" : "IMAGE"}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col min-w-0 flex-1 space-y-0.5">
-                          <p className="text-[11px] font-semibold text-slate-200 truncate">
-                            {m.caption ? m.caption.slice(0, 36) : `Media ID: ${m.id}`}
-                          </p>
-                          <div className="flex items-center gap-2.5 text-[10px] text-slate-400 font-mono">
-                            <span>🩷 {m.like_count || 0}</span>
-                            <span>💬 {m.comments_count || 0}</span>
-                            <span>{m.timestamp ? new Date(m.timestamp).toLocaleDateString() : ""}</span>
-                          </div>
-                        </div>
+                {/* Target Mode Quick Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Option 1: ALL */}
+                  <div
+                    onClick={() => setFormData({ ...formData, targetPostSelection: "ALL", mediaId: "ALL", targetPostIds: [] })}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      formData.targetPostSelection === "ALL"
+                        ? "bg-gradient-to-r from-pink-950/30 via-slate-900 to-purple-950/30 border-pink-500 text-pink-200 ring-1 ring-pink-500/50 shadow-md"
+                        : "bg-[#090b0e] border-slate-800 hover:border-slate-700 text-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold text-xs shrink-0">🌐</div>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-100 block">All Posts & Reels (Global)</span>
+                        <span className="text-[10px] text-slate-400">Every current and new post</span>
                       </div>
-                    );
-                  })}
+                    </div>
+                    {formData.targetPostSelection === "ALL" && (
+                      <Check className="h-4 w-4 text-pink-400" />
+                    )}
+                  </div>
+
+                  {/* Option 2: FUTURE */}
+                  <div
+                    onClick={() => setFormData({ ...formData, targetPostSelection: "FUTURE", mediaId: "FUTURE", targetPostIds: [] })}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      formData.targetPostSelection === "FUTURE"
+                        ? "bg-gradient-to-r from-purple-950/30 via-slate-900 to-indigo-950/30 border-purple-500 text-purple-200 ring-1 ring-purple-500/50 shadow-md"
+                        : "bg-[#090b0e] border-slate-800 hover:border-slate-700 text-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs shrink-0">✨</div>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-100 block">All Future Posts Only</span>
+                        <span className="text-[10px] text-slate-400">Posts created after activation</span>
+                      </div>
+                    </div>
+                    {formData.targetPostSelection === "FUTURE" && (
+                      <Check className="h-4 w-4 text-purple-400" />
+                    )}
+                  </div>
+
+                  {/* Option 3: SPECIFIC */}
+                  <div
+                    onClick={() => setFormData({ ...formData, targetPostSelection: "SPECIFIC" })}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      formData.targetPostSelection === "SPECIFIC"
+                        ? "bg-gradient-to-r from-sky-950/30 via-slate-900 to-slate-900 border-sky-500 text-sky-200 ring-1 ring-sky-500/50 shadow-md"
+                        : "bg-[#090b0e] border-slate-800 hover:border-slate-700 text-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-xs shrink-0">🎯</div>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-100 block">Single Specific Post</span>
+                        <span className="text-[10px] text-slate-400">Target 1 specific post/reel</span>
+                      </div>
+                    </div>
+                    {formData.targetPostSelection === "SPECIFIC" && (
+                      <Check className="h-4 w-4 text-sky-400" />
+                    )}
+                  </div>
+
+                  {/* Option 4: MULTIPLE */}
+                  <div
+                    onClick={() => setFormData({ ...formData, targetPostSelection: "MULTIPLE" })}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                      formData.targetPostSelection === "MULTIPLE"
+                        ? "bg-gradient-to-r from-emerald-950/30 via-slate-900 to-slate-900 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/50 shadow-md"
+                        : "bg-[#090b0e] border-slate-800 hover:border-slate-700 text-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">📚</div>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-100 block">Multiple Selected Posts</span>
+                        <span className="text-[10px] text-slate-400">Select multiple specific posts</span>
+                      </div>
+                    </div>
+                    {formData.targetPostSelection === "MULTIPLE" && (
+                      <Check className="h-4 w-4 text-emerald-400" />
+                    )}
+                  </div>
                 </div>
+
+                {/* Post Selection Grid (for SPECIFIC and MULTIPLE modes) */}
+                {(formData.targetPostSelection === "SPECIFIC" || formData.targetPostSelection === "MULTIPLE") && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                        {formData.targetPostSelection === "MULTIPLE"
+                          ? `Select multiple posts (${formData.targetPostIds.length} of ${mediaList.length} posts selected):`
+                          : `Select 1 target post (${mediaList.length} posts loaded):`}
+                      </span>
+                      {formData.targetPostSelection === "MULTIPLE" && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, targetPostIds: mediaList.map(m => m.id) })}
+                          className="text-pink-400 hover:text-pink-300 font-bold text-[10px]"
+                        >
+                          Select All ({mediaList.length})
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-1 scrollbar-thin">
+                      {mediaList.map((m) => {
+                        const isSingleSelected = formData.targetPostSelection === "SPECIFIC" && formData.mediaId === m.id;
+                        const isMultiSelected = formData.targetPostSelection === "MULTIPLE" && formData.targetPostIds.includes(m.id);
+                        const isSelected = isSingleSelected || isMultiSelected;
+                        const isReel = m.media_product_type === "REELS" || m.media_type === "VIDEO";
+
+                        return (
+                          <div
+                            key={m.id}
+                            onClick={() => {
+                              if (formData.targetPostSelection === "MULTIPLE") {
+                                const newIds = isMultiSelected
+                                  ? formData.targetPostIds.filter(id => id !== m.id)
+                                  : [...formData.targetPostIds, m.id];
+                                setFormData({
+                                  ...formData,
+                                  targetPostIds: newIds,
+                                  mediaId: newIds[0] || m.id,
+                                  mediaUrl: m.media_url || "",
+                                  mediaCaption: m.caption || ""
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  mediaId: m.id,
+                                  targetPostIds: [m.id],
+                                  mediaType: isReel ? "REEL" : "POST",
+                                  mediaUrl: m.media_url || "",
+                                  mediaCaption: m.caption || ""
+                                });
+                              }
+                            }}
+                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center gap-3 relative ${
+                              isSelected
+                                ? "bg-[#090b0e] border-pink-500 ring-1 ring-pink-500/80 shadow-md"
+                                : "bg-[#090b0e] border-slate-800 hover:border-slate-700"
+                            }`}
+                          >
+                            {/* Checkbox indicator */}
+                            <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-all ${
+                              isSelected ? "bg-pink-500 border-pink-500 text-white" : "border-slate-700 bg-slate-900"
+                            }`}>
+                              {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+
+                            <div className="h-12 w-12 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden relative shrink-0">
+                              {m.thumbnail_url || m.media_url ? (
+                                <img src={m.thumbnail_url || m.media_url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="h-full w-full flex items-center justify-center text-[10px]">📷</div>
+                              )}
+                              <span className={`absolute top-0.5 left-0.5 text-[8px] font-extrabold px-1 rounded ${isReel ? "bg-pink-600 text-white" : "bg-purple-600 text-white"}`}>
+                                {isReel ? "REEL" : "IMAGE"}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col min-w-0 flex-1 space-y-0.5">
+                              <p className="text-[11px] font-semibold text-slate-200 truncate">
+                                {m.caption ? m.caption.slice(0, 36) : `Media ID: ${m.id}`}
+                              </p>
+                              <div className="flex items-center gap-2.5 text-[10px] text-slate-400 font-mono">
+                                <span>🩷 {m.like_count || 0}</span>
+                                <span>💬 {m.comments_count || 0}</span>
+                                <span>{m.timestamp ? new Date(m.timestamp).toLocaleDateString() : ""}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* CARD 3 — TRIGGER RULES */}
@@ -543,15 +711,22 @@ export default function InstagramCommentsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-slate-300 font-medium block">Trigger Keywords (comma separated)</label>
+                    <label className="text-slate-300 font-medium block">
+                      Trigger Keywords (comma separated) {formData.matchingMode === "ANY_COMMENT" && <span className="text-slate-400 text-[10px] font-normal">(Optional for Any Comment / Emoji)</span>}
+                    </label>
                     <input
                       type="text"
                       value={formData.keywordsInput}
                       onChange={(e) => setFormData({ ...formData, keywordsInput: e.target.value })}
-                      placeholder="PDF, GUIDE, LINK, DETAILS"
+                      placeholder={formData.matchingMode === "ANY_COMMENT" ? "Any comment / emoji (e.g. 🔥, PDF, PRICE)" : "PDF, GUIDE, LINK, DETAILS"}
                       className="w-full bg-[#090b0e] border border-slate-800 rounded-xl px-3.5 h-11 text-xs text-pink-300 font-semibold placeholder-slate-600 focus:outline-none focus:border-pink-500"
-                      required
+                      required={formData.matchingMode !== "ANY_COMMENT"}
                     />
+                    {formData.matchingMode === "ANY_COMMENT" && (
+                      <p className="text-[11px] text-emerald-400 font-medium pt-0.5 flex items-center gap-1">
+                        ✨ Triggers dynamically on ANY comment text or emoji (e.g. 🔥, ❤️, Interested, Price)
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -562,8 +737,13 @@ export default function InstagramCommentsPage() {
                       className="w-full bg-[#090b0e] border border-slate-800 rounded-xl px-3.5 h-11 text-xs text-slate-200 focus:outline-none focus:border-pink-500 cursor-pointer"
                     >
                       <option value="CONTAINS">Contains Keyword (Flexible)</option>
+                      <option value="ANY_COMMENT">Any Comment / Emoji (Triggers on ANY comment or 🔥)</option>
                       <option value="EXACT">Exact Match Only</option>
                       <option value="WHOLE_WORD">Whole Word Match</option>
+                      <option value="STARTS_WITH">Starts With Keyword</option>
+                      <option value="ENDS_WITH">Ends With Keyword</option>
+                      <option value="PHRASE">Phrase Match</option>
+                      <option value="PATTERN">Regular / Pattern Match (Regex)</option>
                     </select>
                   </div>
                 </div>
@@ -613,9 +793,132 @@ export default function InstagramCommentsPage() {
                     rows={4}
                     value={formData.privateMessageTemplate}
                     onChange={(e) => setFormData({ ...formData, privateMessageTemplate: e.target.value })}
-                    className="w-full bg-[#090b0e] border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-pink-500 font-mono leading-relaxed min-h-[110px]"
+                    className="w-full bg-[#090b0e] border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-pink-500 font-mono leading-relaxed min-h-[100px]"
                     required
                   />
+                </div>
+
+                {/* Custom Public Comment Reply */}
+                <div className="space-y-2 pt-3 border-t border-slate-850">
+                  <div className="flex justify-between items-center text-xs">
+                    <label className="text-slate-300 font-medium flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.enablePublicReply}
+                        onChange={(e) => setFormData({ ...formData, enablePublicReply: e.target.checked })}
+                        className="rounded border-slate-700 bg-slate-900 text-pink-500 focus:ring-pink-500/30 h-4 w-4 cursor-pointer"
+                      />
+                      <span className="font-semibold text-slate-200">Custom Public Comment Reply</span>
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <span>Available placeholder:</span>
+                      <span className="bg-[#090b0e] text-pink-400 px-1.5 py-0.5 rounded font-mono font-semibold border border-pink-500/30">{'{username}'}</span>
+                    </div>
+                  </div>
+
+                  {formData.enablePublicReply && (
+                    <textarea
+                      rows={2}
+                      value={formData.publicReplyTemplate}
+                      onChange={(e) => setFormData({ ...formData, publicReplyTemplate: e.target.value })}
+                      placeholder="Thanks @{username}! Check your private messages for details 📩"
+                      className="w-full bg-[#090b0e] border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-pink-500 font-mono leading-relaxed min-h-[75px]"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* CARD 5 — ADVANCED SETTINGS & EXCLUSIONS */}
+              <div className="bg-[#12151a] border border-slate-800/90 rounded-2xl p-5 space-y-4 shadow-md">
+                <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
+                  <span className="h-6 w-6 rounded-lg bg-amber-500/20 text-amber-400 font-bold text-xs flex items-center justify-center border border-amber-500/30">05</span>
+                  <div>
+                    <h3 className="font-semibold text-xs text-slate-100 uppercase tracking-wide">Advanced Settings & Exclusions</h3>
+                    <p className="text-[11px] text-slate-400">Configure negative keywords, user cooldowns, execution limits, and schedules.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Negative / Excluded Keywords */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-300 font-medium block">Excluded Keywords (Negative Keywords)</label>
+                    <input
+                      type="text"
+                      value={formData.excludedKeywordsInput}
+                      onChange={(e) => setFormData({ ...formData, excludedKeywordsInput: e.target.value })}
+                      placeholder="job, refund, spam, fake"
+                      className="w-full bg-[#090b0e] border border-slate-800 rounded-xl px-3.5 h-11 text-xs text-amber-300 font-semibold placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-slate-400 block">Comments containing excluded keywords will NOT trigger the rule.</span>
+                  </div>
+
+                  {/* Negative Phrases */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-300 font-medium block">Excluded Phrases</label>
+                    <input
+                      type="text"
+                      value={formData.excludedPhrasesInput}
+                      onChange={(e) => setFormData({ ...formData, excludedPhrasesInput: e.target.value })}
+                      placeholder="not interested, bad service"
+                      className="w-full bg-[#090b0e] border border-slate-800 rounded-xl px-3.5 h-11 text-xs text-amber-300 font-semibold placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* User Cooldown Period */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-300 font-medium block">User Cooldown Period (Hours)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={formData.cooldownHours}
+                      onChange={(e) => setFormData({ ...formData, cooldownHours: Number(e.target.value) })}
+                      placeholder="24"
+                      className="w-full bg-[#090b0e] border border-slate-800 rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-pink-500"
+                    />
+                    <span className="text-[10px] text-slate-400 block">Prevents sending repeated DMs to the same user within X hours.</span>
+                  </div>
+
+                  {/* Max Executions Per User */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-300 font-medium block">Max Messages Per User</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={formData.maxPerUser}
+                      onChange={(e) => setFormData({ ...formData, maxPerUser: Number(e.target.value) })}
+                      placeholder="1"
+                      className="w-full bg-[#090b0e] border border-slate-800 rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+
+                  {/* Priority */}
+                  <div className="space-y-1.5">
+                    <label className="text-slate-300 font-medium block">Automation Priority</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: Number(e.target.value) })}
+                      placeholder="10"
+                      className="w-full bg-[#090b0e] border border-slate-800 rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-pink-500"
+                    />
+                    <span className="text-[10px] text-slate-400 block">Lower number = higher priority (e.g. 1 executes before 10).</span>
+                  </div>
+
+                  {/* Case Sensitivity Toggle */}
+                  <div className="space-y-1.5 flex flex-col justify-center">
+                    <label className="text-slate-300 font-medium block">Case Sensitivity</label>
+                    <label className="flex items-center gap-2.5 cursor-pointer pt-1">
+                      <input
+                        type="checkbox"
+                        checked={formData.isCaseSensitive}
+                        onChange={(e) => setFormData({ ...formData, isCaseSensitive: e.target.checked })}
+                        className="rounded border-slate-700 bg-slate-900 text-pink-500 focus:ring-pink-500/30 h-4 w-4 cursor-pointer"
+                      />
+                      <span className="text-xs text-slate-200 font-semibold">Enable Case Sensitive Matching</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -706,9 +1009,43 @@ export default function InstagramCommentsPage() {
                   <span className="italic text-slate-300">{captionText}</span>
                 </div>
 
-                <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5 font-mono">
-                  <span>View all {commentsCount} comments</span>
-                  <span>{postDate}</span>
+                {/* LIVE COMMENT SECTION PREVIEW */}
+                <div className="pt-2 border-t border-slate-850 space-y-2">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Live Comment & Public Reply Preview</span>
+                  
+                  {/* User Comment */}
+                  <div className="flex items-start gap-2 text-xs bg-slate-950/80 p-2 rounded-xl border border-slate-800">
+                    <div className="h-5 w-5 rounded-full bg-slate-800 text-[9px] flex items-center justify-center font-bold text-slate-300 shrink-0">
+                      U
+                    </div>
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <span className="font-bold text-slate-200 mr-1.5">{sampleUsername}</span>
+                      <span className="text-slate-300 font-sans">{sampleCommentText}</span>
+                    </div>
+                  </div>
+
+                  {/* Public Reply Nested Under Comment */}
+                  {formData.enablePublicReply && (
+                    <div className="ml-4 pl-2.5 border-l-2 border-pink-500/60 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-4 w-4 rounded-full bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 p-[1px] shrink-0">
+                          <div className="h-full w-full bg-slate-900 rounded-full flex items-center justify-center text-[7px] font-extrabold text-pink-300">
+                            J
+                          </div>
+                        </div>
+                        <span className="font-bold text-[11px] text-pink-400">jisnudigital</span>
+                        <span className="bg-pink-500/20 text-pink-300 text-[8px] font-extrabold px-1 rounded border border-pink-500/30">Author</span>
+                      </div>
+                      <p className="text-[11px] text-slate-200 bg-slate-950 p-2 rounded-xl border border-pink-500/30 leading-snug font-sans">
+                        {resolvedPublicReplyText}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5 font-mono">
+                    <span>View all {commentsCount + 1} comments</span>
+                    <span>{postDate}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -717,48 +1054,42 @@ export default function InstagramCommentsPage() {
             <div className="bg-[#090b0e] p-4 rounded-xl border border-slate-800/90 space-y-3 shadow-inner">
               <div className="text-center border-b border-slate-850 pb-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-pink-400">
-                  COMMENT → AUTOMATIC DM FLOW
+                  COMMENT → PUBLIC REPLY → PRIVATE DM FLOW
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 items-center text-center text-[10px]">
-                {/* User Comment Box */}
-                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-1.5 text-left">
-                  <span className="text-[9px] font-bold text-slate-400 block">Example Comment</span>
-                  <div className="flex items-start gap-1.5">
-                    <div className="h-4 w-4 rounded-full bg-slate-800 text-[8px] flex items-center justify-center font-bold text-slate-300 shrink-0">
-                      U
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="font-bold text-[10px] text-slate-200 block">{sampleUsername}</span>
-                      <p className="text-[10px] text-slate-300 bg-slate-950 p-1.5 rounded border border-slate-800 leading-tight">
-                        "{sampleCommentText}"
-                      </p>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-stretch text-center text-[10px]">
+                {/* 1. User Comment Box */}
+                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-1 text-left flex flex-col justify-between">
+                  <span className="text-[9px] font-bold text-slate-400 block">1. User Comment</span>
+                  <p className="text-[10px] text-slate-300 bg-slate-950 p-1.5 rounded border border-slate-800 leading-tight font-sans">
+                    "{sampleCommentText}"
+                  </p>
                 </div>
 
-                {/* Trigger Matched Box */}
-                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-1 text-left">
-                  <span className="text-[9px] font-bold text-pink-400 block">Trigger Matched</span>
+                {/* 2. Trigger Matched Box */}
+                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-1 text-left flex flex-col justify-between">
+                  <span className="text-[9px] font-bold text-pink-400 block">2. Trigger Matched</span>
                   <div className="text-[10px] font-mono text-slate-300 space-y-0.5">
-                    <div><span className="text-slate-400">Keyword:</span> <span className="text-pink-300 font-bold">{firstKeyword}</span></div>
+                    <div><span className="text-slate-400">Kw:</span> <span className="text-pink-300 font-bold">{firstKeyword}</span></div>
                     <div><span className="text-slate-400">Rule:</span> <span className="text-sky-300 font-semibold">{formData.matchingMode}</span></div>
-                    <span className="text-[9px] text-emerald-400 font-bold block pt-1">Automation Triggered</span>
                   </div>
                 </div>
 
-                {/* DM Sent Box */}
-                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-pink-500/30 space-y-1 text-left">
-                  <span className="text-[9px] font-bold text-emerald-400 block">DM Sent Automatically</span>
+                {/* 3. Custom Public Reply Box */}
+                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-purple-500/30 space-y-1 text-left flex flex-col justify-between">
+                  <span className="text-[9px] font-bold text-purple-400 block">3. Public Reply</span>
+                  <p className="text-[10px] text-slate-200 bg-slate-950 p-1.5 rounded border border-purple-500/30 leading-tight line-clamp-3 font-sans">
+                    {formData.enablePublicReply ? resolvedPublicReplyText : "(Disabled)"}
+                  </p>
+                </div>
+
+                {/* 4. DM Sent Box */}
+                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-pink-500/30 space-y-1 text-left flex flex-col justify-between">
+                  <span className="text-[9px] font-bold text-emerald-400 block">4. Private DM Sent</span>
                   <p className="text-[10px] text-slate-200 bg-slate-950 p-1.5 rounded border border-slate-800 leading-tight line-clamp-3 font-sans">
                     {resolvedDmText}
                   </p>
-                  {(formData.documentUrl || formData.documentName) && (
-                    <span className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1 justify-center">
-                      📄 Document Link Attached
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
@@ -997,12 +1328,25 @@ export default function InstagramCommentsPage() {
                               mediaType: item.mediaType,
                               mediaUrl: item.mediaUrl || "",
                               mediaCaption: item.mediaCaption || "",
-                              keywordsInput: item.keywords.join(", "),
-                              matchingMode: item.matchingMode,
-                              privateMessageTemplate: item.privateMessageTemplate,
+                              targetPostSelection: item.targetPostSelection || (item.mediaId === "ALL" ? "ALL" : "SPECIFIC"),
+                              targetPostIds: Array.isArray(item.targetPostIds) ? item.targetPostIds : [item.mediaId],
+                              keywordsInput: Array.isArray(item.keywords) ? item.keywords.join(", ") : "",
+                              matchingMode: item.matchingMode || "CONTAINS",
+                              isCaseSensitive: !!item.isCaseSensitive,
+                              matchBehavior: item.matchBehavior || "ANY",
+                              excludedKeywordsInput: Array.isArray(item.excludedKeywords) ? item.excludedKeywords.join(", ") : "",
+                              excludedPhrasesInput: Array.isArray(item.excludedPhrases) ? item.excludedPhrases.join(", ") : "",
+                              cooldownHours: item.cooldownConfig?.userCooldownSeconds ? Math.round(item.cooldownConfig.userCooldownSeconds / 3600) : 24,
+                              maxPerUser: item.limitsConfig?.maxPerUser || 1,
+                              priority: item.priority || 10,
+                              conflictPolicy: item.conflictPolicy || "HIGHEST_PRIORITY_ONLY",
+                              enableSchedule: !!item.scheduleConfig,
+                              startTime: item.scheduleConfig?.startTime || "09:00",
+                              endTime: item.scheduleConfig?.endTime || "18:00",
+                              privateMessageTemplate: item.privateMessageTemplate || "",
                               documentUrl: item.documentUrl || "",
                               documentName: item.documentName || "",
-                              enablePublicReply: item.enablePublicReply,
+                              enablePublicReply: item.enablePublicReply !== false,
                               publicReplyTemplate: item.publicReplyTemplate || ""
                             });
                             setSubTab("create_editor");

@@ -52,15 +52,21 @@ export default function WhatsAppTemplatesPage() {
   // Form State for New Template Submission
   const [templateName, setTemplateName] = useState<string>("");
   const [category, setCategory] = useState<string>("MARKETING");
-  const [language, setLanguage] = useState<string>("en");
+  const [language, setLanguage] = useState<string>("en_US");
   const [headerType, setHeaderType] = useState<"TEXT" | "IMAGE" | "DOCUMENT" | "VIDEO" | "NONE">("TEXT");
   const [headerText, setHeaderText] = useState<string>("JISNU Digital Solutions");
   const [headerMediaUrl, setHeaderMediaUrl] = useState<string>("");
   const [uploadingHeaderMedia, setUploadingHeaderMedia] = useState<boolean>(false);
-  const [bodyText, setBodyText] = useState<string>("");
+  const [bodyText, setBodyText] = useState<string>("Hello {{1}}! Welcome to JISNU Digital Solutions. Use coupon code {{2}} to get 20% off.");
+  const [sampleVariables, setSampleVariables] = useState<string[]>(["Rahul", "SUMMER20"]);
   const [footerText, setFooterText] = useState<string>("Powered by JISNU CRM");
+
+  // Button States
+  const [buttonType, setButtonType] = useState<"URL" | "QUICK_REPLY" | "PHONE_NUMBER" | "COPY_CODE">("URL");
   const [buttonText, setButtonText] = useState<string>("Visit website");
   const [buttonUrl, setButtonUrl] = useState<string>("https://www.jisnudigital.com/");
+  const [buttonPhoneNumber, setButtonPhoneNumber] = useState<string>("+919876543210");
+  const [buttonCopyCode, setButtonCopyCode] = useState<string>("SUMMER20");
 
   const fetchTemplates = async () => {
     try {
@@ -85,6 +91,22 @@ export default function WhatsAppTemplatesPage() {
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  // Auto-extract placeholders {{1}}, {{2}} to manage Meta mandated sample variable inputs
+  useEffect(() => {
+    const matches = bodyText.match(/\{\{\d+\}\}/g);
+    if (matches) {
+      setSampleVariables((prev) => {
+        const next = [...prev];
+        for (let i = 0; i < matches.length; i++) {
+          if (!next[i]) next[i] = `Sample_${i + 1}`;
+        }
+        return next.slice(0, matches.length);
+      });
+    } else {
+      setSampleVariables([]);
+    }
+  }, [bodyText]);
 
   const handleSubmitTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,9 +136,13 @@ export default function WhatsAppTemplatesPage() {
           headerText,
           headerMediaUrl,
           bodyText,
+          sampleVariables,
           footerText,
+          buttonType,
           buttonText,
-          buttonUrl
+          buttonUrl,
+          buttonPhoneNumber,
+          buttonCopyCode
         })
       });
 
@@ -249,52 +275,45 @@ export default function WhatsAppTemplatesPage() {
                           {tpl.category} • {tpl.language}
                         </span>
                       </div>
-
                       <span
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 border font-mono ${
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full font-mono flex items-center gap-1 ${
                           tpl.status === "APPROVED"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
                             : tpl.status === "PENDING"
-                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                            : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                            : "bg-red-500/10 text-red-400 border border-red-500/30"
                         }`}
                       >
-                        {tpl.status === "APPROVED" ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3" /> Approved
-                          </>
-                        ) : tpl.status === "PENDING" ? (
-                          <>
-                            <Clock className="h-3 w-3 animate-spin" /> Pending Review
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-3 w-3" /> Rejected
-                          </>
-                        )}
+                        {tpl.status === "APPROVED" && <CheckCircle2 className="h-3 w-3" />}
+                        {tpl.status === "PENDING" && <Clock className="h-3 w-3 animate-pulse" />}
+                        {tpl.status === "REJECTED" && <XCircle className="h-3 w-3" />}
+                        {tpl.status}
                       </span>
                     </div>
 
-                    {/* Template Card Content Mock */}
-                    <div className="bg-slate-950/90 border border-slate-850 rounded-2xl p-4 space-y-2 text-xs font-sans">
+                    {/* Template Card Content */}
+                    <div className="bg-slate-950 border border-slate-850 rounded-2xl p-4 space-y-2 text-xs">
                       {headerComp && (
-                        <div className="font-bold text-slate-200 border-b border-slate-800/60 pb-1.5 text-xs">
-                          {headerComp.text || `[${headerComp.format} HEADER]`}
+                        <div className="font-bold text-slate-200 border-b border-slate-850 pb-1.5 text-xs">
+                          {headerComp.format === "TEXT" ? (
+                            headerComp.text
+                          ) : (
+                            <span className="text-purple-400 flex items-center gap-1">
+                              [{headerComp.format} Header Attachment]
+                            </span>
+                          )}
                         </div>
                       )}
-
-                      <p className="text-slate-300 leading-relaxed whitespace-pre-wrap text-[11px]">
-                        {bodyComp?.text || "No body text"}
+                      <p className="text-slate-300 leading-relaxed font-sans whitespace-pre-wrap">
+                        {bodyComp?.text || "No body content"}
                       </p>
-
                       {footerComp && (
-                        <div className="text-[10px] text-slate-500 font-medium pt-1">
+                        <div className="text-[10px] text-slate-500 pt-1 italic border-t border-slate-850">
                           {footerComp.text}
                         </div>
                       )}
-
-                      {buttonComp?.buttons && buttonComp.buttons.length > 0 && (
-                        <div className="pt-2 border-t border-slate-850">
+                      {buttonComp && buttonComp.buttons && buttonComp.buttons.length > 0 && (
+                        <div className="pt-2 space-y-1.5">
                           {buttonComp.buttons.map((btn, i) => (
                             <div
                               key={i}
@@ -334,8 +353,8 @@ export default function WhatsAppTemplatesPage() {
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-100">Submit Template for Approval</h2>
-                  <p className="text-[11px] text-slate-400">Meta auto-evaluates & approves in 1-2 minutes</p>
+                  <h2 className="text-sm font-bold text-slate-100">Submit Official Meta Template for Approval</h2>
+                  <p className="text-[11px] text-slate-400">Meta auto-evaluates & approves compliant templates in 1-2 minutes</p>
                 </div>
               </div>
               <button
@@ -347,15 +366,16 @@ export default function WhatsAppTemplatesPage() {
             </div>
 
             <form onSubmit={handleSubmitTemplate} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300">Template Name (Lowercase, no spaces)</label>
+              {/* Template Name, Category & Language */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5 sm:col-span-1">
+                  <label className="text-xs font-bold text-slate-300">Template Name</label>
                   <input
                     type="text"
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
-                    placeholder="e.g. promo_discount_offer"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                    placeholder="e.g. order_promo_20"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
                     required
                   />
                 </div>
@@ -365,10 +385,30 @@ export default function WhatsAppTemplatesPage() {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 font-semibold"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 font-semibold"
                   >
-                    <option value="MARKETING">MARKETING</option>
-                    <option value="UTILITY">UTILITY</option>
+                    <option value="MARKETING">MARKETING (Promotions & Offers)</option>
+                    <option value="UTILITY">UTILITY (Transactional Updates)</option>
+                    <option value="AUTHENTICATION">AUTHENTICATION (OTP & Passcodes)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300">Language Code</label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 font-mono font-semibold"
+                  >
+                    <option value="en_US">en_US (English US)</option>
+                    <option value="en">en (English Default)</option>
+                    <option value="hi">hi (Hindi)</option>
+                    <option value="mr">mr (Marathi)</option>
+                    <option value="es">es (Spanish)</option>
+                    <option value="pt_BR">pt_BR (Portuguese BR)</option>
+                    <option value="fr">fr (French)</option>
+                    <option value="de">de (German)</option>
+                    <option value="ar">ar (Arabic)</option>
                   </select>
                 </div>
               </div>
@@ -376,7 +416,7 @@ export default function WhatsAppTemplatesPage() {
               {/* Header Format Selection (None, Text, Image, Document, Video) */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-300 block">
-                  Header Type / Media Sample (Optional)
+                  Header Format (Optional)
                 </label>
                 <select
                   value={headerType}
@@ -384,7 +424,7 @@ export default function WhatsAppTemplatesPage() {
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 font-semibold"
                 >
                   <option value="NONE">None (No Header)</option>
-                  <option value="TEXT">Text Header (e.g. JISNU Digital Solutions)</option>
+                  <option value="TEXT">Text Header (Max 60 chars)</option>
                   <option value="IMAGE">🖼️ Image Header (.JPG, .PNG)</option>
                   <option value="DOCUMENT">📄 Document / PDF Header (.PDF)</option>
                   <option value="VIDEO">🎥 Video Header (.MP4)</option>
@@ -396,10 +436,11 @@ export default function WhatsAppTemplatesPage() {
                   <label className="text-xs font-bold text-slate-300">Header Title Text</label>
                   <input
                     type="text"
+                    maxLength={60}
                     value={headerText}
                     onChange={(e) => setHeaderText(e.target.value)}
                     placeholder="e.g. JISNU Digital Solutions"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
                   />
                 </div>
               )}
@@ -441,51 +482,131 @@ export default function WhatsAppTemplatesPage() {
                 </div>
               )}
 
+              {/* Message Body Text & Sample Variables */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Message Body Content</label>
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>Message Body Content (Supports {"{{1}}"}, {"{{2}}"} variables)</span>
+                  <span className="text-[10px] font-mono text-slate-400">{bodyText.length}/1024 chars</span>
+                </label>
                 <textarea
-                  rows={5}
+                  rows={4}
+                  maxLength={1024}
                   value={bodyText}
                   onChange={(e) => setBodyText(e.target.value)}
-                  placeholder="Hello! Welcome to JISNU Digital Solutions..."
+                  placeholder="Hello {{1}}! Welcome to JISNU Digital Solutions. Here is your 20% discount code: {{2}}."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60 resize-none leading-relaxed"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300">Footer Text</label>
-                  <input
-                    type="text"
-                    value={footerText}
-                    onChange={(e) => setFooterText(e.target.value)}
-                    placeholder="e.g. Powered by JISNU CRM"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
-                  />
+              {sampleVariables.length > 0 && (
+                <div className="bg-slate-950/80 border border-blue-500/30 rounded-2xl p-4 space-y-2">
+                  <span className="text-[11px] font-bold text-blue-300 block uppercase tracking-wider">
+                    Meta Mandate: Sample Variable Values for Approval ({sampleVariables.length})
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {sampleVariables.map((val, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono text-slate-400 shrink-0 font-bold">{`{{${idx + 1}}}`}:</span>
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={(e) => {
+                            const copy = [...sampleVariables];
+                            copy[idx] = e.target.value;
+                            setSampleVariables(copy);
+                          }}
+                          placeholder={`Sample value for {{${idx + 1}}}`}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              )}
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300">Button Label</label>
-                  <input
-                    type="text"
-                    value={buttonText}
-                    onChange={(e) => setButtonText(e.target.value)}
-                    placeholder="e.g. Visit website"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
-                  />
-                </div>
+              {/* Footer Text */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300">Footer Text (Optional, Max 60 chars)</label>
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={footerText}
+                  onChange={(e) => setFooterText(e.target.value)}
+                  placeholder="e.g. Powered by JISNU CRM"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Button Website URL</label>
-                <input
-                  type="url"
-                  value={buttonUrl}
-                  onChange={(e) => setButtonUrl(e.target.value)}
-                  placeholder="https://www.jisnudigital.com/"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
-                />
+              {/* Interactive Buttons Config */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200">Interactive Action Buttons (Optional)</label>
+                  <select
+                    value={buttonType}
+                    onChange={(e) => setButtonType(e.target.value as any)}
+                    className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-emerald-400 font-bold focus:outline-none"
+                  >
+                    <option value="URL">🌐 Visit Website URL</option>
+                    <option value="QUICK_REPLY">⚡ Quick Reply</option>
+                    <option value="PHONE_NUMBER">📞 Call Phone Number</option>
+                    <option value="COPY_CODE">📋 Copy Offer Code</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-400 font-bold">Button Label Text</label>
+                    <input
+                      type="text"
+                      maxLength={25}
+                      value={buttonText}
+                      onChange={(e) => setButtonText(e.target.value)}
+                      placeholder="e.g. Visit Website"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                    />
+                  </div>
+
+                  {buttonType === "URL" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-400 font-bold">Website Destination URL</label>
+                      <input
+                        type="url"
+                        value={buttonUrl}
+                        onChange={(e) => setButtonUrl(e.target.value)}
+                        placeholder="https://www.jisnudigital.com/"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                      />
+                    </div>
+                  )}
+
+                  {buttonType === "PHONE_NUMBER" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-400 font-bold">Phone Number (International Format)</label>
+                      <input
+                        type="text"
+                        value={buttonPhoneNumber}
+                        onChange={(e) => setButtonPhoneNumber(e.target.value)}
+                        placeholder="+919876543210"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                      />
+                    </div>
+                  )}
+
+                  {buttonType === "COPY_CODE" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-400 font-bold">Coupon Code to Copy</label>
+                      <input
+                        type="text"
+                        maxLength={15}
+                        value={buttonCopyCode}
+                        onChange={(e) => setButtonCopyCode(e.target.value)}
+                        placeholder="SUMMER20"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500/60"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-800">

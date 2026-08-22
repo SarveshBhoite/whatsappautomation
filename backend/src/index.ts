@@ -101,7 +101,13 @@ app.use("/api/ai-agent", aiAgentRouter);
 // WhatsApp Drip Campaign Router
 import whatsappDripRouter from "./routes/whatsappDrip";
 import { WhatsAppDripEngine } from "./services/whatsappDripService";
+import apiKeysRouter from "./routes/apiKeys";
+import externalApiV1Router from "./routes/externalApiV1";
+
 app.use("/api/whatsapp/drip", whatsappDripRouter);
+app.use("/api/api-keys", apiKeysRouter);
+app.use("/api/v1", externalApiV1Router);
+app.use("/v1", externalApiV1Router);
 
 // Start 15-second background drip scheduler interval
 setInterval(() => {

@@ -40,6 +40,7 @@ model Organization {
   metaAdCampaigns     MetaAdCampaign[]
   whatsappDripCampaigns WhatsAppDripCampaign[]
   instagramCommentAutomations InstagramCommentAutomation[]
+  apiKeys             ApiKey[]
 }
 
 model User {
@@ -228,7 +229,7 @@ model InstagramCommentAutomation {
   mediaUrl              String?
   mediaCaption          String?
   keywords              String[]                  // e.g. ["PDF", "GUIDE", "LINK"]
-  matchingMode          String                    @default("CONTAINS") // EXACT, CONTAINS, WHOLE_WORD
+  matchingMode          String                    @default("CONTAINS") // EXACT, CONTAINS, WHOLE_WORD, STARTS_WITH, ENDS_WITH, PHRASE, PATTERN
   privateMessageTemplate String
   documentUrl           String?
   documentName          String?
@@ -239,32 +240,98 @@ model InstagramCommentAutomation {
   matchesCount          Int                       @default(0)
   dmsSentCount          Int                       @default(0)
   lastTriggeredAt       DateTime?
+
+  // Extended Production Automation Engine Parameters
+  instagramAccountId    String?                   @default("ALL")
+  triggerType           String                    @default("SPECIFIC_KEYWORD") // ANY_COMMENT, SPECIFIC_KEYWORD, EXACT_COMMENT, PHRASE_MATCH, MULTIPLE_KEYWORDS, PATTERN_MATCH
+  triggerPhrases        String[]                  @default([])
+  exactMatchText        String?
+  partialMatchText      String?
+  isCaseSensitive       Boolean                   @default(false)
+  matchBehavior         String                    @default("ANY") // ANY, ALL
+  excludedKeywords      String[]                  @default([])
+  excludedPhrases       String[]                  @default([])
+  targetPostSelection   String                    @default("SPECIFIC") // ALL, SPECIFIC, MULTIPLE, FUTURE
+  targetPostIds         String[]                  @default([])
+  postFilter            Json?
+  responseAction        String                    @default("BOTH") // PUBLIC_REPLY, PRIVATE_MESSAGE, BOTH, MULTIPLE
+  publicReplyConfig     Json?
+  privateMessageConfig  Json?
+  actions               Json?
+  delayConfig           Json?
+  limitsConfig          Json?
+  duplicatePrevention   Json?
+  cooldownConfig        Json?
+  scheduleConfig        Json?
+  priority              Int                       @default(10)
+  conflictPolicy        String                    @default("HIGHEST_PRIORITY_ONLY") // EXECUTE_ALL, HIGHEST_PRIORITY_ONLY, FIRST_MATCHING, HIGHEST_PRIORITY_AND_STOP
+  errorHandlingConfig   Json?
+  isTestMode            Boolean                   @default(false)
+  normalizationConfig   Json?
+  userConditionsConfig  Json?
+  commentConditionsConfig Json?
+
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   auditLogs             InstagramCommentAuditLog[]
+  queueItems            InstagramActionQueueItem[]
 
   @@map("instagram_comment_automations")
 }
 
 model InstagramCommentAuditLog {
+  id                    String                     @id @default(uuid())
+  organizationId        String
+  automationId          String
+  automation            InstagramCommentAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  commentId             String                     @unique
+  mediaId               String
+  commenterUser         String
+  commenterId           String?
+  commentText           String
+  matchedKeyword        String
+  matchedPhrase         String?
+  matchedCondition      String?
+  documentSent          String?
+  publicReplySent       String?
+  privateDmSent         Boolean                    @default(false)
+  status                String                     @default("SUCCESS") // RECEIVED, MATCHED, NOT_MATCHED, QUEUED, PROCESSING, SUCCESS, COMPLETED, PARTIALLY_COMPLETED, FAILED, SKIPPED, RATE_LIMITED, CANCELLED
+  actionStatuses        Json?
+  errorMessage          String?
+  errorCode             String?
+  skipReason            String?
+  retryCount            Int                        @default(0)
+  processingDurationMs  Int?
+  metaResponseMetadata  Json?
+  createdAt             DateTime                   @default(now())
+
+  @@map("instagram_comment_audit_logs")
+}
+
+model InstagramActionQueueItem {
   id             String                     @id @default(uuid())
   organizationId String
   automationId   String
   automation     InstagramCommentAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  commentId      String                     @unique
+  commentId      String
   mediaId        String
   commenterUser  String
   commenterId    String?
   commentText    String
-  matchedKeyword String
-  documentSent   String?
-  publicReplySent String?
-  privateDmSent  Boolean                    @default(false)
-  status         String                     @default("SUCCESS") // SUCCESS, FAILED
-  errorMessage   String?
+  matchedKeyword String?
+  actionId       String
+  actionType     String                     // PUBLIC_REPLY, PRIVATE_MESSAGE, LOG_ACTIVITY, UPDATE_STATS
+  actionConfig   Json
+  actionOrder    Int                        @default(1)
+  scheduledFor   DateTime                   @default(now())
+  attempts       Int                        @default(0)
+  maxAttempts    Int                        @default(3)
+  status         String                     @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, FAILED, RETRYING, CANCELLED
+  lastError      String?
   createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
 
-  @@map("instagram_comment_audit_logs")
+  @@map("instagram_action_queue_items")
 }
 
 model GmailConfig {
@@ -1047,4 +1114,24 @@ model WhatsAppDripActivityLog {
   createdAt        DateTime                   @default(now())
 
   @@map("whatsapp_drip_activity_logs")
+}
+
+model ApiKey {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  keyPrefix      String
+  hashedKey      String       @unique
+  status         String       @default("ACTIVE") // ACTIVE, REVOKED
+  environment    String       @default("LIVE")   // LIVE, TEST
+  permissions    String[]     @default(["full_access"])
+  lastUsedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([hashedKey])
+  @@map("api_keys")
 }

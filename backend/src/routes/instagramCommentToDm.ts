@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
-import { InstagramService } from "../services/instagramService";
+import { InstagramCommentEngine } from "../services/instagramCommentEngine";
 
 const router = Router();
 
@@ -29,41 +29,58 @@ router.get("/media", async (req: Request, res: Response) => {
 
     if (activeToken && instagramAccountId) {
       try {
-        let metaUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media?fields=id,caption,media_type,media_product_type,thumbnail_url,media_url,permalink,timestamp,like_count,comments_count&limit=${limit}&access_token=${activeToken}`;
-        if (afterCursor) {
-          metaUrl += `&after=${afterCursor}`;
-        }
+        let allRawItems: any[] = [];
+        let afterCursor = (req.query.after as string) || "";
+        let hasNext = true;
+        let pageCount = 0;
+        const fetchAll = req.query.fetchAll !== "false";
 
-        const metaRes = await fetch(metaUrl);
-        if (metaRes.ok) {
+        while (hasNext && pageCount < 10) {
+          pageCount++;
+          let metaUrl = `https://graph.facebook.com/v19.0/${instagramAccountId}/media?fields=id,caption,media_type,media_product_type,thumbnail_url,media_url,permalink,timestamp,like_count,comments_count&limit=100&access_token=${activeToken}`;
+          if (afterCursor) {
+            metaUrl += `&after=${afterCursor}`;
+          }
+
+          const metaRes = await fetch(metaUrl);
+          if (!metaRes.ok) {
+            const errData = await metaRes.json();
+            console.warn("[META GRAPH API MEDIA FETCH WARN]:", errData);
+            break;
+          }
+
           const metaData = await metaRes.json();
-          const rawItems = metaData.data || [];
-          const paging = metaData.paging || {};
+          const items = metaData.data || [];
+          allRawItems.push(...items);
 
-          const mediaItems = rawItems.map((m: any) => ({
-            id: m.id,
-            caption: m.caption || `${m.media_product_type || m.media_type || "POST"} (${m.id})`,
-            media_type: m.media_type || "IMAGE",
-            media_product_type: m.media_product_type || (m.media_type === "VIDEO" ? "REELS" : "FEED"),
-            media_url: m.media_url || m.thumbnail_url || "",
-            thumbnail_url: m.thumbnail_url || m.media_url || "",
-            permalink: m.permalink || "#",
-            timestamp: m.timestamp,
-            like_count: m.like_count || 0,
-            comments_count: m.comments_count || 0
-          }));
-
-          return res.status(200).json({
-            media: mediaItems,
-            paging: {
-              after: paging.cursors?.after || null,
-              hasMore: !!paging.next
-            }
-          });
-        } else {
-          const errData = await metaRes.json();
-          console.warn("[META GRAPH API MEDIA FETCH WARN]:", errData);
+          if (fetchAll && metaData.paging?.cursors?.after && items.length > 0) {
+            afterCursor = metaData.paging.cursors.after;
+          } else {
+            hasNext = false;
+          }
         }
+
+        const mediaItems = allRawItems.map((m: any) => ({
+          id: m.id,
+          caption: m.caption || `${m.media_product_type || m.media_type || "POST"} (${m.id})`,
+          media_type: m.media_type || "IMAGE",
+          media_product_type: m.media_product_type || (m.media_type === "VIDEO" ? "REELS" : "FEED"),
+          media_url: m.media_url || m.thumbnail_url || "",
+          thumbnail_url: m.thumbnail_url || m.media_url || "",
+          permalink: m.permalink || "#",
+          timestamp: m.timestamp,
+          like_count: m.like_count || 0,
+          comments_count: m.comments_count || 0
+        }));
+
+        return res.status(200).json({
+          media: mediaItems,
+          total: mediaItems.length,
+          paging: {
+            after: afterCursor || null,
+            hasMore: hasNext
+          }
+        });
       } catch (err: any) {
         console.error("[META GRAPH API MEDIA FETCH ERROR]:", err.message);
       }
@@ -98,16 +115,19 @@ router.get("/comment-automations", async (req: Request, res: Response) => {
       orderBy: { createdAt: "desc" }
     });
 
-    // Aggregate overall performance metrics
+    const totalMonitored = automations.reduce((acc: number, a: any) => acc + (a.commentsCount || 0), 0);
+    const totalMatches = automations.reduce((acc: number, a: any) => acc + (a.matchesCount || 0), 0);
+    const totalDms = automations.reduce((acc: number, a: any) => acc + (a.dmsSentCount || 0), 0);
+
     const metrics = {
       totalAutomations: automations.length,
       activeAutomations: automations.filter((a: any) => a.status === "ACTIVE").length,
       pausedAutomations: automations.filter((a: any) => a.status === "PAUSED").length,
-      totalCommentsMonitored: automations.reduce((acc: number, a: any) => acc + (a.commentsCount || 0), 0),
-      totalMatchesTriggered: automations.reduce((acc: number, a: any) => acc + (a.matchesCount || 0), 0),
-      totalDmsSent: automations.reduce((acc: number, a: any) => acc + (a.dmsSentCount || 0), 0),
-      conversionRate: automations.reduce((acc: number, a: any) => acc + (a.commentsCount || 0), 0) > 0
-        ? `${((automations.reduce((acc: number, a: any) => acc + (a.dmsSentCount || 0), 0) / automations.reduce((acc: number, a: any) => acc + (a.commentsCount || 0), 0)) * 100).toFixed(1)}%`
+      totalCommentsMonitored: totalMonitored,
+      totalMatchesTriggered: totalMatches,
+      totalDmsSent: totalDms,
+      conversionRate: totalMonitored > 0
+        ? `${((totalDms / totalMonitored) * 100).toFixed(1)}%`
         : "0.0%"
     };
 
@@ -115,6 +135,74 @@ router.get("/comment-automations", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error fetching comment automations:", error);
     return res.status(500).json({ error: "Failed to fetch comment automations", details: error.message });
+  }
+});
+
+// GET: Production Analytics Summary
+router.get("/comment-automations/analytics/summary", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+
+    const automations = await (prisma as any).instagramCommentAutomation.findMany({
+      where: { organizationId }
+    });
+
+    const auditLogs = await (prisma as any).instagramCommentAuditLog.findMany({
+      where: { organizationId },
+      take: 1000,
+      orderBy: { createdAt: "desc" }
+    });
+
+    const totalCommentsReceived = automations.reduce((acc: number, a: any) => acc + (a.commentsCount || 0), 0);
+    const totalMatched = auditLogs.filter((l: any) => l.status === "SUCCESS" || l.status === "COMPLETED" || l.status === "MATCHED").length;
+    const totalSkipped = auditLogs.filter((l: any) => l.status === "SKIPPED").length;
+    const totalFailed = auditLogs.filter((l: any) => l.status === "FAILED").length;
+    const totalPublicReplies = auditLogs.filter((l: any) => !!l.publicReplySent).length;
+    const totalPrivateMessages = auditLogs.filter((l: any) => l.privateDmSent === true).length;
+
+    // Top Keywords calculation
+    const kwMap: Record<string, number> = {};
+    for (const log of auditLogs) {
+      if (log.matchedKeyword) {
+        kwMap[log.matchedKeyword] = (kwMap[log.matchedKeyword] || 0) + 1;
+      }
+    }
+    const topKeywords = Object.entries(kwMap)
+      .map(([keyword, count]) => ({ keyword, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Top Posts calculation
+    const postMap: Record<string, number> = {};
+    for (const log of auditLogs) {
+      if (log.mediaId) {
+        postMap[log.mediaId] = (postMap[log.mediaId] || 0) + 1;
+      }
+    }
+    const topPosts = Object.entries(postMap)
+      .map(([mediaId, count]) => ({ mediaId, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    const durations = auditLogs.map((l: any) => l.processingDurationMs).filter(Boolean);
+    const avgProcessingTimeMs = durations.length > 0
+      ? Math.round(durations.reduce((a: number, b: number) => a + b, 0) / durations.length)
+      : 0;
+
+    return res.status(200).json({
+      totalCommentsReceived,
+      totalMatched,
+      totalSkipped,
+      totalFailed,
+      totalPublicReplies,
+      totalPrivateMessages,
+      matchRate: totalCommentsReceived > 0 ? `${((totalMatched / totalCommentsReceived) * 100).toFixed(1)}%` : "0.0%",
+      avgProcessingTimeMs,
+      topKeywords,
+      topPosts
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Analytics query failed", details: error.message });
   }
 });
 
@@ -140,10 +228,12 @@ router.get("/comment-automations/:id", async (req: Request, res: Response) => {
   }
 });
 
-// POST: Create new Instagram Comment-to-DM automation
+// POST: Create new Instagram Comment-to-DM automation with full parameter support
 router.post("/comment-automations", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const body = req.body;
+
     const {
       name,
       mediaId,
@@ -157,29 +247,93 @@ router.post("/comment-automations", async (req: Request, res: Response) => {
       documentName,
       enablePublicReply,
       publicReplyTemplate,
-      status
-    } = req.body;
+      status,
 
-    if (!name || !mediaId || !keywords || keywords.length === 0 || !privateMessageTemplate) {
-      return res.status(400).json({ error: "Missing required fields (name, mediaId, keywords, privateMessageTemplate)" });
+      // Advanced parameters
+      instagramAccountId,
+      triggerType,
+      triggerPhrases,
+      exactMatchText,
+      partialMatchText,
+      isCaseSensitive,
+      matchBehavior,
+      excludedKeywords,
+      excludedPhrases,
+      targetPostSelection,
+      targetPostIds,
+      postFilter,
+      responseAction,
+      publicReplyConfig,
+      privateMessageConfig,
+      actions,
+      delayConfig,
+      limitsConfig,
+      duplicatePrevention,
+      cooldownConfig,
+      scheduleConfig,
+      priority,
+      conflictPolicy,
+      errorHandlingConfig,
+      isTestMode,
+      normalizationConfig,
+      userConditionsConfig,
+      commentConditionsConfig
+    } = body;
+
+    // Safety validation
+    if (!name || (!mediaId && targetPostSelection !== "ALL")) {
+      return res.status(400).json({ error: "Missing required fields (name, mediaId or targetPostSelection)" });
     }
+
+    const parsedKeywords = Array.isArray(keywords)
+      ? keywords.map((k: string) => k.trim())
+      : (keywords ? [keywords.trim()] : []);
 
     const automation = await (prisma as any).instagramCommentAutomation.create({
       data: {
         organizationId,
         name,
-        mediaId: mediaId.trim(),
+        mediaId: (mediaId || "ALL").trim(),
         mediaType: mediaType || "POST",
         mediaUrl,
         mediaCaption,
-        keywords: Array.isArray(keywords) ? keywords.map((k: string) => k.toUpperCase().trim()) : [keywords.toUpperCase().trim()],
+        keywords: parsedKeywords,
         matchingMode: matchingMode || "CONTAINS",
-        privateMessageTemplate,
+        privateMessageTemplate: privateMessageTemplate || "Thanks for commenting! Check your DMs.",
         documentUrl,
         documentName,
         enablePublicReply: enablePublicReply !== undefined ? !!enablePublicReply : true,
-        publicReplyTemplate: publicReplyTemplate || "Thanks @{username}! Check your DMs for the link 📩",
-        status: status || "ACTIVE"
+        publicReplyTemplate: publicReplyTemplate || "Thanks @{username}! Check your DMs for details 📩",
+        status: status || "ACTIVE",
+
+        instagramAccountId: instagramAccountId || "ALL",
+        triggerType: triggerType || "SPECIFIC_KEYWORD",
+        triggerPhrases: Array.isArray(triggerPhrases) ? triggerPhrases : [],
+        exactMatchText,
+        partialMatchText,
+        isCaseSensitive: !!isCaseSensitive,
+        matchBehavior: matchBehavior || "ANY",
+        excludedKeywords: Array.isArray(excludedKeywords) ? excludedKeywords : [],
+        excludedPhrases: Array.isArray(excludedPhrases) ? excludedPhrases : [],
+        targetPostSelection: targetPostSelection || (mediaId === "ALL" ? "ALL" : "SPECIFIC"),
+        targetPostIds: Array.isArray(targetPostIds) ? targetPostIds : (mediaId ? [mediaId] : []),
+        postFilter,
+        responseAction: responseAction || "BOTH",
+        publicReplyConfig,
+        privateMessageConfig,
+        actions,
+        delayConfig,
+        limitsConfig,
+        duplicatePrevention,
+        cooldownConfig,
+        scheduleConfig,
+        priority: typeof priority === "number" ? priority : 10,
+        conflictPolicy: conflictPolicy || "HIGHEST_PRIORITY_ONLY",
+        errorHandlingConfig,
+        isTestMode: !!isTestMode,
+        normalizationConfig,
+        userConditionsConfig,
+        commentConditionsConfig
       }
     });
 
@@ -202,7 +356,7 @@ router.put("/comment-automations/:id", async (req: Request, res: Response) => {
         ...(body.name && { name: body.name }),
         ...(body.mediaId && { mediaId: body.mediaId.trim() }),
         ...(body.mediaType && { mediaType: body.mediaType }),
-        ...(body.keywords && { keywords: Array.isArray(body.keywords) ? body.keywords.map((k: string) => k.toUpperCase().trim()) : [body.keywords.toUpperCase().trim()] }),
+        ...(body.keywords && { keywords: Array.isArray(body.keywords) ? body.keywords.map((k: string) => k.trim()) : [body.keywords.trim()] }),
         ...(body.matchingMode && { matchingMode: body.matchingMode }),
         ...(body.privateMessageTemplate && { privateMessageTemplate: body.privateMessageTemplate }),
         ...(body.documentUrl !== undefined && { documentUrl: body.documentUrl }),
@@ -210,6 +364,35 @@ router.put("/comment-automations/:id", async (req: Request, res: Response) => {
         ...(body.enablePublicReply !== undefined && { enablePublicReply: !!body.enablePublicReply }),
         ...(body.publicReplyTemplate !== undefined && { publicReplyTemplate: body.publicReplyTemplate }),
         ...(body.status && { status: body.status }),
+
+        ...(body.instagramAccountId && { instagramAccountId: body.instagramAccountId }),
+        ...(body.triggerType && { triggerType: body.triggerType }),
+        ...(body.triggerPhrases && { triggerPhrases: body.triggerPhrases }),
+        ...(body.exactMatchText !== undefined && { exactMatchText: body.exactMatchText }),
+        ...(body.partialMatchText !== undefined && { partialMatchText: body.partialMatchText }),
+        ...(body.isCaseSensitive !== undefined && { isCaseSensitive: !!body.isCaseSensitive }),
+        ...(body.matchBehavior && { matchBehavior: body.matchBehavior }),
+        ...(body.excludedKeywords && { excludedKeywords: body.excludedKeywords }),
+        ...(body.excludedPhrases && { excludedPhrases: body.excludedPhrases }),
+        ...(body.targetPostSelection && { targetPostSelection: body.targetPostSelection }),
+        ...(body.targetPostIds && { targetPostIds: body.targetPostIds }),
+        ...(body.postFilter !== undefined && { postFilter: body.postFilter }),
+        ...(body.responseAction && { responseAction: body.responseAction }),
+        ...(body.publicReplyConfig !== undefined && { publicReplyConfig: body.publicReplyConfig }),
+        ...(body.privateMessageConfig !== undefined && { privateMessageConfig: body.privateMessageConfig }),
+        ...(body.actions !== undefined && { actions: body.actions }),
+        ...(body.delayConfig !== undefined && { delayConfig: body.delayConfig }),
+        ...(body.limitsConfig !== undefined && { limitsConfig: body.limitsConfig }),
+        ...(body.duplicatePrevention !== undefined && { duplicatePrevention: body.duplicatePrevention }),
+        ...(body.cooldownConfig !== undefined && { cooldownConfig: body.cooldownConfig }),
+        ...(body.scheduleConfig !== undefined && { scheduleConfig: body.scheduleConfig }),
+        ...(body.priority !== undefined && { priority: body.priority }),
+        ...(body.conflictPolicy && { conflictPolicy: body.conflictPolicy }),
+        ...(body.errorHandlingConfig !== undefined && { errorHandlingConfig: body.errorHandlingConfig }),
+        ...(body.isTestMode !== undefined && { isTestMode: !!body.isTestMode }),
+        ...(body.normalizationConfig !== undefined && { normalizationConfig: body.normalizationConfig }),
+        ...(body.userConditionsConfig !== undefined && { userConditionsConfig: body.userConditionsConfig }),
+        ...(body.commentConditionsConfig !== undefined && { commentConditionsConfig: body.commentConditionsConfig }),
       }
     });
 
@@ -258,77 +441,52 @@ router.delete("/comment-automations/:id", async (req: Request, res: Response) =>
   }
 });
 
-// ─── 2. TEST AUTOMATION SIMULATOR ──────────────────────────────────────────
-
-// POST: Execute safe test automation without waiting for real Instagram comment
+// ─── TEST AUTOMATION SIMULATOR ──────────────────────────────────────────────
 router.post("/comment-automations/:id/test", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { testUsername, testCommentText } = req.body;
 
-    const automation = await (prisma as any).instagramCommentAutomation.findUnique({
-      where: { id }
-    });
+    const simulation = await InstagramCommentEngine.evaluateTestSimulation(id, (testUsername as string) || "", (testCommentText as string) || "");
 
-    if (!automation) return res.status(404).json({ error: "Automation not found" });
-
-    const username = testUsername || "test_user";
-    const commentText = testCommentText || automation.keywords[0] || "PDF";
-
-    const matched = checkKeywordMatch(commentText, automation.keywords, automation.matchingMode);
-
-    if (!matched.isMatch) {
+    if (!simulation.success) {
       return res.status(200).json({
         success: false,
-        message: `Test comment "${commentText}" did not match keywords [${automation.keywords.join(", ")}] under mode '${automation.matchingMode}'`
+        message: simulation.diagnostic || `Test comment did not match rule criteria.`,
+        details: simulation
       });
     }
 
-    // Build custom message with document link
-    const documentLink = automation.documentUrl || "https://www.jisnudigital.com/docs/guide.pdf";
-    let dmText = automation.privateMessageTemplate.replace(/\{document_link\}/gi, documentLink);
-    dmText = dmText.replace(/\{username\}/gi, username);
-
-    let publicReply = automation.publicReplyTemplate?.replace(/\{username\}/gi, username) || `Thanks @${username}! Check your DMs for the link 📩`;
-
     return res.status(200).json({
       success: true,
-      matchedKeyword: matched.keyword,
-      previewDmText: dmText,
-      previewPublicReply: publicReply,
-      documentAttached: documentLink,
-      message: `Test passed! Matched keyword '${matched.keyword}'. Private DM & Public reply rendered successfully.`
+      matchedKeyword: simulation.matchedKeyword,
+      previewDmText: simulation.previewDmText,
+      previewPublicReply: simulation.previewPublicReply,
+      documentAttached: simulation.documentLinkAttached,
+      details: simulation,
+      message: `Test passed! Matched trigger '${simulation.matchedKeyword}' cleanly.`
     });
   } catch (error: any) {
     return res.status(500).json({ error: "Test execution failed", details: error.message });
   }
 });
 
-// Helper matching logic
+// Helper matching logic for backwards compatibility
 export function checkKeywordMatch(
   commentText: string,
   keywords: string[],
   matchingMode: string = "CONTAINS"
 ): { isMatch: boolean; keyword: string } {
-  const text = (commentText || "").toUpperCase().trim();
-  for (const kw of keywords) {
-    const target = kw.toUpperCase().trim();
-    if (!target) continue;
+  const matchResult = InstagramCommentEngine.evaluateTriggerMatch(commentText, {
+    keywords,
+    matchingMode,
+    triggerType: "SPECIFIC_KEYWORD"
+  });
 
-    if (matchingMode === "EXACT" && text === target) {
-      return { isMatch: true, keyword: kw };
-    }
-    if (matchingMode === "CONTAINS" && text.includes(target)) {
-      return { isMatch: true, keyword: kw };
-    }
-    if (matchingMode === "WHOLE_WORD") {
-      const regex = new RegExp(`\\b${target}\\b`, "i");
-      if (regex.test(text)) {
-        return { isMatch: true, keyword: kw };
-      }
-    }
-  }
-  return { isMatch: false, keyword: "" };
+  return {
+    isMatch: matchResult.isMatch,
+    keyword: matchResult.matchedKeyword || ""
+  };
 }
 
 export default router;

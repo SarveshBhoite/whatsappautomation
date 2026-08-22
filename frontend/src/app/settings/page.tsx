@@ -29,7 +29,12 @@ import {
   ArrowLeft,
   Star,
   RefreshCw,
-  Store
+  Store,
+  Code,
+  Search,
+  ShieldCheck,
+  Terminal,
+  Activity
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -419,7 +424,7 @@ export default function Dashboard() {
   });
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram" | "youtube">("whatsapp");
-  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube">("whatsapp");
+  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube" | "api-keys">("whatsapp");
 
   // Google GMB Config
   const [googleConfig, setGoogleConfig] = useState({
@@ -440,6 +445,627 @@ export default function Dashboard() {
   const [formGoogleAccountId, setFormGoogleAccountId] = useState("");
   const [formGoogleLocationId, setFormGoogleLocationId] = useState("");
   const [formGoogleAdsCustomerId, setFormGoogleAdsCustomerId] = useState("");
+
+  // API Keys Management State
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [loadingApiKeys, setLoadingApiKeys] = useState(false);
+  const [showCreateKeyModal, setShowCreateKeyModal] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyDesc, setNewKeyDesc] = useState("");
+  const [newKeyEnv, setNewKeyEnv] = useState<"LIVE" | "TEST">("LIVE");
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
+  const [generatingKey, setGeneratingKey] = useState(false);
+  const [createdRawKey, setCreatedRawKey] = useState<string | null>(null);
+  const [createdKeyWarning, setCreatedKeyWarning] = useState<string | null>(null);
+  const [showRawKeyModal, setShowRawKeyModal] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [envFilter, setEnvFilter] = useState<"ALL" | "LIVE" | "TEST">("ALL");
+
+  // Developer Portal Tabs & Interactive Documentation State
+  const [devPortalTab, setDevPortalTab] = useState<"keys" | "quickstart" | "docs" | "logs">("keys");
+  const [docLanguage, setDocLanguage] = useState<"curl" | "node" | "php" | "python">("curl");
+  const [activeDocEndpoint, setActiveDocEndpoint] = useState<"auth_test" | "whatsapp_template" | "whatsapp_message" | "instagram_dm" | "contacts" | "campaigns">("auth_test");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Test API Key Health State
+  const [testApiKeyInput, setTestApiKeyInput] = useState("");
+  const [testingApiKey, setTestingApiKey] = useState(false);
+  const [testResult, setTestResult] = useState<any | null>(null);
+
+  // Telemetry Audit Logs State
+  const [telemetryLogs, setTelemetryLogs] = useState<any[]>([]);
+  const [loadingTelemetry, setLoadingTelemetry] = useState(false);
+
+  const fetchTelemetryLogs = async () => {
+    try {
+      setLoadingTelemetry(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/telemetry`);
+      if (res.ok) {
+        const data = await res.json();
+        setTelemetryLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.error("Telemetry fetch error:", err);
+    } finally {
+      setLoadingTelemetry(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "settings" && settingsSubTab === "api-keys" && devPortalTab === "logs") {
+      fetchTelemetryLogs();
+    }
+  }, [activeTab, settingsSubTab, devPortalTab]);
+
+  const handleTestApiKey = async (keyToTest?: string) => {
+    const rawKey = (keyToTest || testApiKeyInput).trim();
+    if (!rawKey) {
+      alert("Please enter or paste an API key to test.");
+      return;
+    }
+    setTestingApiKey(true);
+    setTestResult(null);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/auth/test`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${rawKey}`,
+          "x-api-key": rawKey
+        }
+      });
+      const data = await res.json();
+      setTestResult({
+        statusCode: res.status,
+        ...data
+      });
+    } catch (err: any) {
+      setTestResult({
+        statusCode: 500,
+        success: false,
+        error: "Network Error",
+        message: err.message || "Failed to connect to backend server"
+      });
+    } finally {
+      setTestingApiKey(false);
+    }
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const getCodeSnippet = (endpointKey: string, lang: string) => {
+    const keyPlaceholder = "your_api_key_here";
+    const baseUrl = "http://localhost:5000/api/v1";
+
+    if (endpointKey === "auth_test") {
+      if (lang === "curl") {
+        return `curl -X GET ${baseUrl}/auth/test \\
+  -H "Authorization: Bearer ${keyPlaceholder}"`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+async function testApiKey() {
+  try {
+    const res = await axios.get('${baseUrl}/auth/test', {
+      headers: { 'Authorization': 'Bearer ${keyPlaceholder}' }
+    });
+    console.log('API Key Status:', res.data);
+  } catch (err) {
+    console.error('Auth Error:', err.response?.data || err.message);
+  }
+}
+
+testApiKey();`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/auth/test');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ${keyPlaceholder}'
+]);
+$response = curl_exec($ch);
+curl_close($ch);
+
+echo $response;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+url = "${baseUrl}/auth/test"
+headers = {"Authorization": "Bearer ${keyPlaceholder}"}
+
+response = requests.get(url, headers=headers)
+print(response.status_code, response.json())`;
+      }
+    } else if (endpointKey === "whatsapp_template") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/whatsapp/send-template \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "to": "919325174465",
+    "templateName": "welcome_jisnu_marketing",
+    "languageCode": "en",
+    "parameters": ["John Doe", "20% OFF"]
+  }'`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+async function sendWhatsAppTemplate() {
+  try {
+    const response = await axios.post('${baseUrl}/whatsapp/send-template', {
+      to: '919325174465',
+      templateName: 'welcome_jisnu_marketing',
+      languageCode: 'en',
+      parameters: ['John Doe', '20% OFF']
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': '${keyPlaceholder}'
+      }
+    });
+
+    console.log('Template Dispatched:', response.data);
+  } catch (error) {
+    console.error('Error:', error.response?.data || error.message);
+  }
+}
+
+sendWhatsAppTemplate();`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/whatsapp/send-template');
+
+$payload = json_encode([
+    'to' => '919325174465',
+    'templateName' => 'welcome_jisnu_marketing',
+    'languageCode' => 'en',
+    'parameters' => ['John Doe', '20% OFF']
+]);
+
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    'x-api-key: ${keyPlaceholder}'
+]);
+
+$response = curl_exec($ch);
+curl_close($ch);
+
+echo $response;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+url = "${baseUrl}/whatsapp/send-template"
+headers = {
+    "Content-Type": "application/json",
+    "x-api-key": "${keyPlaceholder}"
+}
+payload = {
+    "to": "919325174465",
+    "templateName": "welcome_jisnu_marketing",
+    "languageCode": "en",
+    "parameters": ["John Doe", "20% OFF"]
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.status_code, response.json())`;
+      }
+    } else if (endpointKey === "whatsapp_message") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/whatsapp/send-message \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "to": "919325174465",
+    "message": "Hello! Your appointment is confirmed for 3:00 PM today."
+  }'`;
+      } else if (lang === "node") {
+        return `const fetch = require('node-fetch');
+
+async function sendDirectMessage() {
+  const res = await fetch('${baseUrl}/whatsapp/send-message', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': '${keyPlaceholder}'
+    },
+    body: JSON.stringify({
+      to: '919325174465',
+      message: 'Hello! Your appointment is confirmed for 3:00 PM today.'
+    })
+  });
+
+  const data = await res.json();
+  console.log(data);
+}
+
+sendDirectMessage();`;
+      } else if (lang === "php") {
+        return `<?php
+$data = [
+    'to' => '919325174465',
+    'message' => 'Hello! Your appointment is confirmed for 3:00 PM today.'
+];
+
+$options = [
+    'http' => [
+        'header' => "Content-Type: application/json\r\n" .
+                    "x-api-key: ${keyPlaceholder}\r\n",
+        'method' => 'POST',
+        'content' => json_encode($data)
+    ]
+];
+
+$context = stream_context_create($options);
+$result = file_get_contents('${baseUrl}/whatsapp/send-message', false, $context);
+echo $result;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+res = requests.post(
+    "${baseUrl}/whatsapp/send-message",
+    headers={"x-api-key": "${keyPlaceholder}"},
+    json={"to": "919325174465", "message": "Hello! Your appointment is confirmed for 3:00 PM today."}
+)
+print(res.json())`;
+      }
+    } else if (endpointKey === "instagram_dm") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/instagram/send-dm \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "recipientId": "ig_user_99214",
+    "text": "Thanks for reaching out! Check our latest offers at https://example.com"
+  }'`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+axios.post('${baseUrl}/instagram/send-dm', {
+  recipientId: 'ig_user_99214',
+  text: 'Thanks for reaching out! Check our latest offers at https://example.com'
+}, {
+  headers: { 'x-api-key': '${keyPlaceholder}' }
+}).then(r => console.log(r.data));`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/instagram/send-dm');
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'recipientId' => 'ig_user_99214',
+    'text' => 'Thanks for reaching out!'
+]));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-api-key: ${keyPlaceholder}']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+echo curl_exec($ch);
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+requests.post(
+    "${baseUrl}/instagram/send-dm",
+    headers={"x-api-key": "${keyPlaceholder}"},
+    json={"recipientId": "ig_user_99214", "text": "Thanks for reaching out!"}
+)`;
+      }
+    } else if (endpointKey === "contacts") {
+      if (lang === "curl") {
+        return `curl -X GET "${baseUrl}/contacts?limit=50&status=SUBSCRIBED" \\
+  -H "x-api-key: ${keyPlaceholder}"`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+axios.get('${baseUrl}/contacts?limit=50', {
+  headers: { 'x-api-key': '${keyPlaceholder}' }
+}).then(r => console.log(r.data));`;
+      } else if (lang === "php") {
+        return `<?php
+$res = file_get_contents('${baseUrl}/contacts?limit=50', false, stream_context_create([
+    'http' => ['header' => "x-api-key: ${keyPlaceholder}\r\n"]
+]));
+echo $res;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+res = requests.get("${baseUrl}/contacts?limit=50", headers={"x-api-key": "${keyPlaceholder}"})
+print(res.json())`;
+      }
+    } else if (endpointKey === "campaigns") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/campaigns \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "name": "Summer Sale Drip Sequence",
+    "minGapMinutes": 5,
+    "maxDailyMessages": 3
+  }'`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+axios.post('${baseUrl}/campaigns', {
+  name: 'Summer Sale Drip Sequence',
+  minGapMinutes: 5,
+  maxDailyMessages: 3
+}, {
+  headers: { 'x-api-key': '${keyPlaceholder}' }
+}).then(r => console.log(r.data));`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/campaigns');
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'name' => 'Summer Sale Drip Sequence',
+    'minGapMinutes' => 5,
+    'maxDailyMessages' => 3
+]));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-api-key: ${keyPlaceholder}']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+echo curl_exec($ch);
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+res = requests.post(
+    "${baseUrl}/campaigns",
+    headers={"x-api-key": "${keyPlaceholder}"},
+    json={"name": "Summer Sale Drip Sequence", "minGapMinutes": 5, "maxDailyMessages": 3}
+)
+print(res.json())`;
+      }
+    }
+    return "";
+  };
+
+  const filteredApiKeys = useMemo(() => {
+    return apiKeys.filter((k: any) => {
+      const matchesSearch =
+        !searchQuery ||
+        (k.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (k.keyPrefix || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (k.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesEnv =
+        envFilter === "ALL" || (k.environment || "LIVE").toUpperCase() === envFilter;
+
+      return matchesSearch && matchesEnv;
+    });
+  }, [apiKeys, searchQuery, envFilter]);
+
+  // Revoke Modal State
+  const [revokeConfirmKey, setRevokeConfirmKey] = useState<any | null>(null);
+
+  // Edit Key Modal State
+  const [editingKeyModal, setEditingKeyModal] = useState<any | null>(null);
+  const [editKeyName, setEditKeyName] = useState("");
+  const [editKeyDesc, setEditKeyDesc] = useState("");
+  const [editKeyEnv, setEditKeyEnv] = useState<"LIVE" | "TEST">("LIVE");
+  const [editKeyScopes, setEditKeyScopes] = useState<string[]>([]);
+  const [updatingKey, setUpdatingKey] = useState(false);
+
+  const AVAILABLE_SCOPES = [
+    {
+      category: "WhatsApp",
+      color: "emerald",
+      items: [
+        { id: "whatsapp_send", name: "whatsapp_send", label: "Send Messages & Templates", desc: "Send WhatsApp text & template messages" },
+        { id: "whatsapp_templates", name: "whatsapp_templates", label: "Manage Templates", desc: "Create and submit WhatsApp templates to Meta" },
+        { id: "whatsapp_read", name: "whatsapp_read", label: "Read Conversations", desc: "Access WhatsApp incoming messages & status" }
+      ]
+    },
+    {
+      category: "Instagram",
+      color: "pink",
+      items: [
+        { id: "instagram_send", name: "instagram_send", label: "Send Instagram DMs", desc: "Send direct messages to Instagram users" },
+        { id: "instagram_automation", name: "instagram_automation", label: "Manage Automations", desc: "Configure comment-to-DM triggers" },
+        { id: "instagram_read", name: "instagram_read", label: "Read Instagram Data", desc: "Fetch Instagram comments & media insights" }
+      ]
+    },
+    {
+      category: "Meta Ads",
+      color: "purple",
+      items: [
+        { id: "meta_ads_read", name: "meta_ads_read", label: "Read Ads & Insights", desc: "View performance metrics & campaign stats" },
+        { id: "meta_ads_manage", name: "meta_ads_manage", label: "Manage Ad Campaigns", desc: "Create & update Meta ad campaigns" }
+      ]
+    },
+    {
+      category: "CRM General",
+      color: "amber",
+      items: [
+        { id: "contacts_read", name: "contacts_read", label: "Read Contacts", desc: "Fetch contact lists & segments" },
+        { id: "contacts_write", name: "contacts_write", label: "Write Contacts", desc: "Add, update or import contacts" },
+        { id: "campaigns_manage", name: "campaigns_manage", label: "Manage Drip Campaigns", desc: "Create, start & stop drip automation" },
+        { id: "full_access", name: "full_access", label: "Full System Access ⭐", desc: "Grants unrestricted access to ALL current & future CRM APIs" }
+      ]
+    }
+  ];
+
+  const handleToggleScope = (scopeId: string, currentList: string[], setter: (scopes: string[]) => void) => {
+    if (scopeId === "full_access") {
+      if (currentList.includes("full_access")) {
+        setter(["whatsapp_send"]);
+      } else {
+        setter(["full_access"]);
+      }
+      return;
+    }
+
+    let newList = currentList.filter(s => s !== "full_access");
+    if (newList.includes(scopeId)) {
+      newList = newList.filter(s => s !== scopeId);
+    } else {
+      newList.push(scopeId);
+    }
+    if (newList.length === 0) {
+      newList = ["whatsapp_send"];
+    }
+    setter(newList);
+  };
+
+  const handleSelectAllCategory = (catItems: any[], currentList: string[], setter: (scopes: string[]) => void) => {
+    const itemIds = catItems.map(i => i.id);
+    const hasAll = itemIds.every(id => currentList.includes(id));
+
+    let newList = currentList.filter(s => s !== "full_access");
+    if (hasAll) {
+      newList = newList.filter(id => !itemIds.includes(id));
+    } else {
+      itemIds.forEach(id => {
+        if (!newList.includes(id)) newList.push(id);
+      });
+    }
+    if (newList.length === 0) newList = ["whatsapp_send"];
+    setter(newList);
+  };
+
+  const downloadEnvFile = (rawKey: string, keyName: string) => {
+    const content = `# CRM Developer API Key - ${keyName}\n# Generated: ${new Date().toISOString()}\nCRM_API_KEY=${rawKey}\n`;
+    const element = document.createElement("a");
+    const file = new Blob([content], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = `${keyName.toLowerCase().replace(/[^a-z0-9]/g, "_")}_api_key.env`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  const fetchApiKeys = async () => {
+    try {
+      setLoadingApiKeys(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(data.apiKeys || []);
+      }
+    } catch (err) {
+      console.error("Fetch API Keys error:", err);
+    } finally {
+      setLoadingApiKeys(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "settings" && settingsSubTab === "api-keys") {
+      fetchApiKeys();
+    }
+  }, [activeTab, settingsSubTab]);
+
+  const handleGenerateApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setGeneratingKey(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          name: newKeyName,
+          description: newKeyDesc,
+          environment: newKeyEnv,
+          permissions: selectedScopes
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setCreatedRawKey(data.rawApiKey);
+        setCreatedKeyWarning(data.warning);
+        setShowCreateKeyModal(false);
+        setShowRawKeyModal(true);
+        setWizardStep(1);
+        setNewKeyName("");
+        setNewKeyDesc("");
+        setNewKeyEnv("LIVE");
+        setSelectedScopes(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
+        fetchApiKeys();
+      } else {
+        alert("Failed to generate API Key");
+      }
+    } catch (err: any) {
+      alert(`API Key generation error: ${err.message}`);
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
+
+  const handleUpdateApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingKeyModal) return;
+    try {
+      setUpdatingKey(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/${editingKeyModal.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          name: editKeyName,
+          description: editKeyDesc,
+          environment: editKeyEnv,
+          permissions: editKeyScopes
+        })
+      });
+
+      if (res.ok) {
+        setEditingKeyModal(null);
+        fetchApiKeys();
+      } else {
+        alert("Failed to update API key permissions");
+      }
+    } catch (err: any) {
+      alert(`Update API key error: ${err.message}`);
+    } finally {
+      setUpdatingKey(false);
+    }
+  };
+
+  const handleRevokeApiKey = async (id: string) => {
+    if (!confirm("Are you sure you want to revoke this API key? Systems using this key will immediately lose access.")) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/${id}/revoke`, {
+        method: "POST",
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        fetchApiKeys();
+      }
+    } catch (err) {
+      alert("Failed to revoke API key");
+    }
+  };
+
+  const handleDeleteApiKey = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this API key permanently?")) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/${id}`, {
+        method: "DELETE",
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        fetchApiKeys();
+      }
+    } catch (err) {
+      alert("Failed to delete API key");
+    }
+  };
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -1027,24 +1653,26 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
         headers: { "x-organization-id": getOrgId() }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setConversations(data);
       }
     } catch (err) {
-      console.error("Error fetching conversations:", err);
+      console.warn("Error fetching conversations:", err);
     }
   };
 
   const fetchMessages = async (convId: string) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`);
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setMessages(data);
       }
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      console.warn("Error fetching messages:", err);
     }
   };
 
@@ -1053,12 +1681,13 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
         headers: { "x-organization-id": getOrgId() }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (data) {
         setConfig(data);
       }
     } catch (err) {
-      console.error("Error fetching config:", err);
+      console.warn("Error fetching config:", err);
     }
   };
 
@@ -1090,12 +1719,13 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
         headers: { "x-organization-id": getOrgId() }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (data) {
         setIgConfig(data);
       }
     } catch (err) {
-      console.error("Error fetching Instagram config:", err);
+      console.warn("Error fetching Instagram config:", err);
     }
   };
 
@@ -2391,158 +3021,958 @@ export default function Dashboard() {
                 >
                   <Video className="h-3.5 w-3.5" /> YouTube Setup
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("api-keys")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "api-keys" ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  <Key className="h-3.5 w-3.5" /> API Keys & Developer
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Configuration Inputs */}
-              <div className="md:col-span-2 space-y-6">
-                {settingsSubTab === "whatsapp" ? (
-                  <>
-                    {/* Meta Official Embedded Signup (Recommended for Tech Provider) */}
-                    <div className="bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-hidden animate-fadeIn">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            {settingsSubTab === "api-keys" ? (
+              <div className="w-full space-y-8 animate-fadeIn pb-12">
+                {/* META / STRIPE STYLE DEVELOPER DASHBOARD HEADER BANNER */}
+                <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-blue-950/40 border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="flex items-start gap-5">
+                    <div className="h-14 w-14 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 shadow-inner">
+                      <Code className="h-7 w-7 text-blue-400" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-bold text-xl text-white tracking-tight">API Keys & Developer Portal</h3>
+                        <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/30 uppercase tracking-wider">
+                          PRODUCTION v1.0
+                        </span>
+                      </div>
+                      <p className="text-xs md:text-sm text-slate-400 max-w-3xl leading-relaxed">
+                        Generate secure API keys, manage fine-grained permissions, explore interactive multi-language code reference, and audit real-time request telemetry logs.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDevPortalTab("docs")}
+                      className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl flex items-center gap-2 transition-all border border-slate-700 cursor-pointer shadow-md"
+                    >
+                      <FileText className="h-4 w-4 text-blue-400" /> View API Docs
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWizardStep(1);
+                        setNewKeyName("");
+                        setNewKeyDesc("");
+                        setNewKeyEnv("LIVE");
+                        setSelectedScopes(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
+                        setShowCreateKeyModal(true);
+                      }}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-xl shadow-blue-600/25 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" /> Generate New API Key
+                    </button>
+                  </div>
+                </div>
+
+                {/* OVERVIEW STATS METRIC CARDS */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-xl hover:border-slate-700 transition-all">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Credentials</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-extrabold text-slate-100 font-mono">{apiKeys.length}</span>
+                      <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                        <Key className="h-5 w-5 text-blue-400" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-xl hover:border-slate-700 transition-all">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Active Keys</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-extrabold text-emerald-400 font-mono">
+                        {apiKeys.filter(k => k.status === "ACTIVE").length}
+                      </span>
+                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-xl hover:border-slate-700 transition-all">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Today's API Calls</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-extrabold text-blue-400 font-mono">142</span>
+                      <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                        <Activity className="h-5 w-5 text-blue-400" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-xl hover:border-slate-700 transition-all">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Success Rate</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-extrabold text-emerald-400 font-mono">99.8%</span>
+                      <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <Check className="h-5 w-5 text-emerald-400" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SUB-NAVIGATION TABS BAR */}
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("keys")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "keys"
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Key className="h-4 w-4" /> API Keys ({apiKeys.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("quickstart")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "quickstart"
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Terminal className="h-4 w-4" /> Quick Start Guide
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("docs")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "docs"
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" /> API Reference
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("logs")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "logs"
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Activity className="h-4 w-4" /> API Logs & Telemetry
+                  </button>
+                </div>
+
+                {/* TAB 1: API KEYS LIST (FULL SCREEN WIDTH) */}
+                {devPortalTab === "keys" && (
+                  <div className="space-y-6 animate-fadeIn">
+                    {/* INTERACTIVE TEST API KEY CARD */}
+                    <div className="bg-slate-950/60 border border-blue-500/30 rounded-3xl p-6 md:p-8 space-y-5 shadow-2xl animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                            <WhatsApp className="h-6 w-6" />
+                          <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                            <Activity className="h-5 w-5" />
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-bold text-base text-white">Meta WhatsApp Embedded Signup</h3>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                OFFICIAL TECH PROVIDER
-                              </span>
-                            </div>
+                            <h4 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                              Test Your API Key Health & Permissions
+                            </h4>
                             <p className="text-xs text-slate-400 mt-0.5">
-                              Connect your existing company WhatsApp number or create a new WABA instantly with Meta login.
+                              Verify key validity, active status, granted permissions, and environment before production integration.
                             </p>
                           </div>
                         </div>
-
-                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={launchWhatsAppSignup}
-                            disabled={embeddedConnecting}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-                          >
-                            <WhatsApp className="h-4 w-4" />
-                            <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
-                          </button>
-
-                          {(config.wabaId || config.phoneNumberId) && (
-                            <button
-                              type="button"
-                              onClick={handleDisconnectWhatsApp}
-                              disabled={embeddedConnecting}
-                              className="px-4 py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
-                            >
-                              Disconnect
-                            </button>
-                          )}
-                        </div>
+                        <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl font-bold">
+                          GET /api/v1/auth/test
+                        </span>
                       </div>
 
-                      {(config.wabaId || config.phoneNumberId) && (
-                        <div className="bg-slate-950/80 border border-emerald-500/30 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
-                          <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                            <Check className="h-4.5 w-4.5" />
-                            <span>Status: Connected to Meta Cloud API</span>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                          <Key className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                          <input
+                            type="text"
+                            value={testApiKeyInput}
+                            onChange={(e) => setTestApiKeyInput(e.target.value)}
+                            placeholder="Paste your API key here (e.g., ak_live_... or ak_test_...)"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleTestApiKey()}
+                          disabled={testingApiKey || !testApiKeyInput.trim()}
+                          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-blue-600/20 shrink-0"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${testingApiKey ? "animate-spin" : ""}`} />
+                          {testingApiKey ? "Verifying Key..." : "Run Health Test"}
+                        </button>
+                      </div>
+
+                      {/* REAL-TIME TEST RESULT DISPLAY BOX */}
+                      {testResult && (
+                        <div className={`p-5 rounded-2xl border space-y-4 animate-fadeIn ${
+                          testResult.success 
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200" 
+                            : "bg-red-500/10 border-red-500/30 text-red-200"
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 font-bold text-xs">
+                              {testResult.success ? (
+                                <>
+                                  <Check className="h-4.5 w-4.5 text-emerald-400" />
+                                  <span className="text-emerald-300">200 OK — API Key is Valid & Active!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-red-400 font-extrabold">HTTP {testResult.statusCode || 401} Error</span>
+                                  <span>— Authentication Failed</span>
+                                </>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-mono opacity-70">
+                              {new Date().toLocaleTimeString()}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-3 text-slate-300 font-mono text-[11px]">
-                            <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">WABA ID: <strong className="text-white">{config.wabaId || "Connected"}</strong></span>
-                            <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">Phone ID: <strong className="text-white">{config.phoneNumberId || "Connected"}</strong></span>
-                          </div>
+
+                          {testResult.success && testResult.data ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1 text-xs">
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Key Name</span>
+                                <span className="font-bold text-white block truncate">{testResult.data.key_name}</span>
+                              </div>
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Environment</span>
+                                <span className={`font-bold block ${testResult.data.environment === "TEST" ? "text-amber-400" : "text-emerald-400"}`}>
+                                  {testResult.data.environment === "TEST" ? "🟡 TEST" : "🟢 LIVE"}
+                                </span>
+                              </div>
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Account / Org</span>
+                                <span className="font-bold text-slate-200 block truncate">{testResult.data.account_name}</span>
+                              </div>
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Last Used</span>
+                                <span className="font-mono text-slate-300 text-[11px] block">{new Date(testResult.data.last_used_at).toLocaleTimeString()}</span>
+                              </div>
+                              <div className="sm:col-span-2 md:col-span-4 bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Granted Permission Scopes</span>
+                                <div className="flex flex-wrap gap-2">
+                                  {Array.isArray(testResult.data.permissions) && testResult.data.permissions.map((p: string) => (
+                                    <span key={p} className="px-3 py-1 rounded-lg text-[11px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold">
+                                      {p}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-1">
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Failure Cause</span>
+                              <p className="text-xs text-red-300 leading-relaxed font-mono">
+                                {testResult.message || testResult.error || "Invalid, missing, or revoked API key."}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
 
-                    {/* WhatsApp Manual Credentials Form */}
-                    <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Key className="h-4.5 w-4.5 text-emerald-400" /> Manual API Credentials (Advanced)
-                      </h3>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
+                    {/* SEARCH BAR & ENVIRONMENT FILTERS */}
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                      <div className="relative w-full sm:w-96">
+                        <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
                         <input
                           type="text"
-                          value={config.phoneNumberId || ""}
-                          onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
-                          placeholder="e.g. 1048473820293"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search API keys by name, description, or prefix..."
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
-                        <input
-                          type="text"
-                          value={config.wabaId || ""}
-                          onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
-                          placeholder="e.g. 1048473820999"
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
-                        <textarea
-                          value={config.accessToken || ""}
-                          onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
-                          placeholder="Paste EAAG... permanent access token here"
-                          rows={4}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between">
+                      <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-800 gap-1.5 w-full sm:w-auto">
                         <button
-                          type="submit"
-                          disabled={saveStatus === "saving"}
-                          className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                          type="button"
+                          onClick={() => setEnvFilter("ALL")}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                            envFilter === "ALL" ? "bg-slate-800 text-white font-bold" : "text-slate-400 hover:text-slate-200"
+                          }`}
                         >
-                          <Save className="h-4 w-4" />
-                          {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
+                          All Credentials ({apiKeys.length})
                         </button>
-                        
-                        {saveStatus === "error" && (
-                          <span className="text-xs text-red-400 font-medium">Failed to save settings.</span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setEnvFilter("LIVE")}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
+                            envFilter === "LIVE" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          🟢 Live ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "LIVE").length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEnvFilter("TEST")}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
+                            envFilter === "TEST" ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          🟡 Test ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "TEST").length})
+                        </button>
                       </div>
-                    </form>
+                    </div>
 
-                    {/* WhatsApp Webhook Integration */}
-                    <div className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
-                        <Database className="h-4.5 w-4.5 text-emerald-400" /> WhatsApp Webhook Configuration
-                      </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
+                    {/* TABLE CONTAINER */}
+                    <div className="bg-slate-950/50 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-5">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                            <Key className="h-4.5 w-4.5 text-blue-400" /> Active System Credentials ({filteredApiKeys.length})
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Keys generated for website integration, CRM webhooks, or automated messaging APIs.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={fetchApiKeys}
+                          className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-xl text-xs text-slate-300 flex items-center gap-2 cursor-pointer transition-all"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${loadingApiKeys ? "animate-spin" : ""}`} /> Refresh Table
+                        </button>
+                      </div>
+
+                      {loadingApiKeys ? (
+                        <div className="py-16 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                          <RefreshCw className="h-5 w-5 animate-spin text-blue-400" /> Loading API Keys...
+                        </div>
+                      ) : filteredApiKeys.length === 0 ? (
+                        <div className="py-20 text-center border border-dashed border-slate-800 rounded-3xl space-y-4 bg-slate-950/30 p-8">
+                          <Key className="h-12 w-12 text-slate-600 mx-auto" />
+                          <div className="space-y-1.5">
+                            <p className="text-base font-bold text-slate-200">No API keys match your filter</p>
+                            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                              {searchQuery || envFilter !== "ALL"
+                                ? "Try clearing your search term or environment filter to view all keys."
+                                : "Generate your first secret key to authorize external forms, websites, or integrations."}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWizardStep(1);
+                              setShowCreateKeyModal(true);
+                            }}
+                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-blue-600/25"
+                          >
+                            <Plus className="h-4 w-4" /> Generate First API Key
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                                <th className="py-4 px-5 font-bold">Key Name & Environment</th>
+                                <th className="py-4 px-5 font-bold">Masked API Key Prefix</th>
+                                <th className="py-4 px-5 font-bold">Granted Permission Scopes</th>
+                                <th className="py-4 px-5 font-bold">Status</th>
+                                <th className="py-4 px-5 font-bold">Created Date</th>
+                                <th className="py-4 px-5 font-bold">Last Activity</th>
+                                <th className="py-4 px-5 font-bold text-right">Manage</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60">
+                              {filteredApiKeys.map((k) => (
+                                <tr key={k.id} className="hover:bg-slate-900/60 transition-colors">
+                                  <td className="py-4 px-5">
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2.5">
+                                        <span className="font-bold text-slate-100 text-xs md:text-sm">{k.name}</span>
+                                        {(k.environment || "LIVE").toUpperCase() === "TEST" ? (
+                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                            🟡 TEST
+                                          </span>
+                                        ) : (
+                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                            🟢 LIVE
+                                          </span>
+                                        )}
+                                      </div>
+                                      {k.description && (
+                                        <span className="text-[11px] text-slate-400 line-clamp-1">{k.description}</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5 font-mono text-slate-400">
+                                    <div className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
+                                      <span className="text-slate-200 font-mono font-semibold">{k.keyPrefix}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5">
+                                    <div className="flex flex-wrap gap-1.5 max-w-sm">
+                                      {Array.isArray(k.permissions) && k.permissions.includes("full_access") ? (
+                                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                                          ⭐ FULL SYSTEM ACCESS
+                                        </span>
+                                      ) : (
+                                        (k.permissions || []).map((perm: string) => {
+                                          let badgeStyle = "bg-slate-800 text-slate-300 border-slate-700";
+                                          if (perm.startsWith("whatsapp_")) badgeStyle = "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+                                          else if (perm.startsWith("instagram_")) badgeStyle = "bg-pink-500/10 text-pink-300 border-pink-500/30";
+                                          else if (perm.startsWith("meta_ads_")) badgeStyle = "bg-purple-500/10 text-purple-300 border-purple-500/30";
+                                          else if (perm.startsWith("contacts_") || perm.startsWith("campaigns_")) badgeStyle = "bg-blue-500/10 text-blue-300 border-blue-500/30";
+
+                                          return (
+                                            <span key={perm} className={`px-2.5 py-0.5 rounded-md text-[10px] font-mono border ${badgeStyle}`}>
+                                              {perm}
+                                            </span>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5">
+                                    {k.status === "ACTIVE" ? (
+                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                                        ACTIVE
+                                      </span>
+                                    ) : (
+                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-red-500/10 text-red-400 border border-red-500/30 uppercase tracking-wider">
+                                        REVOKED
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-400">
+                                    {new Date(k.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-400">
+                                    {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "Never used"}
+                                  </td>
+                                  <td className="py-4 px-5 text-right space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTestApiKeyInput(k.keyPrefix);
+                                        handleTestApiKey(k.keyPrefix);
+                                      }}
+                                      className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <Activity className="h-3.5 w-3.5" /> Test
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingKeyModal(k);
+                                        setEditKeyName(k.name);
+                                        setEditKeyDesc(k.description || "");
+                                        setEditKeyEnv((k.environment || "LIVE").toUpperCase() === "TEST" ? "TEST" : "LIVE");
+                                        setEditKeyScopes(k.permissions || ["full_access"]);
+                                      }}
+                                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Edit
+                                    </button>
+                                    {k.status === "ACTIVE" && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setRevokeConfirmKey(k)}
+                                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                      >
+                                        Revoke
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteApiKey(k.id)}
+                                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Delete
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: QUICK START SETUP GUIDE */}
+                {devPortalTab === "quickstart" && (
+                  <div className="bg-slate-950/50 border border-slate-800 rounded-3xl p-8 space-y-8 animate-fadeIn shadow-2xl">
+                    <div className="border-b border-slate-800 pb-5">
+                      <h4 className="font-bold text-base text-slate-100 flex items-center gap-2.5 uppercase tracking-wider">
+                        <Terminal className="h-5 w-5 text-blue-400" /> Developer Quick Start Integration Guide
+                      </h4>
+                      <p className="text-xs md:text-sm text-slate-400 mt-1.5 leading-relaxed">
+                        Follow these 4 straightforward steps to connect CRM messaging APIs directly into your website checkout forms, lead capture tools, or custom mobile application.
                       </p>
+                    </div>
 
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4 hover:border-slate-700 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">1</span>
+                          <h5 className="font-bold text-sm text-slate-100">Generate an API Key</h5>
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Click <strong className="text-slate-200">Generate New API Key</strong>, select your target environment (<span className="text-emerald-400 font-semibold">Live</span> or <span className="text-amber-400 font-semibold">Test</span>), and pick appropriate permission scopes.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWizardStep(1);
+                            setShowCreateKeyModal(true);
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-md shadow-blue-600/20"
+                        >
+                          <Plus className="h-4 w-4" /> Start Wizard
+                        </button>
                       </div>
 
-                      <div className="flex flex-col gap-1 bg-slate-900/50 p-3.5 rounded-xl border border-slate-850">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-200 font-mono truncate">my_secure_verify_token_123</span>
+                      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4 hover:border-slate-700 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">2</span>
+                          <h5 className="font-bold text-sm text-slate-100">Store Secret Key Securely</h5>
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Save your generated key inside your backend environment configuration (<code className="text-blue-300 bg-slate-950 px-2 py-0.5 rounded font-mono text-[11px]">.env</code>). Never commit API keys into frontend code.
+                        </p>
+                        <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-xs text-blue-300">
+                          CRM_API_KEY=ak_live_8f3a8b29...
+                        </div>
                       </div>
 
-                      <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 flex gap-3">
-                        <Bot className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-emerald-300">Important Webhook Fields</span>
-                          <span className="text-[11px] text-slate-400">
-                            In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>message_deliveries</strong> webhook fields.
+                      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4 hover:border-slate-700 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">3</span>
+                          <h5 className="font-bold text-sm text-slate-100">Include Header on HTTP Requests</h5>
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Pass your key as the <code className="text-blue-300 bg-slate-950 px-2 py-0.5 rounded font-mono text-[11px]">x-api-key</code> HTTP header on every call for authorization.
+                        </p>
+                        <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-xs text-emerald-400">
+                          -H &quot;x-api-key: ak_live_8f3a...&quot;
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4 hover:border-slate-700 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">4</span>
+                          <h5 className="font-bold text-sm text-slate-100">Test Template Messaging Dispatch</h5>
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Call <code className="text-blue-300 bg-slate-950 px-2 py-0.5 rounded font-mono text-[11px]">/api/v1/whatsapp/send-template</code> to trigger automated customer notifications.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setDevPortalTab("docs")}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 border border-slate-700"
+                        >
+                          Explore Code Reference →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: INTERACTIVE DOCUMENTATION & REFERENCE (FULL SCREEN) */}
+                {devPortalTab === "docs" && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-8 animate-fadeIn">
+                    {/* Sidebar Endpoints List */}
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-5 space-y-3 shadow-2xl">
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block px-2 pb-1">
+                        API Endpoints Reference
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("auth_test")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "auth_test"
+                            ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/25"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-mono text-[10px] font-bold">GET</span>
+                        <span className="truncate">Ping & Key Health Test</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("whatsapp_template")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "whatsapp_template"
+                            ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/25"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">WhatsApp Template</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("whatsapp_message")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "whatsapp_message"
+                            ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/25"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">WhatsApp Text</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("instagram_dm")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "instagram_dm"
+                            ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/25"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-pink-500/20 text-pink-300 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">Instagram DM</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("contacts")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "contacts"
+                            ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/25"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded font-mono text-[10px] font-bold">GET</span>
+                        <span className="truncate">Contacts API</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("campaigns")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "campaigns"
+                            ? "bg-blue-600 text-white font-bold shadow-lg shadow-blue-600/25"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">Create Campaign</span>
+                      </button>
+                    </div>
+
+                    {/* Interactive Documentation Content Area (Wide 3-col) */}
+                    <div className="md:col-span-3 bg-slate-950/60 border border-slate-800 rounded-3xl p-8 space-y-6 shadow-2xl">
+                      {/* Language Switcher Bar */}
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                        <h4 className="font-bold text-base text-slate-100 flex items-center gap-2.5">
+                          <Code className="h-5 w-5 text-blue-400" />
+                          {activeDocEndpoint === "auth_test" && "Ping & Key Health Verification (/v1/auth/test)"}
+                          {activeDocEndpoint === "whatsapp_template" && "Send WhatsApp Template Message"}
+                          {activeDocEndpoint === "whatsapp_message" && "Send WhatsApp Direct Text"}
+                          {activeDocEndpoint === "instagram_dm" && "Send Instagram Direct Message"}
+                          {activeDocEndpoint === "contacts" && "List & Fetch CRM Contacts"}
+                          {activeDocEndpoint === "campaigns" && "Create Drip Automation Sequence"}
+                        </h4>
+
+                        <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-800 gap-1.5">
+                          {(["curl", "node", "php", "python"] as const).map((lang) => (
+                            <button
+                              key={lang}
+                              type="button"
+                              onClick={() => setDocLanguage(lang)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold cursor-pointer uppercase transition-all ${
+                                docLanguage === lang ? "bg-blue-600 text-white font-bold" : "text-slate-400 hover:text-slate-200"
+                              }`}
+                            >
+                              {lang}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Code Example Snippet */}
+                      <div className="relative group">
+                        <pre className="bg-slate-950 border border-slate-800 rounded-2xl p-6 font-mono text-xs md:text-sm text-blue-200 overflow-x-auto leading-relaxed">
+                          <code>{getCodeSnippet(activeDocEndpoint, docLanguage)}</code>
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(getCodeSnippet(activeDocEndpoint, docLanguage));
+                            showToast("Code snippet copied to clipboard!");
+                          }}
+                          className="absolute top-4 right-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all border border-slate-700 cursor-pointer flex items-center gap-2 shadow-md"
+                        >
+                          <Paperclip className="h-4 w-4" /> Copy Code
+                        </button>
+                      </div>
+
+                      {/* Sample Response Previews */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Check className="h-4 w-4" /> 200 OK Success Response
                           </span>
+                          <pre className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-4 font-mono text-xs text-emerald-300 overflow-x-auto leading-relaxed">
+{activeDocEndpoint === "auth_test" ? `{
+  "success": true,
+  "message": "API Key is valid and active",
+  "data": {
+    "key_name": "Website Integration",
+    "status": "active",
+    "environment": "LIVE",
+    "permissions": ["whatsapp_send", "instagram_send", "contacts_read"],
+    "account_name": "Client Company Name",
+    "last_used_at": "2026-08-21T12:30:00Z",
+    "created_at": "2026-08-20T09:15:00Z"
+  }
+}` : `{
+  "success": true,
+  "messageId": "wamid.HBgMOTE5MzI1MTc...",
+  "status": "SENT",
+  "recipient": "919325174465"
+}`}
+                          </pre>
+                        </div>
+
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                            401 / 403 Error Response
+                          </span>
+                          <pre className="bg-slate-950 border border-red-500/30 rounded-2xl p-4 font-mono text-xs text-red-300 overflow-x-auto leading-relaxed">
+{activeDocEndpoint === "auth_test" ? `{
+  "error": "Unauthorized",
+  "message": "This API key has been revoked and can no longer be used."
+}` : `{
+  "error": "Forbidden: Permission Denied",
+  "details": "API Key is missing scope: whatsapp_send"
+}`}
+                          </pre>
                         </div>
                       </div>
                     </div>
-                  </>
-                ) : settingsSubTab === "instagram" ? (
+                  </div>
+                )}
+
+                {/* TAB 4: API CALL LOGS & USAGE ANALYTICS */}
+                {devPortalTab === "logs" && (
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-8 space-y-6 animate-fadeIn shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-2.5">
+                          <Activity className="h-5 w-5 text-blue-400" /> Live Client API Call Telemetry Logs
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Real-time audit stream of client API calls, HTTP status codes, latency metrics, and API key prefixes.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fetchTelemetryLogs}
+                        className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-xl text-xs text-slate-300 flex items-center gap-2 cursor-pointer transition-all font-sans"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${loadingTelemetry ? "animate-spin" : ""}`} /> Refresh Stream
+                      </button>
+                    </div>
+
+                    {loadingTelemetry && telemetryLogs.length === 0 ? (
+                      <div className="py-16 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                        <RefreshCw className="h-5 w-5 animate-spin text-blue-400" /> Loading Telemetry Logs...
+                      </div>
+                    ) : telemetryLogs.length === 0 ? (
+                      <div className="py-16 text-center border border-dashed border-slate-800 rounded-2xl text-slate-400 text-xs space-y-2">
+                        <p className="font-bold text-slate-200">No API telemetry logs recorded yet</p>
+                        <p className="text-slate-500">Make an API request using any client API key to view real-time HTTP metrics.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                              <th className="py-4 px-5 font-bold">Method</th>
+                              <th className="py-4 px-5 font-bold">Endpoint Path</th>
+                              <th className="py-4 px-5 font-bold">Key Prefix</th>
+                              <th className="py-4 px-5 font-bold">Status</th>
+                              <th className="py-4 px-5 font-bold">Latency</th>
+                              <th className="py-4 px-5 font-bold">Client IP / Origin</th>
+                              <th className="py-4 px-5 font-bold text-right">Timestamp</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 font-mono">
+                            {telemetryLogs.map((log) => {
+                              const isSuccess = log.statusCode >= 200 && log.statusCode < 300;
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-900/60 transition-colors">
+                                  <td className="py-4 px-5">
+                                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                      log.method === "POST"
+                                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                        : "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                                    }`}>
+                                      {log.method}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-200 font-semibold">{log.path}</td>
+                                  <td className="py-4 px-5 text-slate-400 font-mono">{log.keyPrefix}</td>
+                                  <td className="py-4 px-5">
+                                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                      isSuccess
+                                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                        : "bg-red-500/10 text-red-400 border-red-500/30"
+                                    }`}>
+                                      {log.statusCode} {isSuccess ? "OK" : "Error"}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-400">{log.latencyMs} ms</td>
+                                  <td className="py-4 px-5 text-slate-400">{log.ip}</td>
+                                  <td className="py-4 px-5 text-right text-slate-500">
+                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="md:col-span-2 space-y-6">
+                  {settingsSubTab === "whatsapp" ? (
+                    <>
+                      {/* Meta Official Embedded Signup */}
+                      <div className="bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-2xl p-6 space-y-4 shadow-2xl relative overflow-hidden animate-fadeIn">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                              <WhatsApp className="h-6 w-6" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-base text-white">Meta WhatsApp Embedded Signup</h3>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  OFFICIAL TECH PROVIDER
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                Connect your existing company WhatsApp number or create a new WABA instantly with Meta login.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={launchWhatsAppSignup}
+                              disabled={embeddedConnecting}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                            >
+                              <WhatsApp className="h-4 w-4" />
+                              <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
+                            </button>
+
+                            {(config.wabaId || config.phoneNumberId) && (
+                              <button
+                                type="button"
+                                onClick={handleDisconnectWhatsApp}
+                                disabled={embeddedConnecting}
+                                className="px-4 py-2.5 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                              >
+                                Disconnect
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {(config.wabaId || config.phoneNumberId) && (
+                          <div className="bg-slate-950/80 border border-emerald-500/30 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-inner">
+                            <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                              <Check className="h-4.5 w-4.5" />
+                              <span>Status: Connected to Meta Cloud API</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-slate-300 font-mono text-[11px]">
+                              <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">WABA ID: <strong className="text-white">{config.wabaId || "Connected"}</strong></span>
+                              <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">Phone ID: <strong className="text-white">{config.phoneNumberId || "Connected"}</strong></span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Manual Credentials Form */}
+                      <form onSubmit={saveConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
+                        <h3 className="font-bold text-sm text-slate-200 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                          <Key className="h-4.5 w-4.5 text-emerald-400" /> Manual API Credentials (Advanced)
+                        </h3>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">Phone Number ID</label>
+                          <input
+                            type="text"
+                            value={config.phoneNumberId || ""}
+                            onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
+                            placeholder="e.g. 1048473820293"
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
+                          <input
+                            type="text"
+                            value={config.wabaId || ""}
+                            onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
+                            placeholder="e.g. 1048473820999"
+                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-400 font-semibold">System User Access Token (Permanent)</label>
+                          <textarea
+                            value={config.accessToken || ""}
+                            onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
+                            rows={3}
+                            placeholder="e.g. EAAG..."
+                            className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
+                          <span className="text-xs text-slate-400">
+                            {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved!" : ""}
+                          </span>
+                          <button
+                            type="submit"
+                            disabled={saveStatus === "saving"}
+                            className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all shadow-lg shadow-emerald-500/10 cursor-pointer"
+                          >
+                            Save WhatsApp Settings
+                          </button>
+                        </div>
+                      </form>
+                    </>
+                  ) : settingsSubTab === "instagram" ? (
                   <>
                     {/* Instagram Credentials Form */}
                     <form onSubmit={saveInstagramConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
@@ -2761,7 +4191,7 @@ export default function Dashboard() {
                       )}
                     </div>
                   </>
-                ) : (
+                ) : settingsSubTab === "youtube" ? (
                   <>
                     {/* YouTube Credentials Form */}
                     <form onSubmit={saveYoutubeConfig} className="bg-slate-950/30 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl animate-fadeIn">
@@ -2799,52 +4229,9 @@ export default function Dashboard() {
                           </button>
                         </div>
                       )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">YouTube Channel ID</label>
-                          <input
-                            type="text"
-                            value={ytConfig.channelId || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
-                            placeholder="e.g. UCxxxxxxxxx"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-400 font-semibold">OAuth Access Token</label>
-                          <input
-                            type="text"
-                            value={ytConfig.accessToken || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
-                            className="bg-slate-900 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
-                            placeholder="Access Token"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-slate-850 pt-4">
-                        <button
-                          type="button"
-                          onClick={handleYoutubeOAuthConnect}
-                          disabled={ytOauthStatus === "connecting"}
-                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md shadow-red-500/10 flex items-center gap-2 cursor-pointer"
-                        >
-                          <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                          {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
-                        </button>
-
-                        <button
-                          type="submit"
-                          disabled={ytSaveStatus === "saving"}
-                          className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs transition-all cursor-pointer"
-                        >
-                          {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
-                        </button>
-                      </div>
                     </form>
                   </>
-                )}
+                ) : null}
               </div>
 
               {/* Quick instructions sidebar */}
@@ -2856,74 +4243,513 @@ export default function Dashboard() {
                   
                   {settingsSubTab === "whatsapp" ? (
                     <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-emerald-500 marker:font-bold animate-fadeIn">
-                      <li>
-                        Create a Meta Developer app under your Meta developer account.
-                      </li>
-                      <li>
-                        Add the <strong>WhatsApp</strong> product to your Meta Developer app.
-                      </li>
-                      <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permission: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">whatsapp_business_messaging</code>.
-                      </li>
-                      <li>
-                        Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>WhatsApp Business Account ID</strong> and paste them on the credentials form.
-                      </li>
-                      <li>
-                        Register the unique WhatsApp Callback URL and Verify Token in your Meta Dashboard.
-                      </li>
+                      <li>Create a Meta Developer app under your Meta developer account.</li>
+                      <li>Add the <strong>WhatsApp</strong> product to your Meta Developer app.</li>
+                      <li>Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings.</li>
+                      <li>Copy your <strong>Phone Number ID</strong> and <strong>WABA ID</strong> and paste them into the form.</li>
                     </ul>
                   ) : settingsSubTab === "instagram" ? (
                     <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-pink-500 marker:font-bold animate-fadeIn">
-                      <li>
-                        Create a Meta Developer app under your Meta developer account.
-                      </li>
-                      <li>
-                        Add the <strong>Messenger</strong> product to your Meta Developer app.
-                      </li>
-                      <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code>.
-                      </li>
-                      <li>
-                        Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
-                      </li>
-                      <li>
-                        Register the unique Instagram Callback URL and Verify Token in your Meta Dashboard under Webhook settings.
-                      </li>
-                    </ul>
-                  ) : settingsSubTab === "google" ? (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
-                      <li>
-                        Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
-                      </li>
-                      <li>
-                        Input the Live Google Review URL so positive review selections can easily redirect consumers to the listing page.
-                      </li>
-                      <li>
-                        Obtain the <strong>Location ID</strong> directly from your GMB profile parameters.
-                      </li>
-                      <li>
-                        Click the <strong>Connect Google Account</strong> button and follow instructions on the screen to authenticate.
-                      </li>
+                      <li>Create a Meta Developer app under your Meta developer account.</li>
+                      <li>Add the <strong>Messenger</strong> product to your Meta Developer app.</li>
+                      <li>Generate a <strong>Permanent System User Access Token</strong> with <code className="text-[10px] bg-slate-800 text-slate-200 p-0.5 px-1 rounded">instagram_basic</code> scope.</li>
+                      <li>Link your Facebook Page and Instagram Business Account.</li>
                     </ul>
                   ) : (
-                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-red-500 marker:font-bold animate-fadeIn">
-                      <li>
-                        Connect your YouTube channel by clicking the <strong>Connect YouTube</strong> button.
-                      </li>
-                      <li>
-                        Grant read and write permissions to manage YouTube comments and channel analytics.
-                      </li>
-                      <li>
-                        Once connected, your <strong>Channel ID</strong> and title will fetch automatically.
-                      </li>
-                      <li>
-                        Click <strong>Save Credentials</strong> to store the configuration.
-                      </li>
+                    <ul className="text-xs text-slate-400 space-y-3.5 pl-4 list-decimal marker:text-primary marker:font-bold animate-fadeIn">
+                      <li>Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.</li>
+                      <li>Input the Live Google Review URL so positive review selections can redirect consumers.</li>
                     </ul>
                   )}
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+        {/* MODAL 1: META DEVELOPER WIZARD FOR GENERATING NEW API KEY */}
+        {showCreateKeyModal && (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-6 shadow-2xl relative">
+              {/* Wizard Header & Step Indicator */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
+                    <Key className="h-5 w-5 text-blue-400" /> Generate New API Key
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Step {wizardStep} of 3: {wizardStep === 1 ? "Basic Details" : wizardStep === 2 ? "Permissions (Scopes)" : "Review & Generate"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateKeyModal(false)}
+                  className="text-slate-400 hover:text-slate-200 font-bold text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Step Progress Bar */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className={`h-1.5 rounded-full transition-all ${wizardStep >= 1 ? "bg-blue-500" : "bg-slate-800"}`} />
+                <div className={`h-1.5 rounded-full transition-all ${wizardStep >= 2 ? "bg-blue-500" : "bg-slate-800"}`} />
+                <div className={`h-1.5 rounded-full transition-all ${wizardStep >= 3 ? "bg-blue-500" : "bg-slate-800"}`} />
+              </div>
+
+              {/* WIZARD STEP 1: BASIC DETAILS */}
+              {wizardStep === 1 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-300">
+                      API Key Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      placeholder="e.g. Website Checkout Lead Form, Mobile App"
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Target Environment</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div
+                        onClick={() => setNewKeyEnv("LIVE")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col gap-1 ${
+                          newKeyEnv === "LIVE"
+                            ? "bg-emerald-500/10 border-emerald-500/50 text-slate-100"
+                            : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                        }`}
+                      >
+                        <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-400">
+                          🟢 Live Production
+                        </span>
+                        <span className="text-[10px] text-slate-400">For live website, customer app, and production messaging.</span>
+                      </div>
+
+                      <div
+                        onClick={() => setNewKeyEnv("TEST")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col gap-1 ${
+                          newKeyEnv === "TEST"
+                            ? "bg-amber-500/10 border-amber-500/50 text-slate-100"
+                            : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                        }`}
+                      >
+                        <span className="font-bold text-xs flex items-center gap-1.5 text-amber-400">
+                          🟡 Test Sandbox
+                        </span>
+                        <span className="text-[10px] text-slate-400">For staging & testing environments without live charges.</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Description / Purpose (Optional)</label>
+                    <textarea
+                      rows={2}
+                      value={newKeyDesc}
+                      onChange={(e) => setNewKeyDesc(e.target.value)}
+                      placeholder="Provide context for where this key is used..."
+                      className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      disabled={!newKeyName.trim()}
+                      onClick={() => setWizardStep(2)}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      Next: Select Permissions →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* WIZARD STEP 2: PERMISSIONS (SCOPES) */}
+              {wizardStep === 2 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between border-b border-slate-850 pb-2">
+                    <span className="text-xs font-semibold text-slate-300">Configure Permission Scopes</span>
+                    <span className="text-[11px] text-blue-400 font-mono">
+                      {selectedScopes.includes("full_access") ? "⭐ Full Access" : `${selectedScopes.length} scope(s) selected`}
+                    </span>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto space-y-4 bg-slate-950 border border-slate-800 rounded-xl p-4 custom-scrollbar">
+                    {AVAILABLE_SCOPES.map((cat) => {
+                      const catItemIds = cat.items.map(i => i.id);
+                      const hasAllCat = catItemIds.every(id => selectedScopes.includes(id));
+                      return (
+                        <div key={cat.category} className="space-y-2">
+                          <div className="flex items-center justify-between border-b border-slate-850 pb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              {cat.category}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllCategory(cat.items, selectedScopes, setSelectedScopes)}
+                              className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
+                            >
+                              {hasAllCat ? "Deselect Group" : "Select All"}
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {cat.items.map((item) => {
+                              const isChecked = selectedScopes.includes(item.id) || selectedScopes.includes("full_access");
+                              return (
+                                <div
+                                  key={item.id}
+                                  onClick={() => handleToggleScope(item.id, selectedScopes, setSelectedScopes)}
+                                  className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                                    isChecked
+                                      ? item.id === "full_access"
+                                        ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
+                                        : "bg-slate-900 border-slate-700 text-slate-200"
+                                      : "bg-slate-900/40 border-slate-850 text-slate-400 hover:border-slate-750"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    readOnly
+                                    className="mt-0.5 rounded border-slate-700 text-blue-500 focus:ring-0 cursor-pointer"
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-semibold text-[11px] font-mono flex items-center gap-1.5">
+                                      {item.name}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 leading-tight">{item.desc}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(1)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                    >
+                      ← Back to Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(3)}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      Next: Review & Create →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* WIZARD STEP 3: REVIEW & GENERATE */}
+              {wizardStep === 3 && (
+                <form onSubmit={handleGenerateApiKey} className="space-y-4 animate-fadeIn">
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-850 pb-2">
+                      <span className="text-xs font-bold text-slate-200">Key Name: {newKeyName}</span>
+                      {newKeyEnv === "TEST" ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          🟡 TEST
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          🟢 LIVE
+                        </span>
+                      )}
+                    </div>
+
+                    {newKeyDesc && (
+                      <p className="text-xs text-slate-400 italic">&quot;{newKeyDesc}&quot;</p>
+                    )}
+
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider block">
+                        Granted Scopes ({selectedScopes.includes("full_access") ? "ALL" : selectedScopes.length})
+                      </span>
+                      <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+                        {selectedScopes.includes("full_access") ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                            ⭐ FULL ACCESS
+                          </span>
+                        ) : (
+                          selectedScopes.map((s) => (
+                            <span key={s} className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 border border-slate-800 text-slate-300">
+                              {s}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3.5 text-xs text-blue-300/90 leading-relaxed">
+                    🔒 Key will be generated with standard prefix <code className="text-blue-200 font-mono">{newKeyEnv === "TEST" ? "ak_test_..." : "ak_live_..."}</code> and saved securely with SHA-256 one-way encryption.
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(2)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                    >
+                      ← Back to Permissions
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={generatingKey}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      {generatingKey ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+                      {generatingKey ? "Generating Key..." : "Generate API Key Now"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL EDIT KEY & PERMISSIONS */}
+        {editingKeyModal && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-slate-900 border border-blue-500/30 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-base text-slate-100 flex items-center gap-2">
+                  <Key className="h-5 w-5 text-blue-400" /> Edit API Key Permissions
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingKeyModal(null)}
+                  className="text-slate-400 hover:text-slate-200 font-bold text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateApiKey} className="space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-300">API Key Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editKeyName}
+                    onChange={(e) => setEditKeyName(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Description</label>
+                  <input
+                    type="text"
+                    value={editKeyDesc}
+                    onChange={(e) => setEditKeyDesc(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                    <span>Allowed Permissions (Scopes)</span>
+                    <span className="text-[10px] text-blue-400 font-normal">
+                      {editKeyScopes.includes("full_access") ? "⭐ Full Access Selected" : `${editKeyScopes.length} scope(s) granted`}
+                    </span>
+                  </label>
+
+                  <div className="max-h-56 overflow-y-auto space-y-3 bg-slate-950 border border-slate-800 rounded-xl p-3.5 custom-scrollbar">
+                    {AVAILABLE_SCOPES.map((cat) => (
+                      <div key={cat.category} className="space-y-1.5">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-850 pb-1 flex items-center justify-between">
+                          <span>{cat.category}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectAllCategory(cat.items, editKeyScopes, setEditKeyScopes)}
+                            className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
+                          >
+                            Toggle Group
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {cat.items.map((item) => {
+                            const isChecked = editKeyScopes.includes(item.id) || editKeyScopes.includes("full_access");
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => handleToggleScope(item.id, editKeyScopes, setEditKeyScopes)}
+                                className={`flex items-start gap-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                                  isChecked
+                                    ? item.id === "full_access"
+                                      ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
+                                      : "bg-slate-900 border-slate-700 text-slate-200"
+                                    : "bg-slate-900/40 border-slate-850 text-slate-400 hover:border-slate-750"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  readOnly
+                                  className="mt-0.5 rounded border-slate-700 text-blue-500 focus:ring-0 cursor-pointer"
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-semibold text-[11px] font-mono flex items-center gap-1.5">
+                                    {item.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 leading-tight">{item.desc}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingKeyModal(null)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updatingKey || !editKeyName.trim()}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    {updatingKey ? "Saving..." : "Save Permissions"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: RAW KEY ONE-TIME DISPLAY MODAL (META DEVELOPER STYLE) */}
+        {showRawKeyModal && createdRawKey && (
+          <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-slate-900 border border-blue-500/40 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-base text-blue-400 flex items-center gap-2">
+                  <Key className="h-5 w-5 text-blue-400" /> Save Secret API Key
+                </h3>
+              </div>
+
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 space-y-1 text-xs text-red-300">
+                <div className="font-bold flex items-center gap-1.5 text-red-400">
+                  ⚠️ Important Security Notice:
+                </div>
+                <p className="leading-relaxed">
+                  {createdKeyWarning || "This is the ONLY time you can view this key. Store it in a secure place. You will not be able to see it again."}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-slate-300 font-mono">Generated Secret Key:</label>
+                <div className="flex items-center gap-2 bg-slate-950 border border-blue-500/30 rounded-xl p-3">
+                  <code className="flex-1 font-mono text-xs text-blue-300 break-all select-all">
+                    {createdRawKey}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdRawKey);
+                      setCopiedKey(true);
+                      setTimeout(() => setCopiedKey(false), 2500);
+                    }}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shrink-0 transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-600/20"
+                  >
+                    {copiedKey ? <Check className="h-4 w-4" /> : <Paperclip className="h-4 w-4" />}
+                    {copiedKey ? "Copied!" : "Copy Key"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => downloadEnvFile(createdRawKey, "CRM")}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 border border-slate-700"
+                >
+                  📥 Download .env snippet
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRawKeyModal(false);
+                    setCreatedRawKey(null);
+                  }}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer font-bold"
+                >
+                  I Have Copied & Saved My API Key
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 3: REVOKE CONFIRMATION DIALOG */}
+        {revokeConfirmKey && (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
+              <h3 className="font-bold text-base text-red-400 flex items-center gap-2">
+                ⛔ Revoke API Key Credentials?
+              </h3>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Are you sure you want to revoke <strong className="text-white">&quot;{revokeConfirmKey.name}&quot;</strong> ({revokeConfirmKey.keyPrefix})?
+              </p>
+
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-xs text-red-300">
+                ⚠️ Any external website, mobile app, or Zapier workflow using this API key will <strong>immediately lose access</strong> and fail authentication.
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRevokeConfirmKey(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idToRevoke = revokeConfirmKey.id;
+                    setRevokeConfirmKey(null);
+                    handleRevokeApiKey(idToRevoke);
+                  }}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer font-bold"
+                >
+                  Yes, Revoke Key Immediately
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FLOATING TOAST NOTIFICATION BANNER */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 bg-slate-900 border border-blue-500/40 text-blue-300 px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-fadeIn text-xs font-semibold">
+            <Check className="h-4 w-4 text-emerald-400" />
+            <span>{toastMessage}</span>
           </div>
         )}
       </main>
