@@ -744,7 +744,7 @@ export default function CampaignCreatePage() {
   }, [customerId]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans overflow-y-auto">
       {/* ── Top Navigation Header ────────────────── */}
       <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">

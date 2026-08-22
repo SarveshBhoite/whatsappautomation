@@ -39,8 +39,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     }
   }, [pathname, isPublic, router]);
 
-  if (isPublic) {
-    // Render full screen without app sidebar for landing & auth pages
+  if (isPublic || isFullScreen) {
+    // Render full screen without app sidebar for landing, auth, and full campaign creation wizards
     return <>{children}</>;
   }
 
