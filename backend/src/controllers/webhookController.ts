@@ -5,6 +5,7 @@ import { processChatbotFlow } from "../services/flowEngine";
 import { WhatsAppService } from "../services/whatsappService";
 import { InstagramService } from "../services/instagramService";
 import { InstagramCommentEngine } from "../services/instagramCommentEngine";
+import { WhatsAppTemplateAnalyticsService } from "../services/whatsappTemplateAnalyticsService";
 
 const processedComments = new Set<string>();
 
@@ -347,6 +348,30 @@ export const handleWebhook = async (req: Request, res: Response) => {
         });
 
         console.log(`Updated status of message ${waMessageId} to "${status}". DB Count: ${updatedMessage.count}`);
+
+        // Record Idempotent Message Event & Calculate Cost Snapshot
+        if (waMessageId && status) {
+          const upperStatus = status.toUpperCase();
+          const mappedStatus = upperStatus === "SENT" ? "SENT" : (upperStatus === "DELIVERED" ? "DELIVERED" : (upperStatus === "READ" ? "READ" : (upperStatus === "FAILED" ? "FAILED" : "QUEUED")));
+          
+          WhatsAppTemplateAnalyticsService.recordMessageEvent({
+            organizationId,
+            wabaId: waConfig.wabaId,
+            phoneNumberId: waConfig.phoneNumberId,
+            metaMessageId: waMessageId,
+            templateName: statusObj.pricing?.category ? `${statusObj.pricing.category}_Template` : "WhatsApp_Message",
+            templateCategory: statusObj.pricing?.category || "MARKETING",
+            recipient: recipient_id || "Customer",
+            recipientCountry: "IN",
+            messageStatus: mappedStatus as any,
+            sentAt: status === "sent" ? new Date() : undefined,
+            deliveredAt: status === "delivered" ? new Date() : undefined,
+            readAt: status === "read" ? new Date() : undefined,
+            failedAt: status === "failed" ? new Date() : undefined,
+            failureReason: statusObj.errors?.[0]?.title || statusObj.errors?.[0]?.message || null,
+            failureCode: statusObj.errors?.[0]?.code ? String(statusObj.errors[0].code) : null
+          }).catch(err => console.warn(`[WHATSAPP ANALYTICS LOG NOTE]: ${err.message}`));
+        }
 
         // If updated, notify the agents in real-time
         if (updatedMessage.count > 0) {

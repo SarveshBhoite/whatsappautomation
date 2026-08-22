@@ -23,6 +23,7 @@ import metaAdsRouter from "./routes/metaAds";
 import reportsRouter from "./routes/reports";
 import whatsappEmbeddedRouter from "./routes/whatsappEmbedded";
 import instagramCommentToDmRouter from "./routes/instagramCommentToDm";
+import whatsappTemplateAnalyticsRouter from "./routes/whatsappTemplateAnalyticsRoutes";
 
 const app = express();
 const server = http.createServer(app);
@@ -76,6 +77,7 @@ app.use("/api/ads", googleAdsRouter);
 app.use("/api/meta-ads", metaAdsRouter);
 app.use("/api/meta", metaAdsRouter);
 app.use("/api/admin/instagram", instagramCommentToDmRouter);
+app.use("/api/admin/whatsapp", whatsappTemplateAnalyticsRouter);
 
 // YouTube Comments & Config Router
 app.use("/api/youtube", youtubeRouter);
