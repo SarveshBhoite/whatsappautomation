@@ -81,4 +81,19 @@ router.post("/reconcile", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/admin/whatsapp/costing/diagnostics
+ * Detailed audit trail and diagnostic comparison explaining Meta vs internal costing
+ */
+router.get("/diagnostics", async (req: Request, res: Response) => {
+  try {
+    const organizationId = (req.headers["x-organization-id"] as string) || "demo-org-123";
+    const diagnostics = await MetaCostingService.getDiagnostics(organizationId);
+    return res.json({ success: true, data: diagnostics });
+  } catch (err: any) {
+    console.error("[COSTING DIAGNOSTICS ERROR]:", err);
+    return res.status(500).json({ error: err?.message || "Failed to fetch diagnostics" });
+  }
+});
+
 export default router;

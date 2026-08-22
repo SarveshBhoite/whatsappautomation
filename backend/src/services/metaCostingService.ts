@@ -297,4 +297,44 @@ export class MetaCostingService {
       recentRecords: records.slice(0, 50)
     };
   }
+
+  /**
+   * Diagnostic summary explaining exact source of truth, price version, market, and reconciliation state for every template
+   */
+  public static async getDiagnostics(organizationId: string) {
+    const records = await (prisma as any).messageCostRecord.findMany({
+      where: { organizationId },
+      include: { auditLogs: true },
+      orderBy: { messageSentAt: "desc" }
+    });
+
+    return {
+      organizationId,
+      totalRecordsLogged: records.length,
+      sourcePriority: [
+        "1. Meta Authoritative Billing Data (AUTHORITATIVE / RECONCILED)",
+        "2. Meta WABA Analytics Usage + Official Pricing",
+        "3. Official Meta Pricing Engine (ESTIMATED)",
+        "4. Internal Estimate",
+        "5. UNKNOWN (never ₹0)"
+      ],
+      diagnostics: records.map((r: any) => ({
+        id: r.id,
+        metaMessageId: r.metaMessageId,
+        templateName: r.templateName,
+        templateCategory: r.templateCategory,
+        recipientMarket: r.recipientMarket,
+        messageSentAt: r.messageSentAt,
+        billingStatus: r.billingStatus,
+        billingSource: r.billingSource,
+        pricingVersion: r.pricingVersion,
+        unitPrice: r.unitPrice,
+        currency: r.currency,
+        estimatedCost: r.estimatedCost,
+        reconciledCost: r.reconciledCost,
+        metaOfficialCost: r.reconciledCost ?? r.estimatedCost,
+        auditHistory: r.auditLogs
+      }))
+    };
+  }
 }
