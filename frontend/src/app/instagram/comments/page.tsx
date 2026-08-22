@@ -39,6 +39,13 @@ import { io, Socket } from "socket.io-client";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 const DEFAULT_ORG_ID = "demo-org-123";
 
+const getOrgId = (): string => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("organization_id") || DEFAULT_ORG_ID;
+  }
+  return DEFAULT_ORG_ID;
+};
+
 interface AutomationItem {
   id: string;
   name: string;
@@ -159,7 +166,7 @@ export default function InstagramCommentsPage() {
     try {
       setLoadingMedia(true);
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/media?fetchAll=true&limit=100`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -177,7 +184,7 @@ export default function InstagramCommentsPage() {
     setRefreshing(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comment-automations`, {
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
@@ -204,7 +211,7 @@ export default function InstagramCommentsPage() {
     fetchMediaList();
 
     const socket: Socket = io(BACKEND_URL);
-    socket.emit("join-org", DEFAULT_ORG_ID);
+    socket.emit("join-org", getOrgId());
 
     socket.on("instagram-comment-received", () => {
       fetchAutomations();
@@ -281,7 +288,7 @@ export default function InstagramCommentsPage() {
         method,
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify(payload)
       });
@@ -305,7 +312,7 @@ export default function InstagramCommentsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ action })
       });
@@ -321,7 +328,7 @@ export default function InstagramCommentsPage() {
     try {
       await fetch(`${BACKEND_URL}/api/admin/instagram/comment-automations/${id}`, {
         method: "DELETE",
-        headers: { "x-organization-id": DEFAULT_ORG_ID }
+        headers: { "x-organization-id": getOrgId() }
       });
       fetchAutomations();
     } catch (err) {
@@ -343,7 +350,7 @@ export default function InstagramCommentsPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-organization-id": DEFAULT_ORG_ID
+            "x-organization-id": getOrgId()
           },
           body: JSON.stringify({
             filename: file.name,
@@ -381,7 +388,7 @@ export default function InstagramCommentsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": DEFAULT_ORG_ID
+          "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
           testUsername,
