@@ -8,6 +8,7 @@ const router = Router();
 // Telemetry Logs Buffer for Real-time Audit Dashboard
 export interface ApiTelemetryLog {
   id: string;
+  organizationId?: string;
   method: string;
   path: string;
   statusCode: number;
@@ -17,33 +18,13 @@ export interface ApiTelemetryLog {
   timestamp: string;
 }
 
-const telemetryLogs: ApiTelemetryLog[] = [
-  {
-    id: "log_demo_1",
-    method: "POST",
-    path: "/api/v1/whatsapp/send-template",
-    statusCode: 200,
-    latencyMs: 38,
-    ip: "127.0.0.1 (Website Checkout)",
-    keyPrefix: "ak_live_bde0...1d0b",
-    timestamp: new Date(Date.now() - 60000).toISOString()
-  },
-  {
-    id: "log_demo_2",
-    method: "GET",
-    path: "/api/v1/auth/test",
-    statusCode: 200,
-    latencyMs: 14,
-    ip: "127.0.0.1 (API Key Health Test)",
-    keyPrefix: "ak_live_bde0...1d0b",
-    timestamp: new Date(Date.now() - 120000).toISOString()
-  }
-];
+const telemetryLogs: ApiTelemetryLog[] = [];
 
 export function recordApiTelemetry(req: any, statusCode: number, startTime: number) {
   const latencyMs = Math.max(1, Date.now() - startTime);
   const logEntry: ApiTelemetryLog = {
     id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    organizationId: req.apiKeyRecord?.organizationId || req.organizationId || "",
     method: req.method,
     path: req.originalUrl || req.url,
     statusCode,
@@ -54,13 +35,14 @@ export function recordApiTelemetry(req: any, statusCode: number, startTime: numb
   };
 
   telemetryLogs.unshift(logEntry);
-  if (telemetryLogs.length > 100) {
+  if (telemetryLogs.length > 200) {
     telemetryLogs.pop();
   }
 }
 
-export function getApiTelemetryLogs() {
-  return telemetryLogs;
+export function getApiTelemetryLogs(orgId?: string) {
+  if (!orgId) return telemetryLogs;
+  return telemetryLogs.filter(l => !l.organizationId || l.organizationId === orgId);
 }
 
 // Protect ALL v1 external API endpoints with API Key Authentication

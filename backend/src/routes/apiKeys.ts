@@ -26,7 +26,8 @@ const getOrgId = async (req: Request): Promise<string> => {
 // Real-time API telemetry audit log stream for Developer Portal
 router.get("/telemetry", async (req: Request, res: Response) => {
   try {
-    const logs = getApiTelemetryLogs();
+    const orgId = (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || "";
+    const logs = getApiTelemetryLogs(orgId);
     return res.status(200).json({ success: true, count: logs.length, logs });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to fetch telemetry logs", details: error.message });

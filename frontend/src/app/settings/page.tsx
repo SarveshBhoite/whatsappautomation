@@ -482,7 +482,9 @@ export default function Dashboard() {
   const fetchTelemetryLogs = async () => {
     try {
       setLoadingTelemetry(true);
-      const res = await fetch(`${BACKEND_URL}/api/api-keys/telemetry`);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/telemetry`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
       if (res.ok) {
         const data = await res.json();
         setTelemetryLogs(data.logs || []);
@@ -3102,9 +3104,9 @@ print(res.json())`;
                   </div>
 
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Today's API Calls</span>
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Telemetry Requests</span>
                     <div className="flex items-center justify-between">
-                      <span className="text-3xl font-black text-blue-600 font-mono">142</span>
+                      <span className="text-3xl font-black text-blue-600 font-mono">{telemetryLogs.length}</span>
                       <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
                         <Activity className="h-5 w-5 text-blue-600" />
                       </div>
@@ -3112,9 +3114,13 @@ print(res.json())`;
                   </div>
 
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
-                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Success Rate</span>
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Live Success Rate</span>
                     <div className="flex items-center justify-between">
-                      <span className="text-3xl font-black text-emerald-600 font-mono">99.8%</span>
+                      <span className="text-3xl font-black text-emerald-600 font-mono">
+                        {telemetryLogs.length > 0
+                          ? `${Math.round((telemetryLogs.filter(l => l.statusCode >= 200 && l.statusCode < 400).length / telemetryLogs.length) * 100)}%`
+                          : "100%"}
+                      </span>
                       <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
                         <Check className="h-5 w-5 text-emerald-600" />
                       </div>
@@ -3177,42 +3183,42 @@ print(res.json())`;
                 {devPortalTab === "keys" && (
                   <div className="space-y-6 animate-fadeIn">
                     {/* INTERACTIVE TEST API KEY CARD */}
-                    <div className="bg-slate-950/60 border border-blue-500/30 rounded-3xl p-6 md:p-8 space-y-5 shadow-2xl animate-fadeIn">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                    <div className="bg-white border border-slate-200/90 rounded-3xl p-6 md:p-8 space-y-5 shadow-2xs animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                          <div className="h-10 w-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
                             <Activity className="h-5 w-5" />
                           </div>
                           <div>
-                            <h4 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                            <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
                               Test Your API Key Health & Permissions
                             </h4>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-slate-500 mt-0.5">
                               Verify key validity, active status, granted permissions, and environment before production integration.
                             </p>
                           </div>
                         </div>
-                        <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl font-bold">
+                        <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl font-bold">
                           GET /api/v1/auth/test
                         </span>
                       </div>
 
                       <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative flex-1">
-                          <Key className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                          <Key className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                           <input
                             type="text"
                             value={testApiKeyInput}
                             onChange={(e) => setTestApiKeyInput(e.target.value)}
                             placeholder="Paste your API key here (e.g., ak_live_... or ak_test_...)"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 font-mono placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-2xs"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={() => handleTestApiKey()}
                           disabled={testingApiKey || !testApiKeyInput.trim()}
-                          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-blue-600/20 shrink-0"
+                          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-blue-600/20 shrink-0"
                         >
                           <RefreshCw className={`h-4 w-4 ${testingApiKey ? "animate-spin" : ""}`} />
                           {testingApiKey ? "Verifying Key..." : "Run Health Test"}
@@ -3223,53 +3229,53 @@ print(res.json())`;
                       {testResult && (
                         <div className={`p-5 rounded-2xl border space-y-4 animate-fadeIn ${
                           testResult.success 
-                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200" 
-                            : "bg-red-500/10 border-red-500/30 text-red-200"
+                            ? "bg-emerald-50/80 border-emerald-200 text-emerald-950" 
+                            : "bg-rose-50/80 border-rose-200 text-rose-950"
                         }`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 font-bold text-xs">
                               {testResult.success ? (
                                 <>
-                                  <Check className="h-4.5 w-4.5 text-emerald-400" />
-                                  <span className="text-emerald-300">200 OK — API Key is Valid & Active!</span>
+                                  <Check className="h-4.5 w-4.5 text-emerald-600" />
+                                  <span className="text-emerald-800">200 OK — API Key is Valid & Active!</span>
                                 </>
                               ) : (
                                 <>
-                                  <span className="text-red-400 font-extrabold">HTTP {testResult.statusCode || 401} Error</span>
+                                  <span className="text-rose-700 font-extrabold">HTTP {testResult.statusCode || 401} Error</span>
                                   <span>— Authentication Failed</span>
                                 </>
                               )}
                             </div>
-                            <span className="text-[10px] font-mono opacity-70">
+                            <span className="text-[10px] font-mono text-slate-500">
                               {new Date().toLocaleTimeString()}
                             </span>
                           </div>
 
                           {testResult.success && testResult.data ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1 text-xs">
-                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
-                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Key Name</span>
-                                <span className="font-bold text-white block truncate">{testResult.data.key_name}</span>
+                              <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1 shadow-2xs">
+                                <span className="text-[10px] text-slate-500 block uppercase font-bold">Key Name</span>
+                                <span className="font-bold text-slate-900 block truncate">{testResult.data.key_name}</span>
                               </div>
-                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
-                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Environment</span>
-                                <span className={`font-bold block ${testResult.data.environment === "TEST" ? "text-amber-400" : "text-emerald-400"}`}>
+                              <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1 shadow-2xs">
+                                <span className="text-[10px] text-slate-500 block uppercase font-bold">Environment</span>
+                                <span className={`font-bold block ${testResult.data.environment === "TEST" ? "text-amber-700" : "text-emerald-700"}`}>
                                   {testResult.data.environment === "TEST" ? "🟡 TEST" : "🟢 LIVE"}
                                 </span>
                               </div>
-                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
-                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Account / Org</span>
-                                <span className="font-bold text-slate-200 block truncate">{testResult.data.account_name}</span>
+                              <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1 shadow-2xs">
+                                <span className="text-[10px] text-slate-500 block uppercase font-bold">Account / Org</span>
+                                <span className="font-bold text-slate-900 block truncate">{testResult.data.account_name}</span>
                               </div>
-                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
-                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Last Used</span>
-                                <span className="font-mono text-slate-300 text-[11px] block">{new Date(testResult.data.last_used_at).toLocaleTimeString()}</span>
+                              <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1 shadow-2xs">
+                                <span className="text-[10px] text-slate-500 block uppercase font-bold">Last Used</span>
+                                <span className="font-mono text-slate-700 text-[11px] block">{new Date(testResult.data.last_used_at).toLocaleTimeString()}</span>
                               </div>
-                              <div className="sm:col-span-2 md:col-span-4 bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
-                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Granted Permission Scopes</span>
+                              <div className="sm:col-span-2 md:col-span-4 bg-white p-4 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                                <span className="text-[10px] text-slate-500 block uppercase font-bold">Granted Permission Scopes</span>
                                 <div className="flex flex-wrap gap-2">
                                   {Array.isArray(testResult.data.permissions) && testResult.data.permissions.map((p: string) => (
-                                    <span key={p} className="px-3 py-1 rounded-lg text-[11px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold">
+                                    <span key={p} className="px-3 py-1 rounded-lg text-[11px] font-mono bg-blue-50 text-blue-700 border border-blue-200 font-bold">
                                       {p}
                                     </span>
                                   ))}
@@ -3277,9 +3283,9 @@ print(res.json())`;
                               </div>
                             </div>
                           ) : (
-                            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-1">
-                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Failure Cause</span>
-                              <p className="text-xs text-red-300 leading-relaxed font-mono">
+                            <div className="bg-white p-4 rounded-xl border border-rose-200 space-y-1 shadow-2xs">
+                              <span className="text-[10px] text-rose-700 block uppercase font-bold">Failure Cause</span>
+                              <p className="text-xs text-rose-800 leading-relaxed font-mono">
                                 {testResult.message || testResult.error || "Invalid, missing, or revoked API key."}
                               </p>
                             </div>
@@ -3289,24 +3295,24 @@ print(res.json())`;
                     </div>
 
                     {/* SEARCH BAR & ENVIRONMENT FILTERS */}
-                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xs">
                       <div className="relative w-full sm:w-96">
-                        <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                        <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                         <input
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder="Search API keys by name, description, or prefix..."
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-2xs"
                         />
                       </div>
 
-                      <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-800 gap-1.5 w-full sm:w-auto">
+                      <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 w-full sm:w-auto">
                         <button
                           type="button"
                           onClick={() => setEnvFilter("ALL")}
                           className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                            envFilter === "ALL" ? "bg-slate-800 text-white font-bold" : "text-slate-400 hover:text-slate-200"
+                            envFilter === "ALL" ? "bg-white text-slate-900 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"
                           }`}
                         >
                           All Credentials ({apiKeys.length})
@@ -3315,7 +3321,7 @@ print(res.json())`;
                           type="button"
                           onClick={() => setEnvFilter("LIVE")}
                           className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
-                            envFilter === "LIVE" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "text-slate-400 hover:text-slate-200"
+                            envFilter === "LIVE" ? "bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                           }`}
                         >
                           🟢 Live ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "LIVE").length})
@@ -3324,7 +3330,7 @@ print(res.json())`;
                           type="button"
                           onClick={() => setEnvFilter("TEST")}
                           className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
-                            envFilter === "TEST" ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "text-slate-400 hover:text-slate-200"
+                            envFilter === "TEST" ? "bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                           }`}
                         >
                           🟡 Test ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "TEST").length})
@@ -3333,35 +3339,35 @@ print(res.json())`;
                     </div>
 
                     {/* TABLE CONTAINER */}
-                    <div className="bg-slate-950/50 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-5">
+                    <div className="bg-white border border-slate-200/90 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-5">
                         <div>
-                          <h4 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-2">
-                            <Key className="h-4.5 w-4.5 text-blue-400" /> Active System Credentials ({filteredApiKeys.length})
+                          <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                            <Key className="h-4.5 w-4.5 text-blue-600" /> Active System Credentials ({filteredApiKeys.length})
                           </h4>
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-xs text-slate-500 mt-1">
                             Keys generated for website integration, CRM webhooks, or automated messaging APIs.
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={fetchApiKeys}
-                          className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-xl text-xs text-slate-300 flex items-center gap-2 cursor-pointer transition-all"
+                          className="px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold flex items-center gap-2 cursor-pointer transition-all shadow-2xs"
                         >
-                          <RefreshCw className={`h-3.5 w-3.5 ${loadingApiKeys ? "animate-spin" : ""}`} /> Refresh Table
+                          <RefreshCw className={`h-3.5 w-3.5 ${loadingApiKeys ? "animate-spin text-blue-600" : ""}`} /> Refresh Table
                         </button>
                       </div>
 
                       {loadingApiKeys ? (
-                        <div className="py-16 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                          <RefreshCw className="h-5 w-5 animate-spin text-blue-400" /> Loading API Keys...
+                        <div className="py-16 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                          <RefreshCw className="h-5 w-5 animate-spin text-blue-600" /> Loading API Keys...
                         </div>
                       ) : filteredApiKeys.length === 0 ? (
-                        <div className="py-20 text-center border border-dashed border-slate-800 rounded-3xl space-y-4 bg-slate-950/30 p-8">
-                          <Key className="h-12 w-12 text-slate-600 mx-auto" />
+                        <div className="py-20 text-center border border-dashed border-slate-200 rounded-3xl space-y-4 bg-slate-50/50 p-8">
+                          <Key className="h-12 w-12 text-slate-400 mx-auto" />
                           <div className="space-y-1.5">
-                            <p className="text-base font-bold text-slate-200">No API keys match your filter</p>
-                            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                            <p className="text-base font-bold text-slate-900">No API keys match your filter</p>
+                            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
                               {searchQuery || envFilter !== "ALL"
                                 ? "Try clearing your search term or environment filter to view all keys."
                                 : "Generate your first secret key to authorize external forms, websites, or integrations."}
@@ -3373,7 +3379,7 @@ print(res.json())`;
                               setWizardStep(1);
                               setShowCreateKeyModal(true);
                             }}
-                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-blue-600/25"
+                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-md shadow-blue-600/20"
                           >
                             <Plus className="h-4 w-4" /> Generate First API Key
                           </button>
@@ -3382,7 +3388,7 @@ print(res.json())`;
                         <div className="overflow-x-auto">
                           <table className="w-full text-left text-xs">
                             <thead>
-                              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                              <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[11px]">
                                 <th className="py-4 px-5 font-bold">Key Name & Environment</th>
                                 <th className="py-4 px-5 font-bold">Masked API Key Prefix</th>
                                 <th className="py-4 px-5 font-bold">Granted Permission Scopes</th>
@@ -3392,46 +3398,46 @@ print(res.json())`;
                                 <th className="py-4 px-5 font-bold text-right">Manage</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-800/60">
+                            <tbody className="divide-y divide-slate-100 font-sans">
                               {filteredApiKeys.map((k) => (
-                                <tr key={k.id} className="hover:bg-slate-900/60 transition-colors">
+                                <tr key={k.id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="py-4 px-5">
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center gap-2.5">
-                                        <span className="font-bold text-slate-100 text-xs md:text-sm">{k.name}</span>
+                                        <span className="font-bold text-slate-900 text-xs md:text-sm">{k.name}</span>
                                         {(k.environment || "LIVE").toUpperCase() === "TEST" ? (
-                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
                                             🟡 TEST
                                           </span>
                                         ) : (
-                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
                                             🟢 LIVE
                                           </span>
                                         )}
                                       </div>
                                       {k.description && (
-                                        <span className="text-[11px] text-slate-400 line-clamp-1">{k.description}</span>
+                                        <span className="text-[11px] text-slate-500 line-clamp-1">{k.description}</span>
                                       )}
                                     </div>
                                   </td>
-                                  <td className="py-4 px-5 font-mono text-slate-400">
-                                    <div className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
-                                      <span className="text-slate-200 font-mono font-semibold">{k.keyPrefix}</span>
+                                  <td className="py-4 px-5 font-mono text-slate-600">
+                                    <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
+                                      <span className="text-slate-800 font-mono font-semibold">{k.keyPrefix}</span>
                                     </div>
                                   </td>
                                   <td className="py-4 px-5">
                                     <div className="flex flex-wrap gap-1.5 max-w-sm">
                                       {Array.isArray(k.permissions) && k.permissions.includes("full_access") ? (
-                                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                                           ⭐ FULL SYSTEM ACCESS
                                         </span>
                                       ) : (
                                         (k.permissions || []).map((perm: string) => {
-                                          let badgeStyle = "bg-slate-800 text-slate-300 border-slate-700";
-                                          if (perm.startsWith("whatsapp_")) badgeStyle = "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
-                                          else if (perm.startsWith("instagram_")) badgeStyle = "bg-pink-500/10 text-pink-300 border-pink-500/30";
-                                          else if (perm.startsWith("meta_ads_")) badgeStyle = "bg-purple-500/10 text-purple-300 border-purple-500/30";
-                                          else if (perm.startsWith("contacts_") || perm.startsWith("campaigns_")) badgeStyle = "bg-blue-500/10 text-blue-300 border-blue-500/30";
+                                          let badgeStyle = "bg-slate-100 text-slate-700 border-slate-200";
+                                          if (perm.startsWith("whatsapp_")) badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                          else if (perm.startsWith("instagram_")) badgeStyle = "bg-pink-50 text-pink-700 border-pink-200";
+                                          else if (perm.startsWith("meta_ads_")) badgeStyle = "bg-purple-50 text-purple-700 border-purple-200";
+                                          else if (perm.startsWith("contacts_") || perm.startsWith("campaigns_")) badgeStyle = "bg-blue-50 text-blue-700 border-blue-200";
 
                                           return (
                                             <span key={perm} className={`px-2.5 py-0.5 rounded-md text-[10px] font-mono border ${badgeStyle}`}>
@@ -3444,19 +3450,19 @@ print(res.json())`;
                                   </td>
                                   <td className="py-4 px-5">
                                     {k.status === "ACTIVE" ? (
-                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
                                         ACTIVE
                                       </span>
                                     ) : (
-                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-red-500/10 text-red-400 border border-red-500/30 uppercase tracking-wider">
+                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
                                         REVOKED
                                       </span>
                                     )}
                                   </td>
-                                  <td className="py-4 px-5 text-slate-400">
+                                  <td className="py-4 px-5 text-slate-500">
                                     {new Date(k.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                                   </td>
-                                  <td className="py-4 px-5 text-slate-400">
+                                  <td className="py-4 px-5 text-slate-500">
                                     {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "Never used"}
                                   </td>
                                   <td className="py-4 px-5 text-right space-x-2">
@@ -3466,7 +3472,7 @@ print(res.json())`;
                                         setTestApiKeyInput(k.keyPrefix);
                                         handleTestApiKey(k.keyPrefix);
                                       }}
-                                      className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1"
+                                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs"
                                     >
                                       <Activity className="h-3.5 w-3.5" /> Test
                                     </button>
@@ -3479,7 +3485,7 @@ print(res.json())`;
                                         setEditKeyEnv((k.environment || "LIVE").toUpperCase() === "TEST" ? "TEST" : "LIVE");
                                         setEditKeyScopes(k.permissions || ["full_access"]);
                                       }}
-                                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs"
                                     >
                                       Edit
                                     </button>
@@ -3487,7 +3493,7 @@ print(res.json())`;
                                       <button
                                         type="button"
                                         onClick={() => setRevokeConfirmKey(k)}
-                                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs"
                                       >
                                         Revoke
                                       </button>
@@ -3495,7 +3501,7 @@ print(res.json())`;
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteApiKey(k.id)}
-                                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                      className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs"
                                     >
                                       Delete
                                     </button>
