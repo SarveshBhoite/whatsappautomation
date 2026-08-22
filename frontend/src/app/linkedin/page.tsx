@@ -52,7 +52,7 @@ const LinkedInIcon = ({ className = "h-5 w-5", ...props }: React.SVGProps<SVGSVG
 );
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
+const DEFAULT_ORG_ID = "";
 
 // Helper function to safely format values
 const formatSafeValue = (val: any, fallback = "Not synchronized"): string => {

@@ -14,12 +14,12 @@ import {
 import { syncGmailThreads } from "../services/gmailService";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123"; // Seeded organization ID for developer/sandbox environment
+const DEFAULT_ORG_ID = "";
 
 // 1. GET GMB Configuration
 router.get("/config", async (req, res) => {
   try {
-    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || "";
     
     // Auto-create default config if it doesn't exist yet
     let config = await prisma.googleBusinessConfig.findUnique({

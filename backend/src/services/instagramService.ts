@@ -20,6 +20,37 @@ export class InstagramService {
     };
   }
 
+  // Send Private Reply DM triggered by Instagram Comment ID (Meta Official Comment-to-DM)
+  public static async sendPrivateReplyToComment(
+    accessToken: string,
+    commentId: string,
+    text: string,
+    pageIdOrAccountId?: string
+  ) {
+    if (this.isMock(accessToken)) {
+      console.log(`[MOCK INSTAGRAM PRIVATE REPLY] commentId ${commentId}: "${text}"`);
+      return { recipient_id: commentId, message_id: `mock_ig_msg_${Math.random().toString(36).substring(7)}` };
+    }
+
+    const data = {
+      recipient: { comment_id: commentId },
+      message: { text },
+    };
+
+    try {
+      const url = this.getApiUrl(pageIdOrAccountId);
+      const response = await axios.post(url, data, {
+        headers: this.getHeaders(accessToken),
+      });
+      console.log(`[INSTAGRAM SERVICE] Private DM successfully delivered via comment_id (${commentId})! Message ID: ${response.data?.message_id}`);
+      return response.data;
+    } catch (error: any) {
+      const errMsg = error.response?.data?.error?.message || error.message;
+      console.error(`[INSTAGRAM SERVICE ERROR] Private Reply via comment_id (${commentId}) failed: ${errMsg}`);
+      throw error;
+    }
+  }
+
   // Send Text DM
   public static async sendTextMessage(
     accessToken: string,

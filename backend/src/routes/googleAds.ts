@@ -4,12 +4,12 @@ import { GoogleAdsService } from "../services/googleAdsService";
 import axios from "axios";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
+const DEFAULT_ORG_ID = "";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_KEY = process.env.GROQ_KEY || "";
 
-// Helper: parse orgId from query or body
-const getOrgId = (req: any) => (req.query.orgId || req.body?.orgId || DEFAULT_ORG_ID) as string;
+// Helper: parse orgId from header, query or body
+const getOrgId = (req: any) => (req.headers?.["x-organization-id"] || req.query?.orgId || req.body?.orgId || "") as string;
 const getCustomerId = (req: any) => (req.query.customerId || req.body?.customerId || "") as string;
 
 // ─────────────────────────────────────────────────────────────────────────────

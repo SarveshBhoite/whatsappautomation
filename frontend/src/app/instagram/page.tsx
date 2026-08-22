@@ -29,10 +29,9 @@ import {
   Headphones,
   ArrowLeft,
   Star,
-  Trash2,
-  Menu,
-  X,
-  RefreshCw
+  RefreshCw,
+  Store,
+  Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -286,14 +285,7 @@ const MediaNodeComponent = ({ data }: any) => {
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-
-const getOrgId = (): string => {
-  if (typeof window !== "undefined") {
-    const org = localStorage.getItem("organization_id");
-    if (org) return org;
-  }
-  return "";
-};
+const DEFAULT_ORG_ID = "";
 
 // TS Interfaces
 interface Message {
@@ -378,7 +370,6 @@ export default function Dashboard() {
 
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -413,7 +404,7 @@ export default function Dashboard() {
   const fetchIgComments = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/comments`, {
-        headers: { "x-organization-id": getOrgId() }
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (res.ok) {
         const data = await res.json();
@@ -431,7 +422,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
+          "x-organization-id": DEFAULT_ORG_ID
         },
         body: JSON.stringify({
           fromUser: "akash.raw__",
@@ -564,7 +555,6 @@ export default function Dashboard() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Settings States
   const [config, setConfig] = useState<WhatsAppConfig>({
@@ -724,7 +714,7 @@ export default function Dashboard() {
     socket.on("connect", () => {
       console.log("Connected to Real-time WebSocket Server");
       // Join Organization Room
-      const org = getOrgId(); if (org) socket.emit("join-org", org);
+      socket.emit("join-org", DEFAULT_ORG_ID);
     });
 
     // Handle Inbound/Outbound Messages
@@ -828,7 +818,7 @@ export default function Dashboard() {
   const fetchConversations = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
-        headers: { "x-organization-id": getOrgId() }
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -837,8 +827,6 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
-    } finally {
-      setLoadingConversations(false);
     }
   };
 
@@ -858,7 +846,7 @@ export default function Dashboard() {
   const fetchConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
-        headers: { "x-organization-id": getOrgId() }
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -878,7 +866,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
+          "x-organization-id": DEFAULT_ORG_ID
         },
         body: JSON.stringify(config)
       });
@@ -896,7 +884,7 @@ export default function Dashboard() {
   const fetchInstagramConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        headers: { "x-organization-id": getOrgId() }
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -916,7 +904,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
+          "x-organization-id": DEFAULT_ORG_ID
         },
         body: JSON.stringify(igConfig)
       });
@@ -933,7 +921,7 @@ export default function Dashboard() {
 
   const fetchGoogleConfig = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${DEFAULT_ORG_ID}`);
       if (!res.ok) return;
       const data = await res.json();
       if (!data) return;
@@ -974,11 +962,11 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
+          "x-organization-id": DEFAULT_ORG_ID
         },
         body: JSON.stringify({
           ...googleConfig,
-          orgId: getOrgId(),
+          orgId: DEFAULT_ORG_ID,
           googleLocationId: combinedLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId.trim()
         })
@@ -997,14 +985,14 @@ export default function Dashboard() {
   const handleGoogleOAuthConnect = () => {
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}`;
+      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${DEFAULT_ORG_ID}`;
     }
   };
 
   const fetchActiveFlow = async (platform: "whatsapp" | "instagram" = "whatsapp") => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/flows?platform=${platform}`, {
-        headers: { "x-organization-id": getOrgId() }
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -1063,7 +1051,7 @@ export default function Dashboard() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
+          "x-organization-id": DEFAULT_ORG_ID
         },
         body: JSON.stringify({
           id: flowId,
@@ -1151,7 +1139,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}`, {
         method: "DELETE",
-        headers: { "x-organization-id": getOrgId() }
+        headers: { "x-organization-id": DEFAULT_ORG_ID }
       });
       if (res.ok) {
         setConversations((prev) => prev.filter((c) => c.id !== convId));
@@ -1211,109 +1199,29 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      {/* Mobile Drawer Backdrop */}
-      {mobileDrawerOpen && (
-        <div 
-          onClick={() => setMobileDrawerOpen(false)}
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 sm:hidden"
-        />
-      )}
-
-      {/* Mobile Slide-out Drawer */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 shadow-2xl flex flex-col justify-between p-5 transform transition-transform duration-300 ease-in-out sm:hidden ${
-        mobileDrawerOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 rounded-2xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shadow-xs">
-                <Instagram className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="font-extrabold text-sm text-slate-900 tracking-tight">Instagram Suite</span>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Graph API v21</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setMobileDrawerOpen(false)}
-              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1">
-              Modules & Tools
-            </span>
-            {[
-              { id: "chats_instagram", label: "Instagram DMs", icon: MessageSquare, color: "text-pink-600", activeBg: "bg-pink-50 text-pink-800 border-pink-200" },
-              { id: "comments", label: "Comment Automation", icon: Sparkles, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
-              { id: "profile", label: "Profile & API Config", icon: User, color: "text-amber-600", activeBg: "bg-amber-50 text-amber-800 border-amber-200" },
-              { id: "flows", label: "Flow Builder", icon: GitMerge, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200", onClick: () => { setActiveTab("flows"); setSelectedPlatform("instagram"); } },
-            ].map((item) => {
-              const Icon = item.icon;
-              const isSelected = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    if (item.onClick) item.onClick();
-                    else setActiveTab(item.id as any);
-                    setMobileDrawerOpen(false);
-                  }}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all ${
-                    isSelected
-                      ? `${item.activeBg} border shadow-xs`
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                  }`}
-                >
-                  <Icon className={`h-4 w-4 ${item.color}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-          <div className="h-2 w-2 rounded-full bg-pink-500 animate-pulse" />
-          <span>Meta Graph API Connected</span>
-        </div>
-      </aside>
-
       {/* TOP SECTION NAVIGATION HEADER */}
-      <header className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <button
-            type="button"
-            onClick={() => setMobileDrawerOpen(true)}
-            className="sm:hidden p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 shrink-0"
-            title="Open Menu"
-          >
-            <Menu className="h-4 w-4" />
-          </button>
-
-          <div className="h-8 w-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shrink-0">
+      <header className="px-4 sm:px-6 py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shadow-2xs">
             <Instagram className="h-4 w-4" />
           </div>
-          <div className="min-w-0">
-            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 truncate">
-              <span>Instagram Suite</span>
-              <span className="text-[9px] bg-pink-50 text-pink-700 border border-pink-200 px-1.5 py-0.5 rounded-full font-mono lowercase font-bold shrink-0">
-                Graph API v21
+          <div>
+            <h1 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              Instagram Suite
+              <span className="text-[9px] bg-pink-50 text-pink-700 border border-pink-200 px-2 py-0.5 rounded-full font-mono lowercase">
+                graph api engine
               </span>
             </h1>
           </div>
         </div>
 
-        {/* Section Tabs - Hidden on mobile, shown on desktop */}
-        <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs shrink-0">
+        {/* Section Tabs */}
+        <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 text-xs">
           <button
             onClick={() => setActiveTab("chats_instagram")}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "chats_instagram"
-                ? "bg-white text-pink-800 border border-slate-200 shadow-xs"
+                ? "bg-white text-pink-700 border border-slate-200 shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
@@ -1324,22 +1232,22 @@ export default function Dashboard() {
             onClick={() => setActiveTab("comments")}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "comments"
-                ? "bg-white text-purple-800 border border-slate-200 shadow-xs"
+                ? "bg-white text-pink-700 border border-slate-200 shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
-            <Sparkles className="h-3.5 w-3.5" /> Comment Automation
+            <Sparkles className="h-3.5 w-3.5" /> Comment-to-DM Automation
           </button>
 
           <button
             onClick={() => setActiveTab("profile")}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "profile"
-                ? "bg-white text-amber-800 border border-slate-200 shadow-xs"
+                ? "bg-white text-amber-700 border border-slate-200 shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
-            <User className="h-3.5 w-3.5" /> Profile &amp; API Config
+            <User className="h-3.5 w-3.5" /> Profile & API Config
           </button>
 
           <button
@@ -1382,25 +1290,13 @@ export default function Dashboard() {
                 </div>
 
                 {/* Conversation items list */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-100 scrollbar-none no-scrollbar">
-                  {loadingConversations ? (
-                    <div className="p-3 space-y-3 animate-pulse">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className="p-3 bg-slate-50/70 rounded-2xl space-y-2 border border-slate-100">
-                          <div className="flex justify-between items-center">
-                            <div className="h-4 w-28 bg-slate-200 rounded-md" />
-                            <div className="h-3 w-12 bg-slate-100 rounded-md" />
-                          </div>
-                          <div className="h-3 w-40 bg-slate-100 rounded-md" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : filteredConversations.length === 0 ? (
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                  {filteredConversations.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
                       {isInstagramTab ? (
-                        <Instagram className="h-8 w-8 stroke-1 text-pink-500" />
+                        <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
                       ) : (
-                        <WhatsApp className="h-8 w-8 text-emerald-500" />
+                        <WhatsApp className="h-8 w-8 text-emerald-400/60" />
                       )}
                       <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
                     </div>
@@ -1432,31 +1328,15 @@ export default function Dashboard() {
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-500 truncate max-w-[180px]">
-                              {(() => {
-                                if (!lastMsg?.content) return "No messages yet";
-                                const c = lastMsg.content;
-                                if (lastMsg.messageType === "video" || c.includes("instagram_file.pdf") && c.includes(".mp4") || c.includes("/video/") || c.includes("ig_messaging_cdn") && !c.includes("/image/")) {
-                                  return "🎥 Reel / Video";
-                                }
-                                if (lastMsg.messageType === "image" || c.includes("lookaside.fbsbx.com") || c.startsWith("http") && (c.endsWith(".jpg") || c.endsWith(".png") || c.endsWith(".webp") || c.includes("/image/"))) {
-                                  return "📷 Photo";
-                                }
-                                if (lastMsg.messageType === "audio" || lastMsg.messageType === "voice") {
-                                  return "🎤 Voice note";
-                                }
-                                if (lastMsg.messageType === "document" || c.includes("|/uploads/") || c.includes(".pdf")) {
-                                  return "📄 Document";
-                                }
-                                return c;
-                              })()}
+                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                              {lastMsg?.content || "No messages yet"}
                             </p>
                             {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
                                 <User className="h-2.5 w-2.5" /> Manual
                               </span>
                             ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
                                 <Bot className="h-2.5 w-2.5" /> Auto
                               </span>
                             )}
@@ -1467,10 +1347,10 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-
               {/* Chat Conversation Pane — full screen on mobile when chat open */}
-              <div className={`${mobileChatOpen ? "flex" : "hidden"
-                } sm:flex flex-1 flex-col h-full bg-slate-100/70 relative animate-slideInRight sm:animate-none`}>
+              <div className={`${
+                mobileChatOpen ? "flex" : "hidden"
+              } sm:flex flex-1 flex-col h-full bg-slate-100/70 relative animate-slideInRight sm:animate-none`}>
                 {activeConv ? (
                   <>
                     {/* Chat header */}
@@ -1479,14 +1359,15 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => setMobileChatOpen(false)}
-                          className="sm:hidden p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 shrink-0 transition-all"
+                          className="sm:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 shrink-0 transition-all"
+                          title="Back to inbox"
                         >
-                          <ArrowLeft className="h-5 w-5" />
+                          <ArrowLeft className="h-4 w-4" />
                         </button>
-                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-semibold border border-slate-200 shrink-0">
-                          {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
+                        <div className="h-10 w-10 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 shrink-0">
+                          <User className="h-5 w-5" />
                         </div>
-                        <div className="flex flex-col min-w-0">
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             {activeConv.platform === "instagram" ? (
                               <Instagram className="h-4 w-4 text-pink-600 shrink-0" />
@@ -1509,7 +1390,6 @@ export default function Dashboard() {
 
                       {/* Bot active / pause controllers */}
                       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        {/* Bot status badge */}
                         <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border font-bold transition-all ${activeConv.isBotPaused
                           ? "bg-amber-50 border-amber-200 text-amber-800"
                           : "bg-emerald-50 border-emerald-200 text-emerald-800"
@@ -1520,20 +1400,13 @@ export default function Dashboard() {
                             <><Bot className="h-3.5 w-3.5" /><span>Bot Active</span></>
                           )}
                         </div>
-                        {/* Compact bot status icon — mobile only */}
-                        <div className={`sm:hidden p-2 rounded-xl border transition-all ${activeConv.isBotPaused
-                          ? "bg-amber-50 border-amber-200 text-amber-800"
-                          : "bg-emerald-50 border-emerald-200 text-emerald-800"
-                          }`}>
-                          {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                        </div>
 
                         <button
                           type="button"
                           onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-bold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all cursor-pointer shadow-2xs ${activeConv.isBotPaused
-                            ? "bg-emerald-600 border-emerald-700 hover:bg-emerald-500 text-white"
-                            : "bg-white hover:bg-slate-50 border-slate-200 text-slate-800"
+                          className={`text-xs font-bold px-2.5 sm:px-4 py-1.5 rounded-xl border transition-all cursor-pointer ${activeConv.isBotPaused
+                            ? "bg-emerald-600 border-emerald-700 hover:bg-emerald-700 text-white"
+                            : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-2xs"
                             }`}
                         >
                           <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
@@ -1543,21 +1416,19 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={(e) => handleDeleteConversation(activeConv.id, e)}
-                          className="p-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all cursor-pointer shadow-2xs"
+                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all cursor-pointer"
                           title="Delete Chat Conversation"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
-
                       </div>
                     </div>
 
                     {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-100/60 relative scrollbar-thin">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100/60 relative">
                       {messages.map((msg) => {
                         const isInbound = msg.direction === "inbound";
 
-                        // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
                         const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
                         let quoteText = "";
                         let messageBody = msg.content;
@@ -1574,7 +1445,6 @@ export default function Dashboard() {
                           }
                         }
 
-                        // Check if message has interactive buttons data
                         const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
                         let buttonsArray: string[] = [];
                         if (hasButtons) {
@@ -1583,7 +1453,6 @@ export default function Dashboard() {
                           buttonsArray = parts[1]?.split(", ") || [];
                         }
 
-                        // Check if message is a WhatsApp list menu
                         const hasList = msg.messageType === "listNode" || msg.content.includes("|list:");
                         let listButtonText = "View Menu";
                         let listRowsArray: string[] = [];
@@ -1595,7 +1464,6 @@ export default function Dashboard() {
                           const rowsString = listParts?.[1];
                           listRowsArray = rowsString ? rowsString.split(", ") : [];
 
-                          // Fallback to active flow graph listNode options if rows array is empty
                           if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
                             const matchingNode = nodes.find(
                               (n: any) =>
@@ -1620,61 +1488,46 @@ export default function Dashboard() {
                             key={msg.id}
                             className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
                           >
-                            <div className="relative max-w-[85%] sm:max-w-[70%] min-w-0">
-                              {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
+                            <div className="relative max-w-[70%]">
+                              {/* Hover Quote Trigger */}
                               <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
                                 <button
                                   type="button"
                                   onClick={() => setQuotedMessage(msg)}
-                                  className="bg-white hover:bg-slate-50 text-slate-700 p-2 rounded-full border border-slate-200 shadow-md transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+                                  className="bg-white hover:bg-slate-50 text-slate-700 p-2 rounded-full border border-slate-200 shadow-sm transition-all hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
                                   title="Quote Reply"
                                 >
-                                  <CornerUpLeft className="h-3.5 w-3.5 text-pink-600" />
+                                  <CornerUpLeft className="h-3.5 w-3.5" />
                                 </button>
                               </div>
 
                               {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-xs flex flex-col gap-1 min-w-0 overflow-hidden break-words ${isInbound
-                                ? "bg-white text-slate-900 border border-slate-200/90 rounded-tl-none"
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-2xs flex flex-col gap-1 ${isInbound
+                                ? "bg-white text-slate-800 border border-slate-200/90 rounded-tl-none"
                                 : activeConv?.platform === "instagram"
-                                  ? "bg-gradient-to-r from-pink-500 to-rose-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                  : "bg-[#DCF8C6] text-slate-900 font-medium rounded-tr-none border border-emerald-300/80 shadow-emerald-500/5"
+                                  ? "bg-gradient-to-r from-pink-600 to-purple-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
+                                  : "bg-emerald-600 text-white font-medium rounded-tr-none shadow-emerald-500/10"
                                 }`}>
-                                {msg.senderName && !isInbound && (
-                                  <span className={`text-[9px] uppercase tracking-wider font-bold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/90" : "text-emerald-800"}`}>
-                                    {msg.senderName}
-                                  </span>
-                                )}
-
                                 {/* Render Quoted Reply Box inside Bubble */}
                                 {hasQuote && (
                                   <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${isInbound
-                                    ? "bg-slate-100 border-slate-400 text-slate-600"
+                                    ? "bg-slate-900/40 border-slate-500 text-slate-400"
                                     : activeConv?.platform === "instagram"
-                                      ? "bg-violet-950/40 border-violet-400 text-violet-100"
-                                      : "bg-emerald-100/90 border-emerald-600 text-emerald-950 font-medium"
+                                      ? "bg-violet-950/40 border-violet-400 text-violet-200"
+                                      : "bg-emerald-600/30 border-emerald-950 text-slate-900"
                                     }`}>
                                     {quoteText}
                                   </div>
                                 )}
 
                                 {/* Render media content or plain text */}
-                                {((["image", "document", "video", "audio", "voice"].includes(msg.messageType) || (typeof msg.content === "string" && (msg.content.includes("lookaside.fbsbx.com") || (msg.content.startsWith("http") && (msg.content.endsWith(".jpg") || msg.content.endsWith(".png") || msg.content.endsWith(".webp") || msg.content.includes("/image/")))))) && !hasButtons) ? (() => {
+                                {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
                                   // Parse structured media content
                                   let mediaUrl = msg.content;
                                   let displayFilename = "document.pdf";
                                   let captionText = "";
-                                  let inferredType = msg.messageType;
 
-                                  if (inferredType === "text" || !inferredType) {
-                                    if (mediaUrl.includes("lookaside.fbsbx.com") || mediaUrl.includes("/image/") || mediaUrl.endsWith(".jpg") || mediaUrl.endsWith(".png") || mediaUrl.endsWith(".webp")) {
-                                      inferredType = "image";
-                                    } else if (mediaUrl.includes("/video/")) {
-                                      inferredType = "video";
-                                    }
-                                  }
-
-                                  if (inferredType === "document") {
+                                  if (msg.messageType === "document") {
                                     const parts = msg.content.split("|");
                                     displayFilename = parts[0] || "document.pdf";
                                     mediaUrl = parts[1] || "";
@@ -1692,9 +1545,9 @@ export default function Dashboard() {
                                   }
 
                                   return (
-                                    <div className="flex flex-col gap-2 min-w-0">
-                                      {inferredType === "image" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 max-w-[240px]">
+                                    <div className="flex flex-col gap-2">
+                                      {msg.messageType === "image" ? (
+                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
                                           <img
                                             src={getMediaUrl(mediaUrl)}
                                             alt="Sent Media"
@@ -1702,15 +1555,15 @@ export default function Dashboard() {
                                             onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
                                           />
                                         </div>
-                                      ) : inferredType === "video" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 max-w-[240px]">
+                                      ) : msg.messageType === "video" ? (
+                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
                                           <video
                                             src={getMediaUrl(mediaUrl)}
                                             controls
                                             className="object-cover w-full h-36"
                                           />
                                         </div>
-                                      ) : (inferredType === "audio" || inferredType === "voice") ? (
+                                      ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
                                         <div className="max-w-[240px] py-1">
                                           <audio
                                             src={getMediaUrl(mediaUrl)}
@@ -1723,11 +1576,11 @@ export default function Dashboard() {
                                           href={getMediaUrl(mediaUrl)}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="flex items-center gap-2 bg-slate-100 p-2 rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors max-w-full"
+                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
                                         >
-                                          <FileText className="h-8 w-8 stroke-1 text-slate-700 shrink-0" />
+                                          <FileText className="h-8 w-8 stroke-1" />
                                           <div className="flex flex-col min-w-0">
-                                            <span className="text-xs font-semibold truncate max-w-[150px] text-slate-800">
+                                            <span className="text-xs font-semibold truncate max-w-[150px]">
                                               {displayFilename}
                                             </span>
                                             <span className="text-[10px] text-slate-500">Document File</span>
@@ -1735,17 +1588,17 @@ export default function Dashboard() {
                                         </a>
                                       )}
                                       {captionText && (
-                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap break-all ${isInbound ? "text-slate-700" : "text-slate-800"}`}>{captionText}</p>
+                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
                                       )}
                                     </div>
                                   );
                                 })() : (
-                                  <div className="flex flex-col gap-2 min-w-0 max-w-full">
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere">{messageBody}</p>
+                                  <div className="flex flex-col gap-2">
+                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
 
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
-                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-200/80 pt-2 w-full min-w-[200px]">
+                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
                                         {buttonsArray.map((btnTitle, index) => {
                                           const isIg = activeConv?.platform === "instagram";
                                           const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
@@ -1765,7 +1618,7 @@ export default function Dashboard() {
 
                                     {/* Render Clickable WhatsApp-styled List Menus in chat logs */}
                                     {hasList && (
-                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-200/80 pt-2 w-full min-w-[200px]">
+                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1786,8 +1639,8 @@ export default function Dashboard() {
 
                                         {/* Dropdown popup of options */}
                                         {activeListMenuMsgId === msg.id && (
-                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
-                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 border-b border-slate-100 mb-1 flex justify-between items-center">
+                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
+                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
                                               <span>Menu Options</span>
                                               <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
                                             </div>
@@ -1795,10 +1648,10 @@ export default function Dashboard() {
                                               {listRowsArray.map((rowText, index) => (
                                                 <div
                                                   key={index}
-                                                  className="w-full text-left bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs py-2 px-3 rounded-lg border border-slate-200 flex items-center justify-between select-none"
+                                                  className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
                                                 >
                                                   <span className="truncate pr-2">{rowText}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
                                                 </div>
                                               ))}
                                             </div>
@@ -1811,7 +1664,7 @@ export default function Dashboard() {
 
                                 {/* Ticks status and time */}
                                 <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${isInbound
-                                  ? "text-slate-400"
+                                  ? "text-slate-500"
                                   : activeConv?.platform === "instagram"
                                     ? "text-pink-100/85"
                                     : "text-slate-800/80"
@@ -1849,7 +1702,7 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => setQuotedMessage(null)}
-                          className="text-slate-400 hover:text-slate-600 font-bold px-2 text-sm"
+                          className="text-slate-400 hover:text-slate-700 font-bold px-2 text-sm cursor-pointer"
                         >
                           ✕
                         </button>
@@ -1861,7 +1714,7 @@ export default function Dashboard() {
 
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50">
+                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50 animate-fadeIn">
                           {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
                             <button
                               key={emoji}
@@ -1880,7 +1733,7 @@ export default function Dashboard() {
 
                       {/* MEDIA/PAPERCLIP POPUP */}
                       {showMediaMenu && (
-                        <div className="absolute bottom-16 left-12 bg-white border border-slate-200 rounded-2xl p-2.5 flex flex-col gap-1 shadow-xl z-50 text-xs min-w-[190px]">
+                        <div className="absolute bottom-16 left-12 bg-white border border-slate-200 rounded-2xl p-2.5 flex flex-col gap-1 shadow-xl z-50 text-xs min-w-[190px] animate-fadeIn">
                           <button
                             type="button"
                             onClick={() => {
@@ -1889,21 +1742,21 @@ export default function Dashboard() {
                             }}
                             className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
                           >
-                            <Paperclip className="h-4 w-4 text-pink-600" /> Upload &amp; Send File
+                            <Paperclip className="h-4 w-4 text-pink-600" /> Upload & Send File
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
                             className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold border-t border-slate-100 pt-1.5 cursor-pointer"
                           >
-                            <ImageIcon className="h-4 w-4 text-pink-600" /> Mock Case Study (Image)
+                            <ImageIcon className="h-4 w-4 text-purple-600" /> Sample Image Card
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
                             className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
                           >
-                            <FileText className="h-4 w-4 text-sky-600" /> Mock Portfolio (PDF)
+                            <FileText className="h-4 w-4 text-pink-600" /> Sample PDF Brochure
                           </button>
                         </div>
                       )}
@@ -1922,7 +1775,7 @@ export default function Dashboard() {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
                         }}
-                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showEmojiPicker ? "bg-pink-50 text-pink-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
+                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showEmojiPicker ? "bg-pink-50 text-pink-600" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Smile className="h-5 w-5" />
                       </button>
@@ -1932,7 +1785,7 @@ export default function Dashboard() {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
                         }}
-                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showMediaMenu ? "bg-pink-50 text-pink-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
+                        className={`p-2 rounded-xl transition-colors cursor-pointer ${showMediaMenu ? "bg-pink-50 text-pink-600" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
@@ -1941,31 +1794,29 @@ export default function Dashboard() {
                         type="text"
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        placeholder="Type an Instagram DM..."
+                        placeholder="Type an Instagram reply..."
                         className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 shadow-2xs transition-all"
                       />
 
                       <button
                         type="submit"
                         disabled={!inputText.trim()}
-                        className="p-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-xl transition-all shadow-md shadow-pink-600/20 disabled:opacity-40 disabled:hover:bg-pink-600 cursor-pointer"
+                        className="p-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-sm shadow-pink-500/20 disabled:opacity-40 cursor-pointer"
                       >
-                        <Send className="h-4.5 w-4.5 fill-white" />
+                        <Send className="h-4.5 w-4.5" />
                       </button>
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50 overflow-y-auto">
-                    <div className="max-w-md w-full flex flex-col items-center gap-5">
-                      <div className="w-full flex flex-col items-center justify-center py-12 px-4 text-center animate-fadeIn">
-                        <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-sm border bg-pink-50 text-pink-600 border-pink-200 mb-4">
-                          <Instagram className="h-10 w-10 stroke-1" />
-                        </div>
-                        <h3 className="text-xl font-extrabold text-slate-900">Instagram DM Inbox</h3>
-                        <p className="text-sm text-slate-500 max-w-md mt-2 leading-relaxed">
-                          Select a conversation from the left sidebar to start chatting, view messages, or handle customer replies.
-                        </p>
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50">
+                    <div className="max-w-md flex flex-col items-center gap-4">
+                      <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-sm border bg-pink-50 text-pink-600 border-pink-200">
+                        <Instagram className="h-10 w-10 stroke-1" />
                       </div>
+                      <h3 className="text-xl font-extrabold text-slate-900">Instagram Direct Messaging</h3>
+                      <p className="text-sm text-slate-500 leading-relaxed">
+                        Select an active conversation from the sidebar inbox to view messages, handle comments, or reply directly.
+                      </p>
                     </div>
                   </div>
                 )}

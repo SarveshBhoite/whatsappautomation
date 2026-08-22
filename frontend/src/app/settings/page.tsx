@@ -29,7 +29,12 @@ import {
   ArrowLeft,
   Star,
   RefreshCw,
-  Store
+  Store,
+  Code,
+  Search,
+  ShieldCheck,
+  Terminal,
+  Activity
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -85,13 +90,13 @@ const WhatsApp = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
 
 const TextNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800">
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
         {isIg ? (
           <Instagram className={`h-3 w-3 ${textColor}`} />
         ) : (
@@ -99,8 +104,8 @@ const TextNodeComponent = ({ data }: any) => {
         )}
         {isIg ? "Instagram Text DM" : "WhatsApp Text Msg"}
       </div>
-      <div className="text-slate-800 line-clamp-3 bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans whitespace-pre-wrap">
-        {data.text || <span className="text-slate-400 italic">No text message defined</span>}
+      <div className="text-slate-200 line-clamp-3 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans whitespace-pre-wrap">
+        {data.text || <span className="text-slate-500 italic">No text message defined</span>}
       </div>
       <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
@@ -109,15 +114,15 @@ const TextNodeComponent = ({ data }: any) => {
 
 const ButtonsNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
   const handleBgLight = isIg ? "!bg-pink-400" : "!bg-emerald-400";
   const borderL = isIg ? "border-l-pink-500" : "border-l-emerald-500";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn text-slate-800">
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
         {isIg ? (
           <Instagram className={`h-3 w-3 ${textColor}`} />
         ) : (
@@ -125,13 +130,13 @@ const ButtonsNodeComponent = ({ data }: any) => {
         )}
         {isIg ? "Instagram Quick Replies" : "WhatsApp Buttons"}
       </div>
-      <div className="text-slate-800 font-medium bg-slate-50 p-2 rounded border border-slate-200/80 whitespace-pre-wrap">
-        {data.text || <span className="text-slate-400 italic">Type button header message...</span>}
+      <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 whitespace-pre-wrap">
+        {data.text || <span className="text-slate-500 italic">Type button header message...</span>}
       </div>
       
       <div className="flex flex-col gap-1.5 mt-1">
         {data.buttons?.map((btn: any) => (
-          <div key={btn.id} className={`relative bg-slate-50 border border-slate-200 rounded py-1.5 px-3 text-center text-[10px] ${textColor} font-bold shadow-2xs border-l-2 ${borderL}`}>
+          <div key={btn.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-center text-[10px] ${textColor} font-semibold shadow-sm border-l-2 ${borderL}`}>
             {btn.title}
             <Handle 
               type="source" 
@@ -142,7 +147,7 @@ const ButtonsNodeComponent = ({ data }: any) => {
           </div>
         ))}
         {(!data.buttons || data.buttons.length === 0) && (
-          <span className="text-[9px] text-slate-400 italic text-center">Add options buttons on the right</span>
+          <span className="text-[9px] text-slate-500 italic text-center">Add options buttons on the right</span>
         )}
       </div>
     </div>
@@ -151,7 +156,7 @@ const ButtonsNodeComponent = ({ data }: any) => {
 
 const ListNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
   const handleBgLight = isIg ? "!bg-pink-400" : "!bg-emerald-400";
   const borderL = isIg ? "border-l-pink-500" : "border-l-emerald-500";
@@ -161,23 +166,23 @@ const ListNodeComponent = ({ data }: any) => {
   const rows = sections.flatMap((sec: any) => sec.rows || []) || [];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn text-slate-800">
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[220px] text-xs flex flex-col gap-2 animate-fadeIn">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
         <FileText className={`h-3 w-3 ${textColor}`} />
         {isIg ? "Instagram Menu (Quick Replies)" : "WhatsApp List Menu"}
       </div>
-      <div className="text-slate-800 font-medium bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans whitespace-pre-wrap">
-        {data.text || <span className="text-slate-400 italic">No description text</span>}
+      <div className="text-slate-300 font-medium bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans whitespace-pre-wrap">
+        {data.text || <span className="text-slate-500 italic">No description text</span>}
       </div>
-      <div className="bg-slate-100 border border-slate-200 rounded py-1 px-3 text-center text-[10px] text-slate-600 font-semibold mb-1">
+      <div className="bg-slate-950 border border-slate-850 rounded py-1 px-3 text-center text-[10px] text-slate-400 font-semibold mb-1">
         Button: {data.listButtonText || "View Menu"}
       </div>
 
       <div className="flex flex-col gap-1.5 mt-1">
         {rows.map((row: any) => (
-          <div key={row.id} className={`relative bg-slate-50 border border-slate-200 rounded py-1.5 px-3 text-left text-[10px] text-slate-800 font-semibold shadow-2xs border-l-2 ${borderL}`}>
-            <div className="truncate font-bold">{row.title}</div>
+          <div key={row.id} className={`relative bg-slate-900 border border-slate-800/80 rounded py-1.5 px-3 text-left text-[10px] text-slate-200 font-semibold shadow-sm border-l-2 ${borderL}`}>
+            <div className="truncate font-medium">{row.title}</div>
             {row.description && <div className="text-[8px] text-slate-500 font-normal truncate mt-0.5">{row.description}</div>}
             <Handle 
               type="source" 
@@ -188,7 +193,7 @@ const ListNodeComponent = ({ data }: any) => {
           </div>
         ))}
         {rows.length === 0 && (
-          <span className="text-[9px] text-slate-400 italic text-center">Add menu options on the right</span>
+          <span className="text-[9px] text-slate-500 italic text-center">Add menu options on the right</span>
         )}
       </div>
     </div>
@@ -197,13 +202,13 @@ const ListNodeComponent = ({ data }: any) => {
 
 const QuestionNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800">
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
         {isIg ? (
           <Instagram className={`h-3 w-3 ${textColor}`} />
         ) : (
@@ -211,11 +216,11 @@ const QuestionNodeComponent = ({ data }: any) => {
         )}
         Collect Input Question
       </div>
-      <div className="text-slate-800 line-clamp-2 bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans mb-2">
-        {data.text || <span className="text-slate-400 italic">No question defined</span>}
+      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans mb-2">
+        {data.text || <span className="text-slate-500 italic">No question defined</span>}
       </div>
-      <div className="bg-amber-50 rounded px-2 py-1 border border-amber-200 text-[9px] text-amber-700 font-mono flex items-center gap-1 justify-center font-bold">
-        <Database className="h-3 w-3 text-amber-600" /> Save: {data.variableName || "user_input"}
+      <div className="bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20 text-[9px] text-amber-400 font-mono flex items-center gap-1 justify-center">
+        <Database className="h-3 w-3 text-amber-500" /> Save: {data.variableName || "user_input"}
       </div>
       <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
@@ -224,12 +229,12 @@ const QuestionNodeComponent = ({ data }: any) => {
 
 const WelcomeNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
-  const border = isIg ? "border-pink-400" : "border-emerald-400";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
+  const border = isIg ? "border-pink-500" : "border-emerald-500";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
 
   return (
-    <div className={`bg-white border-2 ${border} rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800`}>
+    <div className={`bg-slate-800 border-2 ${border} rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn`}>
       <div className={`text-[9px] ${textColor} font-bold uppercase tracking-wider mb-1 flex items-center gap-1`}>
         {isIg ? (
           <Instagram className="h-3.5 w-3.5" />
@@ -238,8 +243,8 @@ const WelcomeNodeComponent = ({ data }: any) => {
         )}
         {isIg ? "Instagram Welcome Node (Root)" : "Welcome Node (Root)"}
       </div>
-      <div className="text-slate-800 line-clamp-2 bg-slate-50 p-2 rounded border border-slate-200/80 leading-relaxed font-sans">
-        {data.text || <span className="text-slate-400 italic">No welcome greeting defined</span>}
+      <div className="text-slate-200 line-clamp-2 bg-slate-900/40 p-2 rounded border border-slate-850/60 leading-relaxed font-sans">
+        {data.text || <span className="text-slate-500 italic">No welcome greeting defined</span>}
       </div>
       <Handle type="source" position={Position.Bottom} className={`${handleBg} !w-2.5 !h-2.5`} />
     </div>
@@ -248,27 +253,27 @@ const WelcomeNodeComponent = ({ data }: any) => {
 
 const MediaNodeComponent = ({ data }: any) => {
   const isIg = data.platform === "instagram";
-  const textColor = isIg ? "text-pink-600" : "text-emerald-700";
+  const textColor = isIg ? "text-pink-400" : "text-emerald-400";
   const handleBg = isIg ? "!bg-pink-500" : "!bg-emerald-500";
   const isVideo = data.mediaType === "video";
   const isAudio = data.mediaType === "audio";
   const isDoc = data.mediaType === "document";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-md min-w-[200px] text-xs animate-fadeIn text-slate-800">
+    <div className="bg-slate-800 border border-slate-700/80 rounded-xl p-3 shadow-lg min-w-[200px] text-xs animate-fadeIn">
       <Handle type="target" position={Position.Top} className={`${handleBg} !w-2.5 !h-2.5`} />
-      <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
         {isDoc ? <FileText className={`h-3 w-3 ${textColor}`} /> :
          isVideo ? <Video className={`h-3 w-3 ${textColor}`} /> :
          isAudio ? <Headphones className={`h-3 w-3 ${textColor}`} /> :
          <ImageIcon className={`h-3 w-3 ${textColor}`} />}
         Media response ({data.mediaType || "image"})
       </div>
-      <div className="text-[10px] text-slate-700 font-semibold truncate bg-slate-50 p-1.5 rounded border border-slate-200/80 font-mono mb-1.5 max-w-[180px]">
-        {data.mediaUrl ? (data.mediaUrl.startsWith("/uploads/") ? data.mediaUrl.substring(9) : data.mediaUrl) : <span className="text-slate-400 italic">No URL/file configured</span>}
+      <div className="text-[10px] text-slate-300 font-semibold truncate bg-slate-900/40 p-1.5 rounded border border-slate-850/60 font-mono mb-1.5 max-w-[180px]">
+        {data.mediaUrl ? (data.mediaUrl.startsWith("/uploads/") ? data.mediaUrl.substring(9) : data.mediaUrl) : <span className="text-slate-500 italic">No URL/file configured</span>}
       </div>
       {data.caption && (
-        <div className="text-slate-600 text-[10px] italic line-clamp-2 bg-slate-50/50 p-1.5 rounded border border-slate-200/50 whitespace-pre-wrap leading-tight">
+        <div className="text-slate-400 text-[10px] italic line-clamp-2 bg-slate-900/20 p-1.5 rounded border border-slate-850/30 whitespace-pre-wrap leading-tight">
           "{data.caption}"
         </div>
       )}
@@ -284,8 +289,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:500
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
-    const org = localStorage.getItem("organization_id");
-    if (org) return org;
+    return localStorage.getItem("organization_id") || "";
   }
   return "";
 };
@@ -419,7 +423,7 @@ export default function Dashboard() {
   });
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram" | "youtube">("whatsapp");
-  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube">("whatsapp");
+  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube" | "api-keys">("whatsapp");
 
   // Google GMB Config
   const [googleConfig, setGoogleConfig] = useState({
@@ -440,6 +444,627 @@ export default function Dashboard() {
   const [formGoogleAccountId, setFormGoogleAccountId] = useState("");
   const [formGoogleLocationId, setFormGoogleLocationId] = useState("");
   const [formGoogleAdsCustomerId, setFormGoogleAdsCustomerId] = useState("");
+
+  // API Keys Management State
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [loadingApiKeys, setLoadingApiKeys] = useState(false);
+  const [showCreateKeyModal, setShowCreateKeyModal] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyDesc, setNewKeyDesc] = useState("");
+  const [newKeyEnv, setNewKeyEnv] = useState<"LIVE" | "TEST">("LIVE");
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
+  const [generatingKey, setGeneratingKey] = useState(false);
+  const [createdRawKey, setCreatedRawKey] = useState<string | null>(null);
+  const [createdKeyWarning, setCreatedKeyWarning] = useState<string | null>(null);
+  const [showRawKeyModal, setShowRawKeyModal] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [envFilter, setEnvFilter] = useState<"ALL" | "LIVE" | "TEST">("ALL");
+
+  // Developer Portal Tabs & Interactive Documentation State
+  const [devPortalTab, setDevPortalTab] = useState<"keys" | "quickstart" | "docs" | "logs">("keys");
+  const [docLanguage, setDocLanguage] = useState<"curl" | "node" | "php" | "python">("curl");
+  const [activeDocEndpoint, setActiveDocEndpoint] = useState<"auth_test" | "whatsapp_template" | "whatsapp_message" | "instagram_dm" | "contacts" | "campaigns">("auth_test");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Test API Key Health State
+  const [testApiKeyInput, setTestApiKeyInput] = useState("");
+  const [testingApiKey, setTestingApiKey] = useState(false);
+  const [testResult, setTestResult] = useState<any | null>(null);
+
+  // Telemetry Audit Logs State
+  const [telemetryLogs, setTelemetryLogs] = useState<any[]>([]);
+  const [loadingTelemetry, setLoadingTelemetry] = useState(false);
+
+  const fetchTelemetryLogs = async () => {
+    try {
+      setLoadingTelemetry(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/telemetry`);
+      if (res.ok) {
+        const data = await res.json();
+        setTelemetryLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.error("Telemetry fetch error:", err);
+    } finally {
+      setLoadingTelemetry(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "settings" && settingsSubTab === "api-keys" && devPortalTab === "logs") {
+      fetchTelemetryLogs();
+    }
+  }, [activeTab, settingsSubTab, devPortalTab]);
+
+  const handleTestApiKey = async (keyToTest?: string) => {
+    const rawKey = (keyToTest || testApiKeyInput).trim();
+    if (!rawKey) {
+      alert("Please enter or paste an API key to test.");
+      return;
+    }
+    setTestingApiKey(true);
+    setTestResult(null);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/auth/test`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${rawKey}`,
+          "x-api-key": rawKey
+        }
+      });
+      const data = await res.json();
+      setTestResult({
+        statusCode: res.status,
+        ...data
+      });
+    } catch (err: any) {
+      setTestResult({
+        statusCode: 500,
+        success: false,
+        error: "Network Error",
+        message: err.message || "Failed to connect to backend server"
+      });
+    } finally {
+      setTestingApiKey(false);
+    }
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const getCodeSnippet = (endpointKey: string, lang: string) => {
+    const keyPlaceholder = "your_api_key_here";
+    const baseUrl = "http://localhost:5000/api/v1";
+
+    if (endpointKey === "auth_test") {
+      if (lang === "curl") {
+        return `curl -X GET ${baseUrl}/auth/test \\
+  -H "Authorization: Bearer ${keyPlaceholder}"`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+async function testApiKey() {
+  try {
+    const res = await axios.get('${baseUrl}/auth/test', {
+      headers: { 'Authorization': 'Bearer ${keyPlaceholder}' }
+    });
+    console.log('API Key Status:', res.data);
+  } catch (err) {
+    console.error('Auth Error:', err.response?.data || err.message);
+  }
+}
+
+testApiKey();`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/auth/test');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Authorization: Bearer ${keyPlaceholder}'
+]);
+$response = curl_exec($ch);
+curl_close($ch);
+
+echo $response;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+url = "${baseUrl}/auth/test"
+headers = {"Authorization": "Bearer ${keyPlaceholder}"}
+
+response = requests.get(url, headers=headers)
+print(response.status_code, response.json())`;
+      }
+    } else if (endpointKey === "whatsapp_template") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/whatsapp/send-template \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "to": "919325174465",
+    "templateName": "welcome_jisnu_marketing",
+    "languageCode": "en",
+    "parameters": ["John Doe", "20% OFF"]
+  }'`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+async function sendWhatsAppTemplate() {
+  try {
+    const response = await axios.post('${baseUrl}/whatsapp/send-template', {
+      to: '919325174465',
+      templateName: 'welcome_jisnu_marketing',
+      languageCode: 'en',
+      parameters: ['John Doe', '20% OFF']
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': '${keyPlaceholder}'
+      }
+    });
+
+    console.log('Template Dispatched:', response.data);
+  } catch (error) {
+    console.error('Error:', error.response?.data || error.message);
+  }
+}
+
+sendWhatsAppTemplate();`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/whatsapp/send-template');
+
+$payload = json_encode([
+    'to' => '919325174465',
+    'templateName' => 'welcome_jisnu_marketing',
+    'languageCode' => 'en',
+    'parameters' => ['John Doe', '20% OFF']
+]);
+
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    'x-api-key: ${keyPlaceholder}'
+]);
+
+$response = curl_exec($ch);
+curl_close($ch);
+
+echo $response;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+url = "${baseUrl}/whatsapp/send-template"
+headers = {
+    "Content-Type": "application/json",
+    "x-api-key": "${keyPlaceholder}"
+}
+payload = {
+    "to": "919325174465",
+    "templateName": "welcome_jisnu_marketing",
+    "languageCode": "en",
+    "parameters": ["John Doe", "20% OFF"]
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.status_code, response.json())`;
+      }
+    } else if (endpointKey === "whatsapp_message") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/whatsapp/send-message \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "to": "919325174465",
+    "message": "Hello! Your appointment is confirmed for 3:00 PM today."
+  }'`;
+      } else if (lang === "node") {
+        return `const fetch = require('node-fetch');
+
+async function sendDirectMessage() {
+  const res = await fetch('${baseUrl}/whatsapp/send-message', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': '${keyPlaceholder}'
+    },
+    body: JSON.stringify({
+      to: '919325174465',
+      message: 'Hello! Your appointment is confirmed for 3:00 PM today.'
+    })
+  });
+
+  const data = await res.json();
+  console.log(data);
+}
+
+sendDirectMessage();`;
+      } else if (lang === "php") {
+        return `<?php
+$data = [
+    'to' => '919325174465',
+    'message' => 'Hello! Your appointment is confirmed for 3:00 PM today.'
+];
+
+$options = [
+    'http' => [
+        'header' => "Content-Type: application/json\r\n" .
+                    "x-api-key: ${keyPlaceholder}\r\n",
+        'method' => 'POST',
+        'content' => json_encode($data)
+    ]
+];
+
+$context = stream_context_create($options);
+$result = file_get_contents('${baseUrl}/whatsapp/send-message', false, $context);
+echo $result;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+res = requests.post(
+    "${baseUrl}/whatsapp/send-message",
+    headers={"x-api-key": "${keyPlaceholder}"},
+    json={"to": "919325174465", "message": "Hello! Your appointment is confirmed for 3:00 PM today."}
+)
+print(res.json())`;
+      }
+    } else if (endpointKey === "instagram_dm") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/instagram/send-dm \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "recipientId": "ig_user_99214",
+    "text": "Thanks for reaching out! Check our latest offers at https://example.com"
+  }'`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+axios.post('${baseUrl}/instagram/send-dm', {
+  recipientId: 'ig_user_99214',
+  text: 'Thanks for reaching out! Check our latest offers at https://example.com'
+}, {
+  headers: { 'x-api-key': '${keyPlaceholder}' }
+}).then(r => console.log(r.data));`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/instagram/send-dm');
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'recipientId' => 'ig_user_99214',
+    'text' => 'Thanks for reaching out!'
+]));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-api-key: ${keyPlaceholder}']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+echo curl_exec($ch);
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+requests.post(
+    "${baseUrl}/instagram/send-dm",
+    headers={"x-api-key": "${keyPlaceholder}"},
+    json={"recipientId": "ig_user_99214", "text": "Thanks for reaching out!"}
+)`;
+      }
+    } else if (endpointKey === "contacts") {
+      if (lang === "curl") {
+        return `curl -X GET "${baseUrl}/contacts?limit=50&status=SUBSCRIBED" \\
+  -H "x-api-key: ${keyPlaceholder}"`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+axios.get('${baseUrl}/contacts?limit=50', {
+  headers: { 'x-api-key': '${keyPlaceholder}' }
+}).then(r => console.log(r.data));`;
+      } else if (lang === "php") {
+        return `<?php
+$res = file_get_contents('${baseUrl}/contacts?limit=50', false, stream_context_create([
+    'http' => ['header' => "x-api-key: ${keyPlaceholder}\r\n"]
+]));
+echo $res;
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+res = requests.get("${baseUrl}/contacts?limit=50", headers={"x-api-key": "${keyPlaceholder}"})
+print(res.json())`;
+      }
+    } else if (endpointKey === "campaigns") {
+      if (lang === "curl") {
+        return `curl -X POST ${baseUrl}/campaigns \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ${keyPlaceholder}" \\
+  -d '{
+    "name": "Summer Sale Drip Sequence",
+    "minGapMinutes": 5,
+    "maxDailyMessages": 3
+  }'`;
+      } else if (lang === "node") {
+        return `const axios = require('axios');
+
+axios.post('${baseUrl}/campaigns', {
+  name: 'Summer Sale Drip Sequence',
+  minGapMinutes: 5,
+  maxDailyMessages: 3
+}, {
+  headers: { 'x-api-key': '${keyPlaceholder}' }
+}).then(r => console.log(r.data));`;
+      } else if (lang === "php") {
+        return `<?php
+$ch = curl_init('${baseUrl}/campaigns');
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'name' => 'Summer Sale Drip Sequence',
+    'minGapMinutes' => 5,
+    'maxDailyMessages' => 3
+]));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-api-key: ${keyPlaceholder}']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+echo curl_exec($ch);
+?>`;
+      } else if (lang === "python") {
+        return `import requests
+
+res = requests.post(
+    "${baseUrl}/campaigns",
+    headers={"x-api-key": "${keyPlaceholder}"},
+    json={"name": "Summer Sale Drip Sequence", "minGapMinutes": 5, "maxDailyMessages": 3}
+)
+print(res.json())`;
+      }
+    }
+    return "";
+  };
+
+  const filteredApiKeys = useMemo(() => {
+    return apiKeys.filter((k: any) => {
+      const matchesSearch =
+        !searchQuery ||
+        (k.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (k.keyPrefix || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (k.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesEnv =
+        envFilter === "ALL" || (k.environment || "LIVE").toUpperCase() === envFilter;
+
+      return matchesSearch && matchesEnv;
+    });
+  }, [apiKeys, searchQuery, envFilter]);
+
+  // Revoke Modal State
+  const [revokeConfirmKey, setRevokeConfirmKey] = useState<any | null>(null);
+
+  // Edit Key Modal State
+  const [editingKeyModal, setEditingKeyModal] = useState<any | null>(null);
+  const [editKeyName, setEditKeyName] = useState("");
+  const [editKeyDesc, setEditKeyDesc] = useState("");
+  const [editKeyEnv, setEditKeyEnv] = useState<"LIVE" | "TEST">("LIVE");
+  const [editKeyScopes, setEditKeyScopes] = useState<string[]>([]);
+  const [updatingKey, setUpdatingKey] = useState(false);
+
+  const AVAILABLE_SCOPES = [
+    {
+      category: "WhatsApp",
+      color: "emerald",
+      items: [
+        { id: "whatsapp_send", name: "whatsapp_send", label: "Send Messages & Templates", desc: "Send WhatsApp text & template messages" },
+        { id: "whatsapp_templates", name: "whatsapp_templates", label: "Manage Templates", desc: "Create and submit WhatsApp templates to Meta" },
+        { id: "whatsapp_read", name: "whatsapp_read", label: "Read Conversations", desc: "Access WhatsApp incoming messages & status" }
+      ]
+    },
+    {
+      category: "Instagram",
+      color: "pink",
+      items: [
+        { id: "instagram_send", name: "instagram_send", label: "Send Instagram DMs", desc: "Send direct messages to Instagram users" },
+        { id: "instagram_automation", name: "instagram_automation", label: "Manage Automations", desc: "Configure comment-to-DM triggers" },
+        { id: "instagram_read", name: "instagram_read", label: "Read Instagram Data", desc: "Fetch Instagram comments & media insights" }
+      ]
+    },
+    {
+      category: "Meta Ads",
+      color: "purple",
+      items: [
+        { id: "meta_ads_read", name: "meta_ads_read", label: "Read Ads & Insights", desc: "View performance metrics & campaign stats" },
+        { id: "meta_ads_manage", name: "meta_ads_manage", label: "Manage Ad Campaigns", desc: "Create & update Meta ad campaigns" }
+      ]
+    },
+    {
+      category: "CRM General",
+      color: "amber",
+      items: [
+        { id: "contacts_read", name: "contacts_read", label: "Read Contacts", desc: "Fetch contact lists & segments" },
+        { id: "contacts_write", name: "contacts_write", label: "Write Contacts", desc: "Add, update or import contacts" },
+        { id: "campaigns_manage", name: "campaigns_manage", label: "Manage Drip Campaigns", desc: "Create, start & stop drip automation" },
+        { id: "full_access", name: "full_access", label: "Full System Access ⭐", desc: "Grants unrestricted access to ALL current & future CRM APIs" }
+      ]
+    }
+  ];
+
+  const handleToggleScope = (scopeId: string, currentList: string[], setter: (scopes: string[]) => void) => {
+    if (scopeId === "full_access") {
+      if (currentList.includes("full_access")) {
+        setter(["whatsapp_send"]);
+      } else {
+        setter(["full_access"]);
+      }
+      return;
+    }
+
+    let newList = currentList.filter(s => s !== "full_access");
+    if (newList.includes(scopeId)) {
+      newList = newList.filter(s => s !== scopeId);
+    } else {
+      newList.push(scopeId);
+    }
+    if (newList.length === 0) {
+      newList = ["whatsapp_send"];
+    }
+    setter(newList);
+  };
+
+  const handleSelectAllCategory = (catItems: any[], currentList: string[], setter: (scopes: string[]) => void) => {
+    const itemIds = catItems.map(i => i.id);
+    const hasAll = itemIds.every(id => currentList.includes(id));
+
+    let newList = currentList.filter(s => s !== "full_access");
+    if (hasAll) {
+      newList = newList.filter(id => !itemIds.includes(id));
+    } else {
+      itemIds.forEach(id => {
+        if (!newList.includes(id)) newList.push(id);
+      });
+    }
+    if (newList.length === 0) newList = ["whatsapp_send"];
+    setter(newList);
+  };
+
+  const downloadEnvFile = (rawKey: string, keyName: string) => {
+    const content = `# CRM Developer API Key - ${keyName}\n# Generated: ${new Date().toISOString()}\nCRM_API_KEY=${rawKey}\n`;
+    const element = document.createElement("a");
+    const file = new Blob([content], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = `${keyName.toLowerCase().replace(/[^a-z0-9]/g, "_")}_api_key.env`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  const fetchApiKeys = async () => {
+    try {
+      setLoadingApiKeys(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(data.apiKeys || []);
+      }
+    } catch (err) {
+      console.error("Fetch API Keys error:", err);
+    } finally {
+      setLoadingApiKeys(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "settings" && settingsSubTab === "api-keys") {
+      fetchApiKeys();
+    }
+  }, [activeTab, settingsSubTab]);
+
+  const handleGenerateApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setGeneratingKey(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          name: newKeyName,
+          description: newKeyDesc,
+          environment: newKeyEnv,
+          permissions: selectedScopes
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setCreatedRawKey(data.rawApiKey);
+        setCreatedKeyWarning(data.warning);
+        setShowCreateKeyModal(false);
+        setShowRawKeyModal(true);
+        setWizardStep(1);
+        setNewKeyName("");
+        setNewKeyDesc("");
+        setNewKeyEnv("LIVE");
+        setSelectedScopes(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
+        fetchApiKeys();
+      } else {
+        alert("Failed to generate API Key");
+      }
+    } catch (err: any) {
+      alert(`API Key generation error: ${err.message}`);
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
+
+  const handleUpdateApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingKeyModal) return;
+    try {
+      setUpdatingKey(true);
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/${editingKeyModal.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          name: editKeyName,
+          description: editKeyDesc,
+          environment: editKeyEnv,
+          permissions: editKeyScopes
+        })
+      });
+
+      if (res.ok) {
+        setEditingKeyModal(null);
+        fetchApiKeys();
+      } else {
+        alert("Failed to update API key permissions");
+      }
+    } catch (err: any) {
+      alert(`Update API key error: ${err.message}`);
+    } finally {
+      setUpdatingKey(false);
+    }
+  };
+
+  const handleRevokeApiKey = async (id: string) => {
+    if (!confirm("Are you sure you want to revoke this API key? Systems using this key will immediately lose access.")) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/${id}/revoke`, {
+        method: "POST",
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        fetchApiKeys();
+      }
+    } catch (err) {
+      alert("Failed to revoke API key");
+    }
+  };
+
+  const handleDeleteApiKey = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this API key permanently?")) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/api-keys/${id}`, {
+        method: "DELETE",
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        fetchApiKeys();
+      }
+    } catch (err) {
+      alert("Failed to delete API key");
+    }
+  };
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -1027,24 +1652,26 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
         headers: { "x-organization-id": getOrgId() }
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setConversations(data);
       }
     } catch (err) {
-      console.error("Error fetching conversations:", err);
+      console.warn("Error fetching conversations:", err);
     }
   };
 
   const fetchMessages = async (convId: string) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`);
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setMessages(data);
       }
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      console.warn("Error fetching messages:", err);
     }
   };
 
@@ -1053,17 +1680,13 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
         headers: { "x-organization-id": getOrgId() }
       });
+      if (!res.ok) return;
       const data = await res.json();
-      if (data && !data.error) {
-        setConfig({
-          phoneNumberId: data.phoneNumberId || "",
-          wabaId: data.wabaId || "",
-          accessToken: data.accessToken || "",
-          webhookVerifyToken: data.webhookVerifyToken || "my_secure_verify_token_123"
-        });
+      if (data) {
+        setConfig(data);
       }
     } catch (err) {
-      console.error("Error fetching config:", err);
+      console.warn("Error fetching config:", err);
     }
   };
 
@@ -1095,16 +1718,13 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
         headers: { "x-organization-id": getOrgId() }
       });
+      if (!res.ok) return;
       const data = await res.json();
-      if (data && !data.error) {
-        setIgConfig({
-          instagramAccountId: data.instagramAccountId || "",
-          pageId: data.pageId || "",
-          pageAccessToken: data.pageAccessToken || ""
-        });
+      if (data) {
+        setIgConfig(data);
       }
     } catch (err) {
-      console.error("Error fetching Instagram config:", err);
+      console.warn("Error fetching Instagram config:", err);
     }
   };
 
@@ -1137,13 +1757,8 @@ export default function Dashboard() {
         headers: { "x-organization-id": getOrgId() }
       });
       const data = await res.json();
-      if (data && !data.error) {
-        setYtConfig({
-          channelId: data.channelId || "",
-          channelTitle: data.channelTitle || "",
-          accessToken: data.accessToken || "",
-          refreshToken: data.refreshToken || ""
-        });
+      if (data) {
+        setYtConfig(data);
       }
     } catch (err) {
       console.error("Error fetching YouTube config:", err);
@@ -1183,35 +1798,21 @@ export default function Dashboard() {
       const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
       if (res.ok) {
         const data = await res.json();
-        if (data && !data.error) {
-          setGoogleConfig({
-            locationName: data.locationName || "",
-            googlePlaceId: data.googlePlaceId || "",
-            googleReviewUrl: data.googleReviewUrl || "",
-            googleLocationId: data.googleLocationId || "",
-            googleClientId: data.googleClientId || "",
-            googleClientSecret: data.googleClientSecret || "",
-            googleRefreshToken: data.googleRefreshToken || "",
-            googleAdsCustomerId: data.googleAdsCustomerId || "",
-            autoReplyEnabled: !!data.autoReplyEnabled,
-            autoReplyMinRating: data.autoReplyMinRating ?? 4,
-            autoReplyTemplate: data.autoReplyTemplate || "",
-          });
+        setGoogleConfig(data);
 
-          // Parse Google location path into split fields
-          let accountId = "";
-          let locationId = data.googleLocationId || "";
-          if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-            const parts = locationId.split("/");
-            accountId = parts[1] || "";
-            locationId = parts[3] || "";
-          } else if (locationId.includes("locations/")) {
-            locationId = locationId.replace("locations/", "");
-          }
-          setFormGoogleAccountId(accountId);
-          setFormGoogleLocationId(locationId);
-          setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
+        // Parse Google location path into split fields
+        let accountId = "";
+        let locationId = data.googleLocationId || "";
+        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
+          const parts = locationId.split("/");
+          accountId = parts[1] || "";
+          locationId = parts[3] || "";
+        } else if (locationId.includes("locations/")) {
+          locationId = locationId.replace("locations/", "");
         }
+        setFormGoogleAccountId(accountId);
+        setFormGoogleLocationId(locationId);
+        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
       }
     } catch (err) {
       console.error("Error fetching Google GMB config:", err);
@@ -1468,7 +2069,8 @@ export default function Dashboard() {
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* 2. MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
-              {/* TAB 1: REAL-TIME CHATS PANEL */}
+        
+        {/* TAB 1: REAL-TIME CHATS PANEL */}
         {(activeTab === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
           const currentPlatform = activeTab === "chats_whatsapp" ? "whatsapp" : "instagram";
           const filteredConversations = conversations.filter(c => (c.platform || "whatsapp") === currentPlatform);
@@ -1476,23 +2078,23 @@ export default function Dashboard() {
 
           return (
             <div className="flex h-full w-full overflow-hidden">
-              {/* Conversations Sidebar — full screen on mobile when no chat open, fixed width on desktop */}
+              {/* Conversations Sidebar ΓÇö full screen on mobile when no chat open, fixed width on desktop */}
               <div className={`${
                 mobileChatOpen ? "hidden" : "flex"
-              } sm:flex w-full sm:w-80 border-r border-slate-200 bg-white flex-col h-full shrink-0 shadow-2xs`}>
-                <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-                  <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
+              } sm:flex w-full sm:w-80 border-r border-slate-800 bg-slate-950/40 flex-col h-full shrink-0`}>
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                  <h2 className="font-bold text-lg text-slate-100 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${isInstagramTab ? "bg-pink-100 text-pink-700 border border-pink-200" : "bg-emerald-100 text-emerald-700 border border-emerald-200"}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-normal ${isInstagramTab ? "bg-pink-500/20 text-pink-400" : "bg-emerald-500/20 text-emerald-400"}`}>
                       {filteredConversations.length} active
                     </span>
                   </h2>
                 </div>
                 
                 {/* Conversation items list */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-900">
                   {filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
+                    <div className="p-8 text-center text-slate-500 flex flex-col items-center gap-2">
                       {isInstagramTab ? (
                         <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
                       ) : (
@@ -1510,33 +2112,33 @@ export default function Dashboard() {
                         <div
                           key={conv.id}
                           onClick={() => handleSelectConversation(conv)}
-                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-4 ${isSelected ? (isInstagram ? "bg-pink-50/60 border-pink-500" : "bg-emerald-50/60 border-emerald-500") : "hover:bg-slate-50 border-transparent"}`}
+                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-2 ${isSelected ? (isInstagram ? "bg-slate-800/40 border-pink-500" : "bg-slate-800/40 border-emerald-500") : "hover:bg-slate-850/50 border-transparent"}`}
                         >
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-1.5 min-w-0">
                               {isInstagram ? (
-                                <Instagram className="h-3.5 w-3.5 text-pink-600 shrink-0" />
+                                <Instagram className="h-3.5 w-3.5 text-pink-400 shrink-0" />
                               ) : (
-                                <WhatsApp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                <WhatsApp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                               )}
-                              <span className="font-bold text-slate-900 text-sm truncate">
+                              <span className="font-semibold text-slate-200 text-sm truncate">
                                 {conv.customerName || conv.customerPhone}
                               </span>
                             </div>
-                            <span className="text-[10px] text-slate-400 font-medium">
+                            <span className="text-[10px] text-slate-500">
                               {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-500 truncate max-w-[180px]">
+                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
                               {lastMsg?.content || "No messages yet"}
                             </p>
                             {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
                                 <User className="h-2.5 w-2.5" /> Manual
                               </span>
                             ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
                                 <Bot className="h-2.5 w-2.5" /> Auto
                               </span>
                             )}
@@ -1548,41 +2150,41 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Chat Conversation Pane — full screen on mobile when chat open */}
+              {/* Chat Conversation Pane ΓÇö full screen on mobile when chat open */}
               <div className={`${
                 mobileChatOpen ? "flex" : "hidden"
-              } sm:flex flex-1 flex-col h-full bg-slate-100/70 relative animate-slideInRight sm:animate-none`}>
+              } sm:flex flex-1 flex-col h-full bg-slate-900 relative animate-slideInRight sm:animate-none`}>
                 {activeConv ? (
                   <>
                     {/* Chat header */}
-                    <div className="h-16 border-b border-slate-200 bg-white px-3 sm:px-6 flex items-center justify-between z-10 gap-2 shadow-2xs">
+                    <div className="h-16 border-b border-slate-800 bg-slate-950/30 px-3 sm:px-6 flex items-center justify-between z-10 gap-2">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <button
                           type="button"
                           onClick={() => setMobileChatOpen(false)}
-                          className="sm:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 shrink-0 transition-all"
+                          className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 shrink-0 transition-all"
                         >
                           <ArrowLeft className="h-5 w-5" />
                         </button>
-                        <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold border border-slate-200 shrink-0">
+                        <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-semibold border border-slate-700 shrink-0">
                           {activeConv.customerName ? activeConv.customerName[0].toUpperCase() : "U"}
                         </div>
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2">
                             {activeConv.platform === "instagram" ? (
-                              <Instagram className="h-4 w-4 text-pink-600 shrink-0" />
+                              <Instagram className="h-4 w-4 text-pink-400 shrink-0" />
                             ) : (
-                              <WhatsApp className="h-4 w-4 text-emerald-600 shrink-0" />
+                              <WhatsApp className="h-4 w-4 text-emerald-400 shrink-0" />
                             )}
-                            <span className="font-bold text-sm text-slate-900 truncate">
+                            <span className="font-semibold text-sm text-slate-200 truncate">
                               {activeConv.customerName || (activeConv.platform === "instagram" ? "Instagram User" : "WhatsApp User")}
                             </span>
                           </div>
-                          <span className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                          <span className="text-xs text-slate-400 flex items-center gap-1 truncate">
                             {activeConv.platform === "instagram" ? (
                               <><span>Instagram ID:</span> {activeConv.customerPhone}</>
                             ) : (
-                              <><Phone className="h-3 w-3 text-slate-400 shrink-0" /> {activeConv.customerPhone}</>
+                              <><Phone className="h-3 w-3 text-slate-500 shrink-0" /> {activeConv.customerPhone}</>
                             )}
                           </span>
                         </div>
@@ -1590,10 +2192,11 @@ export default function Dashboard() {
 
                       {/* Bot active / pause controllers */}
                       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border font-bold transition-all ${
+                        {/* Bot status badge ΓÇö hidden on very small screens, visible on sm+ */}
+                        <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border transition-all ${
                           activeConv.isBotPaused 
-                            ? "bg-amber-50 border-amber-200 text-amber-800" 
-                            : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                         }`}>
                           {activeConv.isBotPaused ? (
                             <><User className="h-3.5 w-3.5" /><span>Bot Paused</span></>
@@ -1601,27 +2204,36 @@ export default function Dashboard() {
                             <><Bot className="h-3.5 w-3.5" /><span>Bot Active</span></>
                           )}
                         </div>
+                        {/* Compact bot status icon ΓÇö mobile only */}
+                        <div className={`sm:hidden p-2 rounded-xl border transition-all ${
+                          activeConv.isBotPaused 
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                            : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        }`}>
+                          {activeConv.isBotPaused ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                        </div>
 
                         <button
                           type="button"
                           onClick={() => handleToggleBot(!activeConv.isBotPaused)}
-                          className={`text-xs font-bold px-2.5 sm:px-4 py-1.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                          className={`text-xs font-semibold px-2.5 sm:px-4 py-1.5 rounded-lg border transition-all ${
                             activeConv.isBotPaused 
-                              ? "bg-emerald-600 border-emerald-600 hover:bg-emerald-700 text-white" 
-                              : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+                              ? "bg-emerald-500 border-emerald-600 hover:bg-emerald-400 text-slate-950" 
+                              : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
                           }`}
                         >
                           <span className="hidden sm:inline">{activeConv.isBotPaused ? "Resume Chatbot" : "Pause Chatbot"}</span>
                           <span className="sm:hidden">{activeConv.isBotPaused ? "Resume" : "Pause"}</span>
                         </button>
+
                       </div>
                     </div>
                     {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100/60 relative scrollbar-thin">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-900/90 relative scrollbar-thin">
                       {messages.map((msg) => {
                         const isInbound = msg.direction === "inbound";
                         
-                        // Check if message is a quoted reply
+                        // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
                         const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
                         let quoteText = "";
                         let messageBody = msg.content;
@@ -1659,6 +2271,7 @@ export default function Dashboard() {
                           const rowsString = listParts?.[1];
                           listRowsArray = rowsString ? rowsString.split(", ") : [];
 
+                          // Fallback to active flow graph listNode options if rows array is empty
                           if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
                             const matchingNode = nodes.find(
                               (n: any) =>
@@ -1684,12 +2297,12 @@ export default function Dashboard() {
                             className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
                           >
                             <div className="relative max-w-[70%]">
-                              {/* Hover Quote Trigger */}
+                              {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
                               <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
                                 <button
                                   type="button"
                                   onClick={() => setQuotedMessage(msg)}
-                                  className="bg-white hover:bg-slate-50 text-emerald-600 p-2 rounded-full border border-slate-200 shadow-md transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+                                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-2 rounded-full border border-slate-700 shadow-lg transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
                                   title="Quote Reply"
                                 >
                                   <CornerUpLeft className="h-3.5 w-3.5" />
@@ -1697,15 +2310,15 @@ export default function Dashboard() {
                               </div>
 
                               {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-sm flex flex-col gap-1 ${
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-md flex flex-col gap-1 ${
                                 isInbound 
-                                  ? "bg-white text-slate-900 border border-slate-200/90 rounded-tl-none" 
+                                  ? "bg-slate-800 text-slate-100 border border-slate-700/80 rounded-tl-none" 
                                   : activeConv?.platform === "instagram"
-                                    ? "bg-gradient-to-r from-pink-600 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                    : "bg-emerald-600 text-white font-medium rounded-tr-none shadow-emerald-500/10"
+                                    ? "bg-gradient-to-r from-pink-500 to-violet-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
+                                    : "bg-emerald-500 text-slate-950 font-medium rounded-tr-none shadow-emerald-500/10"
                               }`}>
                                 {msg.senderName && !isInbound && (
-                                  <span className={`text-[9px] uppercase tracking-wider font-bold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100" : "text-emerald-100"}`}>
+                                  <span className={`text-[9px] uppercase tracking-wider font-semibold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/80" : "text-slate-800/70"}`}>
                                     {msg.senderName}
                                   </span>
                                 )}
@@ -1714,10 +2327,10 @@ export default function Dashboard() {
                                 {hasQuote && (
                                   <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${
                                     isInbound 
-                                      ? "bg-slate-50 border-slate-300 text-slate-600" 
+                                      ? "bg-slate-900/40 border-slate-500 text-slate-400" 
                                       : activeConv?.platform === "instagram"
-                                        ? "bg-violet-950/30 border-violet-300 text-violet-100"
-                                        : "bg-emerald-700/50 border-emerald-200 text-emerald-50"
+                                        ? "bg-violet-950/40 border-violet-400 text-violet-200"
+                                        : "bg-emerald-600/30 border-emerald-950 text-slate-900"
                                   }`}>
                                     {quoteText}
                                   </div>
@@ -1725,6 +2338,7 @@ export default function Dashboard() {
 
                                 {/* Render media content or plain text */}
                                 {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
+                                  // Parse structured media content
                                   let mediaUrl = msg.content;
                                   let displayFilename = "document.pdf";
                                   let captionText = "";
@@ -1749,7 +2363,7 @@ export default function Dashboard() {
                                   return (
                                     <div className="flex flex-col gap-2">
                                       {msg.messageType === "image" ? (
-                                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 max-w-[240px] shadow-2xs">
+                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
                                           <img 
                                             src={getMediaUrl(mediaUrl)} 
                                             alt="Sent Media" 
@@ -1758,7 +2372,7 @@ export default function Dashboard() {
                                           />
                                         </div>
                                       ) : msg.messageType === "video" ? (
-                                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 max-w-[240px] shadow-2xs">
+                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
                                           <video 
                                             src={getMediaUrl(mediaUrl)} 
                                             controls 
@@ -1778,23 +2392,19 @@ export default function Dashboard() {
                                           href={getMediaUrl(mediaUrl)} 
                                           target="_blank" 
                                           rel="noopener noreferrer" 
-                                          className={`flex items-center gap-2 p-2.5 rounded-xl border transition-colors ${
-                                            isInbound 
-                                              ? "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800" 
-                                              : "bg-white/15 hover:bg-white/25 border-white/20 text-white"
-                                          }`}
+                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
                                         >
-                                          <FileText className="h-8 w-8 stroke-1 shrink-0" />
+                                          <FileText className="h-8 w-8 stroke-1" />
                                           <div className="flex flex-col min-w-0">
-                                            <span className="text-xs font-bold truncate max-w-[150px]">
+                                            <span className="text-xs font-semibold truncate max-w-[150px]">
                                               {displayFilename}
                                             </span>
-                                            <span className="text-[10px] opacity-75">Document File</span>
+                                            <span className="text-[10px] text-slate-500">Document File</span>
                                           </div>
                                         </a>
                                       )}
                                       {captionText && (
-                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-600" : "text-white"}`}>{captionText}</p>
+                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
                                       )}
                                     </div>
                                   );
@@ -1804,18 +2414,18 @@ export default function Dashboard() {
                                     
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
-                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-black/10 pt-2 w-full min-w-[200px]">
+                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
                                         {buttonsArray.map((btnTitle, index) => {
                                           const isIg = activeConv?.platform === "instagram";
-                                          const btnTextColor = isIg ? "text-pink-600" : "text-emerald-700";
-                                          const btnIconColor = isIg ? "text-pink-500" : "text-emerald-600";
+                                          const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
+                                          const btnIconColor = isIg ? "text-pink-500" : "text-emerald-500";
                                           return (
                                             <div
                                               key={index}
-                                              className="w-full bg-white text-slate-800 border border-slate-200 shadow-2xs text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
+                                              className="w-full bg-white text-slate-700 border border-slate-200/80 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
                                             >
                                               <Bot className={`h-3 w-3 ${btnIconColor}`} />
-                                              <span className={btnTextColor}>{btnTitle}</span>
+                                              {btnTitle}
                                             </div>
                                           );
                                         })}
@@ -1824,7 +2434,7 @@ export default function Dashboard() {
 
                                     {/* Render Clickable WhatsApp-styled List Menus in chat logs */}
                                     {hasList && (
-                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-black/10 pt-2 w-full min-w-[200px]">
+                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1833,12 +2443,12 @@ export default function Dashboard() {
                                             );
                                           }}
                                           className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${
-                                            activeConv?.platform === "instagram" ? "text-pink-600" : "text-emerald-700"
-                                          } border border-slate-200 shadow-2xs text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center flex items-center justify-between gap-1.5 cursor-pointer`}
+                                            activeConv?.platform === "instagram" ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500"
+                                          } border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer`}
                                         >
                                           <span className="flex items-center gap-1.5">
                                             <FileText className={`h-3.5 w-3.5 ${
-                                              activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-600"
+                                              activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-500"
                                             }`} />
                                             {listButtonText}
                                           </span>
@@ -1847,8 +2457,8 @@ export default function Dashboard() {
 
                                         {/* Dropdown popup of options */}
                                         {activeListMenuMsgId === msg.id && (
-                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
-                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 border-b border-slate-100 mb-1 flex justify-between items-center">
+                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
+                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
                                               <span>Menu Options</span>
                                               <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
                                             </div>
@@ -1856,10 +2466,10 @@ export default function Dashboard() {
                                               {listRowsArray.map((rowText, index) => (
                                                 <div
                                                   key={index}
-                                                  className="w-full text-left bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2 px-3 rounded-xl border border-slate-200 flex items-center justify-between select-none"
+                                                  className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
                                                 >
-                                                  <span className="truncate pr-2 font-medium">{rowText}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                  <span className="truncate pr-2">{rowText}</span>
+                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
                                                 </div>
                                               ))}
                                             </div>
@@ -1873,17 +2483,19 @@ export default function Dashboard() {
                                 {/* Ticks status and time */}
                                 <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${
                                   isInbound 
-                                    ? "text-slate-400" 
-                                    : "text-white/80"
+                                    ? "text-slate-500" 
+                                    : activeConv?.platform === "instagram"
+                                      ? "text-pink-100/85"
+                                      : "text-slate-800/80"
                                 }`}>
                                   <span>
                                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                   {!isInbound && (
                                     <span>
-                                      {msg.status === "sent" && <Check className="h-3 w-3 text-white/90" />}
-                                      {msg.status === "delivered" && <CheckCheck className="h-3 w-3 text-white/90" />}
-                                      {msg.status === "read" && <CheckCheck className="h-3 w-3 text-white stroke-[2.5]" />}
+                                      {msg.status === "sent" && <Check className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
+                                      {msg.status === "delivered" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
+                                      {msg.status === "read" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-white" : "text-emerald-950"}`} />}
                                     </span>
                                   )}
                                 </div>
@@ -1897,32 +2509,32 @@ export default function Dashboard() {
 
                     {/* Quoted Message Preview Header above input bar */}
                     {quotedMessage && (
-                      <div className="bg-slate-50 border-t border-slate-200 p-2.5 flex justify-between items-center text-[11px] text-slate-700 w-full animate-fadeIn shrink-0">
+                      <div className="bg-slate-950 border-t border-slate-800 p-2.5 flex justify-between items-center text-[11px] text-slate-300 w-full animate-fadeIn shrink-0">
                         <div className="flex flex-col truncate border-l-2 border-emerald-500 pl-2">
-                          <span className="font-bold text-emerald-700 text-[9px] uppercase tracking-wider">
+                          <span className="font-bold text-emerald-400 text-[9px] uppercase tracking-wider">
                             Quoting {quotedMessage.direction === "inbound" ? "Customer" : "Agent/Bot"}
                           </span>
-                          <span className="truncate text-xs text-slate-600 font-sans italic">
+                          <span className="truncate text-xs text-slate-400 font-sans italic">
                             {quotedMessage.content.split("|")[0]}
                           </span>
                         </div>
                         <button 
                           type="button" 
                           onClick={() => setQuotedMessage(null)} 
-                          className="text-slate-400 hover:text-slate-700 font-bold px-2 text-sm"
+                          className="text-slate-500 hover:text-slate-300 font-bold px-2 text-sm"
                         >
-                          ×
+                          ├ù
                         </button>
                       </div>
                     )}
 
                     {/* Message input bar */}
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-200 bg-white flex items-center gap-3 relative shadow-2xs">
+                    <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-950/30 flex items-center gap-3 relative">
                       
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50">
-                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
+                        <div className="absolute bottom-16 left-4 bg-slate-950 border border-slate-800 rounded-xl p-3 grid grid-cols-5 gap-2 shadow-2xl z-50">
+                          {["≡ƒÿÇ", "≡ƒÿé", "≡ƒÿì", "≡ƒæì", "≡ƒÖÅ", "≡ƒöÑ", "≡ƒÜÇ", "Γ¥ñ∩╕Å", "≡ƒæÅ", "≡ƒÄë"].map((emoji) => (
                             <button
                               key={emoji}
                               type="button"
@@ -1940,30 +2552,30 @@ export default function Dashboard() {
 
                       {/* MEDIA/PAPERCLIP POPUP */}
                       {showMediaMenu && (
-                        <div className="absolute bottom-16 left-12 bg-white border border-slate-200 rounded-2xl p-2.5 flex flex-col gap-1.5 shadow-xl z-50 text-[11px] min-w-[170px]">
+                        <div className="absolute bottom-16 left-12 bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5 shadow-2xl z-50 text-[11px] min-w-[170px]">
                           <button
                             type="button"
                             onClick={() => {
                               setShowMediaMenu(false);
                               fileInputRef.current?.click();
                             }}
-                            className="px-2.5 py-1.5 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 cursor-pointer font-semibold"
+                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 cursor-pointer"
                           >
-                            <Paperclip className="h-4 w-4 text-emerald-600" /> Upload & Send File
+                            <Paperclip className="h-4 w-4 text-emerald-400" /> Upload & Send File
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
-                            className="px-2.5 py-1.5 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 border-t border-slate-100 pt-1.5 font-semibold"
+                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300 border-t border-slate-850 pt-1.5"
                           >
-                            <ImageIcon className="h-4 w-4 text-emerald-600" /> Mock Case Study (Image)
+                            <ImageIcon className="h-4 w-4 text-emerald-400/80" /> Mock Case Study (Image)
                           </button>
                           <button
                             type="button"
                             onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
-                            className="px-2.5 py-1.5 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold"
+                            className="px-2.5 py-1.5 text-left rounded hover:bg-slate-900 flex items-center gap-2 text-slate-300"
                           >
-                            <FileText className="h-4 w-4 text-sky-600" /> Mock Portfolio (PDF)
+                            <FileText className="h-4 w-4 text-sky-400/80" /> Mock Portfolio (PDF)
                           </button>
                         </div>
                       )}
@@ -1982,7 +2594,7 @@ export default function Dashboard() {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
                         }}
-                        className={`p-2 rounded-xl transition-colors ${showEmojiPicker ? "bg-emerald-50 text-emerald-600" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"}`}
+                        className={`p-2 rounded-lg transition-colors ${showEmojiPicker ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
                       >
                         <Smile className="h-5 w-5" />
                       </button>
@@ -1992,7 +2604,7 @@ export default function Dashboard() {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
                         }}
-                        className={`p-2 rounded-xl transition-colors ${showMediaMenu ? "bg-emerald-50 text-emerald-600" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"}`}
+                        className={`p-2 rounded-lg transition-colors ${showMediaMenu ? "bg-slate-800 text-emerald-400" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"}`}
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
@@ -2002,30 +2614,30 @@ export default function Dashboard() {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         placeholder="Type a message..."
-                        className="flex-1 bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                       />
 
                       <button
                         type="submit"
                         disabled={!inputText.trim()}
-                        className="p-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:hover:bg-emerald-600 cursor-pointer"
+                        className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition-all shadow-md shadow-emerald-500/15 disabled:opacity-40 disabled:hover:bg-emerald-500"
                       >
-                        <Send className="h-4.5 w-4.5 fill-white" />
+                        <Send className="h-4.5 w-4.5 fill-slate-950" />
                       </button>
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50">
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
                     <div className="max-w-md flex flex-col items-center gap-4">
-                      <div className={`h-20 w-20 rounded-3xl flex items-center justify-center shadow-xs border ${isInstagramTab ? "bg-pink-50 text-pink-600 border-pink-200" : "bg-emerald-50 text-emerald-600 border-emerald-200"}`}>
+                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-xl border ${isInstagramTab ? "bg-pink-500/10 text-pink-400 border-pink-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}`}>
                         {isInstagramTab ? (
                           <Instagram className="h-10 w-10 stroke-1" />
                         ) : (
                           <Bot className="h-10 w-10 stroke-1" />
                         )}
                       </div>
-                      <h3 className="text-xl font-black text-slate-900">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales & Support CRM</h3>
-                      <p className="text-sm text-slate-500 leading-relaxed">
+                      <h3 className="text-xl font-bold text-slate-100">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales & Support CRM</h3>
+                      <p className="text-sm text-slate-400">
                         Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
                       </p>
                     </div>
@@ -2038,23 +2650,23 @@ export default function Dashboard() {
 
         {/* TAB 2: VISUAL FLOW BUILDER */}
         {activeTab === "flows" && (
-          <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Header toolbar */}
-            <div className="h-14 border-b border-slate-200 bg-white px-6 flex items-center justify-between z-10 shadow-2xs">
+            <div className="h-14 border-b border-slate-800 bg-slate-950/20 px-6 flex items-center justify-between z-10">
               <div className="flex items-center gap-4">
                 <input 
                   type="text" 
                   value={flowName} 
                   onChange={(e) => setFlowName(e.target.value)}
-                  className="bg-transparent font-bold text-sm text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none py-1"
+                  className="bg-transparent font-bold text-sm text-slate-200 border-b border-transparent hover:border-slate-700 focus:border-emerald-500 focus:outline-none py-1"
                 />
                 
-                <div className="h-6 w-px bg-slate-200 mx-2" />
+                <div className="h-6 w-px bg-slate-800 mx-2" />
                 
                 <select
                   value={selectedPlatform}
                   onChange={(e) => setSelectedPlatform(e.target.value as "whatsapp" | "instagram")}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500"
+                  className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-200 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="whatsapp">WhatsApp Flow</option>
                   <option value="instagram">Instagram Flow</option>
@@ -2063,44 +2675,44 @@ export default function Dashboard() {
 
               {/* Node tools */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-medium mr-2">Add Message Blocks:</span>
+                <span className="text-xs text-slate-500 mr-2">Add Message Blocks:</span>
                 <button 
                   onClick={() => addFlowNode("textNode")}
-                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
+                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" /> Text Msg
                 </button>
                 <button 
                   onClick={() => addFlowNode("buttonsNode")}
-                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
+                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" /> Buttons Options
                 </button>
                 <button 
                   onClick={() => addFlowNode("listNode")}
-                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
+                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" /> List Menu
                 </button>
                  <button 
                   onClick={() => addFlowNode("questionNode")}
-                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
+                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" /> Input Question
                 </button>
                 <button 
                   onClick={() => addFlowNode("mediaNode")}
-                  className="bg-white border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-bold shadow-2xs cursor-pointer"
+                  className="bg-slate-800 border border-slate-700 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-750 flex items-center gap-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" /> Media Msg
                 </button>
 
-                <div className="h-6 w-px bg-slate-200 mx-2" />
+                <div className="h-6 w-px bg-slate-800 mx-2" />
 
                 <button
                   onClick={saveFlow}
                   disabled={flowSaveStatus === "saving"}
-                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-1.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  className="bg-primary hover:bg-secondary disabled:opacity-50 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Save className="h-3.5 w-3.5" /> 
                   {flowSaveStatus === "saving" ? "Saving..." : flowSaveStatus === "success" ? "Saved!" : "Save Flow"}
@@ -2109,7 +2721,7 @@ export default function Dashboard() {
             </div>
 
             {/* Canvas workspace using React Flow & Selected Node Panel */}
-            <div className="flex-1 w-full bg-slate-100/70 relative flex">
+            <div className="flex-1 w-full bg-slate-950 relative flex">
               <div className="flex-1 h-full">
                 <ReactFlow
                   nodes={nodes}
@@ -2120,39 +2732,39 @@ export default function Dashboard() {
                   nodeTypes={nodeTypes}
                   fitView
                 >
-                  <Controls className="bg-white border border-slate-200 text-slate-700 shadow-sm" />
-                  <MiniMap className="bg-white border border-slate-200 shadow-sm" nodeColor={() => '#10b981'} maskColor="rgba(241, 245, 249, 0.7)" />
-                  <Background color="#cbd5e1" gap={16} />
+                  <Controls className="bg-slate-900 border border-slate-800 text-slate-200" />
+                  <MiniMap className="bg-slate-900 border border-slate-850" nodeColor={() => '#10b981'} maskColor="rgba(15, 23, 42, 0.6)" />
+                  <Background color="#334155" gap={16} />
                 </ReactFlow>
               </div>
 
               {/* Node properties editor panel (Right Sidebar) */}
               {selectedNode && (
-                <div className="w-80 border-l border-slate-200 bg-white p-5 overflow-y-auto flex flex-col gap-4 text-xs shrink-0 z-20 shadow-sm">
-                  <h3 className="font-black text-sm text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Bot className="h-4 w-4 text-emerald-600" /> Node Properties
+                <div className="w-80 border-l border-slate-800 bg-slate-950/60 p-5 overflow-y-auto flex flex-col gap-4 text-xs shrink-0 z-20">
+                  <h3 className="font-bold text-sm text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Bot className="h-4 w-4 text-emerald-400" /> Node Properties
                   </h3>
                   
                   {/* Common Name/Label */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-700 font-bold">Label / Name</label>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-slate-400 font-semibold">Label / Name</label>
                     <input 
                       type="text" 
                       value={selectedNode.data.label || ""}
                       onChange={(e) => updateSelectedNode({ label: e.target.value })}
-                      className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 transition-all font-medium"
+                      className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
 
                   {/* Common Message Text */}
                   {selectedNode.type !== "mediaNode" && (
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-700 font-bold">Message Text</label>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-400 font-semibold">Message Text</label>
                       <textarea 
                         value={selectedNode.data.text || ""}
                         onChange={(e) => updateSelectedNode({ text: e.target.value })}
                         rows={4}
-                        className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 leading-relaxed transition-all"
+                        className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
                         placeholder="Type WhatsApp reply content..."
                       />
                     </div>
@@ -2161,12 +2773,12 @@ export default function Dashboard() {
                   {/* If node is a media node, edit media properties */}
                   {selectedNode.type === "mediaNode" && (
                     <div className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-slate-700 font-bold">Media Type</label>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 font-semibold">Media Type</label>
                         <select
                           value={selectedNode.data.mediaType || "image"}
                           onChange={(e) => updateSelectedNode({ mediaType: e.target.value })}
-                          className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold"
+                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
                         >
                           <option value="image">Image</option>
                           <option value="video">Video</option>
@@ -2175,14 +2787,14 @@ export default function Dashboard() {
                         </select>
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
-                          <label className="text-slate-700 font-bold">Media URL / Path</label>
-                          <label className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer">
+                          <label className="text-slate-400 font-semibold">Media URL / Path</label>
+                          <label className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer">
                             Upload File
                             <input 
                               type="file" 
-                              onChange={handleFlowMediaUpload} 
+                              onChange={handleFlowMediaUpload}
                               className="hidden" 
                             />
                           </label>
@@ -2191,31 +2803,31 @@ export default function Dashboard() {
                           type="text" 
                           value={selectedNode.data.mediaUrl || ""}
                           onChange={(e) => updateSelectedNode({ mediaUrl: e.target.value })}
-                          className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
                           placeholder="e.g. /uploads/image.png or http://..."
                         />
                       </div>
 
                       {selectedNode.data.mediaType === "document" && (
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-slate-700 font-bold">Display Filename</label>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-slate-400 font-semibold">Display Filename</label>
                           <input 
                             type="text" 
                             value={selectedNode.data.filename || ""}
                             onChange={(e) => updateSelectedNode({ filename: e.target.value })}
-                            className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500"
+                            className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
                             placeholder="e.g. brochure.pdf"
                           />
                         </div>
                       )}
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-slate-700 font-bold">Caption Text (Optional)</label>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 font-semibold">Caption Text (Optional)</label>
                         <textarea 
                           value={selectedNode.data.caption || ""}
                           onChange={(e) => updateSelectedNode({ caption: e.target.value })}
                           rows={3}
-                          className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                          className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500 leading-relaxed"
                           placeholder="Media caption text..."
                         />
                       </div>
@@ -2224,13 +2836,13 @@ export default function Dashboard() {
 
                   {/* If node is a question, collect variables */}
                   {selectedNode.type === "questionNode" && (
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-700 font-bold">Save Response to Variable</label>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-400 font-semibold">Save Response to Variable</label>
                       <input 
                         type="text" 
                         value={selectedNode.data.variableName || ""}
                         onChange={(e) => updateSelectedNode({ variableName: e.target.value })}
-                        className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-mono focus:outline-none focus:border-emerald-500"
+                        className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
                         placeholder="e.g. client_email"
                       />
                     </div>
@@ -2244,24 +2856,24 @@ export default function Dashboard() {
 
                     return (
                       <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-slate-700 font-bold">Menu Button Text</label>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-slate-400 font-semibold">Menu Button Text</label>
                           <input 
                             type="text" 
                             value={selectedNode.data.listButtonText || ""}
                             onChange={(e) => updateSelectedNode({ listButtonText: e.target.value })}
-                            className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500 font-semibold"
+                            className="bg-slate-900 border border-slate-800 rounded p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
                             placeholder="e.g. View Menu"
                           />
                         </div>
 
                         <div className="flex justify-between items-center mt-2">
-                          <label className="text-slate-700 font-bold">Menu Options (Max {limit} Items)</label>
+                          <label className="text-slate-400 font-semibold">Menu Options (Max {limit} Items)</label>
                           {rows.length < limit && (
                             <button 
                               type="button"
                               onClick={addListOptionRow}
-                              className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
+                              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
                             >
                               + Add Option
                             </button>
@@ -2270,23 +2882,23 @@ export default function Dashboard() {
 
                         <div className="space-y-3">
                           {rows.map((row: any, index: number) => (
-                            <div key={row.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col gap-1.5 relative">
+                            <div key={row.id} className="bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 flex flex-col gap-1.5 relative">
                               <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase">Option {index + 1}</span>
+                                <span className="text-[10px] text-slate-500 font-semibold">Option {index + 1}</span>
                                 <button 
                                   type="button"
                                   onClick={() => removeListOptionRow(row.id)}
-                                  className="text-red-500 hover:text-red-700 font-bold text-xs cursor-pointer"
+                                  className="text-red-400 hover:text-red-300 font-bold text-xs"
                                 >
-                                  ×
+                                  ├ù
                                 </button>
                               </div>
-                              <div className="flex flex-col gap-1.5">
+                              <div className="flex flex-col gap-1">
                                 <input 
                                   type="text" 
                                   value={row.title}
                                   onChange={(e) => updateListOptionRow(row.id, e.target.value, row.description)}
-                                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
                                   placeholder="Option Title"
                                   maxLength={50}
                                 />
@@ -2294,7 +2906,7 @@ export default function Dashboard() {
                                   type="text" 
                                   value={row.description || ""}
                                   onChange={(e) => updateListOptionRow(row.id, row.title, e.target.value)}
-                                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-600 text-[10px] focus:outline-none focus:border-emerald-500"
+                                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-450 text-[10px] focus:outline-none focus:border-emerald-500"
                                   placeholder="Optional description (WhatsApp only)"
                                   maxLength={72}
                                 />
@@ -2302,12 +2914,12 @@ export default function Dashboard() {
                             </div>
                           ))}
                           {rows.length === 0 && (
-                            <span className="text-[10px] text-slate-400 italic block text-center mt-1">No options added yet. Click Add Option.</span>
+                            <span className="text-[10px] text-slate-500 italic block text-center mt-1">No options added yet. Click Add Option.</span>
                           )}
                         </div>
                         
                         {/* Warning banner for Instagram fallback */}
-                        <div className="bg-amber-50 border border-amber-200 text-[10px] text-amber-800 p-2.5 rounded-xl leading-relaxed mt-2 font-medium">
+                        <div className="bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 p-2.5 rounded-lg leading-relaxed mt-2">
                           <strong>Note:</strong> Instagram does not support native List menus; they will fallback to Quick Reply buttons.
                         </div>
                       </div>
@@ -2318,12 +2930,12 @@ export default function Dashboard() {
                   {selectedNode.type === "buttonsNode" && (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between items-center">
-                        <label className="text-slate-700 font-bold">Options (Max {selectedPlatform === "whatsapp" ? 3 : 13} Buttons)</label>
+                        <label className="text-slate-400 font-semibold">Options (Max {selectedPlatform === "whatsapp" ? 3 : 13} Buttons)</label>
                         {(!selectedNode.data.buttons || selectedNode.data.buttons.length < (selectedPlatform === "whatsapp" ? 3 : 13)) && (
                           <button 
                             type="button"
                             onClick={addOptionButton}
-                            className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
+                            className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
                           >
                             + Add Button
                           </button>
@@ -2336,30 +2948,30 @@ export default function Dashboard() {
                               type="text" 
                               value={btn.title}
                               onChange={(e) => updateOptionButton(btn.id, e.target.value)}
-                              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-emerald-500"
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200 text-[11px] focus:outline-none focus:border-emerald-500"
                               placeholder={`Button ${index + 1}`}
                             />
                             <button 
                               type="button"
                               onClick={() => removeOptionButton(btn.id)}
-                              className="text-red-500 hover:text-red-700 px-1 font-bold text-xs cursor-pointer"
+                              className="text-red-400 hover:text-red-300 px-1 font-bold text-xs"
                             >
-                              ×
+                              ├ù
                             </button>
                           </div>
                         ))}
                         {(!selectedNode.data.buttons || selectedNode.data.buttons.length === 0) && (
-                          <span className="text-[10px] text-slate-400 italic">No buttons added yet. Click Add Button.</span>
+                          <span className="text-[10px] text-slate-500 italic">No buttons added yet. Click Add Button.</span>
                         )}
                       </div>
                     </div>
                   )}
                   {/* Delete Node Action */}
-                  <div className="border-t border-slate-100 pt-4 mt-2">
+                  <div className="border-t border-slate-800 pt-4 mt-2">
                     <button
                       type="button"
                       onClick={deleteSelectedNode}
-                      className="w-full bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 font-bold py-2 rounded-xl transition-all text-xs cursor-pointer"
+                      className="w-full bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-950 font-bold py-2 rounded-lg transition-all text-[11px]"
                     >
                       Delete Block
                     </button>
@@ -2372,234 +2984,1031 @@ export default function Dashboard() {
 
         {/* TAB 3: SETTINGS & ONBOARDING */}
         {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-8 w-full bg-slate-50">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 border-b border-slate-200 pb-4 sm:pb-5">
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-3">
-                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
-                  <Settings className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-                </div>
-                <span>Settings & Integrations</span>
+          <div className="flex-1 overflow-y-auto p-8 w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-200 pb-4">
+              <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                <Settings className="h-6 w-6 text-emerald-600" /> Settings & Integrations
               </h2>
               
               {/* Secondary sub-tabs selector */}
-              <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 self-start sm:self-auto shadow-2xs gap-1.5 overflow-x-auto max-w-full no-scrollbar">
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto shadow-2xs gap-1">
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("whatsapp")}
-                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "whatsapp" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "whatsapp" ? "bg-white text-emerald-800 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
                 >
-                  <WhatsApp className="h-4 w-4" /> WhatsApp Setup
+                  <WhatsApp className="h-3.5 w-3.5" /> WhatsApp Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("instagram")}
-                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "instagram" ? "bg-pink-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "instagram" ? "bg-white text-pink-700 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
                 >
-                  <Instagram className="h-4 w-4" /> Instagram Setup
+                  <Instagram className="h-3.5 w-3.5" /> Instagram Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("google")}
-                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "google" ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "google" ? "bg-white text-brand-blue shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
                 >
-                  <Star className="h-4 w-4 fill-current" /> Google Setup
+                  <Star className="h-3.5 w-3.5 text-amber-500" /> Google Setup
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("youtube")}
-                  className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 ${settingsSubTab === "youtube" ? "bg-red-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"}`}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "youtube" ? "bg-white text-red-600 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
                 >
-                  <Video className="h-4 w-4" /> YouTube Setup
+                  <Video className="h-3.5 w-3.5" /> YouTube Setup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("api-keys")}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${settingsSubTab === "api-keys" ? "bg-white text-amber-700 shadow-2xs font-bold border border-slate-200" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  <Key className="h-3.5 w-3.5 text-amber-600" /> API Keys & Developer
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Configuration Inputs */}
-              <div className="lg:col-span-2 space-y-6">
-                {settingsSubTab === "whatsapp" ? (
-                  <>
-                    {/* Meta Official Embedded Signup (Recommended for Tech Provider) */}
-                    <div className="bg-gradient-to-br from-emerald-50/70 via-white to-slate-50 border border-emerald-200/80 rounded-3xl p-6 sm:p-7 space-y-5 shadow-xs relative overflow-hidden animate-fadeIn">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div className="flex items-center gap-3.5">
-                          <div className="h-12 w-12 rounded-2xl bg-emerald-100/70 border border-emerald-300/80 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
-                            <WhatsApp className="h-6 w-6" />
+            {settingsSubTab === "api-keys" ? (
+              <div className="w-full space-y-8 animate-fadeIn pb-12">
+                {/* DEVELOPER DASHBOARD HEADER BANNER */}
+                <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-indigo-50 border border-blue-200/80 rounded-3xl p-8 shadow-2xs relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="flex items-start gap-5">
+                    <div className="h-14 w-14 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0 shadow-2xs">
+                      <Code className="h-7 w-7 text-blue-600" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-extrabold text-xl text-slate-900 tracking-tight">API Keys & Developer Portal</h3>
+                        <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-wider">
+                          PRODUCTION v1.0
+                        </span>
+                      </div>
+                      <p className="text-xs md:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                        Generate secure API keys, manage fine-grained permissions, explore interactive multi-language code reference, and audit real-time request telemetry logs.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDevPortalTab("docs")}
+                      className="px-5 py-3 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-2 transition-all border border-slate-200 cursor-pointer shadow-2xs"
+                    >
+                      <FileText className="h-4 w-4 text-blue-600" /> View API Docs
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWizardStep(1);
+                        setNewKeyName("");
+                        setNewKeyDesc("");
+                        setNewKeyEnv("LIVE");
+                        setSelectedScopes(["whatsapp_send", "whatsapp_templates", "whatsapp_read"]);
+                        setShowCreateKeyModal(true);
+                      }}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" /> Generate New API Key
+                    </button>
+                  </div>
+                </div>
+
+                {/* OVERVIEW STATS METRIC CARDS */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Credentials</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-black text-slate-900 font-mono">{apiKeys.length}</span>
+                      <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
+                        <Key className="h-5 w-5 text-blue-600" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Active Keys</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-black text-emerald-600 font-mono">
+                        {apiKeys.filter(k => k.status === "ACTIVE").length}
+                      </span>
+                      <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                        <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Today's API Calls</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-black text-blue-600 font-mono">142</span>
+                      <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
+                        <Activity className="h-5 w-5 text-blue-600" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-6 flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Success Rate</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-black text-emerald-600 font-mono">99.8%</span>
+                      <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                        <Check className="h-5 w-5 text-emerald-600" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SUB-NAVIGATION TABS BAR */}
+                <div className="flex items-center gap-3 border-b border-slate-200 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("keys")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "keys"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Key className="h-4 w-4" /> API Keys ({apiKeys.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("quickstart")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "quickstart"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Terminal className="h-4 w-4" /> Quick Start Guide
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("docs")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "docs"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" /> API Reference
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDevPortalTab("logs")}
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                      devPortalTab === "logs"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Activity className="h-4 w-4" /> API Logs & Telemetry
+                  </button>
+                </div>
+
+                {/* TAB 1: API KEYS LIST (FULL SCREEN WIDTH) */}
+                {devPortalTab === "keys" && (
+                  <div className="space-y-6 animate-fadeIn">
+                    {/* INTERACTIVE TEST API KEY CARD */}
+                    <div className="bg-slate-950/60 border border-blue-500/30 rounded-3xl p-6 md:p-8 space-y-5 shadow-2xl animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                            <Activity className="h-5 w-5" />
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-bold text-base text-slate-900">Meta WhatsApp Embedded Signup</h3>
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                OFFICIAL TECH PROVIDER
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              Connect your existing company WhatsApp number or create a new WABA instantly with Meta login.
+                            <h4 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                              Test Your API Key Health & Permissions
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              Verify key validity, active status, granted permissions, and environment before production integration.
                             </p>
                           </div>
                         </div>
-
-                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={launchWhatsAppSignup}
-                            disabled={embeddedConnecting}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
-                          >
-                            <WhatsApp className="h-4 w-4" />
-                            <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
-                          </button>
-
-                          {(config.wabaId || config.phoneNumberId) && (
-                            <button
-                              type="button"
-                              onClick={handleDisconnectWhatsApp}
-                              disabled={embeddedConnecting}
-                              className="px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 hover:text-red-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                            >
-                              Disconnect
-                            </button>
-                          )}
-                        </div>
+                        <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl font-bold">
+                          GET /api/v1/auth/test
+                        </span>
                       </div>
 
-                      {(config.wabaId || config.phoneNumberId) && (
-                        <div className="bg-white border border-emerald-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
-                          <div className="flex items-center gap-2 text-emerald-700 font-bold">
-                            <Check className="h-4.5 w-4.5 stroke-[2.5]" />
-                            <span>Status: Connected to Meta Cloud API</span>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                          <Key className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                          <input
+                            type="text"
+                            value={testApiKeyInput}
+                            onChange={(e) => setTestApiKeyInput(e.target.value)}
+                            placeholder="Paste your API key here (e.g., ak_live_... or ak_test_...)"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleTestApiKey()}
+                          disabled={testingApiKey || !testApiKeyInput.trim()}
+                          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-blue-600/20 shrink-0"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${testingApiKey ? "animate-spin" : ""}`} />
+                          {testingApiKey ? "Verifying Key..." : "Run Health Test"}
+                        </button>
+                      </div>
+
+                      {/* REAL-TIME TEST RESULT DISPLAY BOX */}
+                      {testResult && (
+                        <div className={`p-5 rounded-2xl border space-y-4 animate-fadeIn ${
+                          testResult.success 
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200" 
+                            : "bg-red-500/10 border-red-500/30 text-red-200"
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 font-bold text-xs">
+                              {testResult.success ? (
+                                <>
+                                  <Check className="h-4.5 w-4.5 text-emerald-400" />
+                                  <span className="text-emerald-300">200 OK — API Key is Valid & Active!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-red-400 font-extrabold">HTTP {testResult.statusCode || 401} Error</span>
+                                  <span>— Authentication Failed</span>
+                                </>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-mono opacity-70">
+                              {new Date().toLocaleTimeString()}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-3 text-slate-600 font-mono text-[11px]">
-                            <span className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">WABA ID: <strong className="text-slate-900">{config.wabaId || "Connected"}</strong></span>
-                            <span className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">Phone ID: <strong className="text-slate-900">{config.phoneNumberId || "Connected"}</strong></span>
-                          </div>
+
+                          {testResult.success && testResult.data ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1 text-xs">
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Key Name</span>
+                                <span className="font-bold text-white block truncate">{testResult.data.key_name}</span>
+                              </div>
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Environment</span>
+                                <span className={`font-bold block ${testResult.data.environment === "TEST" ? "text-amber-400" : "text-emerald-400"}`}>
+                                  {testResult.data.environment === "TEST" ? "🟡 TEST" : "🟢 LIVE"}
+                                </span>
+                              </div>
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Account / Org</span>
+                                <span className="font-bold text-slate-200 block truncate">{testResult.data.account_name}</span>
+                              </div>
+                              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Last Used</span>
+                                <span className="font-mono text-slate-300 text-[11px] block">{new Date(testResult.data.last_used_at).toLocaleTimeString()}</span>
+                              </div>
+                              <div className="sm:col-span-2 md:col-span-4 bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                                <span className="text-[10px] text-slate-400 block uppercase font-bold">Granted Permission Scopes</span>
+                                <div className="flex flex-wrap gap-2">
+                                  {Array.isArray(testResult.data.permissions) && testResult.data.permissions.map((p: string) => (
+                                    <span key={p} className="px-3 py-1 rounded-lg text-[11px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold">
+                                      {p}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-1">
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Failure Cause</span>
+                              <p className="text-xs text-red-300 leading-relaxed font-mono">
+                                {testResult.message || testResult.error || "Invalid, missing, or revoked API key."}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
 
-                    {/* WhatsApp Manual Credentials Form */}
-                    <form onSubmit={saveConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
-                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Key className="h-4.5 w-4.5 text-emerald-600" /> Manual API Credentials (Advanced)
-                      </h3>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-slate-700 font-bold">Phone Number ID</label>
+                    {/* SEARCH BAR & ENVIRONMENT FILTERS */}
+                    <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+                      <div className="relative w-full sm:w-96">
+                        <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
                         <input
                           type="text"
-                          value={config.phoneNumberId || ""}
-                          onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
-                          placeholder="e.g. 1048473820293"
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search API keys by name, description, or prefix..."
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-slate-700 font-bold">WhatsApp Business Account ID (WABA ID)</label>
-                        <input
-                          type="text"
-                          value={config.wabaId || ""}
-                          onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
-                          placeholder="e.g. 1048473820999"
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-slate-700 font-bold">System User Access Token (Permanent)</label>
-                        <textarea
-                          value={config.accessToken || ""}
-                          onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
-                          placeholder="Paste EAAG... permanent access token here"
-                          rows={4}
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between">
+                      <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-800 gap-1.5 w-full sm:w-auto">
                         <button
-                          type="submit"
-                          disabled={saveStatus === "saving"}
-                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                          type="button"
+                          onClick={() => setEnvFilter("ALL")}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                            envFilter === "ALL" ? "bg-slate-800 text-white font-bold" : "text-slate-400 hover:text-slate-200"
+                          }`}
                         >
-                          <Save className="h-4 w-4" />
-                          {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : "Save WhatsApp Credentials"}
+                          All Credentials ({apiKeys.length})
                         </button>
-                        
-                        {saveStatus === "error" && (
-                          <span className="text-xs text-red-600 font-bold">Failed to save settings.</span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setEnvFilter("LIVE")}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
+                            envFilter === "LIVE" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          🟢 Live ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "LIVE").length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEnvFilter("TEST")}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-2 ${
+                            envFilter === "TEST" ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          🟡 Test ({apiKeys.filter(k => (k.environment || "LIVE").toUpperCase() === "TEST").length})
+                        </button>
                       </div>
-                    </form>
+                    </div>
 
-                    {/* WhatsApp Webhook Integration */}
-                    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
-                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Database className="h-4.5 w-4.5 text-emerald-600" /> WhatsApp Webhook Configuration
-                      </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>WhatsApp Webhook</strong> product parameters list.
+                    {/* TABLE CONTAINER */}
+                    <div className="bg-slate-950/50 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-5">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                            <Key className="h-4.5 w-4.5 text-blue-400" /> Active System Credentials ({filteredApiKeys.length})
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Keys generated for website integration, CRM webhooks, or automated messaging APIs.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={fetchApiKeys}
+                          className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-xl text-xs text-slate-300 flex items-center gap-2 cursor-pointer transition-all"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${loadingApiKeys ? "animate-spin" : ""}`} /> Refresh Table
+                        </button>
+                      </div>
+
+                      {loadingApiKeys ? (
+                        <div className="py-16 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                          <RefreshCw className="h-5 w-5 animate-spin text-blue-400" /> Loading API Keys...
+                        </div>
+                      ) : filteredApiKeys.length === 0 ? (
+                        <div className="py-20 text-center border border-dashed border-slate-800 rounded-3xl space-y-4 bg-slate-950/30 p-8">
+                          <Key className="h-12 w-12 text-slate-600 mx-auto" />
+                          <div className="space-y-1.5">
+                            <p className="text-base font-bold text-slate-200">No API keys match your filter</p>
+                            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                              {searchQuery || envFilter !== "ALL"
+                                ? "Try clearing your search term or environment filter to view all keys."
+                                : "Generate your first secret key to authorize external forms, websites, or integrations."}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWizardStep(1);
+                              setShowCreateKeyModal(true);
+                            }}
+                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-lg shadow-blue-600/25"
+                          >
+                            <Plus className="h-4 w-4" /> Generate First API Key
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                                <th className="py-4 px-5 font-bold">Key Name & Environment</th>
+                                <th className="py-4 px-5 font-bold">Masked API Key Prefix</th>
+                                <th className="py-4 px-5 font-bold">Granted Permission Scopes</th>
+                                <th className="py-4 px-5 font-bold">Status</th>
+                                <th className="py-4 px-5 font-bold">Created Date</th>
+                                <th className="py-4 px-5 font-bold">Last Activity</th>
+                                <th className="py-4 px-5 font-bold text-right">Manage</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60">
+                              {filteredApiKeys.map((k) => (
+                                <tr key={k.id} className="hover:bg-slate-900/60 transition-colors">
+                                  <td className="py-4 px-5">
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2.5">
+                                        <span className="font-bold text-slate-100 text-xs md:text-sm">{k.name}</span>
+                                        {(k.environment || "LIVE").toUpperCase() === "TEST" ? (
+                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                            🟡 TEST
+                                          </span>
+                                        ) : (
+                                          <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                            🟢 LIVE
+                                          </span>
+                                        )}
+                                      </div>
+                                      {k.description && (
+                                        <span className="text-[11px] text-slate-400 line-clamp-1">{k.description}</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5 font-mono text-slate-400">
+                                    <div className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs">
+                                      <span className="text-slate-200 font-mono font-semibold">{k.keyPrefix}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5">
+                                    <div className="flex flex-wrap gap-1.5 max-w-sm">
+                                      {Array.isArray(k.permissions) && k.permissions.includes("full_access") ? (
+                                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                                          ⭐ FULL SYSTEM ACCESS
+                                        </span>
+                                      ) : (
+                                        (k.permissions || []).map((perm: string) => {
+                                          let badgeStyle = "bg-slate-800 text-slate-300 border-slate-700";
+                                          if (perm.startsWith("whatsapp_")) badgeStyle = "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+                                          else if (perm.startsWith("instagram_")) badgeStyle = "bg-pink-500/10 text-pink-300 border-pink-500/30";
+                                          else if (perm.startsWith("meta_ads_")) badgeStyle = "bg-purple-500/10 text-purple-300 border-purple-500/30";
+                                          else if (perm.startsWith("contacts_") || perm.startsWith("campaigns_")) badgeStyle = "bg-blue-500/10 text-blue-300 border-blue-500/30";
+
+                                          return (
+                                            <span key={perm} className={`px-2.5 py-0.5 rounded-md text-[10px] font-mono border ${badgeStyle}`}>
+                                              {perm}
+                                            </span>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-4 px-5">
+                                    {k.status === "ACTIVE" ? (
+                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                                        ACTIVE
+                                      </span>
+                                    ) : (
+                                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-red-500/10 text-red-400 border border-red-500/30 uppercase tracking-wider">
+                                        REVOKED
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-400">
+                                    {new Date(k.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-400">
+                                    {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "Never used"}
+                                  </td>
+                                  <td className="py-4 px-5 text-right space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTestApiKeyInput(k.keyPrefix);
+                                        handleTestApiKey(k.keyPrefix);
+                                      }}
+                                      className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <Activity className="h-3.5 w-3.5" /> Test
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingKeyModal(k);
+                                        setEditKeyName(k.name);
+                                        setEditKeyDesc(k.description || "");
+                                        setEditKeyEnv((k.environment || "LIVE").toUpperCase() === "TEST" ? "TEST" : "LIVE");
+                                        setEditKeyScopes(k.permissions || ["full_access"]);
+                                      }}
+                                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Edit
+                                    </button>
+                                    {k.status === "ACTIVE" && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setRevokeConfirmKey(k)}
+                                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                      >
+                                        Revoke
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteApiKey(k.id)}
+                                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Delete
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: QUICK START SETUP GUIDE */}
+                {devPortalTab === "quickstart" && (
+                  <div className="bg-white border border-slate-200/90 rounded-3xl p-8 space-y-8 animate-fadeIn shadow-2xs">
+                    <div className="border-b border-slate-100 pb-5">
+                      <h4 className="font-extrabold text-base text-slate-900 flex items-center gap-2.5 uppercase tracking-wider">
+                        <Terminal className="h-5 w-5 text-blue-600" /> Developer Quick Start Integration Guide
+                      </h4>
+                      <p className="text-xs md:text-sm text-slate-500 mt-1.5 leading-relaxed">
+                        Follow these 4 straightforward steps to connect CRM messaging APIs directly into your website checkout forms, lead capture tools, or custom mobile application.
                       </p>
+                    </div>
 
-                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{`${BACKEND_URL}/api/webhook/whatsapp`}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 hover:border-slate-300 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">1</span>
+                          <h5 className="font-bold text-sm text-slate-900">Generate an API Key</h5>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          Click <strong className="text-slate-900">Generate New API Key</strong>, select your target environment (<span className="text-emerald-700 font-semibold">Live</span> or <span className="text-amber-700 font-semibold">Test</span>), and pick appropriate permission scopes.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWizardStep(1);
+                            setShowCreateKeyModal(true);
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 shadow-md shadow-blue-600/20"
+                        >
+                          <Plus className="h-4 w-4" /> Start Wizard
+                        </button>
                       </div>
 
-                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{config.webhookVerifyToken || "my_secure_verify_token_123"}</span>
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 hover:border-slate-300 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">2</span>
+                          <h5 className="font-bold text-sm text-slate-900">Store Secret Key Securely</h5>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          Save your generated key inside your backend environment configuration (<code className="text-blue-700 bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] border border-slate-200">.env</code>). Never commit API keys into frontend code.
+                        </p>
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-xs text-blue-300">
+                          CRM_API_KEY=ak_live_8f3a8b29...
+                        </div>
                       </div>
 
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex gap-3">
-                        <Bot className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold text-emerald-900">Important Webhook Fields</span>
-                          <span className="text-[11px] text-emerald-800 leading-relaxed">
-                            In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>message_deliveries</strong> webhook fields.
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 hover:border-slate-300 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">3</span>
+                          <h5 className="font-bold text-sm text-slate-900">Include Header on HTTP Requests</h5>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          Pass your key as the <code className="text-blue-700 bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] border border-slate-200">x-api-key</code> HTTP header on every call for authorization.
+                        </p>
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-xs text-emerald-400">
+                          -H &quot;x-api-key: ak_live_8f3a...&quot;
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 hover:border-slate-300 transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="h-7 w-7 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-md">4</span>
+                          <h5 className="font-bold text-sm text-slate-900">Test Template Messaging Dispatch</h5>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          Call <code className="text-blue-700 bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] border border-slate-200">/api/v1/whatsapp/send-template</code> to trigger automated customer notifications.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setDevPortalTab("docs")}
+                          className="px-4 py-2 bg-white hover:bg-slate-100 text-blue-700 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-2 border border-slate-200 shadow-2xs"
+                        >
+                          Explore Code Reference →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: INTERACTIVE DOCUMENTATION & REFERENCE (FULL SCREEN) */}
+                {devPortalTab === "docs" && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-8 animate-fadeIn">
+                    {/* Sidebar Endpoints List */}
+                    <div className="bg-white border border-slate-200/90 rounded-3xl p-5 space-y-3 shadow-2xs">
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block px-2 pb-1">
+                        API Endpoints Reference
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("auth_test")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "auth_test"
+                            ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-mono text-[10px] font-bold">GET</span>
+                        <span className="truncate">Ping & Key Health Test</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("whatsapp_template")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "whatsapp_template"
+                            ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">WhatsApp Template</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("whatsapp_message")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "whatsapp_message"
+                            ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">WhatsApp Text</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("instagram_dm")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "instagram_dm"
+                            ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-pink-100 text-pink-800 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">Instagram DM</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("contacts")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "contacts"
+                            ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-mono text-[10px] font-bold">GET</span>
+                        <span className="truncate">Contacts API</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveDocEndpoint("campaigns")}
+                        className={`w-full text-left px-4 py-3 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-3 ${
+                          activeDocEndpoint === "campaigns"
+                            ? "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20"
+                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded font-mono text-[10px] font-bold">POST</span>
+                        <span className="truncate">Create Campaign</span>
+                      </button>
+                    </div>
+
+                    {/* Interactive Documentation Content Area (Wide 3-col) */}
+                    <div className="md:col-span-3 bg-white border border-slate-200/90 rounded-3xl p-8 space-y-6 shadow-2xs">
+                      {/* Language Switcher Bar */}
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <h4 className="font-extrabold text-base text-slate-900 flex items-center gap-2.5">
+                          <Code className="h-5 w-5 text-blue-600" />
+                          {activeDocEndpoint === "auth_test" && "Ping & Key Health Verification (/v1/auth/test)"}
+                          {activeDocEndpoint === "whatsapp_template" && "Send WhatsApp Template Message"}
+                          {activeDocEndpoint === "whatsapp_message" && "Send WhatsApp Direct Text"}
+                          {activeDocEndpoint === "instagram_dm" && "Send Instagram Direct Message"}
+                          {activeDocEndpoint === "contacts" && "List & Fetch CRM Contacts"}
+                          {activeDocEndpoint === "campaigns" && "Create Drip Automation Sequence"}
+                        </h4>
+
+                        <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 gap-1.5">
+                          {(["curl", "node", "php", "python"] as const).map((lang) => (
+                            <button
+                              key={lang}
+                              type="button"
+                              onClick={() => setDocLanguage(lang)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold cursor-pointer uppercase transition-all ${
+                                docLanguage === lang
+                                  ? "bg-white text-blue-700 shadow-2xs font-bold border border-slate-200"
+                                  : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              {lang}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Code Block Snippet */}
+                      <div className="bg-slate-950 rounded-2xl p-5 border border-slate-850 space-y-3 font-mono text-xs shadow-inner">
+                        <div className="flex items-center justify-between border-b border-slate-850 pb-2 text-slate-400">
+                          <span>Request Snippet ({docLanguage})</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const snippet = getCodeSnippet(activeDocEndpoint, docLanguage);
+                              navigator.clipboard.writeText(snippet);
+                              showToast("Code snippet copied to clipboard!");
+                            }}
+                            className="text-[11px] text-blue-400 hover:text-blue-300 font-bold cursor-pointer"
+                          >
+                            Copy Snippet
+                          </button>
+                        </div>
+                        <pre className="text-blue-200 overflow-x-auto leading-relaxed whitespace-pre font-mono p-1">
+                          <code>{getCodeSnippet(activeDocEndpoint, docLanguage)}</code>
+                        </pre>
+                      </div>
+
+                      {/* Responses Section */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+                            200 OK Response
                           </span>
+                          <pre className="bg-slate-900 border border-slate-800 rounded-2xl p-4 font-mono text-xs text-emerald-300 overflow-x-auto leading-relaxed">
+{activeDocEndpoint === "auth_test" ? `{
+  "success": true,
+  "status": "active",
+  "name": "Live Server API Key",
+  "environment": "LIVE",
+  "permissions": ["whatsapp_send", "whatsapp_templates"]
+}` : `{
+  "success": true,
+  "messageId": "msg_9a2b8c...",
+  "status": "queued",
+  "recipient": "919325174465"
+}`}
+                          </pre>
+                        </div>
+
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1.5">
+                            401 / 403 Error Response
+                          </span>
+                          <pre className="bg-slate-900 border border-slate-800 rounded-2xl p-4 font-mono text-xs text-rose-300 overflow-x-auto leading-relaxed">
+{activeDocEndpoint === "auth_test" ? `{
+  "error": "Unauthorized",
+  "message": "This API key has been revoked and can no longer be used."
+}` : `{
+  "error": "Forbidden: Permission Denied",
+  "details": "API Key is missing scope: whatsapp_send"
+}`}
+                          </pre>
                         </div>
                       </div>
                     </div>
-                  </>
-                ) : settingsSubTab === "instagram" ? (
+                  </div>
+                )}
+
+                {/* TAB 4: API CALL LOGS & USAGE ANALYTICS */}
+                {devPortalTab === "logs" && (
+                  <div className="bg-white border border-slate-200/90 rounded-3xl p-8 space-y-6 animate-fadeIn shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                      <div>
+                        <h4 className="font-extrabold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2.5">
+                          <Activity className="h-5 w-5 text-blue-600" /> Live Client API Call Telemetry Logs
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Real-time audit stream of client API calls, HTTP status codes, latency metrics, and API key prefixes.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fetchTelemetryLogs}
+                        className="px-4 py-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs text-slate-700 flex items-center gap-2 cursor-pointer transition-all font-sans font-semibold"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${loadingTelemetry ? "animate-spin" : ""}`} /> Refresh Stream
+                      </button>
+                    </div>
+
+                    {loadingTelemetry && telemetryLogs.length === 0 ? (
+                      <div className="py-16 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                        <RefreshCw className="h-5 w-5 animate-spin text-blue-600" /> Loading Telemetry Logs...
+                      </div>
+                    ) : telemetryLogs.length === 0 ? (
+                      <div className="py-16 text-center border border-dashed border-slate-200 rounded-2xl text-slate-500 text-xs space-y-2">
+                        <p className="font-bold text-slate-800">No API telemetry logs recorded yet</p>
+                        <p className="text-slate-500">Make an API request using any client API key to view real-time HTTP metrics.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[11px]">
+                              <th className="py-4 px-5 font-bold">Method</th>
+                              <th className="py-4 px-5 font-bold">Endpoint Path</th>
+                              <th className="py-4 px-5 font-bold">Key Prefix</th>
+                              <th className="py-4 px-5 font-bold">Status</th>
+                              <th className="py-4 px-5 font-bold">Latency</th>
+                              <th className="py-4 px-5 font-bold">Client IP / Origin</th>
+                              <th className="py-4 px-5 font-bold text-right">Timestamp</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-mono">
+                            {telemetryLogs.map((log) => {
+                              const isSuccess = log.statusCode >= 200 && log.statusCode < 300;
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="py-4 px-5">
+                                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                      log.method === "POST"
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        : "bg-blue-50 text-blue-700 border-blue-200"
+                                    }`}>
+                                      {log.method}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-900 font-semibold">{log.path}</td>
+                                  <td className="py-4 px-5 text-slate-500 font-mono">{log.keyPrefix}</td>
+                                  <td className="py-4 px-5">
+                                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                      isSuccess
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        : "bg-rose-50 text-rose-700 border-rose-200"
+                                    }`}>
+                                      {log.statusCode} {isSuccess ? "OK" : "Error"}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-5 text-slate-500">{log.latencyMs} ms</td>
+                                  <td className="py-4 px-5 text-slate-500">{log.ip}</td>
+                                  <td className="py-4 px-5 text-right text-slate-400">
+                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="md:col-span-2 space-y-6">
+                  {settingsSubTab === "whatsapp" ? (
+                    <>
+                      {/* Meta Official Embedded Signup */}
+                      <div className="bg-gradient-to-br from-emerald-50 via-white to-slate-50 border border-emerald-200 rounded-2xl p-6 space-y-4 shadow-2xs relative overflow-hidden animate-fadeIn">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                              <WhatsApp className="h-6 w-6" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-extrabold text-base text-slate-900">Meta WhatsApp Embedded Signup</h3>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  OFFICIAL TECH PROVIDER
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                Connect your existing company WhatsApp number or create a new WABA instantly with Meta login.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={launchWhatsAppSignup}
+                              disabled={embeddedConnecting}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                            >
+                              <WhatsApp className="h-4 w-4" />
+                              <span>{embeddedConnecting ? "Connecting via Meta..." : config.wabaId ? "Reconnect WhatsApp Account" : "Connect with WhatsApp"}</span>
+                            </button>
+
+                            {(config.wabaId || config.phoneNumberId) && (
+                              <button
+                                type="button"
+                                onClick={handleDisconnectWhatsApp}
+                                disabled={embeddedConnecting}
+                                className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                              >
+                                Disconnect
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {(config.wabaId || config.phoneNumberId) && (
+                          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                              <Check className="h-4.5 w-4.5" />
+                              <span>Status: Connected to Meta Cloud API</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-slate-700 font-mono text-[11px]">
+                              <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">WABA ID: <strong className="text-slate-900">{config.wabaId || "Connected"}</strong></span>
+                              <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Phone ID: <strong className="text-slate-900">{config.phoneNumberId || "Connected"}</strong></span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Manual Credentials Form */}
+                      <form onSubmit={saveConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                          <Key className="h-4.5 w-4.5 text-emerald-600" /> Manual API Credentials (Advanced)
+                        </h3>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">Phone Number ID</label>
+                          <input
+                            type="text"
+                            value={config.phoneNumberId || ""}
+                            onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })}
+                            placeholder="e.g. 1048473820293"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">WhatsApp Business Account ID (WABA ID)</label>
+                          <input
+                            type="text"
+                            value={config.wabaId || ""}
+                            onChange={(e) => setConfig({ ...config, wabaId: e.target.value })}
+                            placeholder="e.g. 1048473820999"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">System User Access Token (Permanent)</label>
+                          <textarea
+                            value={config.accessToken || ""}
+                            onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
+                            rows={3}
+                            placeholder="e.g. EAAG..."
+                            className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
+                          <span className="text-xs text-slate-500 font-medium">
+                            {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved Successfully!" : ""}
+                          </span>
+                          <button
+                            type="submit"
+                            disabled={saveStatus === "saving"}
+                            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                          >
+                            Save WhatsApp Settings
+                          </button>
+                        </div>
+                      </form>
+                    </>
+                  ) : settingsSubTab === "instagram" ? (
                   <>
                     {/* Instagram Credentials Form */}
-                    <form onSubmit={saveInstagramConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
-                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <form onSubmit={saveInstagramConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
                         <Instagram className="h-4.5 w-4.5 text-pink-600" /> Instagram DM Credentials
                       </h3>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-slate-700 font-bold">Instagram Business Account ID</label>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-700 font-semibold">Instagram Business Account ID</label>
                         <input
                           type="text"
                           value={igConfig.instagramAccountId || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, instagramAccountId: e.target.value })}
                           placeholder="e.g. 17841401234567890"
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono"
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-slate-700 font-bold">Facebook Page ID</label>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-700 font-semibold">Facebook Page ID</label>
                         <input
                           type="text"
                           value={igConfig.pageId || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, pageId: e.target.value })}
                           placeholder="e.g. 10203040506070"
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono"
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
                         />
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-slate-700 font-bold">Page Access Token (Permanent)</label>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-700 font-semibold">Page Access Token (Permanent)</label>
                         <textarea
                           value={igConfig.pageAccessToken || ""}
                           onChange={(e) => setIgConfig({ ...igConfig, pageAccessToken: e.target.value })}
                           placeholder="Paste Page Access Token here"
                           rows={4}
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all font-mono text-xs"
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono text-xs"
                         />
                       </div>
 
@@ -2607,42 +4016,42 @@ export default function Dashboard() {
                         <button
                           type="submit"
                           disabled={igSaveStatus === "saving"}
-                          className="bg-pink-600 hover:bg-pink-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                          className="bg-pink-600 hover:bg-pink-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md shadow-pink-600/20 cursor-pointer"
                         >
                           <Save className="h-4 w-4" />
                           {igSaveStatus === "saving" ? "Saving..." : igSaveStatus === "success" ? "Saved Successfully!" : "Save Instagram Credentials"}
                         </button>
                         
                         {igSaveStatus === "error" && (
-                          <span className="text-xs text-red-600 font-bold">Failed to save settings.</span>
+                          <span className="text-xs text-rose-600 font-medium">Failed to save settings.</span>
                         )}
                       </div>
                     </form>
 
                     {/* Instagram Webhook Integration */}
-                    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
-                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
                         <Database className="h-4.5 w-4.5 text-pink-600" /> Instagram Webhook Configuration
                       </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-600 leading-relaxed">
                         Provide the following parameters inside your Meta Developer Console configuration settings under the <strong>Instagram Webhook</strong> product parameters list.
                       </p>
 
-                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                      <div className="flex flex-col gap-1 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{`${BACKEND_URL}/api/webhook/instagram`}</span>
+                        <span className="text-xs text-slate-800 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
                       </div>
 
-                      <div className="flex flex-col gap-1 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                      <div className="flex flex-col gap-1 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Verify Token</span>
-                        <span className="text-xs text-slate-900 font-mono font-semibold truncate select-all">{config.webhookVerifyToken}</span>
+                        <span className="text-xs text-slate-800 font-mono truncate">{config.webhookVerifyToken}</span>
                       </div>
 
-                      <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 flex gap-3">
+                      <div className="bg-pink-50 border border-pink-200 rounded-xl p-3.5 flex gap-3">
                         <Bot className="h-5 w-5 text-pink-600 shrink-0 mt-0.5" />
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-bold text-pink-950">Important Webhook Fields</span>
-                          <span className="text-[11px] text-pink-900 leading-relaxed">
+                          <span className="text-xs font-semibold text-pink-900">Important Webhook Fields</span>
+                          <span className="text-[11px] text-slate-600">
                             In your Meta Portal, configure and subscribe to the <strong>messages</strong> and <strong>messaging_postbacks</strong> webhook fields under the <strong>Instagram</strong> section.
                           </span>
                         </div>
@@ -2652,77 +4061,77 @@ export default function Dashboard() {
                 ) : settingsSubTab === "google" ? (
                   <>
                     {/* Google GMB Credentials Form */}
-                    <form onSubmit={saveGoogleConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
-                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Star className="h-4.5 w-4.5 text-amber-500 fill-amber-500" /> Google Business Configuration
+                    <form onSubmit={saveGoogleConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Star className="h-4.5 w-4.5 text-amber-500" /> Google Business Configuration
                       </h3>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs text-slate-700 font-bold">Location / Business Name</label>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">Location / Business Name</label>
                           <input
                             type="text"
                             value={googleConfig.locationName || ""}
                             onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
                             placeholder="e.g. Jisnu Digitals Pune"
-                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                           />
                         </div>
 
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs text-slate-700 font-bold">Google Place ID (Link redirection)</label>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">Google Place ID (Link redirection)</label>
                           <input
                             type="text"
                             value={googleConfig.googlePlaceId || ""}
                             onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
                             placeholder="e.g. ChIJK7R7jG-5wjsR..."
-                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                           />
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs text-slate-700 font-bold">Live Google Business Review Redirect URL</label>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-700 font-semibold">Live Google Business Review Redirect URL</label>
                         <input
                           type="text"
                           value={googleConfig.googleReviewUrl || ""}
                           onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
                           placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
-                          className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs text-slate-700 font-bold">Google Business Account ID (Optional)</label>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">Google Business Account ID (Optional)</label>
                           <input
                             type="text"
                             value={formGoogleAccountId}
                             onChange={(e) => setFormGoogleAccountId(e.target.value)}
                             placeholder="e.g. 1048273892019"
-                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono text-xs"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue font-mono text-xs"
                           />
                         </div>
 
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs text-slate-700 font-bold">Google Business Location ID</label>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">Google Business Location ID</label>
                           <input
                             type="text"
                             value={formGoogleLocationId}
                             onChange={(e) => setFormGoogleLocationId(e.target.value)}
                             placeholder="e.g. 15154699825689004204"
-                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono text-xs"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue font-mono text-xs"
                           />
                         </div>
 
-                        <div className="flex flex-col gap-1.5 sm:col-span-2">
-                          <label className="text-xs text-slate-700 font-bold">Google Ads Customer ID</label>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">Google Ads Customer ID</label>
                           <input
                             type="text"
                             value={formGoogleAdsCustomerId}
                             onChange={(e) => setFormGoogleAdsCustomerId(e.target.value)}
                             placeholder="e.g. 123-456-7890"
-                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono text-xs"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue font-mono text-xs"
                           />
                         </div>
                       </div>
@@ -2731,41 +4140,41 @@ export default function Dashboard() {
                         <button
                           type="submit"
                           disabled={googleSaveStatus === "saving"}
-                          className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                          className="bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
                         >
                           <Save className="h-4 w-4" />
                           {googleSaveStatus === "saving" ? "Saving..." : googleSaveStatus === "success" ? "Saved Config Successfully!" : "Save Google Configurations"}
                         </button>
                         {googleSaveStatus === "error" && (
-                          <span className="text-xs text-red-600 font-bold">Failed to save Google config.</span>
+                          <span className="text-xs text-rose-600 font-medium">Failed to save Google config.</span>
                         )}
                       </div>
                     </form>
 
                     {/* Google OAuth Live Connection Panel */}
-                    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
-                      <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Database className="h-4.5 w-4.5 text-amber-500" /> Google Business Profile Authorization
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Database className="h-4.5 w-4.5 text-brand-blue" /> Google Business Profile Authorization
                       </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-600 leading-relaxed">
                         Connect your live Google Business Profile account so the system can automatically monitor reviews and post automated replies on your behalf.
                       </p>
 
-                      <div className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                      <div className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 p-4 rounded-xl">
                         <button
                           type="button"
                           onClick={handleGoogleOAuthConnect}
                           disabled={googleOauthStatus === "connecting"}
-                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                          className="bg-brand-blue hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-50"
                         >
                           <RefreshCw className={`h-4.5 w-4.5 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
                           {googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect Google Account"}
                         </button>
                         <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-900">
+                          <span className="text-xs font-semibold text-slate-900">
                             {googleConfig.googleRefreshToken ? "Status: CONNECTED" : "Google Login (OAuth)"}
                           </span>
-                          <span className="text-[11px] text-slate-500 leading-normal">
+                          <span className="text-[10px] text-slate-500 leading-normal">
                             {googleConfig.googleRefreshToken 
                               ? "Your Google Business account token is active. Ready to manage reviews."
                               : "Click to authorize GMB review API access via Google's secure portal."}
@@ -2774,36 +4183,36 @@ export default function Dashboard() {
                       </div>
                       
                       {googleOauthStatus === "success" && (
-                        <span className="text-xs text-emerald-600 font-bold block animate-fadeIn">Google profile connected successfully!</span>
+                        <span className="text-xs text-emerald-600 font-medium block animate-fadeIn">Google profile connected successfully!</span>
                       )}
                       {googleOauthStatus === "error" && (
-                        <span className="text-xs text-red-600 font-bold block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
+                        <span className="text-xs text-rose-600 font-medium block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
                       )}
                     </div>
                   </>
-                ) : (
+                ) : settingsSubTab === "youtube" ? (
                   <>
                     {/* YouTube Credentials Form */}
-                    <form onSubmit={saveYoutubeConfig} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs animate-fadeIn">
+                    <form onSubmit={saveYoutubeConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
                           <Video className="h-4.5 w-4.5 text-red-600" /> YouTube Channel Configuration
                         </h3>
                         {ytConfig.refreshToken || ytConfig.channelId ? (
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1">
+                          <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
                             Connected ✓
                           </span>
                         ) : null}
                       </div>
 
                       {(ytConfig.refreshToken || ytConfig.channelId) && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Connected Account</span>
+                            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Connected Account</span>
                             <span className="text-sm font-bold text-slate-900">
                               {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
                             </span>
-                            <span className="text-xs text-slate-500 font-mono">
+                            <span className="text-xs text-slate-600 font-mono">
                               Channel ID: {ytConfig.channelId || "N/A"}
                             </span>
                           </div>
@@ -2813,137 +4222,410 @@ export default function Dashboard() {
                               setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
                               saveYoutubeConfig({ preventDefault: () => {} } as any);
                             }}
-                            className="px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-all cursor-pointer shrink-0"
+                            className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-all cursor-pointer shrink-0"
                           >
                             Disconnect
                           </button>
                         </div>
                       )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs text-slate-700 font-bold">YouTube Channel ID</label>
-                          <input
-                            type="text"
-                            value={ytConfig.channelId || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
-                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all font-mono"
-                            placeholder="e.g. UCxxxxxxxxx"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs text-slate-700 font-bold">OAuth Access Token</label>
-                          <input
-                            type="text"
-                            value={ytConfig.accessToken || ""}
-                            onChange={(e) => setYtConfig({ ...ytConfig, accessToken: e.target.value })}
-                            className="bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all font-mono"
-                            placeholder="Access Token"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-                        <button
-                          type="button"
-                          onClick={handleYoutubeOAuthConnect}
-                          disabled={ytOauthStatus === "connecting"}
-                          className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-2 cursor-pointer"
-                        >
-                          <RefreshCw className={`h-4.5 w-4.5 ${ytOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                          {ytConfig.refreshToken || ytConfig.channelId ? "Reconnect YouTube Account" : "Connect YouTube"}
-                        </button>
-
-                        <button
-                          type="submit"
-                          disabled={ytSaveStatus === "saving"}
-                          className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs transition-all cursor-pointer shadow-sm"
-                        >
-                          {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save Credentials"}
-                        </button>
-                      </div>
                     </form>
                   </>
-                )}
+                ) : null}
               </div>
 
               {/* Quick instructions sidebar */}
               <div className="space-y-6">
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xs">
-                  <h4 className="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-3">
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 shadow-2xs">
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <HelpCircle className="h-4 w-4 text-emerald-600" /> Setup Instructions
                   </h4>
                   
                   {settingsSubTab === "whatsapp" ? (
-                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-emerald-600 marker:font-black leading-relaxed animate-fadeIn">
-                      <li>
-                        Create a Meta Developer app under your Meta developer account.
-                      </li>
-                      <li>
-                        Add the <strong>WhatsApp</strong> product to your Meta Developer app.
-                      </li>
-                      <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permission: <code className="text-[11px] bg-slate-100 border border-slate-200 text-slate-800 font-mono p-0.5 px-1.5 rounded font-semibold">whatsapp_business_messaging</code>.
-                      </li>
-                      <li>
-                        Under WhatsApp settings, copy your <strong>Phone Number ID</strong> and <strong>WhatsApp Business Account ID</strong> and paste them on the credentials form.
-                      </li>
-                      <li>
-                        Register the unique WhatsApp Callback URL and Verify Token in your Meta Dashboard.
-                      </li>
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-emerald-600 marker:font-bold animate-fadeIn">
+                      <li>Create a Meta Developer app under your Meta developer account.</li>
+                      <li>Add the <strong>WhatsApp</strong> product to your Meta Developer app.</li>
+                      <li>Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings.</li>
+                      <li>Copy your <strong>Phone Number ID</strong> and <strong>WABA ID</strong> and paste them into the form.</li>
                     </ul>
                   ) : settingsSubTab === "instagram" ? (
-                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-pink-600 marker:font-black leading-relaxed animate-fadeIn">
-                      <li>
-                        Create a Meta Developer app under your Meta developer account.
-                      </li>
-                      <li>
-                        Add the <strong>Messenger</strong> product to your Meta Developer app.
-                      </li>
-                      <li>
-                        Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings with permissions: <code className="text-[11px] bg-slate-100 border border-slate-200 text-slate-800 font-mono p-0.5 px-1.5 rounded font-semibold">instagram_basic</code>.
-                      </li>
-                      <li>
-                        Link your Facebook Page and Instagram Business Account under your Meta Portal, select your Page, and copy the <strong>Facebook Page ID</strong> and <strong>Instagram Business ID</strong> to save here.
-                      </li>
-                      <li>
-                        Register the unique Instagram Callback URL and Verify Token in your Meta Dashboard under Webhook settings.
-                      </li>
-                    </ul>
-                  ) : settingsSubTab === "google" ? (
-                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-amber-500 marker:font-black leading-relaxed animate-fadeIn">
-                      <li>
-                        Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.
-                      </li>
-                      <li>
-                        Input the Live Google Review URL so positive review selections can easily redirect consumers to the listing page.
-                      </li>
-                      <li>
-                        Obtain the <strong>Location ID</strong> directly from your GMB profile parameters.
-                      </li>
-                      <li>
-                        Click the <strong>Connect Google Account</strong> button and follow instructions on the screen to authenticate.
-                      </li>
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-pink-600 marker:font-bold animate-fadeIn">
+                      <li>Create a Meta Developer app under your Meta developer account.</li>
+                      <li>Add the <strong>Messenger</strong> product to your Meta Developer app.</li>
+                      <li>Generate a <strong>Permanent System User Access Token</strong> with <code className="text-[10px] bg-slate-100 text-slate-800 p-0.5 px-1 rounded border border-slate-200">instagram_basic</code> scope.</li>
+                      <li>Link your Facebook Page and Instagram Business Account.</li>
                     </ul>
                   ) : (
-                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-red-600 marker:font-black leading-relaxed animate-fadeIn">
-                      <li>
-                        Connect your YouTube channel by clicking the <strong>Connect YouTube</strong> button.
-                      </li>
-                      <li>
-                        Grant read and write permissions to manage YouTube comments and channel analytics.
-                      </li>
-                      <li>
-                        Once connected, your <strong>Channel ID</strong> and title will fetch automatically.
-                      </li>
-                      <li>
-                        Click <strong>Save Credentials</strong> to store the configuration.
-                      </li>
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-brand-blue marker:font-bold animate-fadeIn">
+                      <li>Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.</li>
+                      <li>Input the Live Google Review URL so positive review selections can redirect consumers.</li>
                     </ul>
                   )}
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+        {/* MODAL 1: DEVELOPER WIZARD FOR GENERATING NEW API KEY */}
+        {showCreateKeyModal && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 space-y-6 shadow-2xl relative">
+              {/* Wizard Header & Step Indicator */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                    <Key className="h-5 w-5 text-blue-600" /> Generate New API Key
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Step {wizardStep} of 3: {wizardStep === 1 ? "Basic Details" : wizardStep === 2 ? "Permissions (Scopes)" : "Review & Generate"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateKeyModal(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Step Progress Bar */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className={`h-1.5 rounded-full transition-all ${wizardStep >= 1 ? "bg-blue-600" : "bg-slate-200"}`} />
+                <div className={`h-1.5 rounded-full transition-all ${wizardStep >= 2 ? "bg-blue-600" : "bg-slate-200"}`} />
+                <div className={`h-1.5 rounded-full transition-all ${wizardStep >= 3 ? "bg-blue-600" : "bg-slate-200"}`} />
+              </div>
+
+              {/* WIZARD STEP 1: BASIC DETAILS */}
+              {wizardStep === 1 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-700">
+                      API Key Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      placeholder="e.g. Website Checkout Lead Form, Mobile App"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-700">Target Environment</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div
+                        onClick={() => setNewKeyEnv("LIVE")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col gap-1 ${
+                          newKeyEnv === "LIVE"
+                            ? "bg-emerald-50 border-emerald-300 text-slate-900"
+                            : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-700">
+                          🟢 Live Production
+                        </span>
+                        <span className="text-[10px] text-slate-500">For live website, customer app, and production messaging.</span>
+                      </div>
+
+                      <div
+                        onClick={() => setNewKeyEnv("TEST")}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col gap-1 ${
+                          newKeyEnv === "TEST"
+                            ? "bg-amber-50 border-amber-300 text-slate-900"
+                            : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        <span className="font-bold text-xs flex items-center gap-1.5 text-amber-700">
+                          🟡 Test Sandbox
+                        </span>
+                        <span className="text-[10px] text-slate-500">For staging & testing environments without live charges.</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-700">Description / Purpose (Optional)</label>
+                    <textarea
+                      rows={2}
+                      value={newKeyDesc}
+                      onChange={(e) => setNewKeyDesc(e.target.value)}
+                      placeholder="Provide context for where this key is used..."
+                      className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      disabled={!newKeyName.trim()}
+                      onClick={() => setWizardStep(2)}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      Next: Select Permissions →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* WIZARD STEP 2: PERMISSIONS (SCOPES) */}
+              {wizardStep === 2 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="text-xs font-semibold text-slate-700">Configure Permission Scopes</span>
+                    <span className="text-[11px] text-blue-600 font-mono">
+                      {selectedScopes.includes("full_access") ? "⭐ Full Access" : `${selectedScopes.length} scope(s) selected`}
+                    </span>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto space-y-4 bg-slate-50 border border-slate-200 rounded-xl p-4 custom-scrollbar">
+                    {AVAILABLE_SCOPES.map((cat) => {
+                      const catItemIds = cat.items.map(i => i.id);
+                      const hasAllCat = catItemIds.every(id => selectedScopes.includes(id));
+                      return (
+                        <div key={cat.category} className="space-y-2">
+                          <div className="flex items-center justify-between border-b border-slate-200/80 pb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                              {cat.category}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllCategory(cat.items, selectedScopes, setSelectedScopes)}
+                              className="text-[10px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                            >
+                              {hasAllCat ? "Deselect Group" : "Select All"}
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2">
+                            {cat.items.map((item) => {
+                              const isChecked = selectedScopes.includes(item.id);
+                              return (
+                                <label
+                                  key={item.id}
+                                  className={`flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                    isChecked
+                                      ? "bg-blue-50/70 border-blue-200 text-slate-900"
+                                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleScope(item.id, selectedScopes, setSelectedScopes)}
+                                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-semibold text-slate-900">{item.label}</span>
+                                    <span className="text-[10px] text-slate-500">{item.desc}</span>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(1)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={selectedScopes.length === 0}
+                      onClick={() => setWizardStep(3)}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      Next: Review & Confirm →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* WIZARD STEP 3: REVIEW & GENERATE */}
+              {wizardStep === 3 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
+                    <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                      <span className="text-slate-500">Key Name:</span>
+                      <span className="font-bold text-slate-900">{newKeyName}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                      <span className="text-slate-500">Environment:</span>
+                      <span className={`font-bold ${newKeyEnv === "LIVE" ? "text-emerald-700" : "text-amber-700"}`}>
+                        {newKeyEnv === "LIVE" ? "Live Production" : "Test Sandbox"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-slate-200/80 pb-2">
+                      <span className="text-slate-500">Selected Permissions:</span>
+                      <span className="font-bold text-blue-600 font-mono">{selectedScopes.length} scope(s)</span>
+                    </div>
+                    {newKeyDesc && (
+                      <div className="flex flex-col gap-1 border-b border-slate-200/80 pb-2">
+                        <span className="text-slate-500">Description:</span>
+                        <span className="text-slate-700 italic">{newKeyDesc}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 flex items-center gap-2">
+                    <Key className="h-4 w-4 shrink-0 text-blue-600" />
+                    <span>Your full API key secret token will be displayed once generated. Store it safely.</span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(2)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={generatingKey}
+                      onClick={handleGenerateApiKey}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
+                    >
+                      {generatingKey ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      {generatingKey ? "Generating Key..." : "Confirm & Generate API Key"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL EDIT KEY & PERMISSIONS */}
+        {editingKeyModal && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                  <Key className="h-5 w-5 text-blue-600" /> Edit API Key Permissions
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingKeyModal(null)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateApiKey} className="space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-700">API Key Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editKeyName}
+                    onChange={(e) => setEditKeyName(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Description</label>
+                  <input
+                    type="text"
+                    value={editKeyDesc}
+                    onChange={(e) => setEditKeyDesc(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Allowed Permissions (Scopes)</span>
+                    <span className="text-[10px] text-blue-600 font-mono">
+                      {editKeyScopes.includes("full_access") ? "⭐ Full Access Selected" : `${editKeyScopes.length} scope(s) granted`}
+                    </span>
+                  </label>
+
+                  <div className="max-h-56 overflow-y-auto space-y-3 bg-slate-50 border border-slate-200 rounded-xl p-3.5 custom-scrollbar">
+                    {AVAILABLE_SCOPES.map((cat) => (
+                      <div key={cat.category} className="space-y-1.5">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200/80 pb-1 flex items-center justify-between">
+                          <span>{cat.category}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectAllCategory(cat.items, editKeyScopes, setEditKeyScopes)}
+                            className="text-[10px] text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
+                          >
+                            Toggle Group
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {cat.items.map((item) => {
+                            const isChecked = editKeyScopes.includes(item.id) || editKeyScopes.includes("full_access");
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => handleToggleScope(item.id, editKeyScopes, setEditKeyScopes)}
+                                className={`flex items-start gap-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                                  isChecked
+                                    ? "bg-blue-50 border-blue-200 text-slate-900"
+                                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  readOnly
+                                  className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-semibold text-xs text-slate-900 flex items-center gap-1.5">
+                                    {item.label}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 leading-tight">{item.desc}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingKeyModal(null)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updatingKey || !editKeyName.trim()}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    {updatingKey ? "Saving..." : "Save Permissions"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* FLOATING TOAST NOTIFICATION BANNER */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 bg-slate-900 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-fadeIn text-xs font-semibold">
+            <Check className="h-4 w-4 text-emerald-400" />
+            <span>{toastMessage}</span>
           </div>
         )}
       </main>

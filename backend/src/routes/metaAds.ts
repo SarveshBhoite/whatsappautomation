@@ -3,7 +3,7 @@ import { MetaAdsService } from "../services/metaAdsService";
 import metaAdsSubRouter from "./meta-ads";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
+const DEFAULT_ORG_ID = "";
 
 // Mount modular campaign routes (/campaigns/traffic, /campaigns/awareness, etc.)
 router.use(metaAdsSubRouter);
@@ -14,7 +14,7 @@ router.use(metaAdsSubRouter);
  */
 router.get("/config", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const config = await MetaAdsService.getConfig(orgId);
     res.json({ success: true, config });
   } catch (error: any) {

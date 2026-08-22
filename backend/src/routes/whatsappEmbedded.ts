@@ -5,7 +5,7 @@ import prisma from "../utils/prisma";
 const router = Router();
 
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || "demo-org-123";
+  return (req.headers["x-organization-id"] as string) || "";
 };
 
 // GET: Fetch current organization's WhatsApp connection status

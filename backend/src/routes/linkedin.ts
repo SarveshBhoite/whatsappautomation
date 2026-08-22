@@ -8,7 +8,7 @@ import {
 } from "../services/linkedinService";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
+const DEFAULT_ORG_ID = "";
 
 // Task 3 Router Tree Diagnostic Registration
 console.log("");

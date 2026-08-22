@@ -12,23 +12,19 @@ async function main() {
     create: {
       id: "demo-org-123",
       name: "Default Agency",
-      enabledModules: [
-        "whatsapp", "instagram", "gmb", "gmail", "linkedin", "youtube", "google_ads", "meta_ads", "reviews", "ai_agent", "tools"
-      ]
     },
   });
   console.log(`Organization verified: ${org.name} (${org.id})`);
 
-  // 2. Create Client Admin User
+  // 2. Create Client Admin / Super Admin User
   const clientAdmin = await (prisma.user as any).upsert({
-    where: { email: "admin@default.com" },
-    update: { password: "admin123", role: "admin" },
+    where: { email: "info.jdsolutions2018@gmail.com" },
+    update: { password: "Jisnu123", role: "super_admin" },
     create: {
-      id: "demo-user-123",
-      email: "admin@default.com",
+      email: "info.jdsolutions2018@gmail.com",
       name: "Admin User",
-      password: "admin123",
-      role: "admin",
+      password: "Jisnu123",
+      role: "super_admin",
       organizationId: org.id,
     },
   });
@@ -37,12 +33,11 @@ async function main() {
   // 3. Create Super Admin User
   const superAdmin = await (prisma.user as any).upsert({
     where: { email: "superadmin@automationcrm.com" },
-    update: { password: "admin123", role: "super_admin" },
+    update: { password: "Jisnu123", role: "super_admin" },
     create: {
-      id: "super-admin-123",
       email: "superadmin@automationcrm.com",
       name: "Super Admin",
-      password: "admin123",
+      password: "Jisnu123",
       role: "super_admin",
       organizationId: org.id,
     },

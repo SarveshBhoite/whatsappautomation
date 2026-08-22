@@ -129,11 +129,11 @@ export default function OverviewDashboardPage() {
   const [activeChartFilter, setActiveChartFilter] = useState<"all" | "inquiries" | "leads" | "reviews">("all");
   const [hoveredPoint, setHoveredPoint] = useState<{ day: string; date: string; value: number; x: number; y: number } | null>(null);
 
-  const getOrgId = (): string => {
+  const getOrgId = () => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("organization_id") || "demo-org-123";
+      return localStorage.getItem("organization_id") || "";
     }
-    return "demo-org-123";
+    return "";
   };
 
   const fetchOverview = async (isManual = false) => {

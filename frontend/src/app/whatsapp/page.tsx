@@ -5,7 +5,6 @@ import {
   MessageCircle,
   MessageSquare, 
   GitMerge, 
-  Settings, 
   Send, 
   Bot, 
   User, 
@@ -51,6 +50,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import WhatsAppBulkBroadcastPage from "./bulk/page";
 import WhatsAppTemplatesPage from "./templates/page";
+import WhatsAppDripCampaignsModule from "./drip/WhatsAppDripCampaignsModule";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -324,19 +324,6 @@ interface Conversation {
   updatedAt: string;
 }
 
-interface WhatsAppConfig {
-  phoneNumberId: string;
-  wabaId: string;
-  accessToken: string;
-  webhookVerifyToken: string;
-}
-
-interface InstagramConfig {
-  instagramAccountId: string;
-  pageId: string;
-  pageAccessToken: string;
-}
-
 export default function Dashboard() {
   const nodeTypes = useMemo(
     () => ({
@@ -350,7 +337,7 @@ export default function Dashboard() {
     []
   );
 
-  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "meta_templates" | "flows">("chats_whatsapp");
+  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "drip_campaigns" | "meta_templates" | "flows">("chats_whatsapp");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
@@ -358,7 +345,7 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (["chats_whatsapp", "chats_instagram", "bulk_broadcast", "meta_templates", "flows"].includes(tab || "")) {
+      if (["chats_whatsapp", "chats_instagram", "bulk_broadcast", "drip_campaigns", "meta_templates", "flows"].includes(tab || "")) {
         setActiveTab(tab as any);
       }
     }
@@ -375,35 +362,7 @@ export default function Dashboard() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Instagram Config
-  const [igConfig, setIgConfig] = useState<InstagramConfig>({
-    instagramAccountId: "",
-    pageId: "",
-    pageAccessToken: ""
-  });
-  const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
-  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google">("whatsapp");
-
-  // Google GMB Config
-  const [googleConfig, setGoogleConfig] = useState({
-    locationName: "",
-    googlePlaceId: "",
-    googleReviewUrl: "",
-    googleLocationId: "",
-    googleClientId: "",
-    googleClientSecret: "",
-    googleRefreshToken: "",
-    googleAdsCustomerId: "",
-    autoReplyEnabled: false,
-    autoReplyMinRating: 4,
-    autoReplyTemplate: "",
-  });
-  const [googleSaveStatus, setGoogleSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
-  const [googleOauthStatus, setGoogleOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
-  const [formGoogleAccountId, setFormGoogleAccountId] = useState("");
-  const [formGoogleLocationId, setFormGoogleLocationId] = useState("");
-  const [formGoogleAdsCustomerId, setFormGoogleAdsCustomerId] = useState("");
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -535,15 +494,6 @@ export default function Dashboard() {
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-
-  // Settings States
-  const [config, setConfig] = useState<WhatsAppConfig>({
-    phoneNumberId: "",
-    wabaId: "",
-    accessToken: "",
-    webhookVerifyToken: "loading-token-verify"
-  });
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
 
   // Quoted reply state
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
@@ -753,9 +703,6 @@ export default function Dashboard() {
 
     // Initial Fetch
     fetchConversations();
-    fetchConfig();
-    fetchInstagramConfig();
-    fetchGoogleConfig();
     fetchActiveFlow("whatsapp");
 
     return () => {
@@ -814,181 +761,6 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.warn("Could not fetch messages:", err);
-    }
-  };
-
-  const fetchConfig = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
-        headers: { "x-organization-id": getOrgId() }
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data) {
-        setConfig(data);
-      }
-    } catch (err) {
-      console.warn("Could not fetch WhatsApp config:", err);
-    }
-  };
-
-  const saveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveStatus("saving");
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
-        },
-        body: JSON.stringify(config)
-      });
-      if (res.ok) {
-        setSaveStatus("success");
-        setTimeout(() => setSaveStatus("idle"), 3000);
-      } else {
-        setSaveStatus("error");
-      }
-    } catch (err) {
-      setSaveStatus("error");
-    }
-  };
-
-  const fetchInstagramConfig = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        headers: { "x-organization-id": getOrgId() }
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data) {
-        setIgConfig(data);
-      }
-    } catch (err) {
-      console.warn("Could not fetch Instagram config:", err);
-    }
-  };
-
-  const saveInstagramConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIgSaveStatus("saving");
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": getOrgId()
-        },
-        body: JSON.stringify(igConfig)
-      });
-      if (res.ok) {
-        setIgSaveStatus("success");
-        setTimeout(() => setIgSaveStatus("idle"), 3000);
-      } else {
-        setIgSaveStatus("error");
-      }
-    } catch (err) {
-      setIgSaveStatus("error");
-    }
-  };
-
-  const fetchGoogleConfig = async () => {
-    const org = getOrgId();
-    if (!org) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${encodeURIComponent(org)}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data) return;
-
-      setGoogleConfig(data);
-
-      // Parse Google location path into split fields
-      let accountId = "";
-      let locationId = data.googleLocationId || "";
-      if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-        const parts = locationId.split("/");
-        accountId = parts[1] || "";
-        locationId = parts[3] || "";
-      } else if (locationId.includes("locations/")) {
-        locationId = locationId.replace("locations/", "");
-      }
-      setFormGoogleAccountId(accountId);
-      setFormGoogleLocationId(locationId);
-      setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
-    } catch (err) {
-      console.warn("Could not connect to backend server for Google GMB config:", err);
-    }
-  };
-
-  const saveGoogleConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const org = getOrgId();
-    if (!org) {
-      alert("Please log in to your organization.");
-      return;
-    }
-    setGoogleSaveStatus("saving");
-    try {
-      // Clean inputs to remove any accidental prefixes
-      const cleanAccountId = formGoogleAccountId.replace("accounts/", "").trim();
-      const cleanLocationId = formGoogleLocationId.replace("locations/", "").trim();
-
-      // Build location path string
-      const finalLocationId = cleanAccountId
-        ? `accounts/${cleanAccountId}/locations/${cleanLocationId}`
-        : cleanLocationId;
-
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": org
-        },
-        body: JSON.stringify({ 
-          orgId: org, 
-          ...googleConfig,
-          googleLocationId: finalLocationId,
-          googleAdsCustomerId: formGoogleAdsCustomerId
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setGoogleConfig(data);
-
-        let accountId = "";
-        let locationId = data.googleLocationId || "";
-        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-          const parts = locationId.split("/");
-          accountId = parts[1] || "";
-          locationId = parts[3] || "";
-        } else if (locationId.includes("locations/")) {
-          locationId = locationId.replace("locations/", "");
-        }
-        setFormGoogleAccountId(accountId);
-        setFormGoogleLocationId(locationId);
-        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
-
-        setGoogleSaveStatus("success");
-        setTimeout(() => setGoogleSaveStatus("idle"), 3000);
-      } else {
-        setGoogleSaveStatus("error");
-      }
-    } catch (err) {
-      setGoogleSaveStatus("error");
-    }
-  };
-
-  const handleGoogleOAuthConnect = () => {
-    const org = getOrgId();
-    if (!org) {
-      alert("Please log in to your organization.");
-      return;
-    }
-    setGoogleOauthStatus("connecting");
-    if (typeof window !== "undefined") {
-      window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${encodeURIComponent(org)}`;
     }
   };
 
@@ -1299,6 +1071,17 @@ export default function Dashboard() {
             }`}
           >
             <Send className="h-3.5 w-3.5" /> Bulk Broadcast
+          </button>
+
+          <button
+            onClick={() => setActiveTab("drip_campaigns")}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "drip_campaigns"
+                ? "bg-white text-emerald-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
+          >
+            <GitMerge className="h-3.5 w-3.5" /> Drip Campaigns
           </button>
 
           <button
@@ -1945,6 +1728,13 @@ export default function Dashboard() {
         {activeTab === "bulk_broadcast" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             <WhatsAppBulkBroadcastPage />
+          </div>
+        )}
+
+        {/* TAB: WHATSAPP DRIP CAMPAIGN AUTOMATION MODULE */}
+        {activeTab === "drip_campaigns" && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <WhatsAppDripCampaignsModule />
           </div>
         )}
 

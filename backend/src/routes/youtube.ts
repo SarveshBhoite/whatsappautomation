@@ -3,11 +3,11 @@ import prisma from "../utils/prisma";
 import axios from "axios";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
+const DEFAULT_ORG_ID = "";
 
 // Helper to resolve org ID from request headers
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+  return (req.headers["x-organization-id"] as string) || (req.query.orgId as string) || "";
 };
 
 // GET: Fetch YouTube Config credentials

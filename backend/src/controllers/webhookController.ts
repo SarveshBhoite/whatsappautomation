@@ -4,6 +4,7 @@ import { io } from "../index";
 import { processChatbotFlow } from "../services/flowEngine";
 import { WhatsAppService } from "../services/whatsappService";
 import { InstagramService } from "../services/instagramService";
+import { InstagramCommentEngine } from "../services/instagramCommentEngine";
 
 const processedComments = new Set<string>();
 
@@ -91,20 +92,27 @@ export const handleWebhook = async (req: Request, res: Response) => {
             setTimeout(() => processedComments.delete(commentId), 10 * 1000);
           }
 
-          console.log(`[INSTAGRAM COMMENT WEBHOOK] From: @${fromUser}, Post: ${mediaId}, Comment: "${commentText}", ID: ${commentId}`);
-
-          const replyText = `Thanks for commenting @${fromUser}! We appreciate your support. 🚀`;
-
-          if (commentId && igConfig?.pageAccessToken) {
+          // Check for active Instagram Comment-to-DM Automations via Production Engine
+          if (commentId && commentText) {
             try {
-              await InstagramService.replyToComment(igConfig.pageAccessToken, commentId, replyText);
-              console.log(`[INSTAGRAM COMMENT AUTO-REPLY SENT] to comment ${commentId}`);
+              const activeToken = process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || igConfig?.pageAccessToken;
+              await InstagramCommentEngine.processIncomingComment({
+                commentId,
+                mediaId,
+                commentText,
+                fromUser,
+                fromUserId,
+                organizationId: igConfig?.organizationId,
+                pageAccessToken: activeToken,
+                pageId: igConfig?.pageId,
+                instagramAccountId: igConfig?.instagramAccountId
+              });
             } catch (err: any) {
-              console.warn(`Note on auto-reply for Instagram comment ${commentId}:`, err?.response?.data || err.message);
+              console.error("[COMMENT-TO-DM ENGINE ERROR]:", err.message || err);
             }
           }
 
-          // Emit real-time comment notification via Socket.IO so it always shows in CRM portal
+          // Emit real-time comment notification via Socket.IO
           const io = req.app.get("io");
           if (io && igConfig?.organizationId) {
             io.to(igConfig.organizationId).emit("instagram-comment-received", {
@@ -113,7 +121,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
               commentText,
               createdAt: new Date().toISOString(),
               status: "REPLIED",
-              autoReplyText: replyText
+              autoReplyText: `Private DM sent to @${fromUser}`
             });
           }
           continue;
@@ -540,6 +548,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
           },
         });
         console.log(`Saved message in database successfully. Message ID: "${savedMessage.id}"`);
+
+        // Trigger WhatsApp Drip Campaign inbound reply handler (pauses/stops active drip steps on reply)
+        import("../services/whatsappDripService").then(({ WhatsAppDripEngine }) => {
+          WhatsAppDripEngine.handleInboundReply(organizationId, customerPhone).catch((err) => {
+            console.error("[WEBHOOK DRIP HOOK ERROR]:", err);
+          });
+        });
 
         // For media messages, set the incoming content to a virtual text so AI can acknowledge receipt
         if (["image", "document", "video", "audio", "voice"].includes(type)) {
