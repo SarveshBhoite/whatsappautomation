@@ -56,7 +56,7 @@ interface MetaTemplate {
 const getMetaTemplatePricing = (category: string) => {
   const cat = (category || "").toUpperCase();
   if (cat.includes("MARKETING")) {
-    return { costUsd: 0.013, costInr: 1.08, label: "Marketing" };
+    return { costUsd: 0.0133, costInr: 1.11, label: "Marketing" };
   } else if (cat.includes("UTILITY")) {
     return { costUsd: 0.0037, costInr: 0.308, label: "Utility" };
   } else if (cat.includes("AUTHENTICATION") || cat.includes("AUTH")) {
