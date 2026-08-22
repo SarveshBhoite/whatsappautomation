@@ -72,13 +72,21 @@ const getTemplateAnalytics = (tpl: MetaTemplate) => {
   const deliveryRate = tpl.analytics?.deliveryRate ?? 0;
   const readRate = tpl.analytics?.readRate ?? 0;
   const ctrRate = tpl.analytics?.ctrRate ?? 0;
-  const totalCostUsd = (usedCount * pricing.costUsd).toFixed(2);
-  const totalCostInr = (usedCount * pricing.costInr).toFixed(2);
+  
+  const costPerMessageInr = tpl.analytics?.costPerMessageInr ?? pricing.costInr;
+  const costPerMessageUsd = tpl.analytics?.costPerMessageUsd ?? pricing.costUsd;
+  
+  const totalCostUsd = tpl.analytics?.totalCostUsd !== undefined ? String(tpl.analytics.totalCostUsd) : (usedCount * pricing.costUsd).toFixed(2);
+  const totalCostInr = tpl.analytics?.totalCostInr !== undefined ? String(tpl.analytics.totalCostInr) : (usedCount * pricing.costInr).toFixed(2);
   
   const qualityRating = tpl.analytics?.qualityRating || "HIGH";
 
   return {
-    pricing,
+    pricing: {
+      ...pricing,
+      costInr: costPerMessageInr,
+      costUsd: costPerMessageUsd
+    },
     usedCount,
     deliveryRate,
     readRate,
