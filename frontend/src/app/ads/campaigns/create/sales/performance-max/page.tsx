@@ -565,115 +565,117 @@ export default function SalesPerformanceMaxPage() {
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sidebar Navigation */}
-        <aside className="w-72 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-slate-50/80 hidden md:flex flex-col justify-between overflow-y-auto">
-          <div className="space-y-4">
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
-              <Sparkles className="h-4 w-4 text-primary shrink-0" />
-              <span>Performance Max</span>
+        <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h2 className="font-bold text-slate-800">Performance Max</h2>
             </div>
-
-            <nav className="space-y-1.5 text-xs font-sans">
+            <nav className="space-y-1 text-xs font-sans">
               {/* 1. Bidding */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("BIDDING")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                     wizardStep === "BIDDING"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
-                  <span>1. Bidding</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</div>
+                  <span>Bidding</span>
                 </div>
-                {wizardStep === "BIDDING" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="text-primary font-medium">Bidding</p>
-                    <p className="hover:text-slate-800">Customer acquisition</p>
-                    <p className="hover:text-slate-800">Customer retention</p>
-                  </div>
-                )}
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className={`cursor-pointer hover:text-slate-900 ${wizardStep === 'BIDDING' ? 'text-primary font-semibold' : ''}`} onClick={() => setWizardStep("BIDDING")}>Bidding focus &amp; targets</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>Customer acquisition</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>Customer retention</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("BIDDING")}>Value rules</div>
+                </div>
               </div>
 
               {/* 2. Campaign settings */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                     wizardStep === "CAMPAIGN_SETTINGS"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
-                  <span>2. Campaign settings</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</div>
+                  <span>Campaign settings</span>
                 </div>
-                {wizardStep === "CAMPAIGN_SETTINGS" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="hover:text-slate-800">Locations</p>
-                    <p className="hover:text-slate-800">Languages</p>
-                    <p className="hover:text-slate-800">EU political ads</p>
-                    <div className="pt-1">
-                      <p className="text-slate-700 font-semibold">more settings</p>
-                      <div className="ml-2 space-y-0.5 text-[10px] text-slate-500">
-                        <p>Ad Schedule</p>
-                        <p>Start and end dates</p>
-                        <p>Campaign URL options</p>
-                        <p>Page Feeds</p>
-                        <p>Devices</p>
-                        <p>Brand exclusions</p>
-                        <p>Demographic exclusions</p>
-                        <p>Audience exclusions</p>
-                      </div>
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Locations</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Languages</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>EU political ads</div>
+                  
+                  <div className="pl-3 border-l border-slate-200 space-y-2 pt-1 pb-1">
+                    <div className="text-slate-500 font-semibold cursor-pointer hover:text-slate-900 flex items-center gap-1 transition-colors">
+                      More settings
                     </div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Ad Schedule</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Start and end dates</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Campaign URL options</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Page Feeds</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Devices</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Brand exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Demographic exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Audience exclusions</div>
+                    <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}>Third-party measurement</div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* 3. Asset group */}
-              <div className="space-y-1">
+              <div>
                 <div
                   onClick={() => setWizardStep("ASSET_GROUP")}
-                  className={`p-2 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                     wizardStep === "ASSET_GROUP"
-                      ? "bg-primary/10 text-primary border border-primary/30 font-bold"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
                       : "text-slate-500 hover:bg-white hover:text-slate-800"
                   }`}
                 >
-                  <span>3. Asset group</span>
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">3</div>
+                  <span>Asset group</span>
                 </div>
-                {wizardStep === "ASSET_GROUP" && (
-                  <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="hover:text-slate-800">Name</p>
-                    <p className="hover:text-slate-800">Final URL</p>
-                    <p className="hover:text-slate-800">Assets</p>
-                    <p className="hover:text-slate-800">Asset optimization</p>
-                    <p className="hover:text-slate-800">Search themes</p>
-                    <p className="hover:text-slate-800">Audience signal</p>
-                  </div>
-                )}
+                <div className="ml-10 mt-1 space-y-2 text-[11px] text-slate-500 font-medium pb-2">
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Assets &amp; Media</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Search themes</div>
+                  <div className="cursor-pointer hover:text-slate-900" onClick={() => setWizardStep("ASSET_GROUP")}>Audience signal</div>
+                </div>
               </div>
 
               {/* 4. Budget */}
-              <div
-                onClick={() => setWizardStep("BUDGET")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
-                  wizardStep === "BUDGET"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                    : "text-slate-500 hover:bg-white hover:text-slate-800"
-                }`}
-              >
-                <span>4. Budget</span>
+              <div>
+                <div
+                  onClick={() => setWizardStep("BUDGET")}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "BUDGET"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">4</div>
+                  <span>Budget</span>
+                </div>
               </div>
 
               {/* 5. Summary */}
-              <div
-                onClick={() => setWizardStep("SUMMARY")}
-                className={`p-2 rounded-lg font-medium cursor-pointer transition-all ${
-                  wizardStep === "SUMMARY"
-                    ? "bg-primary/10 text-primary border border-primary/30 font-bold"
-                    : "text-slate-500 hover:bg-white hover:text-slate-800"
-                }`}
-              >
-                <span>5. Summary</span>
+              <div>
+                <div
+                  onClick={() => setWizardStep("SUMMARY")}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                    wizardStep === "SUMMARY"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-500 hover:bg-white hover:text-slate-800"
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">5</div>
+                  <span>Summary &amp; Review</span>
+                </div>
               </div>
             </nav>
           </div>

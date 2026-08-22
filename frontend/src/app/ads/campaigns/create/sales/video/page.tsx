@@ -319,7 +319,7 @@ export default function SalesVideoPage() {
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sub-Navigation Sidebar matching screenshot */}
-        <aside className="w-64 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-slate-50/60 hidden md:flex flex-col justify-between">
+        <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
           <div className="space-y-4">
             {/* Campaign Name Header */}
             <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">

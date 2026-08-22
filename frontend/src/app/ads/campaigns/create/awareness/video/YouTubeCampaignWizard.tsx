@@ -144,8 +144,8 @@ export default function YouTubeCampaignWizard() {
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
 
         {/* ── Left Sidebar Navigation (Matching Performance Max Style) ── */}
-        <aside className="w-72 border-r border-slate-200 p-4 space-y-4 shrink-0 bg-slate-50/80 hidden md:flex flex-col justify-between overflow-y-auto select-none">
-          <div className="space-y-4">
+        <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar select-none">
+          <div className="p-6 space-y-6">
             <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center gap-2 text-xs font-semibold text-slate-800">
               <Sparkles className="h-4 w-4 text-red-400 shrink-0" />
               <span>Performance Max</span>
