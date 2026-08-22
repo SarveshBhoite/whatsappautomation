@@ -25,8 +25,6 @@ export interface PostItem {
   likesCount?: number | null;
   commentsCount?: number | null;
   publishedAt: string | Date;
-  likesCount?: number;
-  commentsCount?: number;
 }
 
 interface RecentPostsProps {
