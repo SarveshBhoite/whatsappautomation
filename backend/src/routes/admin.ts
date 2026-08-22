@@ -1190,28 +1190,63 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
     const data = await metaRes.json();
     const rawTemplates = data.data || [];
 
-    // Query real message queues in database to compute actual template usage stats
+    // Query real message queues and outbound messages in database to compute actual template usage stats
     const dbQueueStats = await (prisma as any).whatsAppDripMessageQueue.groupBy({
       by: ["templateName", "status"],
       where: { organizationId },
       _count: { id: true }
     }).catch(() => []);
 
+    const dbOutboundMessages = await prisma.message.findMany({
+      where: {
+        direction: "outbound",
+        conversation: { organizationId, platform: "whatsapp" }
+      },
+      select: {
+        content: true,
+        status: true
+      }
+    }).catch(() => []);
+
     const statsByTemplate: Record<string, { used: number; delivered: number; read: number }> = {};
+
+    // 1. Process WhatsAppDripMessageQueue stats
     for (const stat of dbQueueStats) {
       const name = stat.templateName;
       if (!statsByTemplate[name]) {
         statsByTemplate[name] = { used: 0, delivered: 0, read: 0 };
       }
       const cnt = stat._count?.id || 0;
-      if (["SENT", "DELIVERED", "READ"].includes(stat.status)) {
+      const st = (stat.status || "").toUpperCase();
+      if (["SENT", "DELIVERED", "READ"].includes(st)) {
         statsByTemplate[name].used += cnt;
       }
-      if (["DELIVERED", "READ"].includes(stat.status)) {
+      if (["DELIVERED", "READ"].includes(st)) {
         statsByTemplate[name].delivered += cnt;
       }
-      if (stat.status === "READ") {
+      if (st === "READ") {
         statsByTemplate[name].read += cnt;
+      }
+    }
+
+    // 2. Process prisma.message stats for all template dispatches (bulk campaigns, test sends, API calls)
+    for (const msg of dbOutboundMessages) {
+      const match = (msg.content || "").match(/\[TEMPLATE:\s*([a-zA-Z0-9_]+)\]/i);
+      const name = match ? match[1] : null;
+      if (name) {
+        if (!statsByTemplate[name]) {
+          statsByTemplate[name] = { used: 0, delivered: 0, read: 0 };
+        }
+        const st = (msg.status || "").toLowerCase();
+        if (["sent", "delivered", "read"].includes(st)) {
+          statsByTemplate[name].used += 1;
+        }
+        if (["delivered", "read"].includes(st)) {
+          statsByTemplate[name].delivered += 1;
+        }
+        if (st === "read") {
+          statsByTemplate[name].read += 1;
+        }
       }
     }
 
@@ -1306,6 +1341,46 @@ router.post("/whatsapp/templates/test-send", async (req: Request, res: Response)
       languageCode || "en_US",
       components
     );
+
+    // Save outbound message in database with [TEMPLATE: name] tag so template analytics update in real-time
+    try {
+      const cleanPhone = recipientPhone.replace(/[^\d]/g, "");
+      let conv = await prisma.conversation.findUnique({
+        where: {
+          organizationId_platform_customerPhone: {
+            organizationId,
+            platform: "whatsapp",
+            customerPhone: cleanPhone
+          }
+        }
+      });
+      if (!conv) {
+        conv = await prisma.conversation.create({
+          data: {
+            organizationId,
+            platform: "whatsapp",
+            customerPhone: cleanPhone,
+            customerName: nameVar,
+            isBotPaused: false
+          }
+        });
+      }
+
+      const waMsgId = response?.messages?.[0]?.id || `test_${Date.now()}`;
+      await prisma.message.create({
+        data: {
+          conversationId: conv.id,
+          direction: "outbound",
+          messageType: "text",
+          content: `[TEMPLATE: ${templateName || "name_test"}] Test template message sent to ${recipientPhone}`,
+          waMessageId: waMsgId,
+          status: "sent",
+          senderName: "Template Tester"
+        }
+      });
+    } catch (dbSaveErr) {
+      console.warn("Failed to log test template message in DB:", dbSaveErr);
+    }
 
     return res.status(200).json({
       success: true,
@@ -1652,13 +1727,17 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
 
         const waMessageId = responseData?.messages?.[0]?.id || `bulk_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-        // 3. Create outbound message record in database
+        // 3. Create outbound message record in database with template tag for real-time analytics
+        const finalContent = sendType === "template"
+          ? `[TEMPLATE: ${targetTemplate}] ${messageText || 'Template message'}`
+          : (mediaUrl ? `${mediaUrl}|caption:${messageText}` : messageText);
+
         const savedMessage = await prisma.message.create({
           data: {
             conversationId: conversation.id,
             direction: "outbound",
             messageType: mediaUrl ? "image" : "text",
-            content: mediaUrl ? `${mediaUrl}|caption:${messageText}` : messageText,
+            content: finalContent,
             waMessageId,
             status: "sent",
             senderName: "Bulk Campaign"

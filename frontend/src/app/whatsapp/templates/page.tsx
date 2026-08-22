@@ -191,6 +191,10 @@ export default function WhatsAppTemplatesPage() {
 
   useEffect(() => {
     fetchTemplates();
+    const interval = setInterval(() => {
+      fetchTemplates();
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Auto-extract placeholders {{1}}, {{2}} to manage Meta mandated sample variable inputs
