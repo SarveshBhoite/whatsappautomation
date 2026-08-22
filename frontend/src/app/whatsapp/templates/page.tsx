@@ -56,13 +56,13 @@ interface MetaTemplate {
 const getMetaTemplatePricing = (category: string) => {
   const cat = (category || "").toUpperCase();
   if (cat.includes("MARKETING")) {
-    return { costUsd: 0.012, costInr: 0.78, label: "Marketing" };
+    return { costUsd: 0.013, costInr: 1.08, label: "Marketing" };
   } else if (cat.includes("UTILITY")) {
-    return { costUsd: 0.005, costInr: 0.12, label: "Utility" };
+    return { costUsd: 0.0037, costInr: 0.308, label: "Utility" };
   } else if (cat.includes("AUTHENTICATION") || cat.includes("AUTH")) {
-    return { costUsd: 0.004, costInr: 0.11, label: "Authentication" };
+    return { costUsd: 0.0016, costInr: 0.135, label: "Authentication" };
   }
-  return { costUsd: 0.008, costInr: 0.52, label: "Service" };
+  return { costUsd: 0.0037, costInr: 0.308, label: "Service" };
 };
 
 const getTemplateAnalytics = (tpl: MetaTemplate) => {

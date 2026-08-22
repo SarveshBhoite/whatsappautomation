@@ -1253,17 +1253,17 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
     // Attach real analytics data to every template
     const templates = rawTemplates.map((t: any) => {
       const cat = (t.category || "").toUpperCase();
-      let costPerMessageUsd = 0.008;
-      let costPerMessageInr = 0.52;
+      let costPerMessageUsd = 0.0037;
+      let costPerMessageInr = 0.308;
       if (cat.includes("MARKETING")) {
-        costPerMessageUsd = 0.012;
-        costPerMessageInr = 0.78;
+        costPerMessageUsd = 0.013;
+        costPerMessageInr = 1.08;
       } else if (cat.includes("UTILITY")) {
-        costPerMessageUsd = 0.005;
-        costPerMessageInr = 0.12;
+        costPerMessageUsd = 0.0037;
+        costPerMessageInr = 0.308;
       } else if (cat.includes("AUTHENTICATION") || cat.includes("AUTH")) {
-        costPerMessageUsd = 0.004;
-        costPerMessageInr = 0.11;
+        costPerMessageUsd = 0.0016;
+        costPerMessageInr = 0.135;
       }
 
       const realStats = statsByTemplate[t.name] || { used: 0, delivered: 0, read: 0 };
