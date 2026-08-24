@@ -17,7 +17,7 @@ export default function SalesSearchPage() {
 
   // Wizard Step State: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("Atharva");
+  const [campaignName, setCampaignName] = useState<string>("Sales-Search-1");
 
   // Step 1: Bidding State
   const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
@@ -530,13 +530,21 @@ export default function SalesSearchPage() {
       .then(data => {
         if (Array.isArray(data)) {
           setExistingCampaigns(data);
-          // Initial check for default name
-          const normalized = campaignName.trim().toLowerCase();
-          const isDup = data.some((c: any) => c.name && c.name.trim().toLowerCase() === normalized);
-          if (isDup) {
-            setDuplicateNameError("Campaign name already exists. Please choose a unique campaign name.");
-            setFieldErrors(prev => ({ ...prev, campaignName: "Campaign name already exists. Please choose a unique campaign name." }));
+          
+          // Auto-calculate next available index for Sales-Search-# if default is taken
+          let nextIndex = 1;
+          const existingLower = data.map((c: any) => (c.name || "").trim().toLowerCase());
+          while (existingLower.includes(`sales-search-${nextIndex}`.toLowerCase())) {
+            nextIndex++;
           }
+          const defaultName = `Sales-Search-${nextIndex}`;
+          setCampaignName(defaultName);
+          setDuplicateNameError(null);
+          setFieldErrors(prev => {
+            const updated = { ...prev };
+            delete updated.campaignName;
+            return updated;
+          });
         }
       })
       .catch(() => {

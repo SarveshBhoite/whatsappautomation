@@ -2748,13 +2748,81 @@ export default function SalesDisplayPage() {
 
           {displayStep === "REVIEW" && (
             <button
-              onClick={() => {
-                if (!dailyBudget) {
-                  alert("Budget: Value is required");
+              onClick={async () => {
+                // 1. Validation
+                const cleanHeadlines = headlines.filter(h => h && h.trim().length > 0);
+                const cleanDescriptions = descriptions.filter(d => d && d.trim().length > 0);
+                const numBudget = Number(dailyBudget);
+
+                if (!dailyBudget || isNaN(numBudget) || numBudget <= 0) {
+                  alert("Daily Budget must be a positive number greater than 0.");
+                  setDisplayStep("BUDGET_BIDDING");
                   return;
                 }
-                alert("Display campaign published successfully!");
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+
+                if (cleanHeadlines.length === 0) {
+                  alert("At least 1 Headline is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                if (cleanDescriptions.length === 0) {
+                  alert("At least 1 Description is required for Display campaigns.");
+                  setDisplayStep("ADS");
+                  return;
+                }
+
+                try {
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+                  const targetCid = customerId || "6587355041";
+
+                  const payloadToLaunch = {
+                    orgId,
+                    customerId: targetCid,
+                    campaignName: "Atharva-Display-Test-01",
+                    channelType: "DISPLAY",
+                    biddingStrategy: conversionBiddingType === "TARGET_CPA" ? "TARGET_CPA" : "MAXIMIZE_CONVERSIONS",
+                    budget: numBudget,
+                    targetCpa: conversionBiddingType === "TARGET_CPA" && targetCpaValue ? Number(targetCpaValue) : undefined,
+                    startDate: startDate || new Date().toISOString().split("T")[0],
+                    endDate: endDate || undefined,
+                    finalUrl: finalUrl.trim() || "https://www.atharva-automation.com",
+                    businessName: businessName.trim() || "Atharva",
+                    headlines: cleanHeadlines.length > 0 ? cleanHeadlines : ["Grow Your Business Online", "Digital Marketing Solutions", "Smart Business Automation"],
+                    descriptions: cleanDescriptions.length > 0 ? cleanDescriptions : [
+                      "Get powerful digital marketing and automation solutions for your business.",
+                      "Generate more leads and grow your business with smart automation."
+                    ],
+                    images: imagesList.length > 0 ? imagesList : [
+                      "https://ik.imagekit.io/automationjds/gads_dg_image_1787574968684_aimaths_YX-Kb7zvI.jpg"
+                    ],
+                    logos: logosList.length > 0 ? logosList : [
+                      "https://ik.imagekit.io/automationjds/gads_dg_logo_1787574973938_google_ads_logo_FJndWjppS.jpg"
+                    ],
+                    locations: selectedLocation === "INDIA" ? ["India"] : ["All countries and territories"],
+                    languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+                    euPolitical: euPoliticalAds
+                  };
+
+                  console.log("[Sales -> Display Frontend] Launching payload:", JSON.stringify(payloadToLaunch, null, 2));
+
+                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payloadToLaunch)
+                  });
+
+                  if (res.ok) {
+                    alert("Display campaign published successfully!");
+                    router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                  } else {
+                    const errData = await res.json().catch(() => ({}));
+                    alert(`Failed to publish Display campaign: ${errData.message || errData.error || "Unknown error"}`);
+                  }
+                } catch (err: any) {
+                  alert(`Backend error: ${err.message}`);
+                }
               }}
               className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall,
   Sparkles, Layers, Target, Search, Video, LayoutGrid, ShoppingBag,
-  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, ArrowLeft, Copy, Eye, MoreVertical, Upload
+  Zap, AlertCircle, ChevronDown, ChevronUp, Info, Users, Smartphone, Globe, Settings, Edit3, Bell, ArrowLeft, Copy, Eye, MoreVertical, Upload, Menu
 } from "lucide-react";
 
 export default function SalesDemandGenPage() {
@@ -14,6 +14,7 @@ export default function SalesDemandGenPage() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Wizard Step State: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW"
   const [demandGenStep, setDemandGenStep] = useState<"CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD" | "REVIEW">("CAMPAIGN_SETTINGS");
@@ -306,6 +307,364 @@ export default function SalesDemandGenPage() {
     }
   };
 
+  // Structured Validation Issues Definition for Review & Preflight
+  interface ValidationIssue {
+    id: string;
+    level: "Campaign" | "Ad group" | "Ad";
+    parameter: string;
+    message: string;
+    step: "CAMPAIGN_SETTINGS" | "AD_GROUP" | "AD";
+    settingKey?: string;
+    adGroupId?: string;
+  }
+
+  const getReviewValidationErrors = (): ValidationIssue[] => {
+    const issues: ValidationIssue[] = [];
+
+    // 1. Campaign Name
+    const trimmedName = (demandGenCampaignName || "").trim();
+    if (!trimmedName) {
+      issues.push({
+        id: "camp-name-req",
+        level: "Campaign",
+        parameter: "Campaign name",
+        message: "Campaign name is required.",
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "name"
+      });
+    } else {
+      const isDup = existingCampaignsList.some(
+        c => c.name && c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (isDup || duplicateNameError) {
+        issues.push({
+          id: "camp-name-dup",
+          level: "Campaign",
+          parameter: "Campaign name",
+          message: "Campaign name already exists. Please choose a unique name.",
+          step: "CAMPAIGN_SETTINGS",
+          settingKey: "name"
+        });
+      }
+    }
+
+    // 2. Daily Budget
+    const numBudget = Number(demandGenBudgetAmount);
+    if (!demandGenBudgetAmount.trim() || isNaN(numBudget) || numBudget <= 0) {
+      issues.push({
+        id: "camp-budget",
+        level: "Campaign",
+        parameter: "Budget amount",
+        message: "Daily Budget must be a positive number greater than 0.",
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "budget"
+      });
+    }
+
+    // 3. Target CPA (if enabled)
+    if (targetCpaDemandGen) {
+      const numCpa = Number(targetCpaValue);
+      if (!targetCpaValue.trim() || isNaN(numCpa) || numCpa <= 0) {
+        issues.push({
+          id: "camp-target-cpa",
+          level: "Campaign",
+          parameter: "Target CPA",
+          message: "Target CPA is enabled and must be a positive number greater than 0.",
+          step: "CAMPAIGN_SETTINGS",
+          settingKey: "targetCpa"
+        });
+      }
+    }
+
+    // 4. Start & End Dates
+    const todayFormatted = getTodayFormattedDate();
+    if (startDate && startDate < todayFormatted) {
+      issues.push({
+        id: "camp-start-date",
+        level: "Campaign",
+        parameter: "Start date",
+        message: `Start date (${startDate}) cannot be in the past.`,
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "budget"
+      });
+    }
+    if (startDate && endDate && endDate < startDate) {
+      issues.push({
+        id: "camp-end-date",
+        level: "Campaign",
+        parameter: "End date",
+        message: `End date (${endDate}) cannot be earlier than start date (${startDate}).`,
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "budget"
+      });
+    }
+
+    // 5. Ad Schedule
+    if (
+      adScheduleStartTime &&
+      adScheduleEndTime &&
+      !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") &&
+      adScheduleEndTime <= adScheduleStartTime
+    ) {
+      issues.push({
+        id: "camp-ad-schedule",
+        level: "Campaign",
+        parameter: "Ad schedule",
+        message: `Schedule end time (${adScheduleEndTime}) must be strictly after start time (${adScheduleStartTime}).`,
+        step: "CAMPAIGN_SETTINGS",
+        settingKey: "adSchedule"
+      });
+    }
+
+    // 6. Custom Location
+    if (selectedLocation === "CUSTOM" && !customLocationInput.trim()) {
+      issues.push({
+        id: "ag-custom-loc",
+        level: "Ad group",
+        parameter: "Locations",
+        message: "A location name or territory is required when 'Enter another location' is selected.",
+        step: "AD_GROUP",
+        settingKey: "locations"
+      });
+    }
+
+    // 7. Ad Group Names
+    adGroups.forEach((ag, idx) => {
+      if (!ag.name.trim()) {
+        issues.push({
+          id: `ag-name-${ag.id || idx}`,
+          level: "Ad group",
+          parameter: `Ad group ${idx + 1} name`,
+          message: "Ad group name is required.",
+          step: "AD_GROUP",
+          settingKey: "name",
+          adGroupId: ag.id
+        });
+      }
+    });
+
+    // 8. Ad Name
+    if (!adName.trim()) {
+      issues.push({
+        id: "ad-name",
+        level: "Ad",
+        parameter: "Ad name",
+        message: "Ad name is required.",
+        step: "AD",
+        settingKey: "adName"
+      });
+    }
+
+    // 9. Ad Final URL
+    const trimmedAdUrl = (adFinalUrl || "").trim();
+    if (!trimmedAdUrl || (!trimmedAdUrl.startsWith("http://") && !trimmedAdUrl.startsWith("https://")) || trimmedAdUrl === "https://" || trimmedAdUrl === "http://") {
+      issues.push({
+        id: "ad-final-url",
+        level: "Ad",
+        parameter: "Final URL",
+        message: "Final URL is required and must begin with http:// or https://",
+        step: "AD",
+        settingKey: "finalUrl"
+      });
+    }
+
+    // 10. Mobile Final URL (if enabled)
+    if (useDiffMobileUrl) {
+      const trimmedMobUrl = (mobileFinalUrl || "").trim();
+      if (!trimmedMobUrl || (!trimmedMobUrl.startsWith("http://") && !trimmedMobUrl.startsWith("https://")) || trimmedMobUrl === "https://" || trimmedMobUrl === "http://") {
+        issues.push({
+          id: "ad-mob-url",
+          level: "Ad",
+          parameter: "Mobile final URL",
+          message: "Mobile final URL is enabled and must begin with http:// or https://",
+          step: "AD"
+        });
+      }
+    }
+
+    // 11. Format-specific Assets Validation
+    if (demandGenAdType === "SINGLE_IMAGE") {
+      if (adImages.length === 0) {
+        issues.push({
+          id: "ad-images",
+          level: "Ad",
+          parameter: "Marketing images",
+          message: "At least 1 marketing image is required.",
+          step: "AD"
+        });
+      }
+      if (adLogos.length === 0) {
+        issues.push({
+          id: "ad-logos",
+          level: "Ad",
+          parameter: "Business logo",
+          message: "At least 1 logo is required.",
+          step: "AD"
+        });
+      }
+      const validHl = adHeadlines.filter(h => h && h.trim().length > 0);
+      if (validHl.length === 0) {
+        issues.push({
+          id: "ad-headlines",
+          level: "Ad",
+          parameter: "Headlines",
+          message: "At least 1 headline is required.",
+          step: "AD"
+        });
+      }
+      const validDesc = adDescriptions.filter(d => d && d.trim().length > 0);
+      if (validDesc.length === 0) {
+        issues.push({
+          id: "ad-descriptions",
+          level: "Ad",
+          parameter: "Descriptions",
+          message: "At least 1 description is required.",
+          step: "AD"
+        });
+      }
+      if (!businessName.trim()) {
+        issues.push({
+          id: "ad-biz-name",
+          level: "Ad",
+          parameter: "Business name",
+          message: "Business name is required.",
+          step: "AD"
+        });
+      }
+    } else if (demandGenAdType === "VIDEO") {
+      if (adVideos.length === 0) {
+        issues.push({
+          id: "ad-videos",
+          level: "Ad",
+          parameter: "Videos",
+          message: "At least 1 YouTube video URL is required.",
+          step: "AD"
+        });
+      }
+      if (adLogos.length === 0) {
+        issues.push({
+          id: "ad-logos-video",
+          level: "Ad",
+          parameter: "Business logo",
+          message: "At least 1 logo is required.",
+          step: "AD"
+        });
+      }
+      const validHl = adHeadlines.filter(h => h && h.trim().length > 0);
+      if (validHl.length === 0) {
+        issues.push({
+          id: "ad-headlines-video",
+          level: "Ad",
+          parameter: "Headlines",
+          message: "At least 1 headline is required.",
+          step: "AD"
+        });
+      }
+      const validLongHl = adLongHeadlines.filter(lh => lh && lh.trim().length > 0);
+      if (validLongHl.length === 0) {
+        issues.push({
+          id: "ad-long-headlines-video",
+          level: "Ad",
+          parameter: "Long headline",
+          message: "At least 1 long headline is required for video ads.",
+          step: "AD"
+        });
+      }
+      const validDesc = adDescriptions.filter(d => d && d.trim().length > 0);
+      if (validDesc.length === 0) {
+        issues.push({
+          id: "ad-descriptions-video",
+          level: "Ad",
+          parameter: "Descriptions",
+          message: "At least 1 description is required.",
+          step: "AD"
+        });
+      }
+      if (!businessName.trim()) {
+        issues.push({
+          id: "ad-biz-name-video",
+          level: "Ad",
+          parameter: "Business name",
+          message: "Business name is required.",
+          step: "AD"
+        });
+      }
+    } else if (demandGenAdType === "CAROUSEL") {
+      if (carouselCards.length < 2) {
+        issues.push({
+          id: "ad-carousel-cards",
+          level: "Ad",
+          parameter: "Carousel cards",
+          message: "At least 2 carousel cards are required for carousel image ads.",
+          step: "AD"
+        });
+      } else {
+        const hasEmptyCard = carouselCards.some(c => !c.image.trim() || !c.headline.trim());
+        if (hasEmptyCard) {
+          issues.push({
+            id: "ad-carousel-incomplete",
+            level: "Ad",
+            parameter: "Carousel card content",
+            message: "All carousel cards must contain both an image URL and a headline.",
+            step: "AD"
+          });
+        }
+      }
+      if (adLogos.length === 0) {
+        issues.push({
+          id: "ad-logos-carousel",
+          level: "Ad",
+          parameter: "Business logo",
+          message: "At least 1 logo is required.",
+          step: "AD"
+        });
+      }
+      if (!adHeadlines[0] || !adHeadlines[0].trim()) {
+        issues.push({
+          id: "ad-headlines-carousel",
+          level: "Ad",
+          parameter: "Headline",
+          message: "Headline is required.",
+          step: "AD"
+        });
+      }
+      if (!adDescriptions[0] || !adDescriptions[0].trim()) {
+        issues.push({
+          id: "ad-descriptions-carousel",
+          level: "Ad",
+          parameter: "Description",
+          message: "Description is required.",
+          step: "AD"
+        });
+      }
+      if (!businessName.trim()) {
+        issues.push({
+          id: "ad-biz-name-carousel",
+          level: "Ad",
+          parameter: "Business name",
+          message: "Business name is required.",
+          step: "AD"
+        });
+      }
+    }
+
+    return issues;
+  };
+
+  const handleFixIssue = (issue: ValidationIssue) => {
+    if (issue.adGroupId) {
+      setActiveAdGroupId(issue.adGroupId);
+    }
+    setDemandGenStep(issue.step);
+    if (issue.step === "CAMPAIGN_SETTINGS" && issue.settingKey) {
+      setOpenCampaignSetting(issue.settingKey);
+    } else if (issue.step === "AD_GROUP" && issue.settingKey) {
+      setOpenAdGroupSetting(issue.settingKey);
+    } else if (issue.step === "AD" && issue.settingKey) {
+      setOpenAdSetting(issue.settingKey);
+    }
+  };
+
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
@@ -327,19 +686,27 @@ export default function SalesDemandGenPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ────────────────── */}
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 md:hidden cursor-pointer"
+            title="Open steps menu"
+            aria-label="Open steps menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all flex items-center gap-1 text-xs cursor-pointer"
             title="Back to campaign objectives"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
+            <span className="hidden sm:inline">Back</span>
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-            <Zap className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-slate-800">Google Ads • Demand Gen</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4">
+            <Zap className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate max-w-[140px] sm:max-w-none">Demand Gen</span>
           </div>
         </div>
 
@@ -350,10 +717,10 @@ export default function SalesDemandGenPage() {
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono hidden sm:inline">
+          <span className="font-mono text-[11px] sm:text-xs truncate max-w-[140px] sm:max-w-none">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900 shrink-0" />
           <button
             onClick={() => router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
@@ -364,38 +731,219 @@ export default function SalesDemandGenPage() {
         </div>
       </header>
 
+      {/* ── Mobile Sidebar Drawer (Slide-over overlay) ── */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+
+          {/* Drawer panel */}
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200 animate-in slide-in-from-left duration-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                <h2 className="font-bold text-slate-900 text-sm">Demand Gen</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+              {/* Dynamic Status in Campaign Header */}
+              {(() => {
+                const allIssues = getReviewValidationErrors();
+                const hasErrors = allIssues.length > 0;
+                return (
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">
+                    <span className="truncate">{demandGenCampaignName}</span>
+                    {hasErrors ? (
+                      <span title={`${allIssues.length} issue(s) detected`}>
+                        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                      </span>
+                    ) : (
+                      <span title="All parameters valid">
+                        <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Navigation Tree Matching Google Ads Hierarchy */}
+              <nav className="space-y-1 text-xs font-sans">
+                {/* Campaign Header */}
+                {(() => {
+                  const campIssues = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                  const hasCampIssues = campIssues.length > 0;
+                  return (
+                    <div
+                      onClick={() => {
+                        setDemandGenStep("CAMPAIGN_SETTINGS");
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
+                        demandGenStep === "CAMPAIGN_SETTINGS"
+                          ? "bg-blue-600/20 text-blue-400 font-bold"
+                          : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <LayoutGrid className="h-4 w-4 text-slate-500 shrink-0" />
+                        <span className="truncate">{demandGenCampaignName}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {hasCampIssues ? (
+                          <span title={`${campIssues.length} error(s)`}>
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                          </span>
+                        ) : (
+                          <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="border-t border-slate-200 my-2" />
+
+                {/* Dynamic List of Ad Groups with Nested Ads */}
+                <div className="space-y-1">
+                  {adGroups.map((ag) => {
+                    const isAgActive = demandGenStep === "AD_GROUP" && activeAdGroupId === ag.id;
+
+                    return (
+                      <div key={ag.id} className="space-y-0.5">
+                        {/* Ad Group Row */}
+                        <div
+                          onClick={() => {
+                            setActiveAdGroupId(ag.id);
+                            setDemandGenStep("AD_GROUP");
+                            setIsMobileSidebarOpen(false);
+                          }}
+                          className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
+                            isAgActive
+                              ? "bg-blue-600/20 text-blue-400 font-bold"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <LayoutGrid className={`h-4 w-4 shrink-0 ${isAgActive ? "text-blue-400" : "text-slate-500"}`} />
+                            <span className="truncate">{ag.name}</span>
+                          </div>
+                        </div>
+
+                        {/* Nested Child Ad 1 */}
+                        <div
+                          onClick={() => {
+                            setActiveAdGroupId(ag.id);
+                            setDemandGenStep("AD");
+                            setIsMobileSidebarOpen(false);
+                          }}
+                          className={`ml-6 p-2 rounded-r-full flex items-center justify-between text-xs font-medium cursor-pointer transition-all ${
+                            demandGenStep === "AD" && activeAdGroupId === ag.id
+                              ? "bg-blue-600/20 text-blue-400 font-bold"
+                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Plus className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                            <span className="truncate">Ad 1</span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-200 my-1.5" />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Review campaign */}
+                <div
+                  onClick={() => {
+                    setDemandGenStep("REVIEW");
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`p-2.5 rounded-r-full flex items-center gap-2.5 font-semibold cursor-pointer transition-all ${
+                    demandGenStep === "REVIEW"
+                      ? "bg-blue-600/20 text-blue-400 font-bold"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <Info className="h-4 w-4 text-slate-500" />
+                  <span>Review campaign</span>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
         
         {/* Left Sub-Navigation Sidebar matching screenshot */}
         <aside className="w-64 border-r border-slate-200 bg-slate-50/50 hidden md:block shrink-0 overflow-y-auto hidden-scrollbar">
           <div className="space-y-4">
-            {/* Campaign Name Header */}
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">
-              <span className="truncate">{demandGenCampaignName}</span>
-              <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-            </div>
+            {/* Dynamic Status in Campaign Header */}
+            {(() => {
+              const allIssues = getReviewValidationErrors();
+              const hasErrors = allIssues.length > 0;
+              return (
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-800">
+                  <span className="truncate">{demandGenCampaignName}</span>
+                  {hasErrors ? (
+                    <span title={`${allIssues.length} issue(s) detected`}>
+                      <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                    </span>
+                  ) : (
+                    <span title="All parameters valid">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Navigation Tree Matching Google Ads Hierarchy */}
             <nav className="space-y-1 text-xs font-sans">
               {/* Campaign Header */}
-              <div
-                onClick={() => setDemandGenStep("CAMPAIGN_SETTINGS")}
-                className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
-                  demandGenStep === "CAMPAIGN_SETTINGS"
-                    ? "bg-blue-600/20 text-blue-400 font-bold"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <LayoutGrid className="h-4 w-4 text-slate-500 shrink-0" />
-                  <span className="truncate">{demandGenCampaignName}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
-                </div>
-              </div>
+              {(() => {
+                const campIssues = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                const hasCampIssues = campIssues.length > 0;
+                return (
+                  <div
+                    onClick={() => setDemandGenStep("CAMPAIGN_SETTINGS")}
+                    className={`p-2.5 rounded-r-full flex items-center justify-between font-semibold cursor-pointer transition-all ${
+                      demandGenStep === "CAMPAIGN_SETTINGS"
+                        ? "bg-blue-600/20 text-blue-400 font-bold"
+                        : "text-slate-700 hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <LayoutGrid className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="truncate">{demandGenCampaignName}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {hasCampIssues ? (
+                        <span title={`${campIssues.length} error(s)`}>
+                          <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                        </span>
+                      ) : (
+                        <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      )}
+                      <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="border-t border-slate-200 my-2" />
 
@@ -559,7 +1107,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("name")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -569,7 +1117,18 @@ export default function SalesDemandGenPage() {
                         {activeAdGroup.name}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("name");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -647,7 +1206,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("locations")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -657,7 +1216,18 @@ export default function SalesDemandGenPage() {
                         {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : `Custom: ${customLocationInput || "None"}`}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("locations");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -726,7 +1296,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("languages")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -736,7 +1306,18 @@ export default function SalesDemandGenPage() {
                         {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("languages");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -839,7 +1420,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("channels")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -849,7 +1430,18 @@ export default function SalesDemandGenPage() {
                         {channelTargeting === "ALL" ? "All Google channels" : selectedAdGroupChannels.join(", ")}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("channels");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -894,7 +1486,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("audience")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -904,7 +1496,18 @@ export default function SalesDemandGenPage() {
                         {audienceName || "No audience selected"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("audience");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -965,7 +1568,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("optimizedTargeting")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -975,7 +1578,18 @@ export default function SalesDemandGenPage() {
                         {useOptimizedTargeting ? "Use optimized targeting" : "Off"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("optimizedTargeting");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1044,7 +1658,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdGroupSetting("urlOptions")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1054,7 +1668,18 @@ export default function SalesDemandGenPage() {
                         {agTrackingTemplate || agFinalUrlSuffix || agCustomParams.some(p => p.name || p.value) ? "Custom URL options set" : "No options set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdGroupSetting("urlOptions");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1106,7 +1731,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("prefill")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56 flex items-center gap-2">
@@ -1117,7 +1742,18 @@ export default function SalesDemandGenPage() {
                         {selectedSourceCampaign ? `Source: ${selectedSourceCampaign}` : ""}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("prefill");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1255,7 +1891,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("name")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56 flex items-center gap-1">
@@ -1278,7 +1914,18 @@ export default function SalesDemandGenPage() {
                         )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("name");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1323,7 +1970,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("goal")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1333,7 +1980,18 @@ export default function SalesDemandGenPage() {
                         {demandGenGoal}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("goal");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1375,7 +2033,7 @@ export default function SalesDemandGenPage() {
                   ) : (
                     <div 
                       onClick={() => setOpenCampaignSetting("conversions")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56">
@@ -1385,7 +2043,18 @@ export default function SalesDemandGenPage() {
                           Use campaign specific goal: Phone call leads
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenCampaignSetting("conversions");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1425,7 +2094,7 @@ export default function SalesDemandGenPage() {
                   ) : (
                     <div 
                       onClick={() => setOpenCampaignSetting("viewThrough")}
-                      className="flex items-center justify-between cursor-pointer select-none text-xs"
+                      className="flex items-center justify-between cursor-pointer select-none text-xs group"
                     >
                       <div className="flex items-center gap-16">
                         <div className="w-56 flex items-center gap-2">
@@ -1436,7 +2105,18 @@ export default function SalesDemandGenPage() {
                           {includeViewThrough ? "Turned on" : "Turned off"}
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenCampaignSetting("viewThrough");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1529,7 +2209,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("targetCpa")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1549,7 +2229,18 @@ export default function SalesDemandGenPage() {
                         )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("targetCpa");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1697,7 +2388,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("budget")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56 flex items-center gap-1">
@@ -1714,7 +2405,18 @@ export default function SalesDemandGenPage() {
                         )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("budget");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1751,7 +2453,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("customerAcquisition")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1761,7 +2463,18 @@ export default function SalesDemandGenPage() {
                         {onlyNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("customerAcquisition");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1847,7 +2560,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("brandGuidelines")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1857,7 +2570,18 @@ export default function SalesDemandGenPage() {
                         {mainBrandColor || accentBrandColor ? `Main: ${mainBrandColor}, Accent: ${accentBrandColor}` : "No guidelines set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("brandGuidelines");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1889,7 +2613,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("euPoliticalAds")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1899,7 +2623,18 @@ export default function SalesDemandGenPage() {
                         {euPoliticalAds === "YES" ? "Yes, EU political ads" : "Doesn't have EU political ads"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("euPoliticalAds");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -1966,7 +2701,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("locationLang")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -1976,7 +2711,18 @@ export default function SalesDemandGenPage() {
                         {useCampaignLocationLang ? "Set at campaign level" : "Set at ad group, include people with presence in locations"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("locationLang");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2024,7 +2770,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("devices")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2034,7 +2780,18 @@ export default function SalesDemandGenPage() {
                         {deviceTargetingType === "ALL" ? "All eligible devices (computers, mobile, tablet, and TV screens)" : "Set specific targeting for devices"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("devices");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2153,7 +2910,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("adSchedule")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2171,7 +2928,18 @@ export default function SalesDemandGenPage() {
                         )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("adSchedule");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2202,7 +2970,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("thirdParty")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2212,7 +2980,18 @@ export default function SalesDemandGenPage() {
                         None
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("thirdParty");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2264,7 +3043,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("urlOptions")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2274,7 +3053,18 @@ export default function SalesDemandGenPage() {
                         {trackingTemplate || finalUrlSuffix || customParametersDemandGen.some(p => p.name || p.value) ? "Custom URL options set" : "No options set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("urlOptions");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2315,7 +3105,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenCampaignSetting("ipExclusions")}
-                    className="flex items-center justify-between cursor-pointer select-none"
+                    className="flex items-center justify-between cursor-pointer select-none group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2325,7 +3115,18 @@ export default function SalesDemandGenPage() {
                         {ipExclusionsInput ? "Exclusions set" : "No exclusions set"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenCampaignSetting("ipExclusions");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2438,7 +3239,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdSetting("adType")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2448,7 +3249,18 @@ export default function SalesDemandGenPage() {
                         {demandGenAdType === "SINGLE_IMAGE" ? "Single image ad" : demandGenAdType === "VIDEO" ? "Video ad" : "Carousel image ad"}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdSetting("adType");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2476,7 +3288,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdSetting("adName")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56">
@@ -2486,7 +3298,18 @@ export default function SalesDemandGenPage() {
                         {adName}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdSetting("adName");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2543,7 +3366,7 @@ export default function SalesDemandGenPage() {
                 ) : (
                   <div 
                     onClick={() => setOpenAdSetting("finalUrl")}
-                    className="flex items-center justify-between cursor-pointer select-none text-xs"
+                    className="flex items-center justify-between cursor-pointer select-none text-xs group"
                   >
                     <div className="flex items-center gap-16">
                       <div className="w-56 flex items-center gap-1">
@@ -2560,7 +3383,18 @@ export default function SalesDemandGenPage() {
                         )}
                       </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
+                    <button
+                      type="button"
+                      aria-label="Edit"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenAdSetting("finalUrl");
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
               </div>
@@ -2571,8 +3405,19 @@ export default function SalesDemandGenPage() {
               {demandGenAdType === "SINGLE_IMAGE" && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                   {/* Media */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Media</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Media</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Media"
+                        title="Edit Media"
+                        onClick={() => document.getElementById("adImageInput")?.focus()}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
                     
                     {/* Images Section */}
                     <div className="space-y-2.5">
@@ -2742,8 +3587,18 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* Text */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Text</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Text</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Text"
+                        title="Edit Text"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     <div className="space-y-3">
                       <div className="flex justify-between">
@@ -2871,12 +3726,22 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* Asset Optimization */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <div>
-                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Asset optimization</h4>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
-                      </p>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Asset optimization</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                          Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit Asset Optimization"
+                        title="Edit Asset Optimization"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer shrink-0 ml-4"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
 
                     <div className="space-y-3">
@@ -2925,13 +3790,27 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* URL and other options */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
                     <div 
                       onClick={() => setShowAdUrlOptions(!showAdUrlOptions)}
                       className="flex items-center justify-between cursor-pointer pb-1 select-none font-bold text-slate-800"
                     >
-                      <span>URL and other options</span>
-                      <span>{showAdUrlOptions ? "▲" : "▼"}</span>
+                      <span className="text-sm">URL and other options</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Edit URL Options"
+                          title="Edit URL Options"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAdUrlOptions(!showAdUrlOptions);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        {showAdUrlOptions ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                      </div>
                     </div>
 
                     {showAdUrlOptions && (
@@ -3016,8 +3895,19 @@ export default function SalesDemandGenPage() {
               {demandGenAdType === "VIDEO" && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                   {/* Media */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Media</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Media</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Media"
+                        title="Edit Media"
+                        onClick={() => document.getElementById("adVideoInput")?.focus()}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     <div className="space-y-2">
                       <div className="flex justify-between">
@@ -3156,8 +4046,18 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* Text */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Text</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Text</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Text"
+                        title="Edit Text"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     {/* Headline */}
                     <div className="space-y-3">
@@ -3328,9 +4228,22 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* Sitelinks */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Sitelinks</h4>
-                    <p className="text-[11px] text-slate-500">Add 4 or more to maximize performance</p>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Sitelinks</h4>
+                        <p className="text-[11px] text-slate-500">Add 4 or more to maximize performance</p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit Sitelinks"
+                        title="Edit Sitelinks"
+                        onClick={() => document.getElementById("sitelinkInput")?.focus()}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     <div className="flex gap-2 max-w-xl">
                       <input
@@ -3365,12 +4278,22 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* Asset Optimization */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <div>
-                      <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1 text-xs">Asset optimization</h4>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
-                      </p>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div>
+                        <h4 className="font-bold text-slate-800 text-sm">Asset optimization</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                          Let Google AI use your existing ad content to create optimized assets. This helps improve ad coverage and drive conversions. <a href="#" className="text-blue-400 hover:underline">How it works</a>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit Asset Optimization"
+                        title="Edit Asset Optimization"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer shrink-0 ml-4"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
 
                     <div className="space-y-3">
@@ -3415,8 +4338,18 @@ export default function SalesDemandGenPage() {
               {demandGenAdType === "CAROUSEL" && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                   {/* Media */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Media</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Media</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Media"
+                        title="Edit Media"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     {/* Cards */}
                     <div className="space-y-4">
@@ -3594,8 +4527,18 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* Text */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
-                    <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-1">Text</h4>
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-bold text-slate-800 text-sm">Text</h4>
+                      <button
+                        type="button"
+                        aria-label="Edit Text"
+                        title="Edit Text"
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     {/* Headline */}
                     <div className="space-y-3">
@@ -3656,13 +4599,27 @@ export default function SalesDemandGenPage() {
                   </div>
 
                   {/* URL and other options */}
-                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg group">
                     <div 
                       onClick={() => setShowAdUrlOptions(!showAdUrlOptions)}
                       className="flex items-center justify-between cursor-pointer pb-1 select-none font-bold text-slate-800"
                     >
-                      <span>URL and other options</span>
-                      <span>{showAdUrlOptions ? "▲" : "▼"}</span>
+                      <span className="text-sm">URL and other options</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Edit URL Options"
+                          title="Edit URL Options"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAdUrlOptions(!showAdUrlOptions);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        {showAdUrlOptions ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                      </div>
                     </div>
 
                     {showAdUrlOptions && (
@@ -3708,7 +4665,7 @@ export default function SalesDemandGenPage() {
                               <span className="font-mono text-slate-500">=</span>
                               <input type="text" value={p.value} onChange={(e) => { const u = [...adCustomParams]; u[idx].value = e.target.value; setAdCustomParams(u); }} placeholder="Value" className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 focus:outline-none" />
                               <button type="button" onClick={() => setAdCustomParams(prev => prev.filter((_, i) => i !== idx))} className="text-slate-500 hover:text-rose-400">
-                                <X className="h-4 w-3" />
+                                <X className="h-4 w-4" />
                               </button>
                             </div>
                           ))}
@@ -3727,181 +4684,348 @@ export default function SalesDemandGenPage() {
                 <p className="text-slate-500 font-semibold text-xs">{demandGenCampaignName}</p>
               </div>
 
-              {/* Campaign Level Details */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900">{demandGenCampaignName}</h3>
-                    <div className="flex items-center gap-2 text-[11px] text-rose-400 font-semibold">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span>"{demandGenCampaignName}" has errors which will prevent this campaign from being published</span>
+              {/* Dynamic Overall Validation Status Banner */}
+              {(() => {
+                const validationErrors = getReviewValidationErrors();
+                const hasErrors = validationErrors.length > 0;
+
+                if (hasErrors) {
+                  return (
+                    <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-slate-800 space-y-3">
+                      <div className="flex items-center gap-2 text-rose-500 font-bold text-sm">
+                        <AlertCircle className="h-5 w-5 shrink-0" />
+                        <span>Campaign has {validationErrors.length} {validationErrors.length === 1 ? "issue" : "issues"} that must be fixed before publishing</span>
+                      </div>
+                      <p className="text-slate-600 text-xs">
+                        Review the required parameters below and click <strong className="text-rose-500">Fix</strong> to jump directly to the field.
+                      </p>
+                      <div className="divide-y divide-rose-500/15 pt-1">
+                        {validationErrors.map((err) => (
+                          <div key={err.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-500/20 text-rose-600">
+                                  {err.level}
+                                </span>
+                                <span className="font-bold text-slate-900 text-xs">{err.parameter}</span>
+                              </div>
+                              <p className="text-rose-600 text-xs font-medium">{err.message}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleFixIssue(err)}
+                              className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-center transition-all cursor-pointer shadow-sm"
+                            >
+                              <span>Fix</span>
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-slate-800 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-600 shrink-0">
+                        <Check className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-emerald-700">Ready to publish</h4>
+                        <p className="text-xs text-slate-600">All required campaign settings, ad group parameters, and ad assets are valid.</p>
+                      </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewCampaignDetails(!showReviewCampaignDetails)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    <span>More details</span>
-                    {showReviewCampaignDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                );
+              })()}
+
+              {/* Submit Error Banner (Backend Google Ads launch errors) */}
+              {submitError && (
+                <div className="p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 flex items-start gap-3 text-xs font-semibold animate-in shake duration-200">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <span className="font-bold block">Failed to publish campaign</span>
+                    <span className="font-normal block leading-relaxed">{submitError}</span>
+                  </div>
+                  <button type="button" onClick={() => setSubmitError(null)} className="text-rose-500 hover:text-rose-700">
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Daily budget</span>
-                    <p className="text-slate-800 font-bold">{demandGenBudgetAmount ? `₹${demandGenBudgetAmount}` : "Not set"}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Start date</span>
-                    <p className="text-slate-800 font-bold">{startDate ? new Date(startDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "Not set"}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">End date</span>
-                    <p className="text-slate-800 font-bold">{endDate ? new Date(endDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "Not set"}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Bidding strategy</span>
-                    <p className="text-slate-800 font-bold">Maximize clicks</p>
-                  </div>
-                </div>
+              {/* Campaign Level Details */}
+              {(() => {
+                const campErrors = getReviewValidationErrors().filter(e => e.level === "Campaign");
+                const hasCampErrors = campErrors.length > 0;
 
-                {showReviewCampaignDetails && (
-                  <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Customer acquisition</span>
-                      <span className="font-semibold text-slate-800 text-right">{onlyNewCustomers ? "Optimize for new customers" : "Bid equally for new and existing customers"}</span>
+                return (
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-900">{demandGenCampaignName}</h3>
+                        {hasCampErrors ? (
+                          <div className="flex items-center gap-2 text-[11px] text-rose-500 font-semibold">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>"{demandGenCampaignName}" has errors which will prevent this campaign from being published</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                            <span>Campaign settings are valid</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasCampErrors && (
+                          <button
+                            type="button"
+                            onClick={() => handleFixIssue(campErrors[0])}
+                            className="px-3 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 transition-all text-xs cursor-pointer"
+                          >
+                            Fix ({campErrors.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewCampaignDetails(!showReviewCampaignDetails)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                        >
+                          <span>More details</span>
+                          {showReviewCampaignDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Brand guidelines</span>
-                      <span className="font-semibold text-slate-800 text-right">No guidelines set</span>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Daily budget</span>
+                        <p className={`font-bold ${!demandGenBudgetAmount || Number(demandGenBudgetAmount) <= 0 ? "text-rose-500" : "text-slate-800"}`}>
+                          {demandGenBudgetAmount ? `₹${demandGenBudgetAmount}` : "Not set (Required)"}
+                        </p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Start date</span>
+                        <p className="text-slate-800 font-bold">{startDate ? new Date(startDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "Not set"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">End date</span>
+                        <p className="text-slate-800 font-bold">{endDate ? new Date(endDate).toLocaleDateString("en-US", { year: "numeric", month: "numeric", day: "numeric" }) : "No end date"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Bidding strategy</span>
+                        <p className="text-slate-800 font-bold">{targetCpaDemandGen ? `Target CPA (₹${targetCpaValue || "0"})` : demandGenGoal === "Clicks" ? "Maximize clicks" : "Maximize conversions"}</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">EU political ads</span>
-                      <span className="font-semibold text-slate-800 text-right">{euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Location and language</span>
-                      <span className="font-semibold text-slate-800 text-right">Set at ad group, include people with presence in locations</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Devices</span>
-                      <span className="font-semibold text-slate-800 text-right">{deviceTargetingType === "ALL" ? "All eligible devices (computers, mobile, tablet, and TV screens)" : "Specific device targeting"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Ad schedule</span>
-                      <span className="font-semibold text-slate-800 text-right">{adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} (${adScheduleStartTime} - ${adScheduleEndTime})`}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Campaign URL options</span>
-                      <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={trackingTemplate || "No options set"}>{trackingTemplate ? "Template set" : "No options set"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">IP exclusions</span>
-                      <span className="font-semibold text-slate-800 text-right truncate max-w-[200px]" title={ipExclusionsInput || "No exclusions set"}>{ipExclusionsInput ? "IP exclusions active" : "No exclusions set"}</span>
-                    </div>
+
+                    {showReviewCampaignDetails && (
+                      <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Customer acquisition</span>
+                          <span className="font-semibold text-slate-800 text-right">{onlyNewCustomers ? "Optimize for new customers" : "Bid equally for new and existing customers"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Brand guidelines</span>
+                          <span className="font-semibold text-slate-800 text-right">No guidelines set</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">EU political ads</span>
+                          <span className="font-semibold text-slate-800 text-right">{euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Location and language</span>
+                          <span className="font-semibold text-slate-800 text-right">Set at ad group, include people with presence in locations</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Devices</span>
+                          <span className="font-semibold text-slate-800 text-right">{deviceTargetingType === "ALL" ? "All eligible devices (computers, mobile, tablet, and TV screens)" : "Specific device targeting"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Ad schedule</span>
+                          <span className="font-semibold text-slate-800 text-right">{adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} (${adScheduleStartTime} - ${adScheduleEndTime})`}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Campaign URL options</span>
+                          <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={trackingTemplate || "No options set"}>{trackingTemplate ? "Template set" : "No options set"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">IP exclusions</span>
+                          <span className="font-semibold text-slate-800 text-right truncate max-w-[200px]" title={ipExclusionsInput || "No exclusions set"}>{ipExclusionsInput ? "IP exclusions active" : "No exclusions set"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Ad Group Level Details */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900">{activeAdGroup.name}</h3>
-                    <div className="flex items-center gap-2 text-[11px] text-rose-400 font-semibold">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span>"{activeAdGroup.name}" has errors which will prevent this campaign from being published</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewAdGroupDetails(!showReviewAdGroupDetails)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    <span>More details</span>
-                    {showReviewAdGroupDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
+              {(() => {
+                const agErrors = getReviewValidationErrors().filter(e => e.level === "Ad group");
+                const hasAgErrors = agErrors.length > 0;
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Ads</span>
-                    <p className="text-slate-800 font-bold">1</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Available impressions</span>
-                    <p className="text-slate-800 font-bold">10B+</p>
-                  </div>
-                </div>
+                return (
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-900">{activeAdGroup.name}</h3>
+                        {hasAgErrors ? (
+                          <div className="flex items-center gap-2 text-[11px] text-rose-500 font-semibold">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>"{activeAdGroup.name}" has errors which will prevent this campaign from being published</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                            <span>Ad group settings are valid</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasAgErrors && (
+                          <button
+                            type="button"
+                            onClick={() => handleFixIssue(agErrors[0])}
+                            className="px-3 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 transition-all text-xs cursor-pointer"
+                          >
+                            Fix ({agErrors.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewAdGroupDetails(!showReviewAdGroupDetails)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                        >
+                          <span>More details</span>
+                          {showReviewAdGroupDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
 
-                {showReviewAdGroupDetails && (
-                  <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Languages</span>
-                      <span className="font-semibold text-slate-800 text-right">{selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}</span>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Ads</span>
+                        <p className="text-slate-800 font-bold">1</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Available impressions</span>
+                        <p className="text-slate-800 font-bold">10B+</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Locations</span>
-                      <span className="font-semibold text-slate-800 text-right">{selectedLocation === "ALL" ? "All locations" : selectedLocation === "INDIA" ? "India (country)" : customLocationInput || "Custom location"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Channels</span>
-                      <span className="font-semibold text-slate-800 text-right">{selectedAdGroupChannels.length === 8 ? "All Google channels" : selectedAdGroupChannels.join(", ")}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Optimized targeting</span>
-                      <span className="font-semibold text-slate-800 text-right">{useOptimizedTargeting ? "On" : "Off"}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Ad group URL options</span>
-                      <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={agTrackingTemplate || "No options set"}>{agTrackingTemplate ? "Template set" : "No options set"}</span>
-                    </div>
+
+                    {showReviewAdGroupDetails && (
+                      <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Languages</span>
+                          <span className="font-semibold text-slate-800 text-right">{selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Locations</span>
+                          <span className="font-semibold text-slate-800 text-right">{selectedLocation === "ALL" ? "All locations" : selectedLocation === "INDIA" ? "India (country)" : customLocationInput || "Custom location"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Channels</span>
+                          <span className="font-semibold text-slate-800 text-right">{selectedAdGroupChannels.length === 8 ? "All Google channels" : selectedAdGroupChannels.join(", ")}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Optimized targeting</span>
+                          <span className="font-semibold text-slate-800 text-right">{useOptimizedTargeting ? "On" : "Off"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Ad group URL options</span>
+                          <span className="font-semibold text-slate-800 text-right font-mono truncate max-w-[200px]" title={agTrackingTemplate || "No options set"}>{agTrackingTemplate ? "Template set" : "No options set"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Ad Level Details */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900">{adName || "Ad 1"}</h3>
-                    <div className="flex items-center gap-2 text-[11px] text-rose-400 font-semibold">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span>"{adName || "Ad 1"}" has errors which will prevent this campaign from being published</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewAdDetails(!showReviewAdDetails)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    <span>More details</span>
-                    {showReviewAdDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
+              {(() => {
+                const adErrors = getReviewValidationErrors().filter(e => e.level === "Ad");
+                const hasAdErrors = adErrors.length > 0;
 
-                {showReviewAdDetails && (
-                  <div className="pt-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Active enhancements</span>
-                      <span className="font-semibold text-slate-800 text-right">3 active enhancements</span>
+                return (
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-900">{adName || "Ad 1"}</h3>
+                        {hasAdErrors ? (
+                          <div className="flex items-center gap-2 text-[11px] text-rose-500 font-semibold">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>"{adName || "Ad 1"}" has errors which will prevent this campaign from being published</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                            <span>Ad assets and details are valid</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasAdErrors && (
+                          <button
+                            type="button"
+                            onClick={() => handleFixIssue(adErrors[0])}
+                            className="px-3 py-1 rounded-lg bg-rose-50 text-rose-600 font-bold hover:bg-rose-100 transition-all text-xs cursor-pointer"
+                          >
+                            Fix ({adErrors.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewAdDetails(!showReviewAdDetails)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-primary font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                        >
+                          <span>More details</span>
+                          {showReviewAdDetails ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Ad Type</span>
-                      <span className="font-semibold text-slate-800 text-right">{demandGenAdType === "SINGLE_IMAGE" ? "Single image ad" : demandGenAdType === "VIDEO" ? "Video ad" : "Carousel image ad"}</span>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Ad format</span>
+                        <p className="text-slate-800 font-bold">{demandGenAdType === "SINGLE_IMAGE" ? "Single image" : demandGenAdType === "VIDEO" ? "Video" : "Carousel image"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Assets count</span>
+                        <p className="text-slate-800 font-bold">{demandGenAdType === "SINGLE_IMAGE" ? `${adImages.length} images, ${adLogos.length} logos` : demandGenAdType === "VIDEO" ? `${adVideos.length} videos, ${adLogos.length} logos` : `${carouselCards.length} cards, ${adLogos.length} logos`}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Business Name</span>
+                        <p className={`font-bold ${!businessName.trim() ? "text-rose-500" : "text-slate-800"}`}>{businessName.trim() || "Not set (Required)"}</p>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-slate-500 font-semibold uppercase tracking-wider text-[9px]">Final URL</span>
+                        <p className={`font-bold truncate max-w-[150px] ${!adFinalUrl || adFinalUrl === "https://" ? "text-rose-500" : "text-slate-800"}`} title={adFinalUrl}>{adFinalUrl && adFinalUrl !== "https://" ? adFinalUrl : "Not set (Required)"}</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Assets</span>
-                      <span className="font-semibold text-slate-800 text-right">{adImages.length === 0 && adLogos.length === 0 && adVideos.length === 0 ? "No assets" : `${adImages.length} images, ${adLogos.length} logos`}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1.5 border-b border-slate-850">
-                      <span className="text-slate-500 font-medium">Final URL</span>
-                      <span className="font-semibold text-slate-800 text-right">{!adFinalUrl || adFinalUrl === "https://" ? "Final URL not set" : adFinalUrl}</span>
-                    </div>
+
+                    {showReviewAdDetails && (
+                      <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-slate-700 animate-in slide-in-from-top-2 duration-150">
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Active enhancements</span>
+                          <span className="font-semibold text-slate-800 text-right">3 active enhancements</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Call to action</span>
+                          <span className="font-semibold text-slate-800 text-right">{adCallToAction}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Headlines</span>
+                          <span className="font-semibold text-slate-800 text-right">{adHeadlines.filter(Boolean).join(", ") || "None"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                          <span className="text-slate-500 font-medium">Descriptions</span>
+                          <span className="font-semibold text-slate-800 text-right">{adDescriptions.filter(Boolean).join(", ") || "None"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
@@ -4811,102 +5935,28 @@ export default function SalesDemandGenPage() {
           )}
           {demandGenStep === "REVIEW" && (
             <button
-              disabled={isPublishing || !demandGenCampaignName.trim() || !!duplicateNameError || Object.keys(fieldErrors).length > 0}
+              disabled={isPublishing}
               onClick={async () => {
                 setSubmitError(null);
 
-                // 1. Campaign Name Validation
-                const trimmedName = (demandGenCampaignName || "").trim();
-                if (!trimmedName) {
-                  setFieldErrors(prev => ({ ...prev, demandGenCampaignName: "Campaign name is required." }));
-                  setSubmitError("Campaign name is required.");
-                  setDemandGenStep("CAMPAIGN_SETTINGS");
-                  setOpenCampaignSetting("name");
-                  return;
-                }
-                const isDup = existingCampaignsList.some(c => c.name && c.name.trim().toLowerCase() === trimmedName.toLowerCase());
-                if (isDup) {
-                  const dupMsg = "Campaign name already exists. Please choose a unique campaign name.";
-                  setDuplicateNameError(dupMsg);
-                  setFieldErrors(prev => ({ ...prev, demandGenCampaignName: dupMsg }));
-                  setSubmitError(dupMsg);
-                  setDemandGenStep("CAMPAIGN_SETTINGS");
-                  setOpenCampaignSetting("name");
+                // Run complete frontend validation check
+                const validationErrors = getReviewValidationErrors();
+                if (validationErrors.length > 0) {
+                  const firstErr = validationErrors[0];
+                  setSubmitError(`${firstErr.parameter}: ${firstErr.message}`);
+                  handleFixIssue(firstErr);
                   return;
                 }
 
-                // 2. Budget Validation
-                if (!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0) {
-                  setFieldErrors(prev => ({ ...prev, demandGenBudgetAmount: "Daily Budget must be a positive number greater than 0." }));
-                  setSubmitError("Daily Budget is required and must be greater than 0.");
-                  setDemandGenStep("CAMPAIGN_SETTINGS");
-                  setOpenCampaignSetting("budget");
-                  return;
-                }
-
-                // 3. Target CPA Validation
-                if (targetCpaDemandGen && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0)) {
-                  setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
-                  setSubmitError("Target CPA is enabled and must be a positive number greater than 0.");
-                  setDemandGenStep("CAMPAIGN_SETTINGS");
-                  setOpenCampaignSetting("targetCpa");
-                  return;
-                }
-
-                // 4. Start & End Dates Validation
-                if (startDate && startDate < getTodayFormattedDate()) {
-                  setFieldErrors(prev => ({ ...prev, startDate: "Start date cannot be in the past." }));
-                  setSubmitError("Start date cannot be in the past.");
-                  setDemandGenStep("CAMPAIGN_SETTINGS");
-                  setOpenCampaignSetting("budget");
-                  return;
-                }
-                if (startDate && endDate && endDate < startDate) {
-                  setFieldErrors(prev => ({ ...prev, endDate: "End date cannot be earlier than start date." }));
-                  setSubmitError(`End date (${endDate}) cannot be earlier than start date (${startDate}).`);
-                  setDemandGenStep("CAMPAIGN_SETTINGS");
-                  setOpenCampaignSetting("budget");
-                  return;
-                }
-
-                // 5. Ad Schedule Validation
-                if (adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") && adScheduleEndTime <= adScheduleStartTime) {
-                  setFieldErrors(prev => ({ ...prev, adSchedule: `End time (${adScheduleEndTime}) must be strictly after start time (${adScheduleStartTime}).` }));
-                  setSubmitError(`Ad schedule end time (${adScheduleEndTime}) must be strictly after start time (${adScheduleStartTime}).`);
-                  setDemandGenStep("CAMPAIGN_SETTINGS");
-                  setOpenCampaignSetting("adSchedule");
-                  return;
-                }
-
-                // 6. Ad Final URL Validation
-                if (!adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://"))) {
-                  setFieldErrors(prev => ({ ...prev, adFinalUrl: "Final URL is required and must begin with http:// or https://" }));
-                  setSubmitError("Final URL is required and must begin with http:// or https://");
-                  setDemandGenStep("AD");
-                  setOpenAdSetting("finalUrl");
-                  return;
-                }
-
-                // 7. Ad Assets Validation
-                if (adImages.length === 0) {
-                  setFieldErrors(prev => ({ ...prev, adImages: "At least 1 image is required." }));
-                  setSubmitError("At least 1 marketing image is required for your Demand Gen ad.");
-                  setDemandGenStep("AD");
-                  return;
-                }
-                if (!businessName.trim()) {
-                  setFieldErrors(prev => ({ ...prev, businessName: "Business name is required." }));
-                  setSubmitError("Business name is required.");
-                  setDemandGenStep("AD");
-                  return;
-                }
-
-                // All validations passed! Safe to launch or publish
+                // All parameters are valid! Proceed to launch
                 setIsPublishing(true);
                 try {
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
                   const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
                   const targetCid = customerId || "6587355041";
+
+                  const validHeadlines = adHeadlines.filter(h => h && h.trim().length > 0);
+                  const validDescriptions = adDescriptions.filter(d => d && d.trim().length > 0);
 
                   const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
                     method: "POST",
@@ -4914,22 +5964,36 @@ export default function SalesDemandGenPage() {
                     body: JSON.stringify({
                       orgId,
                       customerId: targetCid,
-                      campaignName: trimmedName,
+                      campaignName: demandGenCampaignName.trim(),
                       channelType: "DEMAND_GEN",
                       biddingStrategy: targetCpaDemandGen ? "TARGET_CPA" : demandGenGoal === "Clicks" ? "MAXIMIZE_CLICKS" : "MAXIMIZE_CONVERSIONS",
                       budget: Number(demandGenBudgetAmount),
                       targetCpa: targetCpaDemandGen && targetCpaValue ? Number(targetCpaValue) : undefined,
                       startDate: startDate || getTodayFormattedDate(),
                       endDate: endDate || undefined,
-                      finalUrl: adFinalUrl,
+                      finalUrl: adFinalUrl.trim(),
                       businessName: businessName.trim(),
+                      headlines: validHeadlines.length > 0 ? validHeadlines : ["Explore Demand Gen"],
+                      descriptions: validDescriptions.length > 0 ? validDescriptions : ["Discover great offers today with Demand Gen"],
+                      images: demandGenAdType === "SINGLE_IMAGE" ? adImages : demandGenAdType === "VIDEO" ? adVideos : carouselCards.map(c => c.image),
+                      logos: adLogos,
+                      adFormat: demandGenAdType,
+                      adName: adName.trim(),
+                      adSchedule: adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45") ? [{ day: adScheduleDays, start: adScheduleStartTime, end: adScheduleEndTime }] : [],
+                      locations: selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : [customLocationInput],
+                      languages: selectedLanguages,
+                      channels: selectedAdGroupChannels,
+                      optimizedTargeting: useOptimizedTargeting,
+                      customerAcquisitionMode: onlyNewCustomers ? "NEW_CUSTOMERS_ONLY" : "ALL_CUSTOMERS",
+                      trackingTemplate: trackingTemplate || agTrackingTemplate || adTrackingTemplate || undefined,
+                      finalUrlSuffix: finalUrlSuffix || agFinalUrlSuffix || adFinalUrlSuffix || undefined,
                       euPolitical: euPoliticalAds,
                       conversionGoals: []
                     })
                   });
 
                   if (res.ok) {
-                    alert(`Demand Gen campaign "${trimmedName}" published successfully!`);
+                    alert(`Demand Gen campaign "${demandGenCampaignName.trim()}" published successfully!`);
                     router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
                   } else {
                     const errData = await res.json().catch(() => ({}));

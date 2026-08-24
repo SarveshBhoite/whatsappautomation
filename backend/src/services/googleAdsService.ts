@@ -490,15 +490,18 @@ export class GoogleAdsService {
     name: string; campaignResourceName: string; type?: string; cpcBidMicros?: number;
   }) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const adGroupPayload: any = {
+      name: params.name,
+      campaign: params.campaignResourceName,
+      type: params.type || "SEARCH_STANDARD",
+      status: "ENABLED"
+    };
+    if (params.cpcBidMicros && params.type !== "DISPLAY_STANDARD") {
+      adGroupPayload.cpcBidMicros = params.cpcBidMicros;
+    }
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/adGroups:mutate`, {
       operations: [{
-        create: {
-          name: params.name,
-          campaign: params.campaignResourceName,
-          type: params.type || "SEARCH_STANDARD",
-          status: "ENABLED",
-          cpcBidMicros: params.cpcBidMicros || 1_000_000 // default ₹1 CPC
-        }
+        create: adGroupPayload
       }]
     }, { headers });
     return res.data.results?.[0]?.resourceName;
@@ -1277,6 +1280,7 @@ export class GoogleAdsService {
     maxCpcImpressionShare?: number | string;
     conversionGoals?: Array<{ category: string; origin: string; biddable?: boolean }>;
     conversionValueRules?: any[];
+    euPolitical?: string;
   }) {
     const { organizationId, customerId } = params;
 
@@ -2565,7 +2569,7 @@ export class GoogleAdsService {
       campaignName: string;
       finalUrl: string;
       amountMicros: number;
-      biddingFocus: string;
+      biddingFocus?: string;
       targetCpaMicros?: number;
       headlines: string[];
       longHeadline?: string;
@@ -2573,45 +2577,65 @@ export class GoogleAdsService {
       images?: string[];
     }
   ) {
-    try {
-      const budgetRef = await this.createBudget(organizationId, customerId, {
-        name: `${params.campaignName} Budget - ${Date.now()}`,
-        amountPerDay: params.amountMicros / 1_000_000
-      });
+    const budgetRef = await this.createBudget(organizationId, customerId, {
+      name: `${params.campaignName} Budget - ${Date.now()}`,
+      amountPerDay: params.amountMicros / 1_000_000
+    });
 
-      const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const cid = (customerId || "").replace(/-/g, "").trim();
-      const campaignPayload = {
-        operations: [
-          {
-            create: {
-              name: params.campaignName,
-              status: "PAUSED",
-              advertisingChannelType: "DISPLAY",
-              campaignBudget: budgetRef,
-              ...(params.targetCpaMicros ? { targetCpa: { targetCpaMicros: params.targetCpaMicros } } : {})
-            }
-          }
-        ]
-      };
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const cid = (customerId || "").replace(/-/g, "").trim();
 
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-display-${Date.now()}`;
-      const campaignId = campaignRef.split("/").pop();
-
-      return {
-        campaignResourceName: campaignRef,
-        budgetResourceName: budgetRef,
-        campaignId
-      };
-    } catch (err: any) {
-      console.warn("Google Ads No Guidance Display REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-display-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `display-${Date.now()}`
-      };
+    // Determine bidding strategy for Display in API v24
+    // Standard Display campaigns use maximizeConversions (with optional targetCpaMicros) or targetCpa
+    let biddingConfig: any = { maximizeConversions: {} };
+    if (params.targetCpaMicros && params.targetCpaMicros > 0) {
+      biddingConfig = { maximizeConversions: { targetCpaMicros: String(params.targetCpaMicros) } };
+    } else if (params.biddingFocus === "MANUAL_CPC") {
+      biddingConfig = { manualCpc: { enhancedCpcEnabled: false } };
     }
+
+    const campaignPayload = {
+      operations: [
+        {
+          create: {
+            name: params.campaignName,
+            status: "PAUSED",
+            advertisingChannelType: "DISPLAY",
+            campaignBudget: budgetRef,
+            containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            ...biddingConfig
+          }
+        }
+      ]
+    };
+
+    const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+    const campaignRef = res.data?.results?.[0]?.resourceName;
+    if (!campaignRef) {
+      throw new Error(`Google Ads API returned no campaign resource name in mutate response: ${JSON.stringify(res.data)}`);
+    }
+    const campaignId = campaignRef.split("/").pop();
+
+    // Create the required DISPLAY_STANDARD Ad Group so the campaign is complete and visible in Google Ads UI
+    let adGroupRef: string | undefined;
+    try {
+      adGroupRef = await this.createAdGroup(organizationId, cid, {
+        name: `${params.campaignName} - Ad Group 1`,
+        campaignResourceName: campaignRef,
+        type: "DISPLAY_STANDARD",
+        cpcBidMicros: 1_000_000
+      });
+      console.log(`[GoogleAds API] Created Display Ad Group: ${adGroupRef}`);
+    } catch (agErr: any) {
+      console.warn("[GoogleAds API] Display Ad Group creation warning:", agErr?.response?.data || agErr.message);
+    }
+
+    return {
+      campaignResourceName: campaignRef,
+      budgetResourceName: budgetRef,
+      adGroupResourceName: adGroupRef,
+      campaignId
+    };
   }
 
   /**
@@ -2622,55 +2646,60 @@ export class GoogleAdsService {
     customerId: string,
     params: {
       campaignName: string;
-      campaignSubtype: string;
-      videoUrl: string;
-      finalUrl: string;
+      campaignSubtype?: string;
+      videoUrl?: string;
+      finalUrl?: string;
       amountMicros: number;
-      biddingFocus: string;
+      biddingFocus?: string;
       cpvMicros?: number;
+      targetCpaMicros?: number;
       headline?: string;
       description?: string;
     }
   ) {
-    try {
-      const budgetRef = await this.createBudget(organizationId, customerId, {
-        name: `${params.campaignName} Budget - ${Date.now()}`,
-        amountPerDay: params.amountMicros / 1_000_000
-      });
+    const budgetRef = await this.createBudget(organizationId, customerId, {
+      name: `${params.campaignName} Budget - ${Date.now()}`,
+      amountPerDay: params.amountMicros / 1_000_000
+    });
 
-      const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const cid = (customerId || "").replace(/-/g, "").trim();
-      const campaignPayload = {
-        operations: [
-          {
-            create: {
-              name: params.campaignName,
-              status: "PAUSED",
-              advertisingChannelType: "VIDEO",
-              campaignBudget: budgetRef,
-              targetCpv: { cpmBidMicros: params.cpvMicros || 2500000 }
-            }
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    const cid = (customerId || "").replace(/-/g, "").trim();
+
+    // Determine bidding strategy for Video
+    const isTargetCpa = params.targetCpaMicros && params.targetCpaMicros > 0;
+    const biddingConfig = isTargetCpa
+      ? { targetCpa: { targetCpaMicros: String(params.targetCpaMicros) } }
+      : params.biddingFocus === "MANUAL_CPV" || params.biddingFocus === "Maximum CPV"
+      ? { manualCpv: {} }
+      : { maximizeConversions: {} };
+
+    const campaignPayload = {
+      operations: [
+        {
+          create: {
+            name: params.campaignName,
+            status: "PAUSED",
+            advertisingChannelType: "VIDEO",
+            campaignBudget: budgetRef,
+            containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            ...biddingConfig
           }
-        ]
-      };
+        }
+      ]
+    };
 
-      const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-video-${Date.now()}`;
-      const campaignId = campaignRef.split("/").pop();
-
-      return {
-        campaignResourceName: campaignRef,
-        budgetResourceName: budgetRef,
-        campaignId
-      };
-    } catch (err: any) {
-      console.warn("Google Ads No Guidance Video REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-video-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `video-${Date.now()}`
-      };
+    const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+    const campaignRef = res.data?.results?.[0]?.resourceName;
+    if (!campaignRef) {
+      throw new Error(`Google Ads API returned no campaign resource name in mutate response: ${JSON.stringify(res.data)}`);
     }
+    const campaignId = campaignRef.split("/").pop();
+
+    return {
+      campaignResourceName: campaignRef,
+      budgetResourceName: budgetRef,
+      campaignId
+    };
   }
 
   /**

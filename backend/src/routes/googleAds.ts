@@ -489,11 +489,20 @@ router.post("/campaign/launch", async (req, res) => {
     const validHeadlines = (headlines || []).map((h: any) => typeof h === "string" ? h.trim() : "").filter(Boolean);
     const validDescriptions = (descriptions || []).map((d: any) => typeof d === "string" ? d.trim() : "").filter(Boolean);
 
-    if (validHeadlines.length < 3) {
-      return res.status(400).json({ error: "At least 3 valid headlines are required for Search Responsive Search Ads." });
-    }
-    if (validDescriptions.length < 2) {
-      return res.status(400).json({ error: "At least 2 valid descriptions are required for Search Responsive Search Ads." });
+    if (channelType === "SEARCH" || !channelType) {
+      if (validHeadlines.length < 3) {
+        return res.status(400).json({ error: "At least 3 valid headlines are required for Search Responsive Search Ads." });
+      }
+      if (validDescriptions.length < 2) {
+        return res.status(400).json({ error: "At least 2 valid descriptions are required for Search Responsive Search Ads." });
+      }
+    } else {
+      if (validHeadlines.length < 1) {
+        return res.status(400).json({ error: "At least 1 valid headline is required." });
+      }
+      if (validDescriptions.length < 1) {
+        return res.status(400).json({ error: "At least 1 valid description is required." });
+      }
     }
 
     // Strict Date-only validation for Start Date and End Date
@@ -571,6 +580,41 @@ router.post("/campaign/launch", async (req, res) => {
           startDate: startDate || new Date().toISOString().split("T")[0],
           endDate, finalUrl, headlines, descriptions,
           images: images || []
+        });
+      } else if (channelType === "DEMAND_GEN") {
+        result = await GoogleAdsService.createNoGuidanceDemandGenCampaign(orgId, customerId, {
+          campaignName,
+          finalUrl,
+          amountMicros: Math.round(Number(budget) * 1_000_000),
+          campaignGoal: biddingStrategy || "MAXIMIZE_CONVERSIONS",
+          targetCpaMicros: targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
+          headlines,
+          descriptions,
+          images: Array.isArray(images) ? images.map((i: any) => typeof i === "string" ? i : (i.url || i.data || "")) : []
+        });
+      } else if (channelType === "DISPLAY") {
+        result = await GoogleAdsService.createNoGuidanceDisplayCampaign(orgId, customerId, {
+          campaignName,
+          finalUrl,
+          amountMicros: Math.round(Number(budget) * 1_000_000),
+          biddingFocus: biddingStrategy || "MAXIMIZE_CONVERSIONS",
+          targetCpaMicros: targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
+          headlines,
+          longHeadline: headlines?.[1] || headlines?.[0] || "Grow Your Business With Smart Digital Marketing Solutions",
+          descriptions,
+          images: Array.isArray(images) ? images.map((i: any) => typeof i === "string" ? i : (i.url || i.data || "")) : []
+        });
+      } else if (channelType === "VIDEO") {
+        result = await GoogleAdsService.createNoGuidanceVideoCampaign(orgId, customerId, {
+          campaignName,
+          campaignSubtype: "VIDEO_ACTION",
+          videoUrl: (images && images[0]) || "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          finalUrl,
+          amountMicros: Math.round(Number(budget) * 1_000_000),
+          biddingFocus: biddingStrategy || "MAXIMIZE_CONVERSIONS",
+          targetCpaMicros: targetCpa ? Math.round(Number(targetCpa) * 1_000_000) : undefined,
+          headline: headlines?.[0] || "Watch Video",
+          description: descriptions?.[0] || "Explore our videos"
         });
       } else {
         result = await GoogleAdsService.launchLocalSearchCampaign({

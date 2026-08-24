@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall, Play, BarChart2,
-  Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Layers, Crop, ZoomIn, RotateCcw
+  Search, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Layers, Crop, ZoomIn, RotateCcw, Menu
 } from "lucide-react";
 
 export default function SalesPerformanceMaxPage() {
@@ -21,6 +21,7 @@ function SalesPerformanceMaxContent() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
   const [campaignName, setCampaignName] = useState<string>("Sales-Performance Max-1");
@@ -736,8 +737,16 @@ function SalesPerformanceMaxContent() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 md:hidden cursor-pointer"
+            title="Open steps menu"
+            aria-label="Open steps menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <button
             onClick={() => setShowDraftModal(true)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
@@ -745,9 +754,9 @@ function SalesPerformanceMaxContent() {
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
-            <span className="text-slate-500">Sales</span>
-            <span className="text-slate-600">/</span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4 text-xs font-semibold">
+            <span className="text-slate-500 hidden sm:inline">Sales</span>
+            <span className="text-slate-600 hidden sm:inline">/</span>
             <div className="flex items-center gap-1.5 bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200">
               <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
               <input
@@ -755,7 +764,7 @@ function SalesPerformanceMaxContent() {
                 value={campaignName}
                 onChange={(e) => setCampaignName(e.target.value)}
                 placeholder="Campaign Name"
-                className="bg-transparent border-0 text-slate-800 font-bold text-xs focus:outline-none focus:ring-0 max-w-[220px]"
+                className="bg-transparent border-0 text-slate-800 font-bold text-xs focus:outline-none focus:ring-0 max-w-[140px] sm:max-w-[220px]"
               />
               <Edit3 className="h-3 w-3 text-slate-400 shrink-0" />
             </div>
@@ -763,12 +772,146 @@ function SalesPerformanceMaxContent() {
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono">
+          <span className="font-mono text-[11px] sm:text-xs truncate max-w-[140px] sm:max-w-none">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "779-100-4787 Google Ads Account"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900 shrink-0" />
         </div>
       </header>
+
+      {/* ── Mobile Sidebar Drawer (Slide-over overlay) ── */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+
+          {/* Drawer panel */}
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200 animate-in slide-in-from-left duration-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h2 className="font-bold text-slate-900 text-sm">Performance Max</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              <nav className="space-y-2 text-xs font-sans">
+                {/* 1. Bidding */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("BIDDING"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "BIDDING"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">1</div>
+                    <span className="font-semibold">Bidding</span>
+                  </div>
+                  {wizardStep === "BIDDING" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("bidding"); setIsMobileSidebarOpen(false); }}>Bidding</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("acquisition"); setIsMobileSidebarOpen(false); }}>Customer acquisition</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("retention"); setIsMobileSidebarOpen(false); }}>Customer retention</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("BIDDING"); setOpenBiddingCard("local"); setIsMobileSidebarOpen(false); }}>Local customer optimization</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Campaign settings */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "CAMPAIGN_SETTINGS"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">2</div>
+                    <span className="font-semibold">Campaign settings</span>
+                  </div>
+                  {wizardStep === "CAMPAIGN_SETTINGS" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Locations</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Languages</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>EU political ads</div>
+                      <div className="pl-3 border-l border-slate-200 space-y-1 pt-1 pb-1">
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Ad Schedule</div>
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Start and end dates</div>
+                        <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}>Campaign URL options</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Asset group */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "ASSET_GROUP"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">3</div>
+                    <span className="font-semibold">Asset group</span>
+                  </div>
+                  {wizardStep === "ASSET_GROUP" && (
+                    <div className="ml-7 mt-1 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1 font-medium">
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Assets &amp; Media</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Search themes</div>
+                      <div className="cursor-pointer hover:text-slate-900" onClick={() => { setWizardStep("ASSET_GROUP"); setIsMobileSidebarOpen(false); }}>Audience signal</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Budget */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("BUDGET"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "BUDGET"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">4</div>
+                    <span className="font-semibold">Budget</span>
+                  </div>
+                </div>
+
+                {/* 5. Summary */}
+                <div>
+                  <div
+                    onClick={() => { setWizardStep("SUMMARY"); setIsMobileSidebarOpen(false); }}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                      wizardStep === "SUMMARY"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">5</div>
+                    <span className="font-semibold">Summary &amp; Review</span>
+                  </div>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
