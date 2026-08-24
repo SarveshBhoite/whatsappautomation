@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall,
-  Search as SearchIcon, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Cpu, Wrench, ChevronLeft, ChevronRight
+  Search as SearchIcon, LayoutGrid, Zap, AlertCircle, ChevronDown, ChevronUp, Info, Sparkles, Image as ImageIcon, Video as VideoIcon, Upload, Phone, DollarSign, Tag, FileText, MessageSquare, Smartphone, SlidersHorizontal, Globe, Users, Settings, Edit3, Lock, ShieldAlert, Cpu, Wrench, ChevronLeft, ChevronRight, Menu
 } from "lucide-react";
 
 export default function SalesSearchPage() {
@@ -13,10 +13,11 @@ export default function SalesSearchPage() {
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Wizard Step State: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY">("BIDDING");
-  const [campaignName, setCampaignName] = useState<string>("Sales-Search-7");
+  const [campaignName, setCampaignName] = useState<string>("Atharva");
 
   // Step 1: Bidding State
   const [biddingFocus, setBiddingFocus] = useState<"Conversions" | "Target CPA" | "Conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Conversions");
@@ -37,9 +38,11 @@ export default function SalesSearchPage() {
   const [displayNetwork, setDisplayNetwork] = useState<boolean>(true);
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
-  const [targetLocations, setTargetLocations] = useState<Array<{ name: string; type: string; reach: string }>>([
-    { name: "Mumbai, Maharashtra, India", type: "City", reach: "21,400,000" }
+  const [targetLocations, setTargetLocations] = useState<Array<{ name: string; type: string; reach: string; canonicalName?: string; id?: string }>>([
+    { name: "Mumbai, Maharashtra, India", type: "City", reach: "21,400,000", canonicalName: "Mumbai, Maharashtra, India" }
   ]);
+  const [isSearchingLocations, setIsSearchingLocations] = useState<boolean>(false);
+  const [locationSearchResults, setLocationSearchResults] = useState<Array<{ id?: string; name: string; canonicalName: string; targetType: string; reach?: string }>>([]);
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
   const [showLocationOptions, setShowLocationOptions] = useState<boolean>(true);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
@@ -218,11 +221,22 @@ export default function SalesSearchPage() {
   const [customParams, setCustomParams] = useState<Array<{ name: string; value: string }>>([
     { name: "", value: "" }
   ]);
+  // Helper: Get user's local date as YYYY-MM-DD (NOT UTC to avoid timezone shift)
+  const getLocalToday = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const localToday = getLocalToday();
+
   const [pageFeeds, setPageFeeds] = useState<string[]>([]);
   const [adScheduleList, setAdScheduleList] = useState<Array<{ day: string; start: string; end: string }>>([
     { day: "All days", start: "00:00", end: "00:00" }
   ]);
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [startDate, setStartDate] = useState<string>(getLocalToday());
   const [endDate, setEndDate] = useState<string>("");
 
   // Step 5: Keywords and Ads State
@@ -231,9 +245,11 @@ export default function SalesSearchPage() {
   const [keywordProductsInput, setKeywordProductsInput] = useState<string>("");
   const [keywordsText, setKeywordsText] = useState<string>("");
   const [useSearchTermMatchingAdGroup, setUseSearchTermMatchingAdGroup] = useState<boolean>(true);
-  const [adGroupBrandInclusions, setAdGroupBrandInclusions] = useState<string[]>([]);
-  const [adGroupLocationsOfInterest, setAdGroupLocationsOfInterest] = useState<string[]>([]);
   const [adGroupUrlInclusions, setAdGroupUrlInclusions] = useState<string[]>([]);
+  const [selectedConversionGoals, setSelectedConversionGoals] = useState<Array<{ category: string; origin: string; biddable?: boolean }>>([
+    { category: "PURCHASE", origin: "WEBSITE", biddable: true },
+    { category: "SUBMIT_LEAD_FORM", origin: "WEBSITE", biddable: true }
+  ]);
   const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
   const [displayPath1, setDisplayPath1] = useState<string>("");
   const [displayPath2, setDisplayPath2] = useState<string>("");
@@ -424,6 +440,61 @@ export default function SalesSearchPage() {
     { name: "United Kingdom", type: "Country", reach: "55,000,000" }
   ];
 
+  // Live Location Search from backend API / env
+  useEffect(() => {
+    if (customLocationInput.trim().length >= 2) {
+      setIsSearchingLocations(true);
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const cid = customerId || "6587355041";
+
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${BACKEND}/api/ads/geo-targets/search?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}&q=${encodeURIComponent(customLocationInput.trim())}`);
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.results || data.data || []);
+            const formatted = list.map((item: any) => ({
+              id: item.id || item.geoTargetConstant?.id || item.resourceName?.split("/").pop(),
+              name: item.name || item.geoTargetConstant?.name || item.canonicalName || item.geoTargetConstant?.canonicalName,
+              canonicalName: item.canonicalName || item.geoTargetConstant?.canonicalName || item.name,
+              targetType: item.targetType || item.geoTargetConstant?.targetType || "Location"
+            }));
+            setLocationSearchResults(formatted);
+          } else {
+            // Fallback to local filtering
+            const localFallback = locationSuggestionsList
+              .filter(loc => loc.name.toLowerCase().includes(customLocationInput.toLowerCase()))
+              .map(loc => ({
+                name: loc.name,
+                canonicalName: loc.name,
+                targetType: loc.type,
+                reach: loc.reach
+              }));
+            setLocationSearchResults(localFallback);
+          }
+        } catch (err) {
+          console.error("Location search error:", err);
+          const localFallback = locationSuggestionsList
+            .filter(loc => loc.name.toLowerCase().includes(customLocationInput.toLowerCase()))
+            .map(loc => ({
+              name: loc.name,
+              canonicalName: loc.name,
+              targetType: loc.type,
+              reach: loc.reach
+            }));
+          setLocationSearchResults(localFallback);
+        } finally {
+          setIsSearchingLocations(false);
+        }
+      }, 250);
+      return () => clearTimeout(timer);
+    } else {
+      setLocationSearchResults([]);
+      setIsSearchingLocations(false);
+    }
+  }, [customLocationInput, customerId]);
+
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
     const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
@@ -442,15 +513,485 @@ export default function SalesSearchPage() {
     }
   }, [customerId]);
 
-  const activeBudgetValue = selectedPresetBudget === "CUSTOM"
-    ? Number(customBudgetValue.replace(/,/g, "")) || 1556.83
-    : Number(selectedPresetBudget) || 1556.83;
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [existingCampaigns, setExistingCampaigns] = useState<Array<{ name?: string }>>([]);
+  const [duplicateNameError, setDuplicateNameError] = useState<string | null>(null);
+
+  // Load existing campaigns from Google Ads / DB once on component mount
+  useEffect(() => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const targetCid = customerId || "6587355041";
+
+    fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setExistingCampaigns(data);
+          // Initial check for default name
+          const normalized = campaignName.trim().toLowerCase();
+          const isDup = data.some((c: any) => c.name && c.name.trim().toLowerCase() === normalized);
+          if (isDup) {
+            setDuplicateNameError("Campaign name already exists. Please choose a unique campaign name.");
+            setFieldErrors(prev => ({ ...prev, campaignName: "Campaign name already exists. Please choose a unique campaign name." }));
+          }
+        }
+      })
+      .catch(() => {
+        // Non-blocking fallback
+      });
+  }, [customerId]);
+
+  // Real-time check whenever campaignName or existingCampaigns changes
+  const checkDuplicateCampaignName = (nameToTest: string): boolean => {
+    const trimmed = nameToTest.trim();
+    if (!trimmed) {
+      setDuplicateNameError(null);
+      return false;
+    }
+    const normalized = trimmed.toLowerCase();
+    const isDup = existingCampaigns.some(c => c.name && c.name.trim().toLowerCase() === normalized);
+    if (isDup) {
+      setDuplicateNameError("Campaign name already exists. Please choose a unique campaign name.");
+      setFieldErrors(prev => ({ ...prev, campaignName: "Campaign name already exists. Please choose a unique campaign name." }));
+      return true;
+    } else {
+      setDuplicateNameError(null);
+      setFieldErrors(prev => {
+        const updated = { ...prev };
+        delete updated.campaignName;
+        return updated;
+      });
+      return false;
+    }
+  };
+
+  // Centralized Google Ads API Field / Preflight Mapper
+  const mapGoogleAdsApiErrorToFields = (errorMsg: string, rawDetails?: any[]): { mappedField?: string; friendlyMessage: string } => {
+    const lower = (errorMsg || "").toLowerCase();
+    
+    if (lower.includes("impression_share") || lower.includes("target impression share") || lower.includes("locationfraction")) {
+      return { mappedField: "targetImpressionSharePercent", friendlyMessage: "Target impression share must be between 1% and 100%." };
+    }
+    if (lower.includes("cpcbidceiling") || lower.includes("max cpc")) {
+      return { mappedField: "maxCpcLimit", friendlyMessage: "Maximum CPC bid limit must be a positive number greater than 0." };
+    }
+    if (lower.includes("target_cpa") || lower.includes("target cpa")) {
+      return { mappedField: "targetCpaValue", friendlyMessage: "Target CPA must be a positive number greater than 0." };
+    }
+    if (lower.includes("target_roas") || lower.includes("target roas")) {
+      return { mappedField: "targetRoasValue", friendlyMessage: "Target ROAS must be a positive percentage greater than 0%." };
+    }
+    if (lower.includes("campaign_budget") || lower.includes("amount_micros") || lower.includes("budget")) {
+      return { mappedField: "customBudgetValue", friendlyMessage: "Daily Budget must be a positive number greater than 0." };
+    }
+    if (lower.includes("start_date") || lower.includes("startdatetime")) {
+      return { mappedField: "startDate", friendlyMessage: "Start date cannot be in the past." };
+    }
+    if (lower.includes("end_date") || lower.includes("enddatetime")) {
+      return { mappedField: "endDate", friendlyMessage: "End date cannot be earlier than start date." };
+    }
+    if (lower.includes("final_url") || lower.includes("finalurl")) {
+      return { mappedField: "finalUrl", friendlyMessage: "Final URL is required and must begin with http:// or https://" };
+    }
+    if (lower.includes("tracking_url_template") || lower.includes("trackingtemplate")) {
+      return { mappedField: "trackingTemplate", friendlyMessage: "Tracking template must contain a landing page parameter tag (e.g. {lpurl})." };
+    }
+    if (lower.includes("final_url_suffix") || lower.includes("finalurlsuffix")) {
+      return { mappedField: "finalUrlSuffix", friendlyMessage: "Invalid Final URL suffix parameters." };
+    }
+    if (lower.includes("keyword") || lower.includes("criterion")) {
+      return { mappedField: "keywordsText", friendlyMessage: "At least 1 valid keyword is required." };
+    }
+    if (lower.includes("headline") || lower.includes("responsive_search_ad.headlines")) {
+      return { mappedField: "headlines", friendlyMessage: "Search ads require at least 3 headlines (maximum 30 characters each)." };
+    }
+    if (lower.includes("description") || lower.includes("responsive_search_ad.descriptions")) {
+      return { mappedField: "descriptions", friendlyMessage: "Search ads require at least 2 descriptions (maximum 90 characters each)." };
+    }
+    if (lower.includes("phone") || lower.includes("call")) {
+      return { mappedField: "callPhone", friendlyMessage: "Phone number for call extension must be exactly 10 digits." };
+    }
+    if (lower.includes("resource_not_found") || lower.includes("resource not found") || (lower.includes("operations[0]") && lower.includes("campaignconversiongoals")) || (lower.includes("operations[1]") && lower.includes("campaignconversiongoals"))) {
+      return { mappedField: "conversionGoals", friendlyMessage: "Campaign conversion goal resource not found. Please review your conversion goals." };
+    }
+    if (lower.includes("resource_not_found") && (lower.includes("geotarget") || lower.includes("location") || lower.includes("criterion"))) {
+      return { mappedField: "targetLocations", friendlyMessage: "Targeted location resource not found or invalid. Please re-select your target locations." };
+    }
+    if (lower.includes("duplicate_campaign_name") || lower.includes("already exists")) {
+      return { mappedField: "campaignName", friendlyMessage: "Campaign name already exists. Please choose a unique campaign name." };
+    }
+    if (lower.includes("conversiongoal") || lower.includes("campaignconversiongoals")) {
+      return { mappedField: "conversionGoals", friendlyMessage: "Invalid conversion goal configuration." };
+    }
+    return { friendlyMessage: errorMsg };
+  };
+
+  const handlePublishCampaign = async () => {
+    setSubmitError(null);
+
+    // 1. Campaign Name validation (Required & Unique)
+    const trimmedCampaignName = (campaignName || "").trim();
+    if (!trimmedCampaignName) {
+      setFieldErrors(prev => ({ ...prev, campaignName: "Campaign name is required." }));
+      setSubmitError("Campaign name is required.");
+      setWizardStep("SUMMARY");
+      return;
+    }
+
+    const normalizedName = trimmedCampaignName.toLowerCase();
+    const isDuplicate = existingCampaigns.some(
+      c => c.name && c.name.trim().toLowerCase() === normalizedName
+    );
+
+    if (isDuplicate) {
+      const dupMsg = "Campaign name already exists. Please choose a unique campaign name.";
+      setDuplicateNameError(dupMsg);
+      setFieldErrors(prev => ({ ...prev, campaignName: dupMsg }));
+      setSubmitError(dupMsg);
+      setWizardStep("SUMMARY");
+      return;
+    }
+
+    // 2. Budget validation (Required and Non-Negative)
+    const budgetVal = customBudgetValue.trim() || selectedPresetBudget.trim();
+    const numericBudget = Number(budgetVal);
+    if (!budgetVal || isNaN(numericBudget) || numericBudget <= 0) {
+      setFieldErrors(prev => ({ ...prev, customBudgetValue: "Daily Budget must be a positive number greater than 0." }));
+      setSubmitError("Daily Budget is required and cannot be negative or zero. Please enter a valid positive budget amount.");
+      setWizardStep("BUDGET");
+      return;
+    }
+
+    // 3. Final URL validation (Required)
+    const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
+    if (!trimmedFinalUrl || (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://"))) {
+      setFieldErrors(prev => ({ ...prev, finalUrl: "Final URL is required and must begin with http:// or https://" }));
+      setSubmitError("Final URL is required and must start with a valid protocol (http:// or https://). Example: https://www.example.com");
+      setWizardStep("KEYWORDS_ADS");
+      setShowFinalUrlCard(true);
+      return;
+    }
+
+    // 4. Bidding targets validation (Non-negative numeric checks)
+    if (biddingFocus === "Target CPA" && setTargetCpa) {
+      const cpaNum = Number(targetCpaValue);
+      if (isNaN(cpaNum) || cpaNum <= 0) {
+        setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+        setSubmitError("Target CPA must be a positive number and cannot be negative or zero.");
+        setWizardStep("BIDDING");
+        setOpenBiddingSetting("bidding");
+        return;
+      }
+    }
+    if (biddingFocus === "Target ROAS" && setTargetRoas) {
+      const roasNum = Number(targetRoasValue);
+      if (isNaN(roasNum) || roasNum <= 0) {
+        setFieldErrors(prev => ({ ...prev, targetRoasValue: "Target ROAS must be a positive percentage greater than 0%." }));
+        setSubmitError("Target ROAS percentage must be a positive number (e.g. 200%) and cannot be negative or zero.");
+        setWizardStep("BIDDING");
+        setOpenBiddingSetting("bidding");
+        return;
+      }
+    }
+    if (biddingFocus === "Clicks" && setMaxCpc) {
+      const maxCpcNum = Number(maxCpcLimit);
+      if (isNaN(maxCpcNum) || maxCpcNum <= 0) {
+        setFieldErrors(prev => ({ ...prev, maxCpcLimit: "Maximum CPC bid limit must be a positive number greater than 0." }));
+        setSubmitError("Maximum CPC bid limit must be a positive number and cannot be negative or zero.");
+        setWizardStep("BIDDING");
+        setOpenBiddingSetting("bidding");
+        return;
+      }
+    }
+    if (biddingFocus === "Impression share") {
+      const targetPercentNum = Number(targetImpressionSharePercent);
+      if (isNaN(targetPercentNum) || targetPercentNum < 1 || targetPercentNum > 100) {
+        setFieldErrors(prev => ({ ...prev, targetImpressionSharePercent: "Target impression share must be between 1% and 100%." }));
+        setSubmitError("Target impression share percent must be between 1% and 100% and cannot be negative.");
+        setWizardStep("BIDDING");
+        setOpenBiddingSetting("bidding");
+        return;
+      }
+      if (maxCpcImpressionShare && Number(maxCpcImpressionShare) <= 0) {
+        setFieldErrors(prev => ({ ...prev, maxCpcImpressionShare: "Maximum CPC bid limit must be greater than 0." }));
+        setSubmitError("Maximum CPC bid limit for Impression share cannot be negative or zero.");
+        setWizardStep("BIDDING");
+        setOpenBiddingSetting("bidding");
+        return;
+      }
+    }
+
+    // 5. Start Date & End Date validation
+    if (startDate && startDate < localToday) {
+      setSubmitError(`Start Date (${startDate}) cannot be in the past. Please select today (${localToday}) or a future date.`);
+      setWizardStep("CAMPAIGN_SETTINGS");
+      setShowMoreSettings(true);
+      setOpenSetting("dates");
+      return;
+    }
+    if (startDate && endDate && endDate.trim() && endDate < startDate) {
+      setSubmitError(`End Date (${endDate}) cannot be earlier than Start Date (${startDate}).`);
+      setWizardStep("CAMPAIGN_SETTINGS");
+      setShowMoreSettings(true);
+      setOpenSetting("dates");
+      return;
+    }
+
+    // 6. Ad Schedule time validity (Start Time must be strictly earlier than End Time)
+    for (const sched of adScheduleList) {
+      if (sched.start && sched.end && !(sched.start === "00:00" && sched.end === "00:00")) {
+        if (sched.end <= sched.start) {
+          setSubmitError(`Ad schedule end time (${sched.end}) must be strictly after start time (${sched.start}) for ${sched.day}.`);
+          setWizardStep("CAMPAIGN_SETTINGS");
+          setShowMoreSettings(true);
+          setOpenSetting("schedule");
+          return;
+        }
+      }
+    }
+
+    // 7. Keywords validation (Required min 1 valid keyword)
+    const cleanedKeywords = (keywordsText || "")
+      .split(/[\n,]+/)
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+    const uniqueKeywords = Array.from(new Set(cleanedKeywords));
+    if (uniqueKeywords.length === 0) {
+      setFieldErrors(prev => ({ ...prev, keywordsText: "At least 1 valid keyword is required." }));
+      setSubmitError("At least 1 valid keyword is required.");
+      setWizardStep("KEYWORDS_ADS");
+      setShowKeywordsSection(true);
+      return;
+    }
+
+    // 8. Headlines & Descriptions validation (Required min 3 headlines, min 2 descriptions)
+    const validHeadlines = headlines.filter(h => h && h.trim() !== "");
+    if (validHeadlines.length < 3) {
+      setSubmitError("Search Responsive Search Ads require at least 3 headlines (maximum 30 characters each).");
+      setWizardStep("KEYWORDS_ADS");
+      setShowHeadlinesCard(true);
+      return;
+    }
+    const validDescriptions = descriptions.filter(d => d && d.trim() !== "");
+    if (validDescriptions.length < 2) {
+      setSubmitError("Search Responsive Search Ads require at least 2 descriptions (maximum 90 characters each).");
+      setWizardStep("KEYWORDS_ADS");
+      setShowDescriptionsCard(true);
+      return;
+    }
+
+    // 9. Tracking Template validation
+    if (trackingTemplate && trackingTemplate.trim()) {
+      const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(trackingTemplate.trim());
+      if (!hasTag) {
+        setSubmitError("Tracking template must contain a landing page parameter tag (e.g. {lpurl}). Example: https://tracking.example.com/?url={lpurl}");
+        setWizardStep("CAMPAIGN_SETTINGS");
+        setShowMoreSettings(true);
+        setOpenSetting("tracking");
+        return;
+      }
+    }
+
+    // 10. Phone number validation (Must be exactly 10 digits only and not negative)
+    if (callPhone && callPhone.trim()) {
+      const digits = callPhone.replace(/[^0-9]/g, "");
+      const clean10 = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+      if (clean10.length !== 10) {
+        setSubmitError("Phone number for Call extension must be exactly 10 digits (e.g. 9876543210) and cannot contain negative symbols or extra digits.");
+        setWizardStep("KEYWORDS_ADS");
+        setShowCallsCard(true);
+        return;
+      }
+    }
+    // 11. Customer Account & Resource Validation (Frontend-First)
+    const effectiveCustomerId = customerId || accountInfo?.customerId || "6587355041";
+    if (!effectiveCustomerId || !/^\d{10}$/.test(effectiveCustomerId.replace(/-/g, "").trim())) {
+      setFieldErrors(prev => ({ ...prev, customerAccount: "Invalid or missing Google Ads Customer ID resource." }));
+      setSubmitError("Invalid or missing Google Ads Customer ID resource. Please select a valid connected Google Ads account.");
+      return;
+    }
+
+    // 13. Campaign Conversion Goals validation (Frontend-First)
+    const validConversionGoals = selectedConversionGoals.filter(
+      g => g && g.category && g.category.trim() && g.origin && g.origin.trim()
+    );
+
+    if (validConversionGoals.length === 0) {
+      const goalErrorMsg = "Please select at least one valid campaign conversion goal.";
+      setFieldErrors(prev => ({ ...prev, conversionGoals: goalErrorMsg }));
+      setSubmitError(goalErrorMsg);
+      setWizardStep("SUMMARY");
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+
+      // 10. Safe connection check before publishing
+      try {
+        const pingRes = await fetch(`${BACKEND}/api/ads/accounts?orgId=${encodeURIComponent(orgId)}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" }
+        });
+        if (!pingRes.ok) {
+          throw new Error("Backend connection returned non-OK status");
+        }
+      } catch (pingErr) {
+        throw new Error("Backend server is unavailable. Please start the backend server and try again.");
+      }
+
+      // Resolve locations (Param 13)
+      const resolvedGeoTargets = selectedLocation === "INDIA"
+        ? ["India"]
+        : selectedLocation === "CUSTOM"
+        ? targetLocations.map(l => l.name)
+        : ["All countries"];
+
+      const payload = {
+        orgId,
+        customerId: customerId || accountInfo?.customerId || "6587355041",
+        campaignName: campaignName.trim(),
+        channelType: "SEARCH",
+        biddingStrategy: biddingFocus === "Target CPA"
+          ? "TARGET_CPA"
+          : biddingFocus === "Target ROAS"
+          ? "TARGET_ROAS"
+          : biddingFocus === "Conversion value"
+          ? "MAXIMIZE_CONVERSION_VALUE"
+          : biddingFocus === "Clicks"
+          ? "MAXIMIZE_CLICKS"
+          : biddingFocus === "Impression share"
+          ? "TARGET_IMPRESSION_SHARE"
+          : "MAXIMIZE_CONVERSIONS",
+        targetCpa: (biddingFocus === "Target CPA" || (biddingFocus === "Conversions" && setTargetCpa)) && targetCpaValue && Number(targetCpaValue) > 0
+          ? Number(targetCpaValue)
+          : undefined,
+        targetRoas: (biddingFocus === "Target ROAS" || (biddingFocus === "Conversion value" && setTargetRoas)) && targetRoasValue && Number(targetRoasValue) > 0
+          ? (Number(targetRoasValue) > 10 ? Number(targetRoasValue) / 100 : Number(targetRoasValue))
+          : undefined,
+        budget: numericBudget,
+        startDate: startDate || undefined,
+        endDate: endDate && endDate.trim() ? endDate.trim() : undefined,
+        networkSearch: searchPartnersNetwork,
+        networkDisplay: displayNetwork,
+        // Param 13: Targeted Geo Locations
+        geoTargetIds: resolvedGeoTargets,
+        locations: resolvedGeoTargets,
+        // Param 14: Location Targeting Mode
+        locationTargetingType,
+        // Param 15: Languages Targeting
+        languages: selectedLanguages.length > 0 ? selectedLanguages : ["English"],
+        // Param 16: EU Political Ads
+        euPolitical: euPoliticalAds,
+        // Param 17: AI Max Text Customization & URL Expansion
+        enableAiMax,
+        enableTextCustomization,
+        enableFinalUrlExpansion,
+        urlExpansionOptOut: !enableFinalUrlExpansion,
+        // Param 18: Brand Inclusions & Brand Exclusions
+        brandInclusions: brandInclusions || [],
+        brandExclusions: brandExclusions || [],
+        // Param 20: Campaign Ad Schedule Day/Time Targeting
+        adSchedule: adScheduleList,
+        // Param 21: Campaign Tracking Template
+        trackingTemplate: trackingTemplate ? trackingTemplate.trim() : undefined,
+        // Param 22: Final URL Suffix
+        finalUrlSuffix: finalUrlSuffix ? finalUrlSuffix.trim() : undefined,
+        // Param 23: Conversion Goals (Uses Account-level default goals unless custom goals are set)
+        conversionGoals: [],
+        // Param 24: Bidding Strategy Limits
+        maxCpcLimit: setMaxCpc ? Number(maxCpcLimit) : undefined,
+        impressionShareLocation: biddingFocus === "Impression share" ? impressionShareLocation : undefined,
+        targetImpressionSharePercent: biddingFocus === "Impression share" ? Number(targetImpressionSharePercent) : undefined,
+        maxCpcImpressionShare: biddingFocus === "Impression share" ? Number(maxCpcImpressionShare) : undefined,
+        // Param 25 & 26: Customer Acquisition & Retention Lifecycle
+        onlyBidNewCustomers,
+        adjustLapsedCustomers,
+        customerAcquisitionMode: onlyBidNewCustomers ? "TARGET_NEW_CUSTOMER_ONLY" : "TARGET_ALL_EQUALLY",
+        finalUrl: trimmedFinalUrl,
+        displayPath1: displayPath1.trim() || undefined,
+        displayPath2: displayPath2.trim() || undefined,
+        headlines: validHeadlines,
+        descriptions: validDescriptions,
+        keywords: uniqueKeywords,
+        callAsset: callPhone ? { countryCode: "IN", phoneNumber: callPhone.trim() } : undefined
+      };
+
+      let res: Response;
+      try {
+        res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } catch (fetchErr: any) {
+        throw new Error("Backend server is unavailable. Please start the backend server and try again.");
+      }
+
+      if (!res.ok) {
+        let errorMsg = "Failed to launch campaign";
+        let errDetails: any[] = [];
+        try {
+          const errData = await res.json();
+          errorMsg = errData?.error || errData?.message || errorMsg;
+          errDetails = errData?.details || [];
+        } catch {
+          const text = await res.text();
+          if (text) errorMsg = text;
+        }
+
+        const mapped = mapGoogleAdsApiErrorToFields(errorMsg, errDetails);
+        if (mapped.mappedField) {
+          setFieldErrors(prev => ({ ...prev, [mapped.mappedField!]: mapped.friendlyMessage }));
+          // Navigate to the appropriate step
+          if (["targetCpaValue", "targetRoasValue", "targetImpressionSharePercent", "maxCpcLimit"].includes(mapped.mappedField)) {
+            setWizardStep("BIDDING");
+            setOpenBiddingSetting("bidding");
+          } else if (["startDate", "endDate", "trackingTemplate", "finalUrlSuffix"].includes(mapped.mappedField)) {
+            setWizardStep("CAMPAIGN_SETTINGS");
+            setShowMoreSettings(true);
+          } else if (["finalUrl", "headlines", "descriptions", "keywordsText", "callPhone"].includes(mapped.mappedField)) {
+            setWizardStep("KEYWORDS_ADS");
+            if (mapped.mappedField === "finalUrl") setShowFinalUrlCard(true);
+            if (mapped.mappedField === "headlines") setShowHeadlinesCard(true);
+            if (mapped.mappedField === "descriptions") setShowDescriptionsCard(true);
+            if (mapped.mappedField === "keywordsText") setShowKeywordsSection(true);
+            if (mapped.mappedField === "callPhone") setShowCallsCard(true);
+          } else if (mapped.mappedField === "customBudgetValue") {
+            setWizardStep("BUDGET");
+          }
+        }
+        throw new Error(mapped.friendlyMessage || errorMsg);
+      }
+
+      alert(`Search campaign "${campaignName}" launched successfully (Paused)!`);
+      router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+    } catch (err: any) {
+      console.error("Campaign publish error:", err);
+      setSubmitError(err.message || "Failed to publish campaign");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ── */}
-      <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 md:hidden cursor-pointer"
+            title="Open steps menu"
+            aria-label="Open steps menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <button
             onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
@@ -458,23 +999,178 @@ export default function SalesSearchPage() {
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4 text-xs font-semibold">
-            <span className="text-slate-500">Sales</span>
-            <span className="text-slate-600">/</span>
-            <span className="text-slate-800 font-bold flex items-center gap-1.5">
-              <SearchIcon className="h-3.5 w-3.5 text-primary" />
-              Search Setup
-            </span>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4 text-xs font-semibold">
+            <span className="text-slate-500 hidden sm:inline">Sales</span>
+            <span className="text-slate-600 hidden sm:inline">/</span>
+            <div className="flex items-center gap-1.5 bg-slate-100/80 px-2.5 py-1 rounded-lg border border-slate-200">
+              <SearchIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+              <input
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="Campaign Name"
+                className="bg-transparent border-0 text-slate-800 font-bold text-xs focus:outline-none focus:ring-0 max-w-[140px] sm:max-w-[220px]"
+              />
+              <Edit3 className="h-3 w-3 text-slate-400 shrink-0 cursor-pointer" />
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono">
+          <span className="font-mono text-[11px] sm:text-xs truncate max-w-[140px] sm:max-w-none">
             {accountInfo ? `${accountInfo.customerId} ${accountInfo.name}` : customerId ? `ID: ${customerId}` : "658-735-5041 JISNU Digital Solutions PVT LTD"}
           </span>
-          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900" />
+          <HelpCircle className="h-4 w-4 text-slate-500 cursor-pointer hover:text-slate-900 shrink-0" />
         </div>
       </header>
+
+      {/* ── Mobile Sidebar Drawer (Slide-over overlay) ── */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+
+          {/* Drawer panel */}
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200 animate-in slide-in-from-left duration-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SearchIcon className="h-5 w-5 text-primary" />
+                <h2 className="font-bold text-slate-900 text-sm">Search Steps</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              <nav className="space-y-2 text-xs">
+                {/* 1) Bidding */}
+                <div className="space-y-1">
+                  <div
+                    onClick={() => { setWizardStep("BIDDING"); setIsMobileSidebarOpen(false); }}
+                    className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                      wizardStep === "BIDDING"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">1</div>
+                    <span className="font-semibold">Bidding</span>
+                  </div>
+                  {wizardStep === "BIDDING" && (
+                    <div className="ml-7 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                      <p className="text-primary font-medium">Bidding focus</p>
+                      <p className="hover:text-slate-800">Customer acquisition</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2) Campaign settings */}
+                <div className="space-y-1">
+                  <div
+                    onClick={() => { setWizardStep("CAMPAIGN_SETTINGS"); setIsMobileSidebarOpen(false); }}
+                    className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                      wizardStep === "CAMPAIGN_SETTINGS"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">2</div>
+                    <span className="font-semibold">Campaign settings</span>
+                  </div>
+                  {wizardStep === "CAMPAIGN_SETTINGS" && (
+                    <div className="ml-7 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                      <p className="text-primary font-medium">Campaign settings</p>
+                      <p className="hover:text-slate-800">Networks & Locations</p>
+                      <p className="hover:text-slate-800">Languages & EU Ads</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3) AI Max */}
+                <div
+                  onClick={() => { setWizardStep("AI_MAX"); setIsMobileSidebarOpen(false); }}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                    wizardStep === "AI_MAX"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <div className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">3</div>
+                  <span className="font-semibold">AI Max</span>
+                </div>
+
+                {/* 4) Keyword and asset generation */}
+                <div
+                  onClick={() => { setWizardStep("KEYWORD_ASSET_GEN"); setIsMobileSidebarOpen(false); }}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                    wizardStep === "KEYWORD_ASSET_GEN"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <div className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">4</div>
+                  <span className="font-semibold truncate">Keyword generation</span>
+                </div>
+
+                {/* 5) Keywords and ads */}
+                <div className="space-y-1">
+                  <div
+                    onClick={() => { setWizardStep("KEYWORDS_ADS"); setIsMobileSidebarOpen(false); }}
+                    className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                      wizardStep === "KEYWORDS_ADS"
+                        ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">5</div>
+                    <span className="font-semibold">Keywords and ads</span>
+                  </div>
+                  {wizardStep === "KEYWORDS_ADS" && (
+                    <div className="ml-7 space-y-1.5 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
+                      <p className="text-primary font-medium">Keywords</p>
+                      <p className="hover:text-slate-800">Ads (RSA)</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 6) Budget */}
+                <div
+                  onClick={() => { setWizardStep("BUDGET"); setIsMobileSidebarOpen(false); }}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                    wizardStep === "BUDGET"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <div className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">6</div>
+                  <span className="font-semibold">Budget</span>
+                </div>
+
+                {/* 7) Review */}
+                <div
+                  onClick={() => { setWizardStep("SUMMARY"); setIsMobileSidebarOpen(false); }}
+                  className={`p-2.5 rounded-xl flex items-center gap-2 font-medium cursor-pointer transition-all ${
+                    wizardStep === "SUMMARY"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <div className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] font-bold">7</div>
+                  <span className="font-semibold">Review & Publish</span>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main Layout: Sidebar & Content ── */}
       <div className="flex-1 flex w-full pb-20 overflow-hidden">
@@ -648,7 +1344,10 @@ export default function SalesSearchPage() {
 
                   <div className="space-y-4 text-xs">
                     <div className="space-y-1.5">
-                      <label className="block text-slate-700 font-semibold">What do you want to focus on?</label>
+                      <label className="block text-slate-700 font-semibold">
+                        <span>What do you want to focus on?</span>
+                        <span className="text-rose-500 font-bold ml-0.5">*</span>
+                      </label>
                       <select
                         value={biddingFocus}
                         onChange={(e) => setBiddingFocus(e.target.value as any)}
@@ -677,17 +1376,39 @@ export default function SalesSearchPage() {
                     {/* ii) Target CPA */}
                     {biddingFocus === "Target CPA" && (
                       <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                        <label className="block text-slate-700 font-semibold">Target CPA</label>
+                        <label className="block text-slate-700 font-semibold">
+                          <span>Target CPA</span>
+                          <span className="text-rose-500 font-bold ml-0.5">*</span>
+                        </label>
                         <div className="relative">
                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                           <input
                             type="number"
+                            min="0.01"
+                            step="0.01"
                             value={targetCpaValue}
-                            onChange={(e) => setTargetCpaValue(e.target.value)}
+                            onChange={(e) => {
+                              setFieldErrors(prev => {
+                                const updated = { ...prev };
+                                delete updated.targetCpaValue;
+                                return updated;
+                              });
+                              const val = e.target.value;
+                              if (val === "" || Number(val) >= 0) setTargetCpaValue(val);
+                            }}
                             placeholder="0.00"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            className={`w-full bg-slate-50 border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                              !targetCpaValue || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30"
+                                : "border-slate-200 focus:border-primary"
+                            }`}
                           />
                         </div>
+                        {(!targetCpaValue || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue) && (
+                          <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.targetCpaValue || "Target CPA must be a positive number greater than 0."}
+                          </span>
+                        )}
                         <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
                           Alternative bid strategies like portfolios are available in settings after you create your campaign
                         </p>
@@ -704,17 +1425,39 @@ export default function SalesSearchPage() {
                     {/* iv) Target ROAS */}
                     {biddingFocus === "Target ROAS" && (
                       <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                        <label className="block text-slate-700 font-semibold">Target ROAS</label>
+                        <label className="block text-slate-700 font-semibold">
+                          <span>Target ROAS</span>
+                          <span className="text-rose-500 font-bold ml-0.5">*</span>
+                        </label>
                         <div className="relative">
                           <input
                             type="number"
+                            min="1"
+                            step="1"
                             value={targetRoasValue}
-                            onChange={(e) => setTargetRoasValue(e.target.value)}
+                            onChange={(e) => {
+                              setFieldErrors(prev => {
+                                const updated = { ...prev };
+                                delete updated.targetRoasValue;
+                                return updated;
+                              });
+                              const val = e.target.value;
+                              if (val === "" || Number(val) >= 0) setTargetRoasValue(val);
+                            }}
                             placeholder="200"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            className={`w-full bg-slate-50 border rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                              !targetRoasValue || Number(targetRoasValue) <= 0 || fieldErrors.targetRoasValue
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30"
+                                : "border-slate-200 focus:border-primary"
+                            }`}
                           />
                           <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
                         </div>
+                        {(!targetRoasValue || Number(targetRoasValue) <= 0 || fieldErrors.targetRoasValue) && (
+                          <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.targetRoasValue || "Target ROAS must be a positive percentage greater than 0%."}
+                          </span>
+                        )}
                         <p className="text-[10px] text-amber-500 mt-1 leading-relaxed font-semibold">
                           Before opting into target ROAS, wait until the account that set up conversion tracking has received at least 15 conversions in the last 30 days.
                         </p>
@@ -744,12 +1487,31 @@ export default function SalesSearchPage() {
                               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                               <input
                                 type="number"
+                                min="0.01"
+                                step="0.01"
                                 value={maxCpcLimit}
-                                onChange={(e) => setMaxCpcLimit(e.target.value)}
+                                onChange={(e) => {
+                                  setFieldErrors(prev => {
+                                    const updated = { ...prev };
+                                    delete updated.maxCpcLimit;
+                                    return updated;
+                                  });
+                                  const val = e.target.value;
+                                  if (val === "" || Number(val) >= 0) setMaxCpcLimit(val);
+                                }}
                                 placeholder="0.00"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                                className={`w-full bg-slate-50 border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                                  !maxCpcLimit || Number(maxCpcLimit) <= 0 || fieldErrors.maxCpcLimit
+                                    ? "border-rose-400 focus:border-rose-500 bg-rose-50/30"
+                                    : "border-slate-200 focus:border-primary"
+                                }`}
                               />
                             </div>
+                            {(!maxCpcLimit || Number(maxCpcLimit) <= 0 || fieldErrors.maxCpcLimit) && (
+                              <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.maxCpcLimit || "Maximum CPC bid limit must be greater than 0."}
+                              </span>
+                            )}
                           </div>
                         )}
                         
@@ -776,17 +1538,36 @@ export default function SalesSearchPage() {
                         </div>
 
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-500">Percent (%) impression share to target</label>
+                          <label className="block text-[11px] text-slate-500 font-semibold">Percent (%) impression share to target *</label>
                           <div className="relative">
                             <input
                               type="number"
+                              min="1"
+                              max="100"
                               value={targetImpressionSharePercent}
-                              onChange={(e) => setTargetImpressionSharePercent(e.target.value)}
+                              onChange={(e) => {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.targetImpressionSharePercent;
+                                  return updated;
+                                });
+                                setTargetImpressionSharePercent(e.target.value);
+                              }}
                               placeholder="10"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                              className={`w-full bg-slate-50 border rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                                !targetImpressionSharePercent || Number(targetImpressionSharePercent) < 1 || Number(targetImpressionSharePercent) > 100 || fieldErrors.targetImpressionSharePercent
+                                  ? "border-rose-400 focus:border-rose-500 bg-rose-50/30"
+                                  : "border-slate-200 focus:border-primary"
+                              }`}
                             />
                             <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
                           </div>
+                          {(!targetImpressionSharePercent || Number(targetImpressionSharePercent) < 1 || Number(targetImpressionSharePercent) > 100 || fieldErrors.targetImpressionSharePercent) && (
+                            <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                              {fieldErrors.targetImpressionSharePercent || "Target impression share must be between 1% and 100%."}
+                            </span>
+                          )}
                         </div>
 
                         <div className="space-y-1">
@@ -795,12 +1576,32 @@ export default function SalesSearchPage() {
                             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                             <input
                               type="number"
+                              min="0.01"
+                              step="0.01"
                               value={maxCpcImpressionShare}
-                              onChange={(e) => setMaxCpcImpressionShare(e.target.value)}
+                              onChange={(e) => {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.maxCpcImpressionShare;
+                                  return updated;
+                                });
+                                const val = e.target.value;
+                                if (val === "" || Number(val) >= 0) setMaxCpcImpressionShare(val);
+                              }}
                               placeholder="0.00"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                              className={`w-full bg-slate-50 border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                                maxCpcImpressionShare && Number(maxCpcImpressionShare) <= 0 || fieldErrors.maxCpcImpressionShare
+                                  ? "border-rose-400 focus:border-rose-500 bg-rose-50/30"
+                                  : "border-slate-200 focus:border-primary"
+                              }`}
                             />
                           </div>
+                          {(maxCpcImpressionShare && Number(maxCpcImpressionShare) <= 0 || fieldErrors.maxCpcImpressionShare) && (
+                            <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                              {fieldErrors.maxCpcImpressionShare || "Maximum CPC bid limit must be greater than 0."}
+                            </span>
+                          )}
                         </div>
 
                         <p className="text-[10px] text-slate-500 leading-relaxed bg-slate-50/40 p-2.5 rounded-lg border border-slate-200">
@@ -818,30 +1619,41 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenBiddingSetting("bidding")}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Bidding</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Bidding</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       Focus: {biddingFocus}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenBiddingSetting("bidding");
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
               {/* Card 2: Customer Acquisition */}
               {openBiddingSetting === "acquisition" ? (
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenBiddingSetting(null)}>
                     <h2 className="text-base font-semibold text-slate-900">Customer acquisition</h2>
                     <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
-                  <div className="space-y-3 text-xs">
+                  <div className="space-y-4 text-xs">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -850,7 +1662,7 @@ export default function SalesSearchPage() {
                         className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                       />
                       <div className="space-y-1">
-                        <span className="text-slate-800 font-semibold block">Only bid for new customers</span>
+                        <span className="text-slate-900 font-semibold block">Only bid for new customers</span>
                         <span className="text-[11px] text-slate-500 block leading-relaxed">
                           Your campaign will be limited to only new customers, regardless of your bid strategy
                         </span>
@@ -864,18 +1676,29 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenBiddingSetting("acquisition")}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Customer acquisition</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Customer acquisition</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       {onlyBidNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenBiddingSetting("acquisition");
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
             </div>
@@ -930,26 +1753,37 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenMainSetting("networks")}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Networks</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Networks</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       {[searchPartnersNetwork ? "Search partners" : null, displayNetwork ? "Display Network" : null].filter(Boolean).join(", ") || "None"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMainSetting("networks");
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
               {/* 2. Locations */}
               {openMainSetting === "locations" ? (
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
-                    <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
+                    <h2 className="text-base font-semibold text-slate-900">Locations</h2>
                     <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="space-y-3 text-xs">
@@ -992,47 +1826,69 @@ export default function SalesSearchPage() {
                             type="text"
                             value={customLocationInput}
                             onChange={(e) => setCustomLocationInput(e.target.value)}
-                            placeholder="Enter a location to target or exclude"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                            placeholder="Enter a location to target (e.g. Mumbai, Gujarat, India)"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
                           />
+                          {isSearchingLocations && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Suggestions List */}
-                        {customLocationInput.trim() && (
-                          <div className="border border-slate-200 bg-slate-50 rounded-xl max-w-md overflow-hidden space-y-1 p-1">
-                            {locationSuggestionsList.filter(l => l.name.toLowerCase().includes(customLocationInput.toLowerCase())).map((loc, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2 hover:bg-white rounded-lg text-xs">
+                        {/* Live Location Search Dropdown Results from Geo-Targets API / Env */}
+                        {locationSearchResults.length > 0 && (
+                          <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 max-w-md z-10 relative">
+                            {locationSearchResults.map((loc, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  if (!targetLocations.some(l => l.name === (loc.canonicalName || loc.name))) {
+                                    setTargetLocations(prev => [...prev, {
+                                      name: loc.canonicalName || loc.name,
+                                      type: loc.targetType || "Location",
+                                      reach: loc.reach || "Targeted",
+                                      canonicalName: loc.canonicalName || loc.name,
+                                      id: loc.id
+                                    }]);
+                                  }
+                                  setCustomLocationInput("");
+                                  setLocationSearchResults([]);
+                                }}
+                                className="p-2.5 hover:bg-primary/10 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                              >
                                 <div>
-                                  <span className="font-semibold text-slate-800 block">{loc.name}</span>
-                                  <span className="text-[10px] text-slate-500">{loc.type} • Reach: {loc.reach}</span>
+                                  <span className="font-semibold text-slate-800 block">{loc.canonicalName || loc.name}</span>
+                                  {loc.id && <span className="text-[10px] text-slate-500 font-mono">ID: {loc.id}</span>}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (!targetLocations.some(t => t.name === loc.name)) {
-                                      setTargetLocations(prev => [...prev, loc]);
-                                    }
-                                  }}
-                                  className="px-3 py-1 bg-primary/10 border border-primary/30 text-primary font-bold text-[11px] rounded-lg hover:bg-primary/20"
-                                >
-                                  Target
-                                </button>
+                                <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md font-medium">
+                                  {loc.targetType || "Location"}
+                                </span>
                               </div>
                             ))}
                           </div>
                         )}
 
-                        {targetLocations.map((loc, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 max-w-md">
-                            <div>
-                              <span className="font-semibold text-slate-800 block">{loc.name}</span>
-                              <span className="text-[10px] text-slate-500">{loc.type} • Reach: {loc.reach}</span>
-                            </div>
-                            <button onClick={() => setTargetLocations(prev => prev.filter((_, i) => i !== idx))}>
-                              <Trash2 className="h-3.5 w-3.5 text-slate-500 hover:text-rose-400" />
-                            </button>
+                        {/* Selected Target Locations Chips / Cards */}
+                        {targetLocations.length > 0 && (
+                          <div className="space-y-2 max-w-md">
+                            {targetLocations.map((loc, idx) => (
+                              <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50">
+                                <div>
+                                  <span className="font-semibold text-slate-800 block text-xs">{loc.name}</span>
+                                  <span className="text-[10px] text-slate-500">{loc.type} {loc.reach ? `• Reach: ${loc.reach}` : ""}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setTargetLocations(prev => prev.filter((_, i) => i !== idx))}
+                                  className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
                     )}
 
@@ -1075,64 +1931,92 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenMainSetting("locations")}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Locations</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : targetLocations.map(l => l.name).join(", ") || "Custom locations"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMainSetting("locations");
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
               {/* 3. Languages */}
               {openMainSetting === "languages" ? (
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
-                    <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
+                    <h2 className="text-base font-semibold text-slate-900">Languages</h2>
                     <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
                   <div className="space-y-3 text-xs">
-                    <div className="relative max-w-md">
-                      <SearchIcon className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
-                      <input
-                        type="text"
-                        value={languageSearchInput}
-                        onFocus={() => setShowLanguageDropdown(true)}
-                        onChange={(e) => {
-                          setLanguageSearchInput(e.target.value);
-                          setShowLanguageDropdown(true);
-                        }}
-                        placeholder="Start typing or select a language"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                      />
+                    <p className="text-slate-500">Select the languages your customers speak.</p>
+
+                    <div className="space-y-1 max-w-md">
+                      <div className="relative">
+                        <SearchIcon className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-500" />
+                        <input
+                          type="text"
+                          value={languageSearchInput}
+                          maxLength={50}
+                          onChange={(e) => setLanguageSearchInput(e.target.value)}
+                          placeholder="Start typing to search languages (e.g. English, Hindi)"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-12 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                        />
+                        {languageSearchInput.trim().length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setLanguageSearchInput("")}
+                            className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-500 block text-right font-mono">{languageSearchInput.length} / 50</span>
                     </div>
 
-                    {/* Languages Checkbox Grid - Only Shown on Click/Focus/Type */}
-                    {(showLanguageDropdown || languageSearchInput.trim().length > 0) && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 max-h-40 overflow-y-auto p-2 border border-slate-200 rounded-xl bg-slate-50 animate-in fade-in duration-200">
-                        {languagesList.filter(l => l.toLowerCase().includes(languageSearchInput.toLowerCase())).map((lang, idx) => {
-                          const isSelected = selectedLanguages.includes(lang);
-                          return (
-                            <label key={idx} className="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-slate-900 p-1 rounded hover:bg-white">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedLanguages(prev => [...prev, lang]);
-                                  else setSelectedLanguages(prev => prev.filter(l => l !== lang));
-                                }}
-                                className="rounded text-primary h-3.5 w-3.5"
-                              />
-                              <span>{lang}</span>
-                            </label>
-                          );
-                        })}
+                    {/* Languages Matching Results - Only displayed when user types search term */}
+                    {languageSearchInput.trim().length > 0 && (
+                      <div className="border border-slate-200 rounded-xl bg-slate-50 p-2 max-h-48 overflow-y-auto animate-in fade-in duration-150 max-w-md">
+                        {languagesList.filter(l => l.toLowerCase().includes(languageSearchInput.trim().toLowerCase())).length > 0 ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {languagesList.filter(l => l.toLowerCase().includes(languageSearchInput.trim().toLowerCase())).map((lang, idx) => {
+                              const isSelected = selectedLanguages.includes(lang);
+                              return (
+                                <label key={idx} className="flex items-center gap-2 cursor-pointer text-slate-700 hover:text-slate-900 p-1.5 rounded-lg hover:bg-white transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      if (e.target.checked) setSelectedLanguages(prev => [...prev, lang]);
+                                      else setSelectedLanguages(prev => prev.filter(l => l !== lang));
+                                    }}
+                                    className="rounded text-primary h-3.5 w-3.5"
+                                  />
+                                  <span className="font-medium text-xs">{lang}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-xs p-2 text-center">No matching languages found for "{languageSearchInput}"</p>
+                        )}
                       </div>
                     )}
 
@@ -1150,27 +2034,38 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenMainSetting("languages")}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Languages</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "All languages"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMainSetting("languages");
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
               {/* 4. EU political ads */}
               {openMainSetting === "eu_political" ? (
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
+                      <h2 className="text-base font-semibold text-slate-900">EU political ads</h2>
                       <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-bold">Required</span>
                     </div>
                     <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
@@ -1206,27 +2101,38 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenMainSetting("eu_political")}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">EU political ads</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       {euPoliticalAds === "YES" ? "Yes, this campaign has EU political ads" : "No, this campaign doesn't have EU political ads"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMainSetting("eu_political");
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
               {/* 5. Audience segments */}
               {openMainSetting === "audience" ? (
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm animate-in fade-in duration-150">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenMainSetting(null)}>
                     <div>
-                      <h2 className="text-sm font-semibold text-slate-900">Audience segments</h2>
+                      <h2 className="text-base font-semibold text-slate-900">Audience segments</h2>
                       <p className="text-[11px] text-slate-500 mt-1">
                         Select audience segments to add to your campaign. You can create new Your data segments by clicking on <span className="font-semibold text-slate-800">+ New segment</span> in the Search tab. <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                       </p>
@@ -1398,18 +2304,29 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenMainSetting("audience")}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Audience segments</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Audience segments</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       {selectedAudienceSegments.length > 0 ? selectedAudienceSegments.join(", ") : "Select audience segments to add to your campaign."}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMainSetting("audience");
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
@@ -1497,35 +2414,70 @@ export default function SalesSearchPage() {
                             <div className="space-y-0.5">
                               <h3 className="font-semibold text-slate-800 text-sm">Start and end dates</h3>
                               <p className="text-[11px] text-slate-500">
-                                Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
+                                Start date: {startDate ? new Date(startDate + "T00:00:00").toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"} End date: {endDate ? new Date(endDate + "T00:00:00").toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
                               </p>
                             </div>
                             <Edit3 className="h-4 w-4 text-primary" />
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md text-xs pt-4 border-t border-slate-200/40">
-                            <div className="space-y-1">
-                              <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
-                              <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
-                              />
+                          <div className="space-y-3 max-w-md text-xs pt-4 border-t border-slate-200/40">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-500 font-semibold">Start date</label>
+                                <input
+                                  type="date"
+                                  min={localToday}
+                                  value={startDate}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val && val < localToday) {
+                                      setStartDate(localToday);
+                                    } else {
+                                      setStartDate(val);
+                                      if (endDate && val && endDate < val) {
+                                        setEndDate(val);
+                                      }
+                                    }
+                                  }}
+                                  onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
+                                  className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none cursor-pointer ${
+                                    startDate && startDate < localToday ? "border-rose-300 bg-rose-50/20" : "border-slate-200 focus:border-primary"
+                                  }`}
+                                />
+                                {startDate && startDate < localToday && (
+                                  <span className="text-[10px] text-rose-500 font-medium block">
+                                    Start date cannot be in the past (minimum: {localToday})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
+                                <input
+                                  type="date"
+                                  min={startDate || localToday}
+                                  value={endDate}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val && startDate && val < startDate) {
+                                      setEndDate(startDate);
+                                    } else {
+                                      setEndDate(val);
+                                    }
+                                  }}
+                                  onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
+                                  className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none cursor-pointer ${
+                                    endDate && startDate && endDate < startDate ? "border-rose-300 bg-rose-50/20" : "border-slate-200 focus:border-primary"
+                                  }`}
+                                />
+                                {endDate && startDate && endDate < startDate && (
+                                  <span className="text-[10px] text-rose-500 font-medium block">
+                                    End date cannot be earlier than start date ({startDate})
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <label className="block text-[11px] text-slate-500 font-semibold">End date</label>
-                              <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                onClick={(e) => (e.target as any).showPicker && (e.target as any).showPicker()}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary cursor-pointer"
-                              />
-                            </div>
+                            <p className="text-[11px] text-slate-500">Your ads will continue to run unless you specify an end date.</p>
                           </div>
-                          <p className="text-[11px] text-slate-500">Your ads will continue to run unless you specify an end date.</p>
                         </div>
                       ) : (
                         <div 
@@ -1537,7 +2489,7 @@ export default function SalesSearchPage() {
                               <h3 className="font-semibold text-slate-800 text-sm">Start and end dates</h3>
                             </div>
                             <div className="text-[11px] text-slate-500">
-                              Start date: {new Date(startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} End date: {endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
+                              Start date: {startDate ? new Date(startDate + "T00:00:00").toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"} End date: {endDate ? new Date(endDate + "T00:00:00").toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not set"}
                             </div>
                           </div>
                           <Edit3 className="h-4 w-4 text-slate-500" />
@@ -1563,65 +2515,90 @@ export default function SalesSearchPage() {
                           </div>
 
                           <div className="space-y-3 text-xs pt-4 border-t border-slate-200/40">
-                            {adScheduleList.map((sched, idx) => (
-                              <div key={idx} className="flex flex-wrap items-center gap-3">
-                                <select
-                                  value={sched.day}
-                                  onChange={(e) => {
-                                    const updated = [...adScheduleList];
-                                    updated[idx].day = e.target.value;
-                                    setAdScheduleList(updated);
-                                  }}
-                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-semibold"
-                                >
-                                  {dayOptions.map((d, i) => (
-                                    <option key={i} value={d}>{d}</option>
-                                  ))}
-                                </select>
+                            {adScheduleList.map((sched, idx) => {
+                              const isSchedInvalid = sched.start && sched.end && !(sched.start === "00:00" && sched.end === "00:00") && sched.end <= sched.start;
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <select
+                                      value={sched.day}
+                                      onChange={(e) => {
+                                        const updated = [...adScheduleList];
+                                        updated[idx].day = e.target.value;
+                                        setAdScheduleList(updated);
+                                      }}
+                                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-semibold"
+                                    >
+                                      {dayOptions.map((d, i) => (
+                                        <option key={i} value={d}>{d}</option>
+                                      ))}
+                                    </select>
 
-                                <span className="text-slate-500">from</span>
+                                    <span className="text-slate-500">from</span>
 
-                                <select
-                                  value={sched.start}
-                                  onChange={(e) => {
-                                    const updated = [...adScheduleList];
-                                    updated[idx].start = e.target.value;
-                                    setAdScheduleList(updated);
-                                  }}
-                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                                >
-                                  {timeOptions.map((t, i) => (
-                                    <option key={i} value={t}>{t}</option>
-                                  ))}
-                                </select>
+                                    <select
+                                      value={sched.start}
+                                      onChange={(e) => {
+                                        const newStart = e.target.value;
+                                        const updated = [...adScheduleList];
+                                        updated[idx].start = newStart;
+                                        // Auto-adjust end time if it becomes <= newStart
+                                        if (updated[idx].end && !(newStart === "00:00" && updated[idx].end === "00:00") && updated[idx].end <= newStart) {
+                                          const nextTime = timeOptions.find(t => t > newStart);
+                                          if (nextTime) {
+                                            updated[idx].end = nextTime;
+                                          }
+                                        }
+                                        setAdScheduleList(updated);
+                                      }}
+                                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
+                                    >
+                                      {timeOptions.map((t, i) => (
+                                        <option key={i} value={t}>{t}</option>
+                                      ))}
+                                    </select>
 
-                                <span className="text-slate-500">to</span>
+                                    <span className="text-slate-500">to</span>
 
-                                <select
-                                  value={sched.end}
-                                  onChange={(e) => {
-                                    const updated = [...adScheduleList];
-                                    updated[idx].end = e.target.value;
-                                    setAdScheduleList(updated);
-                                  }}
-                                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono"
-                                >
-                                  {timeOptions.map((t, i) => (
-                                    <option key={i} value={t}>{t}</option>
-                                  ))}
-                                </select>
+                                    <select
+                                      value={sched.end}
+                                      onChange={(e) => {
+                                        const updated = [...adScheduleList];
+                                        updated[idx].end = e.target.value;
+                                        setAdScheduleList(updated);
+                                      }}
+                                      className={`bg-slate-50 border rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono ${
+                                        isSchedInvalid ? "border-rose-300 bg-rose-50/20" : "border-slate-200"
+                                      }`}
+                                    >
+                                      {timeOptions.map((t, i) => {
+                                        const isDisabled = Boolean(sched.start && sched.start !== "00:00" && t <= sched.start);
+                                        return (
+                                          <option key={i} value={t} disabled={isDisabled}>
+                                            {t} {isDisabled ? "(Must be after start)" : ""}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
 
-                                {adScheduleList.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
-                                    className="p-1.5 text-slate-500 hover:text-rose-400"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </div>
-                            ))}
+                                    {adScheduleList.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setAdScheduleList(prev => prev.filter((_, i) => i !== idx))}
+                                        className="p-1.5 text-slate-500 hover:text-rose-400"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  {isSchedInvalid && (
+                                    <span className="text-[10px] text-rose-500 font-medium block">
+                                      End time ({sched.end}) must be strictly after start time ({sched.start})
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
 
                             <button
                               type="button"
@@ -2068,25 +3045,36 @@ export default function SalesSearchPage() {
                       </>
                     ) : (
                       <div 
-                        className="flex items-center justify-between cursor-pointer select-none"
+                        className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                         onClick={() => setShowAssetOptimization(true)}
                       >
-                        <div className="flex items-center gap-16">
-                          <div className="w-48">
-                            <h3 className="font-bold text-slate-900 text-sm">Asset optimization</h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                          <div className="w-56">
+                            <h3 className="text-sm font-semibold text-slate-900">Asset optimization</h3>
                           </div>
-                          <div className="text-[11px] text-slate-500">
+                          <div className="text-xs text-slate-500 font-medium">
                             {[enableTextCustomization ? "Text customization" : null, enableFinalUrlExpansion ? "Final URL expansion" : null].filter(Boolean).join(", ") || "Off"}
                           </div>
                         </div>
-                        <ChevronDown className="h-4 w-4 text-slate-500" />
+                        <button
+                          type="button"
+                          aria-label="Edit"
+                          title="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAssetOptimization(true);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
                       </div>
                     )}
                   </div>
                 )}
 
                 {/* Brands Card */}
-                <div className="p-6 rounded-xl border border-slate-200 bg-slate-50 space-y-5 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-slate-50 space-y-5 shadow-sm">
                   {showBrands ? (
                     <>
                       <div 
@@ -2169,18 +3157,29 @@ export default function SalesSearchPage() {
                     </>
                   ) : (
                     <div 
-                      className="flex items-center justify-between cursor-pointer select-none"
+                      className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                       onClick={() => setShowBrands(true)}
                     >
-                      <div className="flex items-center gap-16">
-                        <div className="w-48">
-                          <h3 className="font-bold text-slate-900 text-sm">Brands</h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                        <div className="w-56">
+                          <h3 className="text-sm font-semibold text-slate-900">Brands</h3>
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-xs text-slate-500 font-medium">
                           {[brandInclusions.length > 0 ? `${brandInclusions.length} Inclusions` : null, brandExclusions.length > 0 ? `${brandExclusions.length} Exclusions` : null].filter(Boolean).join(", ") || "No brand settings applied"}
                         </div>
                       </div>
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <button
+                        type="button"
+                        aria-label="Edit"
+                        title="Edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowBrands(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2200,7 +3199,7 @@ export default function SalesSearchPage() {
               {openKeywordAssetCard ? (
                 <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-6 shadow-sm">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenKeywordAssetCard(false)}>
-                    <h2 className="text-sm font-semibold text-slate-900">Keyword and asset generation</h2>
+                    <h2 className="text-base font-semibold text-slate-900">Keyword and asset generation</h2>
                     <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
                   </div>
 
@@ -2242,18 +3241,29 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setOpenKeywordAssetCard(true)}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Keyword and asset generation</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Keyword and asset generation</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500 font-mono">
+                    <div className="text-xs text-slate-500 font-mono">
                       URL: {aiGenFinalUrl || "Not set"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenKeywordAssetCard(true);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
@@ -2262,7 +3272,7 @@ export default function SalesSearchPage() {
                 <button
                   type="button"
                   onClick={() => setWizardStep("KEYWORDS_ADS")}
-                  className="px-4 py-2 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   Skip
                 </button>
@@ -2275,10 +3285,10 @@ export default function SalesSearchPage() {
                       setWizardStep("KEYWORDS_ADS");
                     }
                   }}
-                  className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow ${
+                  className={`px-6 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-md ${
                     aiGenFinalUrl.trim()
                       ? "bg-primary text-slate-950 hover:bg-secondary cursor-pointer shadow-primary/20"
-                      : "bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-300/50"
+                      : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-300/50"
                   }`}
                 >
                   <Sparkles className="h-4 w-4" />
@@ -2304,12 +3314,15 @@ export default function SalesSearchPage() {
 
               {/* Card 1: Keywords Card */}
               {showKeywordsSection ? (
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm animate-in fade-in duration-150">
                   <div 
                     onClick={() => setShowKeywordsSection(false)}
                     className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                   >
-                    <h3 className="font-bold text-slate-900 text-sm">Keywords</h3>
+                    <div className="flex items-center gap-1">
+                      <h3 className="font-bold text-slate-900 text-sm">Keywords</h3>
+                      <span className="text-rose-500 font-bold text-sm">*</span>
+                    </div>
                     <ChevronUp className="h-4 w-4 text-slate-500" />
                   </div>
 
@@ -2360,42 +3373,87 @@ export default function SalesSearchPage() {
                     <div className="space-y-2 pt-3 border-t border-slate-200">
                       <div className="flex items-center gap-1.5">
                         <h4 className="font-bold text-slate-800">Enter keywords</h4>
+                        <span className="text-rose-500 font-bold">*</span>
                         <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                       </div>
                       <p className="text-[11px] text-slate-500">
-                        Keywords are words or phrases that are used to match your ads with the terms people are searching for
+                        Keywords are words or phrases that are used to match your ads with the terms people are searching for (minimum 1 keyword required)
                       </p>
 
                       <textarea
                         rows={6}
                         value={keywordsText}
-                        onChange={(e) => setKeywordsText(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setKeywordsText(val);
+                          const validKw = val.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+                          if (validKw.length === 0) {
+                            setFieldErrors(prev => ({ ...prev, keywordsText: "At least 1 valid keyword is required." }));
+                          } else {
+                            setFieldErrors(prev => {
+                              const updated = { ...prev };
+                              delete updated.keywordsText;
+                              return updated;
+                            });
+                          }
+                        }}
                         placeholder="Enter or paste keywords. You can separate each keyword by commas or enter one per line."
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                        className={`w-full bg-slate-50 border rounded-xl p-4 text-xs text-slate-900 placeholder-slate-400 focus:outline-none ${
+                          !keywordsText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length || fieldErrors.keywordsText
+                            ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                            : "border-slate-200 focus:border-primary"
+                        }`}
                       />
+                      {(!keywordsText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length || fieldErrors.keywordsText) && (
+                        <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.keywordsText || "At least 1 valid keyword is required."}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className={`p-5 rounded-2xl border bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group ${
+                    !keywordsText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length || fieldErrors.keywordsText
+                      ? "border-rose-400 bg-rose-50/20"
+                      : "border-slate-200"
+                  }`}
                   onClick={() => setShowKeywordsSection(true)}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Keywords</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56 flex items-center gap-1">
+                      <h2 className="text-sm font-semibold text-slate-900">Keywords</h2>
+                      <span className="text-rose-500 font-bold">*</span>
                     </div>
-                    <div className="text-[11px] text-slate-500">
-                      {keywordsText ? `${keywordsText.split(/[\n,]+/).filter(Boolean).length} keywords added` : "No keywords added"}
+                    <div className="text-xs font-medium">
+                      {keywordsText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length > 0 ? (
+                        <span className="text-slate-500">{keywordsText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keywords added</span>
+                      ) : (
+                        <span className="text-rose-500 font-semibold flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> At least 1 valid keyword is required
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowKeywordsSection(true);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
               {/* Card 2: Ad group settings for AI Max */}
               {showAdGroupSettingsSection ? (
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-5 shadow-sm animate-in fade-in duration-150">
                   <div 
                     onClick={() => setShowAdGroupSettingsSection(false)}
                     className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
@@ -2494,14 +3552,14 @@ export default function SalesSearchPage() {
                       {showUrlInclusionsSection && (
                         <>
                           <p className="text-[11px] text-slate-500 leading-relaxed">
-                            Google AI selects the best performing landing page from your website. To use only certain pages, create URL rules or choose custom labels from your page feeds.
+                            Select specific pages from your website that you want Google AI to include. <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                           </p>
                           <button
                             type="button"
                             onClick={() => setShowUrlInclusionsModal(true)}
-                            className="text-blue-400 hover:underline font-semibold text-[11px] cursor-pointer"
+                            className="text-blue-400 font-bold text-xs hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            Add URL Inclusions
+                            + URL inclusions
                           </button>
                         </>
                       )}
@@ -2523,7 +3581,7 @@ export default function SalesSearchPage() {
                       {showBrandInclusionsSection && (
                         <>
                           <p className="text-[11px] text-slate-500 leading-relaxed">
-                            Add brand inclusions to limit traffic to serve only on search queries related to the specified brands. Your ad group brand inclusions will be used instead of campaign-level brand inclusions. <HelpCircle className="inline h-3.5 w-3.5 text-slate-500 cursor-pointer" />
+                            Your ads will only show on searches that match your keywords and mention selected brands. Brand inclusions will limit search traffic, so apply only necessary brands.
                           </p>
                           <div className="relative max-w-xl">
                             <SearchIcon className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
@@ -2545,18 +3603,29 @@ export default function SalesSearchPage() {
                 </div>
               ) : (
                 <div 
-                  className="p-4 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-100/60 transition-colors shadow-lg animate-in fade-in duration-200"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
                   onClick={() => setShowAdGroupSettingsSection(true)}
                 >
-                  <div className="flex items-center gap-16">
-                    <div className="w-48">
-                      <h2 className="text-sm font-semibold text-slate-800">Ad group settings for AI Max</h2>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Ad group settings for AI Max</h2>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500 font-medium">
                       {[useSearchTermMatchingAdGroup ? "Search term matching enabled" : null].filter(Boolean).join(", ") || "Active"}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
+                  <button
+                    type="button"
+                    aria-label="Edit"
+                    title="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAdGroupSettingsSection(true);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 group-hover:text-primary hover:bg-primary/10 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
 
@@ -2623,6 +3692,7 @@ export default function SalesSearchPage() {
                           >
                             <label className="flex items-center gap-1.5 font-bold text-slate-800 cursor-pointer">
                               <span>Final URL</span>
+                              <span className="text-rose-500 font-bold">*</span>
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </label>
                             <ChevronUp className="h-4 w-4 text-slate-500" />
@@ -2631,9 +3701,16 @@ export default function SalesSearchPage() {
                             type="text"
                             value={finalUrl}
                             onChange={(e) => setFinalUrl(e.target.value)}
-                            placeholder="Final URL"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                            placeholder="Final URL (e.g. https://www.example.com)"
+                            className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:outline-none ${
+                              !finalUrl || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) ? "border-rose-300 focus:border-rose-500 bg-rose-50/20" : "border-slate-200 focus:border-primary"
+                            }`}
                           />
+                          {(!finalUrl || (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://"))) && (
+                            <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" /> Final URL must start with http:// or https:// (e.g. https://www.example.com)
+                            </span>
+                          )}
                           <span className="text-[10px] text-slate-500 block">This will be used to suggest assets for your ad</span>
                         </>
                       ) : (
@@ -2642,8 +3719,9 @@ export default function SalesSearchPage() {
                           onClick={() => setShowFinalUrlCard(true)}
                         >
                           <div className="flex items-center gap-16">
-                            <div className="w-48">
+                            <div className="w-48 flex items-center gap-1">
                               <label className="font-bold text-slate-800 cursor-pointer">Final URL</label>
+                              <span className="text-rose-500 font-bold">*</span>
                             </div>
                             <div className="text-[11px] text-slate-500 font-mono truncate max-w-[200px]">
                               {finalUrl || "No URL set"}
@@ -2762,8 +3840,13 @@ export default function SalesSearchPage() {
                             className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">Headlines</span>
-                              <span className="text-slate-500 text-[11px] font-mono">{headlines.filter(h => h.trim()).length} / 15</span>
+                              <span className="font-bold text-slate-900">Headlines ({headlines.filter(h => h.trim()).length}/3 min required)</span>
+                              <span className="text-rose-500 font-bold">*</span>
+                              {headlines.filter(h => h.trim()).length < 3 && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                  Need at least 3
+                                </span>
+                              )}
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </div>
                             <div className="flex items-center gap-3">
@@ -2783,12 +3866,14 @@ export default function SalesSearchPage() {
                                     updated[i] = e.target.value;
                                     setHeadlines(updated);
                                   }}
-                                  placeholder="Headline"
+                                  placeholder={`Headline ${i + 1} (required: 3 min)`}
                                   maxLength={30}
-                                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                                  className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none ${
+                                    i < 3 && !hl.trim() ? "border-rose-300 focus:border-rose-500 bg-rose-50/20" : "border-slate-200 focus:border-primary"
+                                  }`}
                                 />
                                 <div className="flex justify-between text-[9px] text-slate-500 px-1">
-                                  <span>Required</span>
+                                  <span className={i < 3 && !hl.trim() ? "text-rose-500 font-bold" : ""}>{i < 3 ? "Required" : "Optional"}</span>
                                   <span>{hl.length} / 30</span>
                                 </div>
                               </div>
@@ -2811,11 +3896,12 @@ export default function SalesSearchPage() {
                           onClick={() => setShowHeadlinesCard(true)}
                         >
                           <div className="flex items-center gap-16">
-                            <div className="w-48">
+                            <div className="w-48 flex items-center gap-1">
                               <label className="font-bold text-slate-800 cursor-pointer">Headlines</label>
+                              <span className="text-rose-500 font-bold">*</span>
                             </div>
                             <div className="text-[11px] text-slate-500">
-                              {headlines.filter(h => h.trim()).length} headlines added
+                              {headlines.filter(h => h.trim()).length} headlines added (min 3)
                             </div>
                           </div>
                           <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -2832,8 +3918,13 @@ export default function SalesSearchPage() {
                             className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer select-none"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">Descriptions</span>
-                              <span className="text-slate-500 text-[11px] font-mono">{descriptions.filter(d => d.trim()).length} / 4</span>
+                              <span className="font-bold text-slate-900">Descriptions ({descriptions.filter(d => d.trim()).length}/2 min required)</span>
+                              <span className="text-rose-500 font-bold">*</span>
+                              {descriptions.filter(d => d.trim()).length < 2 && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 border border-amber-500/30">
+                                  Need at least 2
+                                </span>
+                              )}
                               <HelpCircle className="h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                             </div>
                             <div className="flex items-center gap-3">
@@ -2853,12 +3944,14 @@ export default function SalesSearchPage() {
                                     updated[i] = e.target.value;
                                     setDescriptions(updated);
                                   }}
-                                  placeholder="Description"
+                                  placeholder={`Description ${i + 1} (required: 2 min)`}
                                   maxLength={90}
-                                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                                  className={`w-full bg-white border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none ${
+                                    i < 2 && !desc.trim() ? "border-rose-300 focus:border-rose-500 bg-rose-50/20" : "border-slate-200 focus:border-primary"
+                                  }`}
                                 />
                                 <div className="flex justify-between text-[9px] text-slate-500 px-1">
-                                  <span>Required</span>
+                                  <span className={i < 2 && !desc.trim() ? "text-rose-500 font-bold" : ""}>{i < 2 ? "Required" : "Optional"}</span>
                                   <span>{desc.length} / 90</span>
                                 </div>
                               </div>
@@ -2881,11 +3974,12 @@ export default function SalesSearchPage() {
                           onClick={() => setShowDescriptionsCard(true)}
                         >
                           <div className="flex items-center gap-16">
-                            <div className="w-48">
+                            <div className="w-48 flex items-center gap-1">
                               <label className="font-bold text-slate-800 cursor-pointer">Descriptions</label>
+                              <span className="text-rose-500 font-bold">*</span>
                             </div>
                             <div className="text-[11px] text-slate-500">
-                              {descriptions.filter(d => d.trim()).length} descriptions added
+                              {descriptions.filter(d => d.trim()).length} descriptions added (min 2)
                             </div>
                           </div>
                           <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -3419,7 +4513,10 @@ export default function SalesSearchPage() {
                     </div>
 
                     <div className="space-y-4">
-                      <span className="font-bold text-slate-900 text-xs block">Select budget type</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-slate-900 text-xs block">Select budget type</span>
+                        <span className="text-rose-500 font-bold text-xs">*</span>
+                      </div>
 
                       {/* Option 1: Average daily budget */}
                       <label
@@ -3436,20 +4533,35 @@ export default function SalesSearchPage() {
                           className="mt-1 text-primary h-4 w-4"
                         />
                         <div className="space-y-1">
-                          <span className="font-bold text-slate-900 block">Average daily budget</span>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-slate-900 block">Average daily budget</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                          </div>
                           <span className="text-slate-500 block text-[11px]">Set your average daily budget for this campaign</span>
                           {budgetType === "DAILY" && (
-                            <div className="pt-2">
+                            <div className="pt-2 space-y-1">
                               <div className="relative max-w-xs">
                                 <span className="absolute left-3.5 top-2.5 text-xs text-slate-500 font-mono">₹</span>
                                 <input
                                   type="text"
                                   value={customBudgetValue || selectedPresetBudget}
-                                  onChange={(e) => setCustomBudgetValue(e.target.value)}
-                                  placeholder="Enter daily amount"
-                                  className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                                    setCustomBudgetValue(val);
+                                  }}
+                                  placeholder="Enter daily amount (required: > 0)"
+                                  className={`w-full bg-white border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none font-mono ${
+                                    !(customBudgetValue.trim() || selectedPresetBudget.trim()) || Number(customBudgetValue.trim() || selectedPresetBudget.trim()) <= 0
+                                      ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
+                                      : "border-slate-200 focus:border-primary"
+                                  }`}
                                 />
                               </div>
+                              {(!(customBudgetValue.trim() || selectedPresetBudget.trim()) || Number(customBudgetValue.trim() || selectedPresetBudget.trim()) <= 0) && (
+                                <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                                  <AlertCircle className="h-3 w-3" /> Daily budget must be greater than 0
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -3480,8 +4592,11 @@ export default function SalesSearchPage() {
                                 <input
                                   type="text"
                                   value={customBudgetValue}
-                                  onChange={(e) => setCustomBudgetValue(e.target.value)}
-                                  placeholder=""
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                                    setCustomBudgetValue(val);
+                                  }}
+                                  placeholder="Enter total amount (required: > 0)"
                                   className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
                                 />
                               </div>
@@ -3531,83 +4646,136 @@ export default function SalesSearchPage() {
                 <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Your campaign is almost ready to publish</h1>
               </div>
 
+              {submitError && (
+                <div className="p-4 rounded-xl border border-rose-200 bg-rose-50 flex items-start gap-3 text-rose-700 animate-in fade-in duration-150">
+                  <AlertCircle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-xs">Publish Preflight Error</h4>
+                    <p className="text-[11px] leading-relaxed mt-0.5">{submitError}</p>
+                  </div>
+                </div>
+              )}
+
               {/* 1. Issues Section */}
-              <div className="space-y-2">
-                <div className="space-y-0.5">
-                  <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
-                  <p className="text-[11px] text-slate-500">Fix these issues to run your campaign</p>
-                </div>
+              {(() => {
+                const currentBudget = customBudgetValue.trim() || selectedPresetBudget.trim();
+                const numericBudget = Number(currentBudget);
+                const hasValidBudget = currentBudget && !isNaN(numericBudget) && numericBudget > 0;
+                const cleanedKeywords = keywordsText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+                const hasKeywords = cleanedKeywords.length > 0;
+                const trimmedFinalUrl = finalUrl ? finalUrl.trim() : "";
+                const validHeadlines = headlines.filter(h => h && h.trim());
+                const validDescriptions = descriptions.filter(d => d && d.trim());
+                const hasAd = trimmedFinalUrl && validHeadlines.length >= 3 && validDescriptions.length >= 2;
 
-                <div className="space-y-2">
-                  {/* Issue 1: Create an ad */}
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Create an ad:</strong> Get your ads running by adding ads to your ad group
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("KEYWORDS_ADS")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      View
-                    </button>
-                  </div>
+                const issues: Array<{ title: string; desc: string; step: "BIDDING" | "CAMPAIGN_SETTINGS" | "AI_MAX" | "KEYWORD_ASSET_GEN" | "KEYWORDS_ADS" | "BUDGET" | "SUMMARY"; openCard?: string }> = [];
 
-                  {/* Issue 2: Add keywords */}
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Add keywords:</strong> Get your ads running by adding keywords to your ad group
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("KEYWORDS_ADS")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      View
-                    </button>
-                  </div>
+                if (!hasAd) {
+                  issues.push({
+                    title: "Create an ad",
+                    desc: !trimmedFinalUrl 
+                      ? "Get your ads running by adding a valid Final URL" 
+                      : validHeadlines.length < 3 
+                        ? `Add at least 3 headlines (currently ${validHeadlines.length}/3)` 
+                        : `Add at least 2 descriptions (currently ${validDescriptions.length}/2)`,
+                    step: "KEYWORDS_ADS"
+                  });
+                }
 
-                  {/* Issue 3: Add a budget */}
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Add a budget:</strong> To publish your campaign, enter a budget
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("BUDGET")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      View
-                    </button>
-                  </div>
+                if (!hasKeywords) {
+                  issues.push({
+                    title: "Add keywords",
+                    desc: "Get your ads running by adding keywords to your ad group",
+                    step: "KEYWORDS_ADS"
+                  });
+                }
 
-                  {/* Issue 4: Budget value required */}
-                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
-                      <p className="text-slate-800">
-                        <strong className="text-slate-900 font-bold">Budget:</strong> Value is required
-                      </p>
+                if (!currentBudget) {
+                  issues.push({
+                    title: "Add a budget",
+                    desc: "To publish your campaign, enter a budget",
+                    step: "BUDGET"
+                  });
+                } else if (!hasValidBudget) {
+                  issues.push({
+                    title: "Budget",
+                    desc: "Value must be a positive number greater than 0",
+                    step: "BUDGET"
+                  });
+                }
+
+                if (biddingFocus === "Target CPA" && (!targetCpaValue || Number(targetCpaValue) <= 0)) {
+                  issues.push({
+                    title: "Target CPA",
+                    desc: "Target CPA must be a positive number greater than 0",
+                    step: "BIDDING"
+                  });
+                }
+
+                if (biddingFocus === "Target ROAS" && (!targetRoasValue || Number(targetRoasValue) <= 0)) {
+                  issues.push({
+                    title: "Target ROAS",
+                    desc: "Target ROAS percentage must be greater than 0%",
+                    step: "BIDDING"
+                  });
+                }
+
+                if (biddingFocus === "Impression share" && (!targetImpressionSharePercent || Number(targetImpressionSharePercent) < 1 || Number(targetImpressionSharePercent) > 100)) {
+                  issues.push({
+                    title: "Target Impression Share",
+                    desc: "Target impression share must be between 1% and 100%",
+                    step: "BIDDING"
+                  });
+                }
+
+                if (issues.length === 0) {
+                  return (
+                    <div className="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 flex items-center gap-3">
+                      <Check className="h-5 w-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <h3 className="font-bold text-xs">No issues found</h3>
+                        <p className="text-[11px] text-emerald-700">Your campaign is configured properly and ready to publish.</p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep("BUDGET")}
-                      className="text-blue-400 font-bold hover:underline cursor-pointer"
-                    >
-                      View
-                    </button>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    <div className="space-y-0.5">
+                      <h3 className="font-bold text-slate-800 text-xs">Issues</h3>
+                      <p className="text-[11px] text-slate-500">Fix these issues to run your campaign</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {issues.map((issue, idx) => (
+                        <div key={idx} className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Wrench className="h-4 w-4 text-rose-400 shrink-0" />
+                            <p className="text-slate-800">
+                              <strong className="text-slate-900 font-bold">{issue.title}:</strong> {issue.desc}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWizardStep(issue.step);
+                              if (issue.step === "KEYWORDS_ADS") {
+                                setShowFinalUrlCard(true);
+                                setShowHeadlinesCard(true);
+                                setShowDescriptionsCard(true);
+                              }
+                            }}
+                            className="text-blue-500 hover:text-blue-600 font-bold hover:underline cursor-pointer text-xs"
+                          >
+                            View
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* 2. Recommendations Section */}
               <div className="space-y-2 pt-2">
@@ -3640,136 +4808,252 @@ export default function SalesSearchPage() {
                 </div>
               </div>
 
-              {/* 3. Overview Table */}
-              <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-800 text-xs">Overview</h3>
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Campaign name</span>
+              {/* 3. Overview Card */}
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Overview</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-500 block text-[11px]">Campaign name</span>
+                      <span className="text-rose-500 font-bold text-xs">*</span>
+                    </div>
                     <input
                       type="text"
                       value={campaignName}
-                      onChange={(e) => setCampaignName(e.target.value)}
-                      className="flex-1 max-w-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCampaignName(val);
+                        checkDuplicateCampaignName(val);
+                      }}
+                      className={`border rounded-lg px-2.5 py-1 text-slate-900 font-bold text-xs mt-1 w-full focus:outline-none ${
+                        !campaignName.trim() || duplicateNameError || fieldErrors.campaignName
+                          ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                          : "bg-slate-50 border-slate-200 focus:border-primary"
+                      }`}
                     />
+                    {!campaignName.trim() && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Campaign name is required
+                      </span>
+                    )}
+                    {campaignName.trim() && (duplicateNameError || fieldErrors.campaignName) && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {duplicateNameError || fieldErrors.campaignName}
+                      </span>
+                    )}
                   </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Campaign type</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Search</span>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Campaign type</span>
+                    <span className="font-bold text-slate-900 text-sm block mt-1">Search</span>
                   </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Objective</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Sales</span>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Objective</span>
+                    <span className="font-semibold text-slate-900 block mt-0.5">Sales</span>
                   </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Goal</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Downloads, Phone call leads</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. Bidding Table */}
-              <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-800 text-xs">Bidding</h3>
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Bidding</span>
-                    <span className="flex-1 text-slate-900 font-semibold">{biddingFocus}</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Customer acquisition</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Bid equally for new and existing customers</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 5. Campaign Settings Table */}
-              <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-800 text-xs">Campaign settings</h3>
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Networks</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Search partners, Display Network</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Locations</span>
-                    <span className="flex-1 text-slate-900 font-semibold">All countries and territories</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Languages</span>
-                    <span className="flex-1 text-slate-900 font-semibold">English</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">EU political ads</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Doesn&apos;t have EU political ads</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Audiences</span>
-                    <span className="flex-1 text-slate-900 font-semibold">No segments</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 6. AI Max Table */}
-              <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-800 text-xs">AI Max</h3>
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Asset optimization</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Text customization and Final URL expansion turned on</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Brands</span>
-                    <div className="flex-1 space-y-0.5 font-semibold text-slate-900">
-                      <p>Limiting to: 0 brand lists</p>
-                      <p>Excluding: 0 brand lists</p>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Goal / Conversion Goals</span>
+                    <div className={`mt-0.5 p-2 rounded-lg border ${
+                      !selectedConversionGoals.length || fieldErrors.conversionGoals
+                        ? "border-rose-400 bg-rose-50/30 text-rose-900"
+                        : "border-transparent text-slate-900"
+                    }`}>
+                      <span className="font-semibold block">
+                        {selectedConversionGoals.length > 0
+                          ? selectedConversionGoals.map(g => `${g.category} (${g.origin})`).join(", ")
+                          : "No conversion goals selected"}
+                      </span>
+                      {(!selectedConversionGoals.length || fieldErrors.conversionGoals) && (
+                        <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.conversionGoals || "Please select at least one valid campaign conversion goal."}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* 7. Keywords and Ads Table */}
-              <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-800 text-xs">Keywords and ads</h3>
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-800">
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Keywords</span>
-                    <span className="flex-1 text-slate-900 font-semibold">None</span>
+              {/* 4. Bidding Card */}
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Bidding</h2>
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep("BIDDING")}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Bidding focus</span>
+                    <span className="font-bold text-slate-900">{biddingFocus}</span>
                   </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Search term matching</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Expanding your keywords with Google AI</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Brand inclusions</span>
-                    <span className="flex-1 text-slate-900 font-semibold">Limiting to: 0 brand lists</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Locations of interest</span>
-                    <span className="flex-1 text-slate-900 font-semibold">None</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">URL inclusions</span>
-                    <span className="flex-1 text-slate-900 font-semibold">No URL inclusions</span>
-                  </div>
-                  <div className="p-4 flex items-center justify-between">
-                    <span className="text-slate-500 w-48 font-medium">Ads</span>
-                    <span className="flex-1 text-slate-900 font-semibold">None</span>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Customer acquisition</span>
+                    <span className="text-slate-800 font-medium">
+                      {onlyBidNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* 8. Budget Table */}
-              <div className="space-y-2 pt-2">
-                <h3 className="font-bold text-slate-800 text-xs">Budget</h3>
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden p-4 flex items-center justify-between">
-                  <span className="text-slate-500 w-48 font-medium">Budget</span>
-                  <div className="flex-1 space-y-1">
-                    <span className="text-slate-900 font-bold">Campaign total: ₹0.00</span>
-                    <span className="text-rose-400 font-semibold flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
-                      Value is required
+              {/* 5. Campaign Settings Card */}
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Campaign settings</h2>
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep("CAMPAIGN_SETTINGS")}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Networks</span>
+                    <span className="font-medium text-slate-800">
+                      {[searchPartnersNetwork ? "Search partners" : null, displayNetwork ? "Display Network" : null].filter(Boolean).join(", ") || "None"}
                     </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Locations</span>
+                    <span className="font-medium text-slate-800">
+                      {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : targetLocations.map(l => l.name).join(", ") || "Custom locations"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Languages</span>
+                    <span className="font-medium text-slate-800">
+                      {selectedLanguages.length > 0 ? selectedLanguages.join(", ") : "English"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">EU political ads</span>
+                    <span className="font-medium text-slate-800">
+                      {euPoliticalAds === "YES" ? "Has EU political ads" : "Doesn't have EU political ads"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Audiences</span>
+                    <span className="font-medium text-slate-800">
+                      {selectedAudienceSegments.length > 0 ? selectedAudienceSegments.join(", ") : "No segments"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6. AI Max Card */}
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">AI Max</h2>
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep("AI_MAX")}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Asset optimization</span>
+                    <span className="font-medium text-slate-800">
+                      {[enableTextCustomization ? "Text customization" : null, enableFinalUrlExpansion ? "Final URL expansion" : null].filter(Boolean).join(" and ") || "Off"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Brands</span>
+                    <span className="font-medium text-slate-800">
+                      {[brandInclusions.length > 0 ? `${brandInclusions.length} Inclusions` : null, brandExclusions.length > 0 ? `${brandExclusions.length} Exclusions` : null].filter(Boolean).join(", ") || "No brand settings applied"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 7. Keywords and Ads Card */}
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Keywords and ads</h2>
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep("KEYWORDS_ADS")}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Final URL</span>
+                    <span className={finalUrl ? "font-mono text-emerald-600 font-semibold" : "font-semibold text-rose-500"}>
+                      {finalUrl || "None"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Keywords</span>
+                    <span className="font-medium text-slate-800">
+                      {keywordsText ? `${keywordsText.split(/[\n,]+/).filter(Boolean).length} keywords` : "None"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Search term matching</span>
+                    <span className="font-medium text-slate-800">
+                      {useSearchTermMatchingAdGroup ? "Enabled (Broad match AI)" : "Standard"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Headlines</span>
+                    <span className="font-medium text-slate-800">
+                      {headlines.filter(h => h && h.trim()).length} headlines added
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Descriptions</span>
+                    <span className="font-medium text-slate-800">
+                      {descriptions.filter(d => d && d.trim()).length} descriptions added
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Phone call lead asset</span>
+                    <span className="font-medium text-slate-800">
+                      {callPhone ? `+91 ${callPhone}` : "None"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 8. Budget Card */}
+              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h2 className="text-sm font-semibold text-slate-900">Budget</h2>
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep("BUDGET")}
+                    className="text-primary text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Daily / Total budget</span>
+                  <div className="mt-1 font-bold text-slate-900 text-sm">
+                    {customBudgetValue.trim() || selectedPresetBudget.trim() ? (
+                      <span>₹{customBudgetValue.trim() || selectedPresetBudget.trim()}/day</span>
+                    ) : (
+                      <span className="text-rose-500 font-semibold flex items-center gap-1 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                        Budget amount is required
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3815,13 +5099,11 @@ export default function SalesSearchPage() {
             </button>
           ) : (
             <button
-              onClick={async () => {
-                alert(`Search campaign "${adGroupName}" published successfully!`);
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
-              }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              disabled={isPublishing || !campaignName.trim() || !!duplicateNameError || Object.keys(fieldErrors).length > 0}
+              onClick={handlePublishCampaign}
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >
-              Save & Publish
+              {isPublishing ? "Publishing..." : "Save & Publish"}
               <Check className="h-4 w-4" />
             </button>
           )}
@@ -4986,16 +6268,25 @@ export default function SalesSearchPage() {
 
                     <div className="relative">
                       <input
-                        type="text"
+                        type="tel"
                         value={callPhone}
-                        onChange={(e) => setCallPhone(e.target.value)}
-                        placeholder="Phone number"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary font-mono"
+                        maxLength={10}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 10);
+                          setCallPhone(val);
+                        }}
+                        placeholder="10-digit mobile number"
+                        className={`w-full bg-slate-50 border rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none font-mono ${
+                          callPhone && callPhone.length !== 10 ? "border-amber-300 focus:border-amber-500 bg-amber-50/20" : "border-slate-200 focus:border-primary"
+                        }`}
                       />
                       <HelpCircle className="absolute right-3.5 top-2.5 h-3.5 w-3.5 text-slate-500 cursor-pointer" />
                     </div>
                   </div>
-                  <span className="text-[10px] text-slate-500 block pl-1">Example: (201) 555-0123</span>
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 px-1">
+                    <span>{callPhone && callPhone.length !== 10 ? <span className="text-amber-500 font-medium">Must be exactly 10 digits</span> : "Example: 9876543210"}</span>
+                    <span className="font-mono">{callPhone.length} / 10</span>
+                  </div>
                 </div>
 
                 {/* Conversion Action */}

@@ -100,6 +100,24 @@ router.post("/setup-manager", async (req, res) => {
 });
 
 /**
+ * POST /api/ads/gaql
+ * Execute a raw GAQL query on a customer account for live verification.
+ */
+router.post("/gaql", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = (req.query.customerId as string) || req.body.customerId;
+    const { query } = req.body;
+    if (!customerId || !query) return res.status(400).json({ error: "customerId and query are required" });
+    const results = await GoogleAdsService.gaqlSearch(orgId, customerId.replace(/-/g, ""), query);
+    res.json({ results });
+  } catch (error: any) {
+    console.error("GAQL error:", error?.response?.data || error.message);
+    res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
+  }
+});
+
+/**
  * GET /api/ads/sub-accounts?managerCustomerId=XXX
  * Live-fetch sub-accounts from Google Ads API for a given manager.
  */
@@ -347,6 +365,96 @@ router.get("/campaigns", async (req, res) => {
   }
 });
 
+// POST /api/ads/campaign/draft — save campaign as a draft
+router.post("/campaign/draft", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const {
+      customerId,
+      campaignName = "Untitled Campaign Draft",
+      campaignType = "PERFORMANCE_MAX",
+      biddingStrategy,
+      budget,
+      startDate,
+      endDate,
+      finalUrl,
+      headlines,
+      descriptions,
+      keywords,
+      geoTargets,
+      languages,
+      searchThemes,
+      audienceSignal,
+      adSchedule,
+      draftData
+    } = req.body;
+
+    const draftCampaign = await prisma.googleAdCampaign.create({
+      data: {
+        organizationId: orgId,
+        customerId: customerId || "default",
+        name: campaignName,
+        campaignType: campaignType || "PERFORMANCE_MAX",
+        biddingStrategy: biddingStrategy || null,
+        budget: budget ? Number(budget) : null,
+        startDate: startDate ? new Date(startDate) : new Date(),
+        endDate: endDate ? new Date(endDate) : null,
+        status: "DRAFT",
+        finalUrl: finalUrl || null,
+        headlines: headlines || [],
+        descriptions: descriptions || [],
+        keywords: keywords || [],
+        geoTargets: geoTargets || [],
+        languages: languages || [],
+        searchThemes: searchThemes || [],
+        audienceSignal: audienceSignal || (draftData ? draftData : null),
+        adSchedule: adSchedule || null
+      } as any
+    });
+
+    const serializedDraft = {
+      ...draftCampaign,
+      amountMicros: Number((draftCampaign as any).amountMicros || 0),
+      costMicros: Number((draftCampaign as any).costMicros || 0),
+      impressions: Number((draftCampaign as any).impressions || 0),
+      clicks: Number((draftCampaign as any).clicks || 0)
+    };
+
+    res.status(201).json({ message: "Draft saved successfully", draft: serializedDraft });
+  } catch (error: any) {
+    console.error("Save draft error:", error?.message);
+    res.status(500).json({ error: error?.message || "Failed to save draft" });
+  }
+});
+
+// GET /api/ads/campaigns/drafts — list existing campaign drafts
+router.get("/campaigns/drafts", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+
+    const whereClause: any = { organizationId: orgId, status: "DRAFT" };
+    if (customerId) whereClause.customerId = customerId;
+
+    const drafts = await prisma.googleAdCampaign.findMany({
+      where: whereClause,
+      orderBy: { updatedAt: "desc" }
+    });
+
+    const serializedDrafts = drafts.map(d => ({
+      ...d,
+      amountMicros: Number(d.amountMicros || 0),
+      costMicros: Number(d.costMicros || 0),
+      impressions: Number(d.impressions || 0),
+      clicks: Number(d.clicks || 0)
+    }));
+
+    res.status(200).json(serializedDrafts);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "Failed to fetch drafts" });
+  }
+});
+
 // POST /api/ads/campaign/launch — full campaign creation wizard
 router.post("/campaign/launch", async (req, res) => {
   try {
@@ -354,34 +462,163 @@ router.post("/campaign/launch", async (req, res) => {
       orgId = DEFAULT_ORG_ID, customerId, campaignName, budget,
       channelType, biddingStrategy, targetCpa, targetRoas,
       startDate, endDate, finalUrl, headlines, descriptions, keywords,
-      geoTargetIds, networkDisplay, images
+      geoTargetIds, locations, locationTargetingType, languages,
+      euPolitical, enableAiMax, enableTextCustomization, enableFinalUrlExpansion,
+      urlExpansionOptOut, trackingUrlTemplate, trackingTemplate, finalUrlSuffix,
+      adSchedule, adSchedules, adScheduleList, brandInclusions, brandExclusions,
+      onlyBidNewCustomers, adjustLapsedCustomers, customerAcquisitionMode,
+      maxCpcLimit, impressionShareLocation, targetImpressionSharePercent, maxCpcImpressionShare,
+      conversionGoals, conversionValueRules,
+      networkDisplay, images
     } = req.body;
 
     if (!customerId || !campaignName || !budget || !finalUrl || !headlines || !descriptions) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ error: "Missing required fields: customerId, campaignName, budget, finalUrl, headlines, and descriptions are mandatory." });
     }
 
+    const numericBudget = Number(budget);
+    if (isNaN(numericBudget) || numericBudget <= 0) {
+      return res.status(400).json({ error: "Budget must be a valid positive number greater than zero." });
+    }
+
+    const trimmedFinalUrl = String(finalUrl).trim();
+    if (!trimmedFinalUrl.startsWith("http://") && !trimmedFinalUrl.startsWith("https://")) {
+      return res.status(400).json({ error: "Final URL must begin with http:// or https://" });
+    }
+
+    const validHeadlines = (headlines || []).map((h: any) => typeof h === "string" ? h.trim() : "").filter(Boolean);
+    const validDescriptions = (descriptions || []).map((d: any) => typeof d === "string" ? d.trim() : "").filter(Boolean);
+
+    if (validHeadlines.length < 3) {
+      return res.status(400).json({ error: "At least 3 valid headlines are required for Search Responsive Search Ads." });
+    }
+    if (validDescriptions.length < 2) {
+      return res.status(400).json({ error: "At least 2 valid descriptions are required for Search Responsive Search Ads." });
+    }
+
+    // Strict Date-only validation for Start Date and End Date
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    if (startDate) {
+      const startStr = String(startDate).trim().split("T")[0];
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(startStr)) {
+        return res.status(400).json({ error: "Invalid startDate format. Expected YYYY-MM-DD." });
+      }
+      if (startStr < todayStr) {
+        return res.status(400).json({ error: `Start Date (${startStr}) cannot be in the past. Minimum date is today (${todayStr}).` });
+      }
+    }
+
+    if (endDate && String(endDate).trim()) {
+      const endStr = String(endDate).trim().split("T")[0];
+      const startStr = startDate ? String(startDate).trim().split("T")[0] : todayStr;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(endStr)) {
+        return res.status(400).json({ error: "Invalid endDate format. Expected YYYY-MM-DD." });
+      }
+      if (endStr < startStr) {
+        return res.status(400).json({ error: `End Date (${endStr}) cannot be earlier than Start Date (${startStr}).` });
+      }
+    }
+
+    // Strict Ad Schedule validation (Start Time must be strictly earlier than End Time)
+    const resolvedAdSchedules = adSchedule || adSchedules || adScheduleList || [];
+    if (Array.isArray(resolvedAdSchedules)) {
+      for (const item of resolvedAdSchedules) {
+        if (item && item.start && item.end && !(item.start === "00:00" && item.end === "00:00")) {
+          if (item.end <= item.start) {
+            return res.status(400).json({
+              error: `Invalid Ad Schedule for ${item.day || "selected day"}: End time (${item.end}) must be strictly later than start time (${item.start}).`
+            });
+          }
+        }
+      }
+    }
+
+    if (targetCpa !== undefined && targetCpa !== null) {
+      const cpaNum = Number(targetCpa);
+      if (isNaN(cpaNum) || cpaNum <= 0) {
+        return res.status(400).json({ error: "Target CPA must be a positive number greater than 0" });
+      }
+    }
+    if (targetRoas !== undefined && targetRoas !== null) {
+      const roasNum = Number(targetRoas);
+      if (isNaN(roasNum) || roasNum <= 0) {
+        return res.status(400).json({ error: "Target ROAS must be a positive percentage greater than 0" });
+      }
+    }
+
+    const parsedStart = startDate ? new Date(startDate) : new Date();
+    const parsedEnd = endDate && String(endDate).trim() ? new Date(endDate) : null;
+
+    const resolvedGeoTargets = geoTargetIds || locations || [];
+    const resolvedLanguages = languages || [];
+    const resolvedOptOut = urlExpansionOptOut !== undefined 
+      ? urlExpansionOptOut 
+      : (enableFinalUrlExpansion !== undefined ? !enableFinalUrlExpansion : undefined);
+    const resolvedTrackingTemplate = trackingUrlTemplate || trackingTemplate || undefined;
+    const resolvedFinalUrlSuffix = finalUrlSuffix || undefined;
+
     let result;
-    if (channelType === "PERFORMANCE_MAX") {
-      result = await GoogleAdsService.launchPerformanceMaxCampaign({
-        organizationId: orgId, customerId,
-        campaignName, budget: Number(budget),
-        biddingStrategy: biddingStrategy || "MAXIMIZE_CONVERSIONS",
-        targetCpa: targetCpa ? Number(targetCpa) : undefined,
-        targetRoas: targetRoas ? Number(targetRoas) : undefined,
-        startDate: startDate || new Date().toISOString().split("T")[0],
-        endDate, finalUrl, headlines, descriptions,
-        images: images || []
-      });
-    } else {
-      result = await GoogleAdsService.launchLocalSearchCampaign({
-        organizationId: orgId, customerId,
-        campaignName, budget: Number(budget),
-        channelType, biddingStrategy, targetCpa: targetCpa ? Number(targetCpa) : undefined,
-        targetRoas: targetRoas ? Number(targetRoas) : undefined,
-        startDate: startDate || new Date().toISOString().split("T")[0],
-        endDate, finalUrl, headlines, descriptions, keywords: keywords || [],
-        geoTargetIds, networkDisplay
+    try {
+      if (channelType === "PERFORMANCE_MAX") {
+        result = await GoogleAdsService.launchPerformanceMaxCampaign({
+          organizationId: orgId, customerId,
+          campaignName, budget: Number(budget),
+          biddingStrategy: biddingStrategy || "MAXIMIZE_CONVERSIONS",
+          targetCpa: targetCpa ? Number(targetCpa) : undefined,
+          targetRoas: targetRoas ? Number(targetRoas) : undefined,
+          startDate: startDate || new Date().toISOString().split("T")[0],
+          endDate, finalUrl, headlines, descriptions,
+          images: images || []
+        });
+      } else {
+        result = await GoogleAdsService.launchLocalSearchCampaign({
+          organizationId: orgId, customerId,
+          campaignName, budget: Number(budget),
+          channelType, biddingStrategy, targetCpa: targetCpa ? Number(targetCpa) : undefined,
+          targetRoas: targetRoas ? Number(targetRoas) : undefined,
+          startDate: startDate || new Date().toISOString().split("T")[0],
+          endDate, finalUrl, headlines, descriptions, keywords: keywords || [],
+          geoTargetIds: resolvedGeoTargets,
+          networkDisplay,
+          locationTargetingType,
+          languages: resolvedLanguages,
+          urlExpansionOptOut: resolvedOptOut,
+          trackingUrlTemplate: resolvedTrackingTemplate,
+          finalUrlSuffix: resolvedFinalUrlSuffix,
+          adSchedules: Array.isArray(resolvedAdSchedules) ? resolvedAdSchedules : [],
+          brandInclusions: brandInclusions || [],
+          brandExclusions: brandExclusions || [],
+          onlyBidNewCustomers: Boolean(onlyBidNewCustomers),
+          adjustLapsedCustomers: Boolean(adjustLapsedCustomers),
+          maxCpcLimit,
+          impressionShareLocation,
+          targetImpressionSharePercent,
+          maxCpcImpressionShare,
+          conversionGoals: conversionGoals || [],
+          conversionValueRules: conversionValueRules || [],
+          euPolitical: euPolitical || "NO"
+        });
+      }
+    } catch (apiErr: any) {
+      console.error("[GoogleAds API] Live launch error raw:", JSON.stringify(apiErr?.response?.data || apiErr.message, null, 2));
+      const gErrors = apiErr?.response?.data?.error?.details?.[0]?.errors || [];
+      let detailedMsg = apiErr?.response?.data?.error?.message || apiErr?.message || "Google Ads API launch failed.";
+      if (gErrors.length > 0) {
+        const errorDescriptions = gErrors.map((ge: any, idx: number) => {
+          const errorCodeKey = ge.errorCode ? Object.keys(ge.errorCode).map(k => `${k}: ${ge.errorCode[k]}`).join(", ") : "UNKNOWN";
+          const fieldPath = (ge.location?.fieldPathElements || []).map((fp: any) => `${fp.fieldName}${fp.index !== undefined ? `[${fp.index}]` : ""}`).join(".");
+          return `[Error ${idx + 1}] Code: ${errorCodeKey} | Field: ${fieldPath || "N/A"} | Message: ${ge.message || "N/A"} | Trigger: ${JSON.stringify(ge.trigger || "")}`;
+        });
+        detailedMsg = `${detailedMsg} -> ${errorDescriptions.join(" || ")}`;
+      }
+      return res.status(500).json({
+        error: detailedMsg,
+        code: apiErr?.response?.data?.error?.code,
+        status: apiErr?.response?.data?.error?.status,
+        details: apiErr?.response?.data?.error?.details,
+        raw: apiErr?.response?.data
       });
     }
 
@@ -395,16 +632,47 @@ router.post("/campaign/launch", async (req, res) => {
         biddingStrategy: biddingStrategy || "MANUAL_CPC",
         budget: Number(budget),
         budgetResourceName: result.budgetResourceName,
-        startDate: new Date(startDate || new Date()),
-        endDate: endDate ? new Date(endDate) : null,
+        startDate: parsedStart,
+        endDate: parsedEnd,
         status: "PAUSED",
         finalUrl,
         headlines, descriptions, keywords: keywords || [],
-        geoTargets: geoTargetIds || []
-      }
+        geoTargets: resolvedGeoTargets,
+        languages: resolvedLanguages,
+        adSchedule: resolvedAdSchedules.length > 0 ? resolvedAdSchedules : null,
+        audienceSignal: {
+          locationTargetingType: locationTargetingType || "PRESENCE_INTEREST",
+          euPolitical: euPolitical || "NO",
+          enableAiMax: enableAiMax !== undefined ? enableAiMax : true,
+          enableTextCustomization: enableTextCustomization !== undefined ? enableTextCustomization : true,
+          enableFinalUrlExpansion: enableFinalUrlExpansion !== undefined ? enableFinalUrlExpansion : true,
+          urlExpansionOptOut: resolvedOptOut,
+          trackingTemplate: resolvedTrackingTemplate,
+          finalUrlSuffix: resolvedFinalUrlSuffix,
+          brandInclusions: brandInclusions || [],
+          brandExclusions: brandExclusions || [],
+          onlyBidNewCustomers: Boolean(onlyBidNewCustomers),
+          adjustLapsedCustomers: Boolean(adjustLapsedCustomers),
+          customerAcquisitionMode: customerAcquisitionMode || (onlyBidNewCustomers ? "TARGET_NEW_CUSTOMER_ONLY" : "TARGET_ALL_EQUALLY"),
+          maxCpcLimit: maxCpcLimit ? Number(maxCpcLimit) : undefined,
+          impressionShareLocation: impressionShareLocation || undefined,
+          targetImpressionSharePercent: targetImpressionSharePercent ? Number(targetImpressionSharePercent) : undefined,
+          maxCpcImpressionShare: maxCpcImpressionShare ? Number(maxCpcImpressionShare) : undefined,
+          conversionGoals: conversionGoals || [],
+          conversionValueRules: conversionValueRules || []
+        }
+      } as any
     });
 
-    res.status(201).json({ message: "Campaign launched successfully!", campaign: localCampaign, resourceNames: result });
+    const serializedCampaign = {
+      ...localCampaign,
+      amountMicros: Number((localCampaign as any).amountMicros || 0),
+      costMicros: Number((localCampaign as any).costMicros || 0),
+      impressions: Number((localCampaign as any).impressions || 0),
+      clicks: Number((localCampaign as any).clicks || 0)
+    };
+
+    res.status(201).json({ message: "Campaign launched successfully!", campaign: serializedCampaign, resourceNames: result });
   } catch (error: any) {
     console.error("Campaign launch error:", error?.response?.data || error.message);
     res.status(500).json({ error: error?.response?.data?.error?.message || error.message });
@@ -838,6 +1106,10 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
       leadFormWebhook
     } = req.body;
 
+    if (!dailyBudget || isNaN(Number(dailyBudget)) || Number(dailyBudget) <= 0) {
+      return res.status(400).json({ error: "Budget cannot be negative or zero. Please provide a valid positive budget amount." });
+    }
+
     if (!finalUrl) {
       return res.status(400).json({ error: "Final URL is required." });
     }
@@ -856,19 +1128,33 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
     if (!startDate || typeof startDate !== "string" || !startDate.trim()) {
       return res.status(400).json({ error: "Start Date (startDate) is required in YYYY-MM-DD format." });
     }
-    if (!endDate || typeof endDate !== "string" || !endDate.trim()) {
-      return res.status(400).json({ error: "End Date (endDate) is required in YYYY-MM-DD format." });
-    }
     const parsedStart = new Date(startDate.trim());
-    const parsedEnd = new Date(endDate.trim());
     if (isNaN(parsedStart.getTime())) {
       return res.status(400).json({ error: "Invalid Start Date format. Expected valid date (YYYY-MM-DD)." });
     }
-    if (isNaN(parsedEnd.getTime())) {
-      return res.status(400).json({ error: "Invalid End Date format. Expected valid date (YYYY-MM-DD)." });
+
+    let parsedEnd: Date | null = null;
+    if (endDate && typeof endDate === "string" && endDate.trim()) {
+      const d = new Date(endDate.trim());
+      if (isNaN(d.getTime())) {
+        return res.status(400).json({ error: "Invalid End Date format. Expected valid date (YYYY-MM-DD)." });
+      }
+      if (d < parsedStart) {
+        return res.status(400).json({ error: "End Date cannot be earlier than Start Date." });
+      }
+      parsedEnd = d;
     }
-    if (parsedEnd < parsedStart) {
-      return res.status(400).json({ error: "End Date cannot be earlier than Start Date." });
+
+    // Validate 10-digit mobile number if phone/callAsset is provided
+    if (callAsset && typeof callAsset === "object") {
+      const rawPhone = (callAsset.phoneNumber || "").replace(/[^0-9]/g, "");
+      if (rawPhone.length > 0) {
+        // Strip country code 91 if 12 digits, otherwise check for 10 digits
+        const phone10 = rawPhone.length === 12 && rawPhone.startsWith("91") ? rawPhone.slice(2) : rawPhone;
+        if (phone10.length !== 10) {
+          return res.status(400).json({ error: "Mobile number must be exactly 10 digits (e.g. 9876543210)." });
+        }
+      }
     }
 
     const advertisingChannelType = "PERFORMANCE_MAX";
@@ -952,7 +1238,7 @@ router.post("/campaigns/create-noguidance-pmax-campaign", async (req, res) => {
       targetCpaMicros,
       targetRoas: targetRoas ? Number(targetRoas) : undefined,
       startDate: startDate.trim(),
-      endDate: endDate.trim(),
+      endDate: endDate && typeof endDate === "string" && endDate.trim() ? endDate.trim() : undefined,
       headlines: validHeadlines,
       longHeadlines: validLongHeadlines,
       descriptions: validDescriptions,
@@ -2670,6 +2956,23 @@ Return ONLY a JSON object:
     res.status(200).json(analysis);
   } catch (error: any) {
     res.status(500).json({ error: "Campaign analysis failed." });
+  }
+});
+
+// GET /api/ads/geo-targets/search — Search Google Ads Geo Target Constants
+router.get("/geo-targets/search", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const customerId = getCustomerId(req);
+    const query = (req.query.q || "") as string;
+    const locale = (req.query.locale || "en") as string;
+    if (!query) return res.status(200).json({ results: [] });
+
+    const results = await GoogleAdsService.searchGeoTargets(orgId, customerId, query, locale);
+    res.status(200).json({ results });
+  } catch (error: any) {
+    console.warn("Geo target search fallback/error:", error?.response?.data || error.message);
+    res.status(200).json({ results: [] });
   }
 });
 

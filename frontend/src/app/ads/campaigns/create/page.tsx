@@ -248,6 +248,80 @@ export default function CampaignCreatePage() {
 
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [campaignName, setCampaignName] = useState<string>("Sales-Performance Max-1");
+  const [showDraftModal, setShowDraftModal] = useState<boolean>(false);
+  const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
+
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      await fetch(`${BACKEND}/api/ads/campaign/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: customerId || accountInfo?.customerId || "default",
+          campaignName,
+          campaignType: selectedType || "SEARCH",
+          biddingStrategy: biddingFocus,
+          finalUrl: websiteVisitsUrl || assetFinalUrl || null,
+          draftData: {
+            selectedObjective,
+            selectedType,
+            pmaxDraftAction,
+            advertiseProducts,
+            merchantCenterAccount,
+            feedLabel,
+            conversionGoals
+          }
+        })
+      });
+      setShowDraftModal(false);
+      router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+    } catch (err) {
+      console.error("Failed to save draft:", err);
+      setShowDraftModal(false);
+      router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  // Performance Max Draft & Merchant Center State
+  const [pmaxDraftAction, setPmaxDraftAction] = useState<"DRAFT" | "NEW">("DRAFT");
+  const [existingDrafts, setExistingDrafts] = useState<any[]>([]);
+  const [isLoadingDrafts, setIsLoadingDrafts] = useState<boolean>(false);
+  const [selectedDraftId, setSelectedDraftId] = useState<string>("");
+  const [advertiseProducts, setAdvertiseProducts] = useState<boolean>(false);
+  const [merchantCenterAccount, setMerchantCenterAccount] = useState<string>("");
+  const [feedLabel, setFeedLabel] = useState<string>("");
+
+  // Fetch existing drafts on mount / customerId change
+  useEffect(() => {
+    const fetchDrafts = async () => {
+      setIsLoadingDrafts(true);
+      try {
+        const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+        const url = customerId
+          ? `${BACKEND}/api/ads/campaigns/drafts?customerId=${customerId}`
+          : `${BACKEND}/api/ads/campaigns/drafts`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setExistingDrafts(data);
+            if (data.length > 0) {
+              setSelectedDraftId(data[0].id || data[0].campaignId);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load drafts:", err);
+      } finally {
+        setIsLoadingDrafts(false);
+      }
+    };
+    fetchDrafts();
+  }, [customerId]);
 
   // Search Reach Goals State
   const [websiteVisitsUrl, setWebsiteVisitsUrl] = useState<string>("");
@@ -741,16 +815,35 @@ export default function CampaignCreatePage() {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
     }
+
+    // Fetch existing campaign drafts
+    setIsLoadingDrafts(true);
+    fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ""}`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setExistingDrafts(data);
+          if (data.length > 0) {
+            setSelectedDraftId(data[0].id || data[0].campaignId || "");
+          }
+        }
+      })
+      .catch(err => {
+        console.error("Failed to load drafts:", err);
+      })
+      .finally(() => {
+        setIsLoadingDrafts(false);
+      });
   }, [customerId]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans overflow-y-auto">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* ── Top Navigation Header ────────────────── */}
       <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`)}
-            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all"
+            onClick={() => setShowDraftModal(true)}
+            className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -5506,7 +5599,7 @@ export default function CampaignCreatePage() {
           </aside>
         </div>
       ) : (
-        <main className="flex-1 max-w-5xl w-full mx-auto p-6 md:p-10 space-y-10 pb-28">
+        <main className="flex-1 max-w-5xl w-full mx-auto p-6 md:p-10 space-y-10 pb-36">
 
         {/* Step Header */}
         <div className="space-y-1">
@@ -5910,39 +6003,237 @@ export default function CampaignCreatePage() {
                         </p>
                       </div>
 
-                      <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <p className="text-sm font-semibold text-slate-900">{prefix}-Performance Max-4</p>
-                          <p className="text-xs text-slate-500">Last modified less than a day ago • Performance Max</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => alert(`Resuming draft ${prefix}-Performance Max-4`)}
-                            className="px-3.5 py-1.5 rounded-lg bg-blue-50/80 border border-blue-500/30 text-blue-600 font-semibold text-xs hover:bg-blue-100 transition-all"
-                          >
-                            Continue from draft
-                          </button>
-                        </div>
-                      </div>
+                      {/* Draft vs New Selection Radio Buttons */}
+                      <div className="space-y-4">
+                        {/* Radio Option 1: Continue from draft */}
+                        <div
+                          onClick={() => setPmaxDraftAction("DRAFT")}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                            pmaxDraftAction === "DRAFT"
+                              ? "border-blue-500 bg-blue-50/20 ring-1 ring-blue-500"
+                              : "border-slate-200 bg-slate-50 hover:bg-white"
+                          }`}
+                        >
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="pmaxDraftChoice"
+                              checked={pmaxDraftAction === "DRAFT"}
+                              onChange={() => setPmaxDraftAction("DRAFT")}
+                              className="mt-1 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                            />
+                            <div className="flex-1 space-y-3">
+                              <div>
+                                <span className="text-xs font-semibold text-slate-800">Continue from an existing campaign draft</span>
+                                <p className="text-xs text-slate-500 mt-0.5">Resume setup with previously saved draft settings</p>
+                              </div>
 
-                      <div className="pt-3 border-t border-slate-200 space-y-4">
-                        <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Create a new campaign</h4>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
-                          <input
-                            defaultValue={`${prefix}-Performance Max-5`}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
-                          />
+                              {pmaxDraftAction === "DRAFT" && (
+                                <div className="mt-3 space-y-2 pt-3 border-t border-slate-200">
+                                  {isLoadingDrafts ? (
+                                    <div className="py-4 text-center text-xs text-slate-500">
+                                      Loading campaign drafts...
+                                    </div>
+                                  ) : existingDrafts.length > 0 ? (
+                                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                      {existingDrafts.map((draft: any) => {
+                                        const draftId = draft.id || draft.campaignId;
+                                        const isDraftSelected = selectedDraftId === draftId;
+                                        const modifiedDate = draft.updatedAt 
+                                          ? new Date(draft.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                                          : "Recently";
+
+                                        return (
+                                          <div
+                                            key={draftId}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setSelectedDraftId(draftId);
+                                            }}
+                                            className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-all ${
+                                              isDraftSelected
+                                                ? "border-blue-500 bg-blue-50/30 ring-2 ring-blue-500 shadow-sm"
+                                                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-3">
+                                              <input
+                                                type="radio"
+                                                name="selectedDraftItem"
+                                                checked={isDraftSelected}
+                                                onChange={() => setSelectedDraftId(draftId)}
+                                                className="text-blue-600 focus:ring-blue-500 h-4 w-4 pointer-events-none"
+                                              />
+                                              <div>
+                                                <p className="text-xs font-semibold text-slate-900">{draft.name || `${prefix}-Performance Max`}</p>
+                                                <p className="text-[11px] text-slate-500">
+                                                  Last modified {modifiedDate} • {draft.campaignType || "Performance Max"}
+                                                  {draft.budget ? ` • Budget: $${draft.budget}` : ""}
+                                                </p>
+                                              </div>
+                                            </div>
+
+                                            {isDraftSelected && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  const objSlugMap: Record<string, string> = {
+                                                    SALES: "sales",
+                                                    LEADS: "leads",
+                                                    WEBSITE_TRAFFIC: "website-traffic",
+                                                    LOCAL: "local",
+                                                    NO_GUIDANCE: "no-guidance"
+                                                  };
+                                                  const objSlug = objSlugMap[selectedObjective || "SALES"] || "sales";
+                                                  router.push(`/ads/campaigns/create/${objSlug}/performance-max?draftId=${draftId}${customerId ? `&customerId=${customerId}` : ""}`);
+                                                }}
+                                                className="px-4 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 transition-all shrink-0 cursor-pointer shadow-sm self-end sm:self-center"
+                                              >
+                                                Continue
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 rounded-lg border border-slate-200 bg-white flex items-center justify-between">
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-900">{prefix}-Performance Max-1</p>
+                                        <p className="text-[11px] text-slate-500">No saved drafts found • New draft will be created</p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const objSlugMap: Record<string, string> = {
+                                            SALES: "sales",
+                                            LEADS: "leads",
+                                            WEBSITE_TRAFFIC: "website-traffic",
+                                            LOCAL: "local",
+                                            NO_GUIDANCE: "no-guidance"
+                                          };
+                                          const objSlug = objSlugMap[selectedObjective || "SALES"] || "sales";
+                                          router.push(`/ads/campaigns/create/${objSlug}/performance-max${customerId ? `?customerId=${customerId}` : ""}`);
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 transition-all shrink-0 cursor-pointer"
+                                      >
+                                        Continue
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </label>
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="block text-xs font-semibold text-slate-700">Where should people go after clicking your ads?</label>
-                          <p className="text-xs text-slate-500">
-                            Think about the product or service you want to sell and enter the URL you want people to see after clicking your ads. This might be your homepage or a more specific page on your website.
-                          </p>
-                          <input
-                            placeholder="Final URL (e.g. https://yourwebsite.com/product)"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all mt-2"
-                          />
+
+                        {/* Radio Option 2: Create a new campaign */}
+                        <div
+                          onClick={() => setPmaxDraftAction("NEW")}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                            pmaxDraftAction === "NEW"
+                              ? "border-blue-500 bg-blue-50/20 ring-1 ring-blue-500"
+                              : "border-slate-200 bg-slate-50 hover:bg-white"
+                          }`}
+                        >
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="pmaxDraftChoice"
+                              checked={pmaxDraftAction === "NEW"}
+                              onChange={() => setPmaxDraftAction("NEW")}
+                              className="mt-1 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                            />
+                            <div className="flex-1 space-y-0.5">
+                              <span className="text-xs font-semibold text-slate-800">Create a new campaign</span>
+                              <p className="text-xs text-slate-500">Start fresh and set up new campaign settings and products</p>
+                            </div>
+                          </label>
+
+                          {/* Rendered ONLY if Create a new campaign is selected */}
+                          {pmaxDraftAction === "NEW" && (
+                            <div className="mt-5 pt-4 border-t border-slate-200 space-y-5 animate-in fade-in duration-150">
+                              {/* Add products to this campaign section */}
+                              <div className="space-y-4">
+                                <h4 className="text-sm font-semibold text-slate-900">Add products to this campaign</h4>
+
+                                <label className="flex items-start gap-3 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={advertiseProducts}
+                                    onChange={(e) => setAdvertiseProducts(e.target.checked)}
+                                    className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                  />
+                                  <div className="space-y-0.5">
+                                    <span className="text-xs font-semibold text-slate-800">
+                                      Advertise products from a Merchant Center account
+                                    </span>
+                                  </div>
+                                </label>
+
+                                {advertiseProducts && (
+                                  <div className="space-y-3 pl-7 animate-in fade-in duration-150">
+                                    <label className="block text-xs font-semibold text-slate-700">
+                                      Select a Merchant Center account
+                                    </label>
+                                    <div className="space-y-1">
+                                      <input
+                                        type="text"
+                                        placeholder="Select account"
+                                        value={merchantCenterAccount}
+                                        onChange={(e) => setMerchantCenterAccount(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-all"
+                                      />
+                                    </div>
+
+                                    {merchantCenterAccount.trim() && (
+                                      <div className="space-y-3 pt-2">
+                                        <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 text-amber-900 text-xs leading-relaxed">
+                                          This Merchant Center account isn’t set up to show products in ads yet. You can finish setting up the account after you’ve published this campaign.
+                                        </div>
+
+                                        <p className="text-xs text-slate-600">
+                                          All products from the selected account will be available to advertise in this campaign. Select a feed label
+                                        </p>
+
+                                        <input
+                                          type="text"
+                                          placeholder="Select a feed label"
+                                          value={feedLabel}
+                                          onChange={(e) => setFeedLabel(e.target.value)}
+                                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-all"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Campaign Name and Final URL */}
+                              <div className="pt-4 border-t border-slate-200 space-y-4">
+                                <div>
+                                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Campaign name</label>
+                                  <input
+                                    defaultValue={`${prefix}-Performance Max-5`}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 transition-all font-medium"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="block text-xs font-semibold text-slate-700">Where should people go after clicking your ads?</label>
+                                  <p className="text-xs text-slate-500">
+                                    Think about the product or service you want to sell and enter the URL you want people to see after clicking your ads. This might be your homepage or a more specific page on your website.
+                                  </p>
+                                  <input
+                                    placeholder="Final URL (e.g. https://yourwebsite.com/product)"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all mt-2"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -6027,13 +6318,20 @@ export default function CampaignCreatePage() {
                         <div className="space-y-3 pt-2 border-t border-slate-200">
                           <label className="block text-xs font-semibold text-slate-700">Select the ways you'd like to reach your goal</label>
                           <div className="space-y-2">
-                            {[
-                              { id: "website_visits", label: "Website visits", placeholder: "Your business's website (e.g. https://yourwebsite.com)" },
-                              { id: "phone_calls", label: "Phone calls", countrySelect: true, placeholder: "Example: (201) 555-0123" },
-                              { id: "store_visits", label: "Store visits", desc: "Reach customers near your physical store locations" },
-                              { id: "lead_forms", label: "Lead form submissions", desc: "Add lead form on the next step" },
-                              { id: "messages", label: "Messages from your ads", desc: "Add message asset on the next step" }
-                            ].map((way) => {
+                            {(selectedObjective === "SALES" && selectedType === "SEARCH"
+                              ? [
+                                  { id: "website_visits", label: "Website visits", placeholder: "Your business's website (e.g. https://yourwebsite.com)" },
+                                  { id: "phone_calls", label: "Phone calls", countrySelect: true, placeholder: "Example: (201) 555-0123" },
+                                  { id: "store_visits", label: "Store visits", desc: "Reach customers near your physical store locations" }
+                                ]
+                              : [
+                                  { id: "website_visits", label: "Website visits", placeholder: "Your business's website (e.g. https://yourwebsite.com)" },
+                                  { id: "phone_calls", label: "Phone calls", countrySelect: true, placeholder: "Example: (201) 555-0123" },
+                                  { id: "store_visits", label: "Store visits", desc: "Reach customers near your physical store locations" },
+                                  { id: "lead_forms", label: "Lead form submissions", desc: "Add lead form on the next step" },
+                                  { id: "messages", label: "Messages from your ads", desc: "Add message asset on the next step" }
+                                ]
+                            ).map((way) => {
                               const isChecked = selectedReachGoals.includes(way.id);
                               return (
                                 <label key={way.id} className={`flex flex-col p-3.5 rounded-xl border transition-all ${isChecked ? "bg-white border-blue-500/60" : "bg-slate-50 border-slate-200 hover:border-slate-200"}`}>
@@ -6395,7 +6693,11 @@ export default function CampaignCreatePage() {
               const objSlug = objSlugMap[selectedObjective] || "sales";
               const typeSlug = typeSlugMap[selectedType] || "performance-max";
 
-              router.push(`/ads/campaigns/create/${objSlug}/${typeSlug}${customerId ? `?customerId=${customerId}` : ""}`);
+              const draftParam = (selectedType === "PERFORMANCE_MAX" && pmaxDraftAction === "DRAFT" && selectedDraftId) 
+                ? `&draftId=${encodeURIComponent(selectedDraftId)}` 
+                : "";
+
+              router.push(`/ads/campaigns/create/${objSlug}/${typeSlug}?${customerId ? `customerId=${customerId}` : ""}${draftParam}`.replace("?&", "?").replace(/\?$/, ""));
               return;
             }
             if (wizardStep === "OBJECTIVE") {
@@ -7985,6 +8287,59 @@ export default function CampaignCreatePage() {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50/50 shrink-0">
               <button type="button" onClick={() => setShowAppsModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">Cancel</button>
               <button type="button" onClick={() => setShowAppsModal(false)} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Save as a campaign draft Modal ── */}
+      {showDraftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl text-xs">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">Save as a campaign draft?</h3>
+                <p className="text-xs text-slate-500">Come back later to edit or complete this campaign</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDraftModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Your campaign progress will be saved as a draft so you can resume anytime.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowDraftModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDraftModal(false);
+                  router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-all cursor-pointer"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                disabled={isSavingDraft}
+                onClick={handleSaveDraft}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-primary hover:bg-secondary transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isSavingDraft ? "Saving..." : "Save"}
+              </button>
             </div>
           </div>
         </div>

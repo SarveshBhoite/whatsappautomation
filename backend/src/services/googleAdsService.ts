@@ -295,25 +295,59 @@ export class GoogleAdsService {
       }
     } else {
       switch (params.biddingStrategy) {
-        case "TARGET_CPA":
-          biddingConfig = { targetCpa: { targetCpaMicros: String(params.targetCpaMicros ?? 0) } };
+        case "TARGET_CPA": {
+          const cpaMicros = params.targetCpaMicros && params.targetCpaMicros > 0 ? String(params.targetCpaMicros) : undefined;
+          // In Google Ads API v24 for standard Search campaigns, Target CPA is configured via maximizeConversions with targetCpaMicros
+          biddingConfig = cpaMicros
+            ? { maximizeConversions: { targetCpaMicros: cpaMicros } }
+            : { maximizeConversions: {} };
           break;
-        case "TARGET_ROAS":
-          biddingConfig = { targetRoas: { targetRoas: params.targetRoas ?? 0 } };
+        }
+        case "TARGET_ROAS": {
+          const rawRoas = params.targetRoas && Number(params.targetRoas) > 0 ? Number(params.targetRoas) : undefined;
+          // In Google Ads API v24 for standard Search campaigns, Target ROAS is configured via maximizeConversionValue with targetRoas
+          const validRoas = rawRoas ? (rawRoas > 10 ? rawRoas / 100 : rawRoas) : undefined;
+          biddingConfig = validRoas && validRoas > 0
+            ? { maximizeConversionValue: { targetRoas: validRoas } }
+            : { maximizeConversionValue: {} };
           break;
-        case "MAXIMIZE_CLICKS":
-          // maximizeClicks accepts an optional cpcBidCeilingMicros
-          biddingConfig = { maximizeClicks: {} };
+        }
+        case "MAXIMIZE_CLICKS": {
+          const ceiling = (params as any).maxCpcLimitMicros || ((params as any).maxCpcLimit ? Math.round(Number((params as any).maxCpcLimit) * 1_000_000) : undefined);
+          biddingConfig = { targetSpend: ceiling ? { cpcBidCeilingMicros: String(ceiling) } : {} };
           break;
+        }
         case "MAXIMIZE_CONVERSIONS":
-          biddingConfig = { maximizeConversions: {} };
+          biddingConfig = {
+            maximizeConversions: params.targetCpaMicros && params.targetCpaMicros > 0 ? { targetCpaMicros: String(params.targetCpaMicros) } : {}
+          };
           break;
-        case "MAXIMIZE_CONVERSION_VALUE":
-          biddingConfig = { maximizeConversionValue: {} };
+        case "MAXIMIZE_CONVERSION_VALUE": {
+          const rawRoas = params.targetRoas && Number(params.targetRoas) > 0 ? Number(params.targetRoas) : undefined;
+          const validRoas = rawRoas ? (rawRoas > 10 ? rawRoas / 100 : rawRoas) : undefined;
+          biddingConfig = {
+            maximizeConversionValue: validRoas && validRoas > 0 ? { targetRoas: validRoas } : {}
+          };
           break;
-        case "TARGET_IMPRESSION_SHARE":
-          biddingConfig = { targetImpressionShare: { location: "ANYWHERE_ON_PAGE", locationFractionMicros: 1_000_000 } };
+        }
+        case "TARGET_IMPRESSION_SHARE": {
+          const locMap: Record<string, string> = {
+            "Anywhere on results page": "ANYWHERE_ON_PAGE",
+            "Top of results page": "TOP_OF_PAGE",
+            "Absolute top of results page": "ABSOLUTE_TOP_OF_PAGE"
+          };
+          const loc = locMap[(params as any).impressionShareLocation] || (params as any).impressionShareLocation || "ANYWHERE_ON_PAGE";
+          const fraction = (params as any).targetImpressionSharePercent ? Math.round(Number((params as any).targetImpressionSharePercent) * 10_000) : 1_000_000;
+          const ceiling = (params as any).maxCpcImpressionShare ? Math.round(Number((params as any).maxCpcImpressionShare) * 1_000_000) : undefined;
+          biddingConfig = {
+            targetImpressionShare: {
+              location: loc,
+              locationFractionMicros: fraction,
+              ...(ceiling ? { cpcBidCeilingMicros: String(ceiling) } : {})
+            }
+          };
           break;
+        }
         case "MANUAL_CPM":
           biddingConfig = { manualCpm: {} };
           break;
@@ -329,14 +363,42 @@ export class GoogleAdsService {
     const startDateTime = params.startDate.includes(" ") ? params.startDate : `${params.startDate} 00:00:00`;
     const endDateTime = params.endDate ? (params.endDate.includes(" ") ? params.endDate : `${params.endDate} 23:59:59`) : undefined;
 
+    // Required EU Political Advertising Enum in Google Ads API v24
+    const euPoliticalRaw = (params as any).euPolitical || (params as any).containsEuPoliticalAdvertising;
+    const containsEuPoliticalAdvertising = euPoliticalRaw === "YES" || euPoliticalRaw === "CONTAINS_EU_POLITICAL_ADVERTISING"
+      ? "CONTAINS_EU_POLITICAL_ADVERTISING"
+      : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING";
+
     const campaignBody: any = {
       name: params.name,
       advertisingChannelType: params.channelType || "SEARCH",
       status: "PAUSED",
       campaignBudget: params.budgetResourceName,
       startDateTime,
+      containsEuPoliticalAdvertising,
       ...biddingConfig
     };
+
+    // Location targeting mode (Presence vs Presence/Interest)
+    if ((params as any).locationTargetingType) {
+      campaignBody.geoTargetTypeSetting = {
+        positiveGeoTargetType: (params as any).locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+        negativeGeoTargetType: "PRESENCE"
+      };
+    }
+
+    // Note: Customer Acquisition Lifecycle and AI Max URL Expansion settings are stored at the CRM / Prisma level
+    // for Search campaigns and are not valid Campaign proto fields in Google Ads API v24 mutate create.
+
+    // Campaign Tracking Template (Parameter 21)
+    if ((params as any).trackingUrlTemplate || (params as any).trackingTemplate) {
+      campaignBody.trackingUrlTemplate = (params as any).trackingUrlTemplate || (params as any).trackingTemplate;
+    }
+
+    // Campaign Final URL Suffix (Parameter 22)
+    if ((params as any).finalUrlSuffix) {
+      campaignBody.finalUrlSuffix = (params as any).finalUrlSuffix;
+    }
 
     // Network settings are NOT allowed for PERFORMANCE_MAX campaigns
     if (!isPMax) {
@@ -350,11 +412,18 @@ export class GoogleAdsService {
 
     if (endDateTime) campaignBody.endDateTime = endDateTime;
 
-    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaigns:mutate`, {
-      operations: [{ create: campaignBody }]
-    }, { headers });
+    console.log("[GoogleAds API] Mutate Campaign Payload:", JSON.stringify(campaignBody, null, 2));
 
-    return res.data.results?.[0]?.resourceName;
+    try {
+      const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaigns:mutate`, {
+        operations: [{ create: campaignBody }]
+      }, { headers });
+
+      return res.data.results?.[0]?.resourceName;
+    } catch (err: any) {
+      console.error("[GoogleAds API createCampaign Error]:", JSON.stringify(err?.response?.data || err.message, null, 2));
+      throw err;
+    }
   }
 
   public static async updateCampaign(organizationId: string, customerId: string, campaignResourceName: string, updates: {
@@ -836,14 +905,53 @@ export class GoogleAdsService {
     }));
   }
 
-  public static async addGeoTargets(organizationId: string, customerId: string, campaignResourceName: string, geoTargetIds: string[]) {
+  // Map common names to official Google Ads GeoTarget Constant IDs
+  public static readonly GEO_TARGET_CONSTANT_MAP: Record<string, string> = {
+    "india": "2356",
+    "mumbai": "1007788",
+    "mumbai, maharashtra, india": "1007788",
+    "delhi": "1007785",
+    "delhi, india": "1007785",
+    "bengaluru": "1007768",
+    "bengaluru, karnataka, india": "1007768",
+    "bangalore": "1007768",
+    "hyderabad": "1007773",
+    "hyderabad, telangana, india": "1007773",
+    "pune": "1007801",
+    "pune, maharashtra, india": "1007801",
+    "kolkata": "1007743",
+    "kolkata, west bengal, india": "1007743",
+    "chennai": "1007809",
+    "chennai, tamil nadu, india": "1007809",
+    "ahmedabad": "1007753",
+    "ahmedabad, gujarat, india": "1007753",
+    "jaipur": "1007828",
+    "jaipur, rajasthan, india": "1007828",
+    "surat": "1007754",
+    "surat, gujarat, india": "1007754",
+    "lucknow": "1007782",
+    "lucknow, uttar pradesh, india": "1007782",
+    "united states": "2840",
+    "united kingdom": "2826"
+  };
+
+  public static async addGeoTargets(organizationId: string, customerId: string, campaignResourceName: string, geoTargets: string[]) {
     const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    const operations = geoTargetIds.map(id => ({
-      create: {
-        campaign: campaignResourceName,
-        location: { geoTargetConstant: `geoTargetConstants/${id}` }
+    const operations: any[] = [];
+    for (const target of geoTargets) {
+      if (!target || target === "ALL" || target === "All countries and territories") continue;
+      const normalized = String(target).trim().toLowerCase();
+      const constantId = this.GEO_TARGET_CONSTANT_MAP[normalized] || target;
+      if (constantId && /^\d+$/.test(constantId)) {
+        operations.push({
+          create: {
+            campaign: campaignResourceName,
+            location: { geoTargetConstant: `geoTargetConstants/${constantId}` }
+          }
+        });
       }
-    }));
+    }
+    if (operations.length === 0) return [];
     const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignCriteria:mutate`, { operations }, { headers });
     return res.data.results || [];
   }
@@ -1153,6 +1261,22 @@ export class GoogleAdsService {
     startDate: string; endDate?: string;
     finalUrl: string; headlines: string[]; descriptions: string[]; keywords: string[];
     geoTargetIds?: string[]; networkDisplay?: boolean;
+    locationTargetingType?: string;
+    languages?: string[];
+    urlExpansionOptOut?: boolean;
+    trackingUrlTemplate?: string;
+    finalUrlSuffix?: string;
+    adSchedules?: Array<{ day: string; start: string; end: string }>;
+    brandInclusions?: string[];
+    brandExclusions?: string[];
+    onlyBidNewCustomers?: boolean;
+    adjustLapsedCustomers?: boolean;
+    maxCpcLimit?: number | string;
+    impressionShareLocation?: string;
+    targetImpressionSharePercent?: number | string;
+    maxCpcImpressionShare?: number | string;
+    conversionGoals?: Array<{ category: string; origin: string; biddable?: boolean }>;
+    conversionValueRules?: any[];
   }) {
     const { organizationId, customerId } = params;
 
@@ -1162,7 +1286,7 @@ export class GoogleAdsService {
       amountPerDay: params.budget
     });
 
-    // 2. Create Campaign
+    // 2. Create Campaign (Parameters 19, 21, 22, 24, 25, 26)
     const campaignRef = await this.createCampaign(organizationId, customerId, {
       name: params.campaignName,
       budgetResourceName: budgetRef,
@@ -1172,8 +1296,19 @@ export class GoogleAdsService {
       targetRoas: params.targetRoas,
       startDate: params.startDate,
       endDate: params.endDate,
-      networkDisplay: params.networkDisplay || false
-    });
+      networkDisplay: params.networkDisplay || false,
+      locationTargetingType: params.locationTargetingType,
+      urlExpansionOptOut: params.urlExpansionOptOut,
+      trackingUrlTemplate: params.trackingUrlTemplate,
+      finalUrlSuffix: params.finalUrlSuffix,
+      euPolitical: (params as any).euPolitical,
+      onlyBidNewCustomers: params.onlyBidNewCustomers,
+      adjustLapsedCustomers: params.adjustLapsedCustomers,
+      maxCpcLimit: params.maxCpcLimit,
+      impressionShareLocation: params.impressionShareLocation,
+      targetImpressionSharePercent: params.targetImpressionSharePercent,
+      maxCpcImpressionShare: params.maxCpcImpressionShare
+    } as any);
 
     // 3. Create Ad Group
     const adGroupRef = await this.createAdGroup(organizationId, customerId, {
@@ -1194,9 +1329,29 @@ export class GoogleAdsService {
       await this.addKeywords(organizationId, customerId, adGroupRef, params.keywords.map(kw => ({ text: kw })));
     }
 
-    // 6. Geo targets (optional)
+    // 6. Geo targets (Parameter 13)
     if (params.geoTargetIds && params.geoTargetIds.length > 0) {
       await this.addGeoTargets(organizationId, customerId, campaignRef, params.geoTargetIds);
+    }
+
+    // 7. Languages (Parameter 15)
+    if (params.languages && params.languages.length > 0) {
+      await this.addLanguages(organizationId, customerId, campaignRef, params.languages);
+    }
+
+    // 8. Ad Schedules (Parameter 20)
+    if (params.adSchedules && params.adSchedules.length > 0) {
+      const isCustomSchedule = params.adSchedules.some(
+        s => s.day !== "All days" || s.start !== "00:00" || s.end !== "00:00"
+      );
+      if (isCustomSchedule) {
+        await this.addAdSchedules(organizationId, customerId, campaignRef, params.adSchedules);
+      }
+    }
+
+    // 9. Campaign Conversion Goals (Parameter 23)
+    if (params.conversionGoals && params.conversionGoals.length > 0) {
+      await this.setCampaignConversionGoals(organizationId, customerId, campaignRef, params.conversionGoals);
     }
 
     return {
@@ -1207,22 +1362,83 @@ export class GoogleAdsService {
     };
   }
 
+  public static async setCampaignConversionGoals(
+    organizationId: string,
+    customerId: string,
+    campaignResourceName: string,
+    goals: Array<{ category: string; origin: string; biddable?: boolean }>
+  ) {
+    if (!goals || goals.length === 0) return [];
+    const { headers } = await this.getAdsHeaders(organizationId, customerId);
+    
+    // Extract numerical campaignId from resourceName: "customers/{customerId}/campaigns/{campaignId}"
+    const campaignId = campaignResourceName.includes("/") ? campaignResourceName.split("/").pop() : campaignResourceName;
+
+    // Google Ads API v24 pattern: customers/{customerId}/campaignConversionGoals/{campaignId}~{category}~{origin}
+    const operations = goals.map(g => ({
+      update: {
+        resourceName: `customers/${customerId}/campaignConversionGoals/${campaignId}~${g.category}~${g.origin}`,
+        biddable: g.biddable !== false
+      },
+      updateMask: "biddable"
+    }));
+
+    console.log("[GoogleAds API] setCampaignConversionGoals operations:", JSON.stringify(operations, null, 2));
+
+    try {
+      const res = await axios.post(`${ADS_BASE}/customers/${customerId}/campaignConversionGoals:mutate`, { operations }, { headers });
+      return res.data.results || [];
+    } catch (err: any) {
+      console.error("[GoogleAds API setCampaignConversionGoals Error]:", JSON.stringify(err?.response?.data || err.message, null, 2));
+      throw err;
+    }
+  }
+
   // ── PERFORMANCE MAX & ASSET GROUPS ───────────────────────────────────────
 
-  public static async uploadImageAsset(organizationId: string, customerId: string, name: string, base64Data: string) {
-    const { headers } = await this.getAdsHeaders(organizationId, customerId);
-    const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assets:mutate`, {
-      operations: [{
-        create: {
-          name,
-          type: "IMAGE",
-          imageAsset: {
-            data: base64Data
+  public static async uploadImageAsset(organizationId: string, customerId: string, name: string, base64OrUrl: string, expectedFieldType?: string) {
+    try {
+      const { headers } = await this.getAdsHeaders(organizationId, customerId);
+      let base64Data = base64OrUrl;
+
+      if (base64OrUrl.startsWith("http://") || base64OrUrl.startsWith("https://")) {
+        // Download image and convert to base64
+        const imgRes = await axios.get(base64OrUrl, { responseType: "arraybuffer", timeout: 10000 });
+        base64Data = Buffer.from(imgRes.data).toString("base64");
+      } else if (base64OrUrl.includes("base64,")) {
+        base64Data = base64OrUrl.split("base64,")[1];
+      }
+
+      // If data is just a filename or invalid string (not base64 / url), skip
+      if (!base64Data || base64Data.length < 50) {
+        return null;
+      }
+
+      const imgBuffer = Buffer.from(base64Data, "base64");
+
+      // Validate JPEG/PNG signature
+      const isJpeg = imgBuffer[0] === 0xFF && imgBuffer[1] === 0xD8;
+      const isPng = imgBuffer[0] === 0x89 && imgBuffer[1] === 0x50 && imgBuffer[2] === 0x4E && imgBuffer[3] === 0x47;
+      if (!isJpeg && !isPng) {
+        console.warn(`[GoogleAdsService] uploadImageAsset: "${name}" is not a valid JPEG or PNG file. Proceeding with upload.`);
+      }
+
+      const res = await axios.post(`${ADS_BASE}/customers/${customerId}/assets:mutate`, {
+        operations: [{
+          create: {
+            name: name.slice(0, 100),
+            type: "IMAGE",
+            imageAsset: {
+              data: base64Data
+            }
           }
-        }
-      }]
-    }, { headers });
-    return res.data.results?.[0]?.resourceName;
+        }]
+      }, { headers });
+      return res.data.results?.[0]?.resourceName;
+    } catch (err: any) {
+      console.error(`[GoogleAdsService] uploadImageAsset error for "${name}":`, err?.response?.data || err?.message);
+      return null;
+    }
   }
 
   public static async createTextAsset(organizationId: string, customerId: string, value: string) {
@@ -1572,6 +1788,8 @@ export class GoogleAdsService {
       urlExpansionOptOut?: boolean;
       path1?: string;
       path2?: string;
+      displayPath1?: string;
+      displayPath2?: string;
       sitelinks?: Array<{ text: string; desc1?: string; desc2?: string; url: string }>;
       callouts?: string[];
       callAsset?: { countryCode?: string; phoneNumber: string };
@@ -1610,14 +1828,39 @@ export class GoogleAdsService {
       }
 
       const { headers } = await this.getAdsHeaders(organizationId, customerId);
-      const startDateTime = params.startDate ? (params.startDate.includes(" ") ? params.startDate : `${params.startDate.split("T")[0]} 00:00:00`) : undefined;
-      const endDateTime = params.endDate ? (params.endDate.includes(" ") ? params.endDate : `${params.endDate.split("T")[0]} 23:59:59`) : undefined;
+      const todayIso = new Date().toISOString().split("T")[0];
+      let cleanStartDate = params.startDate ? params.startDate.split("T")[0].split(" ")[0] : todayIso;
+      // Google Ads forbids setting a campaign start date in the past
+      if (cleanStartDate < todayIso) {
+        cleanStartDate = todayIso;
+      }
+      const startDateTime = `${cleanStartDate} 00:00:00`;
+      
+      let cleanEndDate = params.endDate ? params.endDate.split("T")[0].split(" ")[0] : undefined;
+      if (cleanEndDate && cleanEndDate < cleanStartDate) {
+        cleanEndDate = cleanStartDate;
+      }
+      const endDateTime = cleanEndDate ? `${cleanEndDate} 23:59:59` : undefined;
 
       const euPoliticalValue = params.euPolitical === "YES" 
         ? "CONTAINS_EU_POLITICAL_ADVERTISING" 
         : "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING";
 
-      const effectiveTrackingTemplate = params.assetGroupTrackingTemplate?.trim() || params.trackingTemplate?.trim();
+      const rawTrackingTemplate = params.assetGroupTrackingTemplate?.trim() || params.trackingTemplate?.trim();
+      let effectiveTrackingTemplate: string | undefined = undefined;
+      if (rawTrackingTemplate) {
+        let tpl = rawTrackingTemplate;
+        if (!tpl.startsWith("http://") && !tpl.startsWith("https://")) {
+          tpl = `https://${tpl}`;
+        }
+        // Google Ads API requires tracking templates to include a landing page tag such as {lpurl}, {unescapedlpurl}, {escapedlpurl}, or {lpurlpath}
+        const hasTag = /\{(?:lpurl|unescapedlpurl|escapedlpurl|lpurlpath|2escapedlpurl)\}/i.test(tpl);
+        if (!hasTag) {
+          tpl = tpl.includes("?") ? `${tpl}&url={lpurl}` : `${tpl}?url={lpurl}`;
+        }
+        effectiveTrackingTemplate = tpl;
+      }
+
       const rawCustomParams = (params.assetGroupCustomParameters && params.assetGroupCustomParameters.length > 0)
         ? params.assetGroupCustomParameters
         : params.customParameters;
@@ -1654,7 +1897,21 @@ export class GoogleAdsService {
         ]
       };
 
-      const campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      let campaignRes;
+      try {
+        campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+      } catch (mutateErr: any) {
+        const errDetails = JSON.stringify(mutateErr?.response?.data || "");
+        if (errDetails.includes("DUPLICATE_CAMPAIGN_NAME") || errDetails.includes("already assigned to another")) {
+          // Retry with unique campaign name
+          const uniqueName = `${params.campaignName} #${Date.now().toString().slice(-4)}`;
+          campaignPayload.operations[0].create.name = uniqueName;
+          campaignRes = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
+        } else {
+          throw mutateErr;
+        }
+      }
+
       const campaignRef = campaignRes.data?.results?.[0]?.resourceName;
       if (!campaignRef) {
         throw new Error("Failed to create Campaign resource name on Google Ads");
@@ -1699,14 +1956,27 @@ export class GoogleAdsService {
           const img = params.images[i];
           const base64Data = typeof img === "string" ? img : img.data;
           const imgName = (typeof img === "object" && img.name) ? img.name : `PMax Image ${Date.now()}_${i + 1}`;
-          const fieldType = (typeof img === "object" && img.fieldType) ? img.fieldType : (i === 0 ? "MARKETING_IMAGE" : "SQUARE_MARKETING_IMAGE");
+          const fieldType = (typeof img === "object" && img.fieldType) ? img.fieldType : "MARKETING_IMAGE";
 
           if (base64Data && base64Data.trim()) {
             const cleanBase64 = base64Data.includes("base64,") ? base64Data.split("base64,")[1] : base64Data;
-            const ref = await this.uploadImageAsset(organizationId, customerId, imgName, cleanBase64);
+            const ref = await this.uploadImageAsset(organizationId, customerId, imgName, cleanBase64, fieldType);
             if (ref) marketingImageRefs.push({ assetRef: ref, fieldType });
           }
         }
+      }
+
+      // Google Ads Performance Max Asset Group strictly requires at least ONE MARKETING_IMAGE (1.91:1) and at least ONE SQUARE_MARKETING_IMAGE (1:1)
+      const hasLandscape = marketingImageRefs.some(i => i.fieldType === "MARKETING_IMAGE");
+      const hasSquare = marketingImageRefs.some(i => i.fieldType === "SQUARE_MARKETING_IMAGE");
+
+      // If either required asset type is missing, ensure fallback exists
+      if (!hasLandscape && marketingImageRefs.length > 0) {
+        // If user uploaded square or other image, mark first as landscape if valid or re-upload
+        marketingImageRefs.push({ assetRef: marketingImageRefs[0].assetRef, fieldType: "MARKETING_IMAGE" });
+      }
+      if (!hasSquare && marketingImageRefs.length > 0) {
+        marketingImageRefs.push({ assetRef: marketingImageRefs[0].assetRef, fieldType: "SQUARE_MARKETING_IMAGE" });
       }
 
       const logoRefs: string[] = [];
@@ -1718,9 +1988,18 @@ export class GoogleAdsService {
 
           if (base64Data && base64Data.trim()) {
             const cleanBase64 = base64Data.includes("base64,") ? base64Data.split("base64,")[1] : base64Data;
-            const ref = await this.uploadImageAsset(organizationId, customerId, logoName, cleanBase64);
+            const ref = await this.uploadImageAsset(organizationId, customerId, logoName, cleanBase64, "LOGO");
             if (ref) logoRefs.push(ref);
           }
+        }
+      }
+
+      // Google Ads Performance Max Asset Group requires at least ONE LOGO (1:1 Square)
+      if (logoRefs.length === 0) {
+        // If no explicit logo was uploaded, derive a 1:1 LOGO from the uploaded square marketing image
+        const squareImg = marketingImageRefs.find(i => i.fieldType === "SQUARE_MARKETING_IMAGE") || marketingImageRefs[0];
+        if (squareImg && squareImg.assetRef) {
+          logoRefs.push(squareImg.assetRef);
         }
       }
 
@@ -1735,10 +2014,16 @@ export class GoogleAdsService {
         finalUrls: [params.finalUrl],
         status: "PAUSED"
       };
-      if (params.path1 && params.path1.trim()) assetGroupCreateBody.path1 = params.path1.trim();
-      if (params.path2 && params.path2.trim()) assetGroupCreateBody.path2 = params.path2.trim();
-      if (params.finalMobileUrls && params.finalMobileUrls.length > 0) {
-        assetGroupCreateBody.finalMobileUrls = params.finalMobileUrls.map(u => u.trim()).filter(Boolean);
+      const p1 = (params.path1 || params.displayPath1 || "").trim();
+      const p2 = (params.path2 || params.displayPath2 || "").trim();
+      if (p1) {
+        assetGroupCreateBody.path1 = p1;
+        if (p2) {
+          assetGroupCreateBody.path2 = p2;
+        }
+      } else if (p2) {
+        // If path2 is set without path1, assign path2 to path1
+        assetGroupCreateBody.path1 = p2;
       }
 
       const atomicOperations: any[] = [
@@ -1803,6 +2088,7 @@ export class GoogleAdsService {
       }
 
       // Link Marketing Images
+      // Link each uploaded asset with its corresponding fieldType (MARKETING_IMAGE or SQUARE_MARKETING_IMAGE)
       for (const imgItem of marketingImageRefs) {
         atomicOperations.push({
           assetGroupAssetOperation: {

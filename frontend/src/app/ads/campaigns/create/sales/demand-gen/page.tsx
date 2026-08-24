@@ -33,17 +33,66 @@ export default function SalesDemandGenPage() {
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false);
   const [campaignSearchTerm, setCampaignSearchTerm] = useState<string>("");
 
-  // Sample old campaign list
-  const existingCampaigns = [
-    { id: "c-101", name: "Demand Gen - 2026-07-15", type: "Demand Gen", status: "Active", budget: "₹1,500/day" },
-    { id: "c-102", name: "Sales Summer Promo - Video", type: "Video", status: "Ended", budget: "₹2,000/day" },
-    { id: "c-103", name: "Demand Gen - High Intent Audiences", type: "Demand Gen", status: "Active", budget: "₹3,500/day" },
-    { id: "c-104", name: "Website Traffic - Discovery 2026", type: "Display", status: "Paused", budget: "₹1,000/day" },
-    { id: "c-105", name: "Demand Gen - Product Launch", type: "Demand Gen", status: "Active", budget: "₹5,000/day" },
-  ];
+  // Validation States & Google Ads Accounts Integration
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [existingCampaignsList, setExistingCampaignsList] = useState<Array<{ name?: string }>>([]);
+  const [duplicateNameError, setDuplicateNameError] = useState<string | null>(null);
+
+  // Load existing campaigns from Google Ads API / DB once on component mount
+  useEffect(() => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const targetCid = customerId || "6587355041";
+
+    fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setExistingCampaignsList(data);
+          const normalized = demandGenCampaignName.trim().toLowerCase();
+          const isDup = data.some((c: any) => c.name && c.name.trim().toLowerCase() === normalized);
+          if (isDup) {
+            setDuplicateNameError("Campaign name already exists. Please choose a unique campaign name.");
+            setFieldErrors(prev => ({ ...prev, demandGenCampaignName: "Campaign name already exists. Please choose a unique campaign name." }));
+          }
+        }
+      })
+      .catch(() => {
+        // Non-blocking fallback
+      });
+  }, [customerId]);
+
+  // Real-time check whenever demandGenCampaignName changes
+  const checkDuplicateCampaignName = (nameToTest: string): boolean => {
+    const trimmed = nameToTest.trim();
+    if (!trimmed) {
+      setDuplicateNameError(null);
+      return false;
+    }
+    const normalized = trimmed.toLowerCase();
+    const isDup = existingCampaignsList.some(c => c.name && c.name.trim().toLowerCase() === normalized);
+    if (isDup) {
+      const msg = "Campaign name already exists. Please choose a unique campaign name.";
+      setDuplicateNameError(msg);
+      setFieldErrors(prev => ({ ...prev, demandGenCampaignName: msg }));
+      return true;
+    } else {
+      setDuplicateNameError(null);
+      setFieldErrors(prev => {
+        const updated = { ...prev };
+        delete updated.demandGenCampaignName;
+        return updated;
+      });
+      return false;
+    }
+  };
+
   const [demandGenGoal, setDemandGenGoal] = useState<"Conversions" | "Clicks" | "Conversion value" | "YouTube engagements">("Conversions");
   const [includeViewThrough, setIncludeViewThrough] = useState<boolean>(false);
   const [targetCpaDemandGen, setTargetCpaDemandGen] = useState<boolean>(false);
+  const [targetCpaValue, setTargetCpaValue] = useState<string>("");
   const [demandGenBudgetType, setDemandGenBudgetType] = useState<string>("Daily");
   const [demandGenBudgetAmount, setDemandGenBudgetAmount] = useState<string>("");
   const [onlyNewCustomers, setOnlyNewCustomers] = useState<boolean>(false);
@@ -1104,36 +1153,43 @@ export default function SalesDemandGenPage() {
                     </div>
 
                     <div className="p-4 overflow-y-auto space-y-2 flex-1">
-                      {existingCampaigns
-                        .filter(c => c.name.toLowerCase().includes(campaignSearchTerm.toLowerCase()))
-                        .map((camp) => (
-                          <div
-                            key={camp.id}
-                            onClick={() => {
-                              setSelectedSourceCampaign(camp.name);
-                              setIsCampaignModalOpen(false);
-                            }}
-                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                              selectedSourceCampaign === camp.name
-                                ? "bg-primary/10 border-primary text-primary"
-                                : "bg-slate-50 border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-800"
-                            }`}
-                          >
-                            <div>
-                              <p className="text-xs font-bold">{camp.name}</p>
-                              <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
-                                <span>Type: {camp.type}</span>
-                                <span>•</span>
-                                <span>Budget: {camp.budget}</span>
+                      {existingCampaignsList.length === 0 ? (
+                        <p className="text-center py-6 text-slate-500 text-xs">No existing campaigns found.</p>
+                      ) : (
+                        existingCampaignsList
+                          .filter((c: any) => (c.name || "").toLowerCase().includes(campaignSearchTerm.toLowerCase()))
+                          .map((camp: any, idx: number) => {
+                            const campName = camp.name || `Campaign ${idx + 1}`;
+                            return (
+                              <div
+                                key={camp.id || camp.resourceName || idx}
+                                onClick={() => {
+                                  setSelectedSourceCampaign(campName);
+                                  setIsCampaignModalOpen(false);
+                                }}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                                  selectedSourceCampaign === campName
+                                    ? "bg-primary/10 border-primary text-primary"
+                                    : "bg-slate-50 border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-800"
+                                }`}
+                              >
+                                <div>
+                                  <p className="text-xs font-bold">{campName}</p>
+                                  <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
+                                    <span>Type: {camp.advertisingChannelType || camp.type || "Demand Gen"}</span>
+                                    <span>•</span>
+                                    <span>Status: {camp.status || "Active"}</span>
+                                  </div>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                  camp.status === "ENABLED" || camp.status === "Active" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-100 text-slate-500"
+                                }`}>
+                                  {camp.status || "Active"}
+                                </span>
                               </div>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              camp.status === "Active" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-100 text-slate-500"
-                            }`}>
-                              {camp.status}
-                            </span>
-                          </div>
-                        ))}
+                            );
+                          })
+                      )}
                     </div>
 
                     <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs">
@@ -1149,23 +1205,48 @@ export default function SalesDemandGenPage() {
               )}
 
               {/* 2. Campaign Name Card */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
+              <div className={`p-5 rounded-2xl border bg-white space-y-3 shadow-lg ${
+                !demandGenCampaignName.trim() || duplicateNameError || fieldErrors.demandGenCampaignName
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openCampaignSetting === "name" ? (
                   <>
                     <div 
                       onClick={() => setOpenCampaignSetting(null)}
                       className="flex items-center justify-between cursor-pointer select-none"
                     >
-                      <label className="block text-xs font-bold text-slate-800 cursor-pointer">Campaign name</label>
+                      <div className="flex items-center gap-1">
+                        <label className="block text-xs font-bold text-slate-800 cursor-pointer">Campaign name</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
                     <input
                       type="text"
                       value={demandGenCampaignName}
-                      onChange={(e) => setDemandGenCampaignName(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDemandGenCampaignName(val);
+                        checkDuplicateCampaignName(val);
+                      }}
                       maxLength={256}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
+                      className={`w-full border rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none font-medium ${
+                        !demandGenCampaignName.trim() || duplicateNameError || fieldErrors.demandGenCampaignName
+                          ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                          : "bg-slate-50 border-slate-200 focus:border-primary"
+                      }`}
                     />
+                    {!demandGenCampaignName.trim() && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Campaign name is required
+                      </span>
+                    )}
+                    {demandGenCampaignName.trim() && (duplicateNameError || fieldErrors.demandGenCampaignName) && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {duplicateNameError || fieldErrors.demandGenCampaignName}
+                      </span>
+                    )}
                     <div className="flex justify-between text-[11px] text-slate-500">
                       <span>Text is {demandGenCampaignName.length} characters out of 256</span>
                       <span>{demandGenCampaignName.length} / 256</span>
@@ -1177,11 +1258,24 @@ export default function SalesDemandGenPage() {
                     className="flex items-center justify-between cursor-pointer select-none text-xs"
                   >
                     <div className="flex items-center gap-16">
-                      <div className="w-56">
+                      <div className="w-56 flex items-center gap-1">
                         <span className="font-bold text-slate-800">Campaign name</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {demandGenCampaignName}
+                      <div className="text-[11px] font-medium">
+                        {demandGenCampaignName.trim() ? (
+                          duplicateNameError || fieldErrors.demandGenCampaignName ? (
+                            <span className="text-rose-500 flex items-center gap-1">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {duplicateNameError || fieldErrors.demandGenCampaignName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">{demandGenCampaignName}</span>
+                          )
+                        ) : (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Campaign name is required
+                          </span>
+                        )}
                       </div>
                     </div>
                     <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -1349,7 +1443,11 @@ export default function SalesDemandGenPage() {
               )}
 
               {/* 6. Target cost per action */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
+              <div className={`p-5 rounded-2xl border bg-white space-y-3 shadow-lg ${
+                targetCpaDemandGen && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue)
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openCampaignSetting === "targetCpa" ? (
                   <>
                     <div 
@@ -1366,7 +1464,19 @@ export default function SalesDemandGenPage() {
                       <input
                         type="checkbox"
                         checked={targetCpaDemandGen}
-                        onChange={(e) => setTargetCpaDemandGen(e.target.checked)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setTargetCpaDemandGen(checked);
+                          if (!checked) {
+                            setFieldErrors(prev => {
+                              const updated = { ...prev };
+                              delete updated.targetCpaValue;
+                              return updated;
+                            });
+                          } else if (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0) {
+                            setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+                          }
+                        }}
                         className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
                       />
                       <div>
@@ -1376,6 +1486,45 @@ export default function SalesDemandGenPage() {
                         </p>
                       </div>
                     </label>
+
+                    {targetCpaDemandGen && (
+                      <div className="pt-2 pl-7 space-y-1">
+                        <label className="block text-slate-700 font-semibold text-xs">Target CPA amount (₹)</label>
+                        <div className="relative w-48">
+                          <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="any"
+                            value={targetCpaValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setTargetCpaValue(val);
+                              if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
+                                setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+                              } else {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.targetCpaValue;
+                                  return updated;
+                                });
+                              }
+                            }}
+                            placeholder="e.g. 50"
+                            className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
+                              !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                : "bg-slate-50 border-slate-200 focus:border-primary"
+                            }`}
+                          />
+                        </div>
+                        {(!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue) && (
+                          <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.targetCpaValue || "Target CPA must be a positive number greater than 0."}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div 
@@ -1386,8 +1535,18 @@ export default function SalesDemandGenPage() {
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Target cost per action</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {targetCpaDemandGen ? "CPA target set" : "No bid set"}
+                      <div className="text-[11px] font-medium">
+                        {targetCpaDemandGen ? (
+                          !targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0 || fieldErrors.targetCpaValue ? (
+                            <span className="text-rose-500 flex items-center gap-1">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Target CPA must be greater than 0
+                            </span>
+                          ) : (
+                            <span className="text-slate-700">₹{targetCpaValue}</span>
+                          )
+                        ) : (
+                          <span className="text-slate-500">No bid set</span>
+                        )}
                       </div>
                     </div>
                     <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -1396,14 +1555,21 @@ export default function SalesDemandGenPage() {
               </div>
 
               {/* 7. Budget and dates */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg">
+              <div className={`p-5 rounded-2xl border bg-white space-y-4 shadow-lg ${
+                !demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 || fieldErrors.demandGenBudgetAmount || (startDate && startDate < getTodayFormattedDate()) || (startDate && endDate && endDate < startDate)
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openCampaignSetting === "budget" ? (
                   <>
                     <div 
                       onClick={() => setOpenCampaignSetting(null)}
                       className="border-b border-slate-200 pb-2.5 flex items-center justify-between cursor-pointer select-none"
                     >
-                      <h3 className="text-xs font-bold text-slate-800">Budget and dates</h3>
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-slate-800">Budget and dates</h3>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
 
@@ -1423,34 +1589,102 @@ export default function SalesDemandGenPage() {
                         <div className="relative w-48">
                           <span className="absolute left-3.5 top-2 text-xs font-semibold text-slate-500">₹</span>
                           <input
-                            type="text"
+                            type="number"
+                            min="0.01"
+                            step="any"
                             value={demandGenBudgetAmount}
-                            onChange={(e) => setDemandGenBudgetAmount(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDemandGenBudgetAmount(val);
+                              if (!val.trim() || isNaN(Number(val)) || Number(val) <= 0) {
+                                setFieldErrors(prev => ({ ...prev, demandGenBudgetAmount: "Daily Budget must be a positive number greater than 0." }));
+                              } else {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.demandGenBudgetAmount;
+                                  return updated;
+                                });
+                              }
+                            }}
                             placeholder="Required"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 placeholder-amber-400/70 font-medium"
+                            className={`w-full border rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-medium focus:outline-none ${
+                              !demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 || fieldErrors.demandGenBudgetAmount
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                : "bg-slate-50 border-slate-200 focus:border-primary"
+                            }`}
                           />
                         </div>
                       </div>
+
+                      {(!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 || fieldErrors.demandGenBudgetAmount) && (
+                        <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.demandGenBudgetAmount || "Daily Budget is required and must be greater than 0."}
+                        </span>
+                      )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50">
                         <div className="space-y-1.5">
                           <label className="block text-slate-700 font-medium">Start date</label>
                           <input
                             type="date"
+                            min={getTodayFormattedDate()}
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setStartDate(val);
+                              if (val && val < getTodayFormattedDate()) {
+                                setFieldErrors(prev => ({ ...prev, startDate: "Start date cannot be in the past." }));
+                              } else {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.startDate;
+                                  return updated;
+                                });
+                              }
+                            }}
+                            className={`w-full border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none font-medium ${
+                              startDate && startDate < getTodayFormattedDate() || fieldErrors.startDate
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                : "bg-white border-slate-200 focus:border-primary"
+                            }`}
                           />
+                          {startDate && startDate < getTodayFormattedDate() && (
+                            <span className="text-[10px] text-rose-500 font-medium block">
+                              Start date cannot be in the past (minimum: {getTodayFormattedDate()})
+                            </span>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <label className="block text-slate-700 font-medium">End date (optional)</label>
                           <input
                             type="date"
+                            min={startDate || getTodayFormattedDate()}
                             value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setEndDate(val);
+                              if (val && startDate && val < startDate) {
+                                setFieldErrors(prev => ({ ...prev, endDate: "End date cannot be earlier than start date." }));
+                              } else {
+                                setFieldErrors(prev => {
+                                  const updated = { ...prev };
+                                  delete updated.endDate;
+                                  return updated;
+                                });
+                              }
+                            }}
                             placeholder="Select end date"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-medium"
+                            className={`w-full border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none font-medium ${
+                              endDate && startDate && endDate < startDate || fieldErrors.endDate
+                                ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                                : "bg-white border-slate-200 focus:border-primary"
+                            }`}
                           />
+                          {endDate && startDate && endDate < startDate && (
+                            <span className="text-[10px] text-rose-500 font-medium block">
+                              End date cannot be earlier than start date ({startDate})
+                            </span>
+                          )}
                           {!endDate && <p className="text-[10px] text-slate-500">None (Run continuously)</p>}
                         </div>
                       </div>
@@ -1466,11 +1700,18 @@ export default function SalesDemandGenPage() {
                     className="flex items-center justify-between cursor-pointer select-none text-xs"
                   >
                     <div className="flex items-center gap-16">
-                      <div className="w-56">
+                      <div className="w-56 flex items-center gap-1">
                         <span className="font-bold text-slate-800">Budget and dates</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {demandGenBudgetAmount ? `₹${demandGenBudgetAmount} / day` : "Enter a budget"} • Start: {startDate} • End: {endDate || "None"}
+                      <div className="text-[11px] font-medium">
+                        {!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0 ? (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Budget is required (must be &gt; 0)
+                          </span>
+                        ) : (
+                          <span className="text-slate-700">₹{demandGenBudgetAmount} / day • Start: {startDate} • End: {endDate || "None"}</span>
+                        )}
                       </div>
                     </div>
                     <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -1799,7 +2040,11 @@ export default function SalesDemandGenPage() {
               </div>
 
               {/* 13. Ad schedule */}
-              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-lg text-xs">
+              <div className={`p-5 rounded-2xl border bg-white space-y-4 shadow-lg text-xs ${
+                adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") && adScheduleEndTime <= adScheduleStartTime || fieldErrors.adSchedule
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openCampaignSetting === "adSchedule" ? (
                   <>
                     <div 
@@ -1824,7 +2069,27 @@ export default function SalesDemandGenPage() {
                         <option value="Sundays">Sundays</option>
                       </select>
 
-                      <select value={adScheduleStartTime} onChange={(e) => setAdScheduleStartTime(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary">
+                      <select
+                        value={adScheduleStartTime}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAdScheduleStartTime(val);
+                          if (val && adScheduleEndTime && !(val === "00:00" && adScheduleEndTime === "00:00") && adScheduleEndTime <= val) {
+                            setFieldErrors(prev => ({ ...prev, adSchedule: `End time (${adScheduleEndTime}) must be strictly after start time (${val}).` }));
+                          } else {
+                            setFieldErrors(prev => {
+                              const updated = { ...prev };
+                              delete updated.adSchedule;
+                              return updated;
+                            });
+                          }
+                        }}
+                        className={`border rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none ${
+                          adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00")
+                            ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                            : "bg-slate-50 border-slate-200 focus:border-primary"
+                        }`}
+                      >
                         {Array.from({ length: 96 }).map((_, i) => {
                           const hours = String(Math.floor(i / 4)).padStart(2, "0");
                           const mins = String((i % 4) * 15).padStart(2, "0");
@@ -1839,7 +2104,27 @@ export default function SalesDemandGenPage() {
 
                       <span className="text-slate-500 font-medium">to</span>
 
-                      <select value={adScheduleEndTime} onChange={(e) => setAdScheduleEndTime(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none focus:border-primary">
+                      <select
+                        value={adScheduleEndTime}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAdScheduleEndTime(val);
+                          if (adScheduleStartTime && val && !(adScheduleStartTime === "00:00" && val === "00:00") && val <= adScheduleStartTime) {
+                            setFieldErrors(prev => ({ ...prev, adSchedule: `End time (${val}) must be strictly after start time (${adScheduleStartTime}).` }));
+                          } else {
+                            setFieldErrors(prev => {
+                              const updated = { ...prev };
+                              delete updated.adSchedule;
+                              return updated;
+                            });
+                          }
+                        }}
+                        className={`border rounded-xl px-3.5 py-2 text-slate-900 font-semibold focus:outline-none ${
+                          adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00")
+                            ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                            : "bg-slate-50 border-slate-200 focus:border-primary"
+                        }`}
+                      >
                         {Array.from({ length: 96 }).map((_, i) => {
                           const hours = String(Math.floor(i / 4)).padStart(2, "0");
                           const mins = String((i % 4) * 15).padStart(2, "0");
@@ -1852,6 +2137,12 @@ export default function SalesDemandGenPage() {
                         })}
                       </select>
                     </div>
+
+                    {adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") && (
+                      <span className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> End time ({adScheduleEndTime}) must be strictly after start time ({adScheduleStartTime})
+                      </span>
+                    )}
 
                     <div className="space-y-1 text-slate-500 text-[11px] leading-relaxed">
                       <p>To support predictable monthly spending, campaigns now pace toward a full month, distributed across your active ad schedule. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more</a></p>
@@ -1868,8 +2159,16 @@ export default function SalesDemandGenPage() {
                       <div className="w-56">
                         <span className="font-bold text-slate-800">Ad schedule</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} - ${adScheduleStartTime} to ${adScheduleEndTime}`}
+                      <div className="text-[11px] font-medium">
+                        {adScheduleEndTime <= adScheduleStartTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") ? (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> End time must be after start time
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">
+                            {adScheduleDays === "All days" && adScheduleStartTime === "00:00" && adScheduleEndTime === "23:45" ? "All day" : `${adScheduleDays} - ${adScheduleStartTime} to ${adScheduleEndTime}`}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -2193,27 +2492,52 @@ export default function SalesDemandGenPage() {
               </div>
 
               {/* 3. Final URL Card */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-lg">
+              <div className={`p-6 rounded-2xl border bg-white space-y-3 shadow-lg ${
+                !adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) || fieldErrors.adFinalUrl
+                  ? "border-rose-400 bg-rose-50/10"
+                  : "border-slate-200"
+              }`}>
                 {openAdSetting === "finalUrl" ? (
                   <>
                     <div 
                       onClick={() => setOpenAdSetting(null)}
                       className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer select-none"
                     >
-                      <label className="block text-slate-700 font-semibold">Final URL</label>
+                      <div className="flex items-center gap-1">
+                        <label className="block text-slate-700 font-semibold">Final URL</label>
+                        <span className="text-rose-500 font-bold">*</span>
+                      </div>
                       <ChevronUp className="h-4 w-4 text-slate-500" />
                     </div>
                     <input
                       type="text"
                       value={adFinalUrl}
-                      onChange={(e) => setAdFinalUrl(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setAdFinalUrl(val);
+                        if (!val || (!val.startsWith("http://") && !val.startsWith("https://"))) {
+                          setFieldErrors(prev => ({ ...prev, adFinalUrl: "Final URL is required and must begin with http:// or https://" }));
+                        } else {
+                          setFieldErrors(prev => {
+                            const updated = { ...prev };
+                            delete updated.adFinalUrl;
+                            return updated;
+                          });
+                        }
+                      }}
                       placeholder="https://"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary font-mono"
+                      className={`w-full border rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none font-mono ${
+                        !adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) || fieldErrors.adFinalUrl
+                          ? "border-rose-400 focus:border-rose-500 bg-rose-50/30 text-rose-900"
+                          : "bg-slate-50 border-slate-200 focus:border-primary"
+                      }`}
                     />
-                    {!adFinalUrl || adFinalUrl === "https://" ? (
-                      <span className="text-[10px] text-rose-400 block font-semibold">Required</span>
+                    {(!adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) || fieldErrors.adFinalUrl) ? (
+                      <span className="text-[10px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {fieldErrors.adFinalUrl || "Final URL must begin with http:// or https:// (e.g. https://www.example.com)"}
+                      </span>
                     ) : (
-                      <span className="text-[10px] text-slate-500 block">Enter a final URL</span>
+                      <span className="text-[10px] text-slate-500 block">Enter a valid final landing page URL</span>
                     )}
                   </>
                 ) : (
@@ -2222,11 +2546,18 @@ export default function SalesDemandGenPage() {
                     className="flex items-center justify-between cursor-pointer select-none text-xs"
                   >
                     <div className="flex items-center gap-16">
-                      <div className="w-56">
+                      <div className="w-56 flex items-center gap-1">
                         <span className="font-bold text-slate-800">Final URL</span>
+                        <span className="text-rose-500 font-bold">*</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 font-mono truncate max-w-[200px]">
-                        {adFinalUrl || "https://"}
+                      <div className="text-[11px] font-mono truncate max-w-[200px]">
+                        {!adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://")) ? (
+                          <span className="text-rose-500 flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Final URL required
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">{adFinalUrl}</span>
+                        )}
                       </div>
                     </div>
                     <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -4439,13 +4770,27 @@ export default function SalesDemandGenPage() {
       {/* ── Fixed Footer Action Bar ── */}
       <footer className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 px-8 flex items-center justify-between z-50">
         <button
-          onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
+          onClick={() => {
+            if (demandGenStep === "REVIEW") setDemandGenStep("AD");
+            else if (demandGenStep === "AD") setDemandGenStep("AD_GROUP");
+            else if (demandGenStep === "AD_GROUP") setDemandGenStep("CAMPAIGN_SETTINGS");
+            else router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`);
+          }}
           className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
         >
-          Cancel
+          {demandGenStep === "CAMPAIGN_SETTINGS" ? "Cancel" : "Back"}
         </button>
 
         <div className="flex items-center gap-3">
+          {demandGenStep === "CAMPAIGN_SETTINGS" && (
+            <button
+              onClick={() => setDemandGenStep("AD_GROUP")}
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-primary text-slate-950 hover:bg-secondary flex items-center gap-2 transition-all shadow-md shadow-primary/20 cursor-pointer"
+            >
+              Continue to Ad Group
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
           {demandGenStep === "AD_GROUP" && (
             <button
               onClick={() => setDemandGenStep("AD")}
@@ -4466,13 +4811,139 @@ export default function SalesDemandGenPage() {
           )}
           {demandGenStep === "REVIEW" && (
             <button
-              onClick={() => {
-                alert(`Demand Gen campaign "${demandGenCampaignName}" published successfully!`);
-                router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+              disabled={isPublishing || !demandGenCampaignName.trim() || !!duplicateNameError || Object.keys(fieldErrors).length > 0}
+              onClick={async () => {
+                setSubmitError(null);
+
+                // 1. Campaign Name Validation
+                const trimmedName = (demandGenCampaignName || "").trim();
+                if (!trimmedName) {
+                  setFieldErrors(prev => ({ ...prev, demandGenCampaignName: "Campaign name is required." }));
+                  setSubmitError("Campaign name is required.");
+                  setDemandGenStep("CAMPAIGN_SETTINGS");
+                  setOpenCampaignSetting("name");
+                  return;
+                }
+                const isDup = existingCampaignsList.some(c => c.name && c.name.trim().toLowerCase() === trimmedName.toLowerCase());
+                if (isDup) {
+                  const dupMsg = "Campaign name already exists. Please choose a unique campaign name.";
+                  setDuplicateNameError(dupMsg);
+                  setFieldErrors(prev => ({ ...prev, demandGenCampaignName: dupMsg }));
+                  setSubmitError(dupMsg);
+                  setDemandGenStep("CAMPAIGN_SETTINGS");
+                  setOpenCampaignSetting("name");
+                  return;
+                }
+
+                // 2. Budget Validation
+                if (!demandGenBudgetAmount.trim() || isNaN(Number(demandGenBudgetAmount)) || Number(demandGenBudgetAmount) <= 0) {
+                  setFieldErrors(prev => ({ ...prev, demandGenBudgetAmount: "Daily Budget must be a positive number greater than 0." }));
+                  setSubmitError("Daily Budget is required and must be greater than 0.");
+                  setDemandGenStep("CAMPAIGN_SETTINGS");
+                  setOpenCampaignSetting("budget");
+                  return;
+                }
+
+                // 3. Target CPA Validation
+                if (targetCpaDemandGen && (!targetCpaValue.trim() || isNaN(Number(targetCpaValue)) || Number(targetCpaValue) <= 0)) {
+                  setFieldErrors(prev => ({ ...prev, targetCpaValue: "Target CPA must be a positive number greater than 0." }));
+                  setSubmitError("Target CPA is enabled and must be a positive number greater than 0.");
+                  setDemandGenStep("CAMPAIGN_SETTINGS");
+                  setOpenCampaignSetting("targetCpa");
+                  return;
+                }
+
+                // 4. Start & End Dates Validation
+                if (startDate && startDate < getTodayFormattedDate()) {
+                  setFieldErrors(prev => ({ ...prev, startDate: "Start date cannot be in the past." }));
+                  setSubmitError("Start date cannot be in the past.");
+                  setDemandGenStep("CAMPAIGN_SETTINGS");
+                  setOpenCampaignSetting("budget");
+                  return;
+                }
+                if (startDate && endDate && endDate < startDate) {
+                  setFieldErrors(prev => ({ ...prev, endDate: "End date cannot be earlier than start date." }));
+                  setSubmitError(`End date (${endDate}) cannot be earlier than start date (${startDate}).`);
+                  setDemandGenStep("CAMPAIGN_SETTINGS");
+                  setOpenCampaignSetting("budget");
+                  return;
+                }
+
+                // 5. Ad Schedule Validation
+                if (adScheduleStartTime && adScheduleEndTime && !(adScheduleStartTime === "00:00" && adScheduleEndTime === "00:00") && adScheduleEndTime <= adScheduleStartTime) {
+                  setFieldErrors(prev => ({ ...prev, adSchedule: `End time (${adScheduleEndTime}) must be strictly after start time (${adScheduleStartTime}).` }));
+                  setSubmitError(`Ad schedule end time (${adScheduleEndTime}) must be strictly after start time (${adScheduleStartTime}).`);
+                  setDemandGenStep("CAMPAIGN_SETTINGS");
+                  setOpenCampaignSetting("adSchedule");
+                  return;
+                }
+
+                // 6. Ad Final URL Validation
+                if (!adFinalUrl || (!adFinalUrl.startsWith("http://") && !adFinalUrl.startsWith("https://"))) {
+                  setFieldErrors(prev => ({ ...prev, adFinalUrl: "Final URL is required and must begin with http:// or https://" }));
+                  setSubmitError("Final URL is required and must begin with http:// or https://");
+                  setDemandGenStep("AD");
+                  setOpenAdSetting("finalUrl");
+                  return;
+                }
+
+                // 7. Ad Assets Validation
+                if (adImages.length === 0) {
+                  setFieldErrors(prev => ({ ...prev, adImages: "At least 1 image is required." }));
+                  setSubmitError("At least 1 marketing image is required for your Demand Gen ad.");
+                  setDemandGenStep("AD");
+                  return;
+                }
+                if (!businessName.trim()) {
+                  setFieldErrors(prev => ({ ...prev, businessName: "Business name is required." }));
+                  setSubmitError("Business name is required.");
+                  setDemandGenStep("AD");
+                  return;
+                }
+
+                // All validations passed! Safe to launch or publish
+                setIsPublishing(true);
+                try {
+                  const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+                  const targetCid = customerId || "6587355041";
+
+                  const res = await fetch(`${BACKEND}/api/ads/campaign/launch`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      orgId,
+                      customerId: targetCid,
+                      campaignName: trimmedName,
+                      channelType: "DEMAND_GEN",
+                      biddingStrategy: targetCpaDemandGen ? "TARGET_CPA" : demandGenGoal === "Clicks" ? "MAXIMIZE_CLICKS" : "MAXIMIZE_CONVERSIONS",
+                      budget: Number(demandGenBudgetAmount),
+                      targetCpa: targetCpaDemandGen && targetCpaValue ? Number(targetCpaValue) : undefined,
+                      startDate: startDate || getTodayFormattedDate(),
+                      endDate: endDate || undefined,
+                      finalUrl: adFinalUrl,
+                      businessName: businessName.trim(),
+                      euPolitical: euPoliticalAds,
+                      conversionGoals: []
+                    })
+                  });
+
+                  if (res.ok) {
+                    alert(`Demand Gen campaign "${trimmedName}" published successfully!`);
+                    router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                  } else {
+                    const errData = await res.json().catch(() => ({}));
+                    setSubmitError(errData.message || errData.error || "Failed to publish Demand Gen campaign.");
+                  }
+                } catch (err: any) {
+                  setSubmitError(err?.message || "Backend server unavailable.");
+                } finally {
+                  setIsPublishing(false);
+                }
               }}
-              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
+              className="px-6 py-2.5 text-xs font-bold rounded-lg bg-emerald-400 text-slate-950 hover:bg-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-md shadow-emerald-400/20 cursor-pointer"
             >
-              Save & Publish
+              {isPublishing ? "Publishing..." : "Save & Publish"}
               <Check className="h-4 w-4" />
             </button>
           )}

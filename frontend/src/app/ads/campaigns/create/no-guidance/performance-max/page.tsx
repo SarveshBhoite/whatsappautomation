@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   X, HelpCircle, ArrowRight, Check, Plus, Trash2, PhoneCall,
@@ -8,28 +8,83 @@ import {
 } from "lucide-react";
 
 export default function NoGuidancePerformanceMaxPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-xs text-slate-500">Loading campaign setup...</div>}>
+      <NoGuidancePerformanceMaxContent />
+    </Suspense>
+  );
+}
+
+function NoGuidancePerformanceMaxContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("customerId");
 
   const [accountInfo, setAccountInfo] = useState<{ customerId?: string; name?: string } | null>(null);
 
-  // Wizard Step State: "BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY"
   const [wizardStep, setWizardStep] = useState<"BIDDING" | "CAMPAIGN_SETTINGS" | "ASSET_GROUP" | "BUDGET" | "SUMMARY">("BIDDING");
+  const [campaignName, setCampaignName] = useState<string>("Performance Max-1");
+  const [showDraftModal, setShowDraftModal] = useState<boolean>(false);
+  const [isSavingDraft, setIsSavingDraft] = useState<boolean>(false);
+
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true);
+    try {
+      const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+      await fetch(`${BACKEND}/api/ads/campaign/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: customerId || accountInfo?.customerId || "default",
+          campaignName: campaignName || "Performance Max-1",
+          campaignType: "PERFORMANCE_MAX",
+          biddingStrategy: biddingFocus || "Maximize conversion value",
+          budget: typeof dailyBudgetValue !== "undefined" && dailyBudgetValue ? Number(dailyBudgetValue) : null,
+          startDate: typeof startDate !== "undefined" && startDate ? startDate : new Date().toISOString().split("T")[0],
+          endDate: typeof endDate !== "undefined" && endDate ? endDate : null,
+          finalUrl: typeof finalUrl !== "undefined" ? finalUrl : null,
+          headlines: typeof headlines !== "undefined" && Array.isArray(headlines) ? headlines.filter(Boolean) : [],
+          descriptions: typeof descriptions !== "undefined" && Array.isArray(descriptions) ? descriptions.filter(Boolean) : [],
+          searchThemes: typeof searchThemes !== "undefined" && Array.isArray(searchThemes) ? searchThemes : [],
+          languages: typeof selectedLanguages !== "undefined" ? selectedLanguages : ["English"],
+          geoTargets: typeof selectedLocation !== "undefined" && selectedLocation === "ALL" ? ["ALL"] : selectedLocation === "INDIA" ? ["INDIA"] : (typeof customLocationInput !== "undefined" && customLocationInput ? [customLocationInput] : ["ALL"]),
+          draftData: {
+            assetGroupName: typeof assetGroupName !== "undefined" ? assetGroupName : "Asset group 1",
+            businessName: typeof businessName !== "undefined" ? businessName : "",
+            longHeadlines: typeof longHeadlines !== "undefined" && Array.isArray(longHeadlines) ? longHeadlines.filter(Boolean) : [],
+            ctaOption: typeof ctaOption !== "undefined" ? ctaOption : "Automated",
+            uploadedImages: typeof uploadedImages !== "undefined" ? uploadedImages : [],
+            uploadedVideos: typeof uploadedVideos !== "undefined" ? uploadedVideos : [],
+            uploadedLogos: typeof brandLogos !== "undefined" ? brandLogos : [],
+            wizardStep
+          }
+        })
+      });
+      setShowDraftModal(false);
+      router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+    } catch (err) {
+      console.error("Failed to save draft:", err);
+      setShowDraftModal(false);
+      router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
 
   // Step 1: Bidding State
-  const [biddingFocus, setBiddingFocus] = useState<"Maximize conversions" | "Target CPA" | "Maximize conversion value" | "Target ROAS" | "Clicks" | "Impression share">("Maximize conversions");
-  const [setTargetCpa, setSetTargetCpa] = useState<boolean>(false);
+  const [openBiddingCard, setOpenBiddingCard] = useState<string | null>(null);
+  const [biddingFocus, setBiddingFocus] = useState<"Maximize conversions" | "Target CPA" | "Maximize conversion value" | "Target ROAS">("Maximize conversion value");
   const [targetCpaValue, setTargetCpaValue] = useState<string>("166.11");
   const [targetRoasValue, setTargetRoasValue] = useState<string>("200");
-  const [limitMaxCpc, setLimitMaxCpc] = useState<boolean>(false);
-  const [maxCpcLimitValue, setMaxCpcLimitValue] = useState<string>("10.00");
-  const [adLocationTarget, setAdLocationTarget] = useState<"Anywhere on results page" | "Top of results page" | "Absolute top of results page">("Anywhere on results page");
-  const [targetImpressionSharePercent, setTargetImpressionSharePercent] = useState<string>("10");
   const [onlyBidNewCustomers, setOnlyBidNewCustomers] = useState<boolean>(false);
   const [adjustLapsedCustomers, setAdjustLapsedCustomers] = useState<boolean>(false);
+  const [localCustomerOptimization, setLocalCustomerOptimization] = useState<boolean>(false);
 
   // Step 2: Campaign Settings State
+  const [isLocationsOpen, setIsLocationsOpen] = useState(false);
+  const [isLanguagesOpen, setIsLanguagesOpen] = useState(false);
+  const [isEUPoliticalAdsOpen, setIsEUPoliticalAdsOpen] = useState(false);
+  const [showMoreCampaignSettings, setShowMoreCampaignSettings] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<"ALL" | "INDIA" | "CUSTOM">("ALL");
   const [customLocationInput, setCustomLocationInput] = useState<string>("");
   const [locationTargetingType, setLocationTargetingType] = useState<"PRESENCE_INTEREST" | "PRESENCE">("PRESENCE_INTEREST");
@@ -64,7 +119,6 @@ export default function NoGuidancePerformanceMaxPage() {
   }, [languageSearchInput, selectedLanguages]);
 
   const [euPoliticalAds, setEuPoliticalAds] = useState<"YES" | "NO">("NO");
-  const [showMoreCampaignSettings, setShowMoreCampaignSettings] = useState<boolean>(false);
   const [activeEditSetting, setActiveEditSetting] = useState<string | null>(null);
 
   // Dynamic Ad Schedules State
@@ -231,8 +285,16 @@ export default function NoGuidancePerformanceMaxPage() {
 
   // Step 3: Asset Group State
   const [assetGroupName, setAssetGroupName] = useState<string>("Asset Group 1");
-  const [finalUrl, setFinalUrl] = useState<string>("");
-  const [businessName, setBusinessName] = useState<string>("");
+  const [finalUrl, setFinalUrl] = useState<string>("https://www.example.com");
+  const [businessName, setBusinessName] = useState<string>("JISNU Solutions");
+
+  // Asset Group Accordion Cards (Pen Edit Icon Format)
+  const [isAssetGroupInfoOpen, setIsAssetGroupInfoOpen] = useState<boolean>(false);
+  const [isBrandGuidelinesMainOpen, setIsBrandGuidelinesMainOpen] = useState<boolean>(false);
+  const [isAssetsSectionOpen, setIsAssetsSectionOpen] = useState<boolean>(false);
+  const [isMoreOptionsCardOpen, setIsMoreOptionsCardOpen] = useState<boolean>(false);
+  const [isAssetOptimizationCardOpen, setIsAssetOptimizationCardOpen] = useState<boolean>(false);
+  const [isSignalsOpen, setIsSignalsOpen] = useState<boolean>(false);
 
   // Brand Guidelines State
   const [showBrandGuidelinesDetails, setShowBrandGuidelinesDetails] = useState<boolean>(false);
@@ -465,9 +527,11 @@ export default function NoGuidancePerformanceMaxPage() {
   const [budgetType, setBudgetType] = useState<"DAILY" | "TOTAL">("DAILY");
   const [dailyBudgetValue, setDailyBudgetValue] = useState<string>("");
 
+  const draftId = searchParams.get("draftId");
+
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
     if (customerId) {
       fetch(`${BACKEND}/api/ads/customer-info?orgId=${orgId}&customerId=${customerId}`)
         .then(r => r.json())
@@ -481,7 +545,48 @@ export default function NoGuidancePerformanceMaxPage() {
           setAccountInfo({ customerId, name: `Account ${customerId}` });
         });
     }
-  }, [customerId]);
+
+    if (draftId) {
+      fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}${customerId ? `&customerId=${encodeURIComponent(customerId)}` : ""}`)
+        .then(r => r.json())
+        .then(drafts => {
+          if (Array.isArray(drafts)) {
+            const found = drafts.find((d: any) => d.id === draftId || d.campaignId === draftId);
+            if (found) {
+              if (found.name) setCampaignName(found.name);
+              if (found.biddingStrategy) setBiddingFocus(found.biddingStrategy as any);
+              if (found.budget) setDailyBudgetValue(String(found.budget));
+              if (found.startDate) setStartDate(new Date(found.startDate).toISOString().split("T")[0]);
+              if (found.endDate) setEndDate(new Date(found.endDate).toISOString().split("T")[0]);
+              if (found.finalUrl) setFinalUrl(found.finalUrl);
+              if (Array.isArray(found.headlines) && found.headlines.length > 0) setHeadlines(found.headlines);
+              if (Array.isArray(found.descriptions) && found.descriptions.length > 0) setDescriptions(found.descriptions);
+              if (Array.isArray(found.searchThemes) && found.searchThemes.length > 0) setSearchThemes(found.searchThemes);
+              if (Array.isArray(found.languages) && found.languages.length > 0) setSelectedLanguages(found.languages);
+              if (Array.isArray(found.geoTargets) && found.geoTargets.length > 0) {
+                if (found.geoTargets[0] === "ALL" || found.geoTargets[0] === "INDIA") {
+                  setSelectedLocation(found.geoTargets[0]);
+                } else {
+                  setSelectedLocation("CUSTOM");
+                  setCustomLocationInput(found.geoTargets[0]);
+                }
+              }
+              const dData = found.audienceSignal;
+              if (dData && typeof dData === "object") {
+                if (dData.assetGroupName) setAssetGroupName(dData.assetGroupName);
+                if (dData.businessName) setBusinessName(dData.businessName);
+                if (Array.isArray(dData.longHeadlines)) setLongHeadlines(dData.longHeadlines);
+                if (Array.isArray(dData.uploadedImages)) setUploadedImages(dData.uploadedImages);
+                if (Array.isArray(dData.uploadedLogos)) setBrandLogos(dData.uploadedLogos);
+                if (Array.isArray(dData.uploadedVideos)) setUploadedVideos(dData.uploadedVideos);
+                if (dData.ctaOption) setCtaOption(dData.ctaOption);
+              }
+            }
+          }
+        })
+        .catch(err => console.error("Error restoring draft:", err));
+    }
+  }, [customerId, draftId]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
@@ -489,7 +594,7 @@ export default function NoGuidancePerformanceMaxPage() {
       <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push(`/ads/campaigns/create${customerId ? `?customerId=${customerId}` : ""}`)}
+            onClick={() => setShowDraftModal(true)}
             className="p-1.5 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 transition-all cursor-pointer"
             title="Close"
           >
@@ -539,9 +644,10 @@ export default function NoGuidancePerformanceMaxPage() {
                 </div>
                 {wizardStep === "BIDDING" && (
                   <div className="ml-4 space-y-1 text-[11px] text-slate-500 border-l border-slate-200 pl-3 py-1">
-                    <p className="text-primary font-medium">Bidding</p>
-                    <p className="hover:text-slate-800">Customer acquisition</p>
-                    <p className="hover:text-slate-800">Customer retention</p>
+                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("bidding")}>Bidding</p>
+                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("acquisition")}>Customer acquisition</p>
+                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("retention")}>Customer retention</p>
+                    <p className="cursor-pointer hover:text-slate-800" onClick={() => setOpenBiddingCard("local")}>Local customer optimization</p>
                   </div>
                 )}
               </div>
@@ -632,360 +738,546 @@ export default function NoGuidancePerformanceMaxPage() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-6 max-w-4xl mx-auto">
+        <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-6 max-w-4xl mx-auto pb-28">
           
           {/* STEP 1: BIDDING */}
           {wizardStep === "BIDDING" && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Bidding</h1>
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight mb-2">Bidding</h1>
 
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
-                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Bidding</h2>
-                
-                <div className="space-y-3">
-                  <label className="block text-slate-700 font-semibold">What do you want to focus on?</label>
-                  <select
-                    value={biddingFocus}
-                    onChange={(e) => setBiddingFocus(e.target.value as any)}
-                    className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-medium"
-                  >
-                    <optgroup label="Recommended">
-                      <option value="Maximize conversions">Maximize conversions</option>
-                      <option value="Target CPA">Target CPA</option>
-                      <option value="Maximize conversion value">Maximize conversion value</option>
-                      <option value="Target ROAS">Target ROAS</option>
-                    </optgroup>
-                    <optgroup label="Other optimization options">
-                      <option value="Clicks">Clicks</option>
-                      <option value="Impression share">Impression share</option>
-                    </optgroup>
-                  </select>
+              {/* CARD 1: Bidding */}
+              {openBiddingCard === "bidding" ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenBiddingCard(null)}>
+                    <h2 className="text-base font-semibold text-slate-900">Bidding</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
+                  </div>
 
-                  {biddingFocus === "Target CPA" && (
-                    <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                      <label className="block text-slate-700 font-semibold">Target CPA</label>
-                      <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
-                        <input
-                          type="number"
-                          value={targetCpaValue}
-                          onChange={(e) => setTargetCpaValue(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
-                        />
-                      </div>
-                      <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
-                        Alternative bid strategies like portfolios are available in settings after you create your campaign
-                      </p>
+                  <div className="space-y-4 text-xs">
+                    <div className="space-y-1.5">
+                      <label className="block text-slate-700 font-semibold">What do you want to focus on?</label>
+                      <select
+                        value={biddingFocus}
+                        onChange={(e) => setBiddingFocus(e.target.value as any)}
+                        className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-primary"
+                      >
+                        <option value="Maximize conversions">Maximize conversions</option>
+                        <option value="Target CPA">Target CPA</option>
+                        <option value="Maximize conversion value">Maximize conversion value</option>
+                        <option value="Target ROAS">Target ROAS</option>
+                      </select>
                     </div>
-                  )}
 
-                  {biddingFocus === "Target ROAS" && (
-                    <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
-                      <label className="block text-slate-700 font-semibold">Target ROAS</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={targetRoasValue}
-                          onChange={(e) => setTargetRoasValue(e.target.value)}
-                          placeholder="200"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
-                        />
-                        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
-                      </div>
-                      <p className="text-[10px] text-amber-500 mt-1 leading-relaxed font-semibold">
-                        Before opting into target ROAS, wait until the account that set up conversion tracking has received at least 15 conversions in the last 30 days.
-                      </p>
-                      <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
-                        Alternative bid strategies like portfolios are available in settings after you create your campaign
-                      </p>
-                    </div>
-                  )}
-
-                  {biddingFocus === "Clicks" && (
-                    <div className="pt-2 space-y-3 animate-in fade-in duration-150 max-w-md">
-                      <label className="flex items-start gap-2.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={limitMaxCpc}
-                          onChange={(e) => setLimitMaxCpc(e.target.checked)}
-                          className="mt-0.5 rounded text-primary h-4 w-4"
-                        />
-                        <span className="text-xs text-slate-700 font-medium">Set a maximum cost per click bid limit</span>
-                      </label>
-                      
-                      {limitMaxCpc && (
-                        <div className="space-y-1 ml-6 animate-in slide-in-from-left-2 duration-150">
-                          <label className="block text-[11px] text-slate-500">Maximum CPC bid limit</label>
-                          <div className="relative">
-                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
-                            <input
-                              type="number"
-                              value={maxCpcLimitValue}
-                              onChange={(e) => setMaxCpcLimitValue(e.target.value)}
-                              placeholder="0.00"
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      
-                      <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
-                        Alternative bid strategies like portfolios are available in settings after you create your campaign
-                      </p>
-                    </div>
-                  )}
-
-                  {biddingFocus === "Impression share" && (
-                    <div className="pt-2 space-y-3 animate-in fade-in duration-150 max-w-md">
-                      <div className="space-y-1">
-                        <label className="block text-slate-700 font-semibold">Where do you want your ads to appear</label>
-                        <select
-                          value={adLocationTarget}
-                          onChange={(e) => setAdLocationTarget(e.target.value as any)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                        >
-                          <option value="Anywhere on results page">Anywhere on results page</option>
-                          <option value="Top of results page">Top of results page</option>
-                          <option value="Absolute top of results page">Absolute top of results page</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-500">Percent (%) impression share to target</label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            value={targetImpressionSharePercent}
-                            onChange={(e) => setTargetImpressionSharePercent(e.target.value)}
-                            placeholder="10"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
-                          />
-                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-500">Maximum CPC bid limit</label>
+                    {biddingFocus === "Target CPA" && (
+                      <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
+                        <label className="block text-slate-700 font-semibold">Target CPA</label>
                         <div className="relative">
                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
                           <input
                             type="number"
-                            value={maxCpcLimitValue}
-                            onChange={(e) => setMaxCpcLimitValue(e.target.value)}
+                            value={targetCpaValue}
+                            onChange={(e) => setTargetCpaValue(e.target.value)}
                             placeholder="0.00"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-4 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
                           />
                         </div>
+                        <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
+                          Alternative bid strategies like portfolios are available in settings after you create your campaign
+                        </p>
                       </div>
+                    )}
 
-                      <p className="text-[10px] text-slate-500 leading-relaxed bg-slate-50/40 p-2.5 rounded-lg border border-slate-200">
-                        <strong>Tip:</strong> Bid more efficiently with Maximize clicks: Get more clicks with a fully automated bid strategy.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Customer Acquisition */}
-                <div className="pt-4 border-t border-slate-200 space-y-3">
-                  <h3 className="font-semibold text-slate-800">Customer acquisition</h3>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={onlyBidNewCustomers}
-                      onChange={(e) => setOnlyBidNewCustomers(e.target.checked)}
-                      className="rounded bg-slate-50 border-slate-300 text-primary h-4 w-4"
-                    />
-                    <span className="text-slate-800 font-medium">Only bid for new customers</span>
-                  </label>
-                  <p className="text-slate-500 text-[11px] leading-relaxed">
-                    Your campaign will be limited to only new customers, regardless of your bid strategy. By default, your campaign bids equally for new and existing customers. However, you can configure your customer acquisition settings to optimize for acquiring new customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about customer acquisition</a>
-                  </p>
-                </div>
-
-                {/* Customer Retention */}
-                <div className="pt-4 border-t border-slate-200 space-y-3">
-                  <h3 className="font-semibold text-slate-800">Customer retention</h3>
-                  <div className="space-y-2">
-                    <label
-                      onClick={() => {
-                        setAdjustLapsedCustomers(true);
-                      }}
-                      className="flex items-center gap-3 cursor-not-allowed group w-fit"
-                    >
-                      <input
-                        type="checkbox"
-                        disabled
-                        checked={false}
-                        className="rounded bg-slate-50 border-slate-300 text-slate-600 h-4 w-4 cursor-not-allowed disabled:opacity-60"
-                      />
-                      <span className="text-slate-500 group-hover:text-slate-700 font-medium">
-                        Adjust your bidding to help re-engage lapsed customers
-                      </span>
-                    </label>
-
-                    {adjustLapsedCustomers && (
-                      <div className="flex items-center gap-2 p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs animate-in fade-in duration-150">
-                        <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-                        <span>You can’t bid higher for lapsed customers because you don’t have a purchase goal in your account.</span>
+                    {biddingFocus === "Target ROAS" && (
+                      <div className="pt-2 space-y-2 animate-in fade-in duration-150 max-w-md">
+                        <label className="block text-slate-700 font-semibold">Target ROAS</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={targetRoasValue}
+                            onChange={(e) => setTargetRoasValue(e.target.value)}
+                            placeholder="200"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-8 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-primary"
+                          />
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-medium">%</span>
+                        </div>
+                        <p className="text-[10px] text-amber-500 mt-1 leading-relaxed font-semibold">
+                          Before opting into target ROAS, wait until the account that set up conversion tracking has received at least 15 conversions in the last 30 days.
+                        </p>
+                        <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
+                          Alternative bid strategies like portfolios are available in settings after you create your campaign
+                        </p>
                       </div>
                     )}
                   </div>
-                  <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 text-[11px] leading-relaxed space-y-1">
-                    <p>You can’t bid higher for lapsed customers because you don’t have a purchase goal in your account. Add a purchase goal to run campaigns that bid higher for specific customer types.</p>
-                    <p className="text-slate-500 pt-1">By default, your campaign does not adjust bidding to re-engage lapsed customers. However, you can configure your customer acquisition settings to optimize for winning back lapsed customers. <a href="#" onClick={e => e.preventDefault()} className="text-primary font-semibold hover:underline">Learn more about how to re-engage lapsed customers</a></p>
+                </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setOpenBiddingCard("bidding")}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Bidding</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {biddingFocus}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* CARD 2: Customer Acquisition */}
+              {openBiddingCard === "acquisition" ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenBiddingCard(null)}>
+                    <h2 className="text-base font-semibold text-slate-900">Customer acquisition</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={onlyBidNewCustomers}
+                        onChange={(e) => setOnlyBidNewCustomers(e.target.checked)}
+                        className="mt-0.5 rounded bg-slate-50 border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <div className="space-y-1">
+                        <span className="font-semibold text-slate-900 block">Only bid for new customers</span>
+                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                          Your campaign will be limited to only new customers, regardless of your bid strategy
+                        </p>
+                      </div>
+                    </label>
+
+                    <p className="text-slate-500 text-[11px] leading-relaxed pt-2 border-t border-slate-200">
+                      By default, your campaign bids equally for new and existing customers. However, you can configure your customer acquisition settings to optimize for acquiring new customers.{" "}
+                      <a
+                        href="https://support.google.com/google-ads/answer/12080169?hl=en_US"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline font-semibold"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Learn more about customer acquisition
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setOpenBiddingCard("acquisition")}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Customer acquisition</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {onlyBidNewCustomers ? "Only bid for new customers" : "Bid equally for new and existing customers"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
+
+              {/* CARD 3: Customer Retention */}
+              {openBiddingCard === "retention" ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenBiddingCard(null)}>
+                    <h2 className="text-base font-semibold text-slate-900">Customer retention</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <div className="space-y-2">
+                      <label
+                        onClick={() => setAdjustLapsedCustomers(true)}
+                        className="flex items-center gap-3 cursor-not-allowed group w-fit"
+                      >
+                        <input
+                          type="checkbox"
+                          disabled
+                          checked={false}
+                          className="rounded bg-slate-50 border-slate-300 text-slate-600 h-4 w-4 cursor-not-allowed disabled:opacity-60"
+                        />
+                        <span className="text-slate-600 font-medium">
+                          Adjust your bidding to help re-engage lapsed customers
+                        </span>
+                      </label>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2.5">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                      <span>
+                        You can’t bid higher for lapsed customers because you don’t have a purchase goal in your account. Add a purchase goal to run campaigns that bid higher for specific customer types.
+                      </span>
+                    </div>
+
+                    <p className="text-slate-500 text-[11px] leading-relaxed pt-2 border-t border-slate-200">
+                      By default, your campaign does not adjust bidding to win back lapsed customers. However, you can configure your customer retention settings to optimize for winning back lapsed customers.{" "}
+                      <a
+                        href="https://support.google.com/google-ads/answer/14792043?hl=en_US"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline font-semibold"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Learn more about how to win back lapsed customers
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setOpenBiddingCard("retention")}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Customer retention</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      Do not adjust bidding to re-engage lapsed customers
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
+
+              {/* CARD 4: Local Customer Optimization */}
+              {openBiddingCard === "local" ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3 cursor-pointer" onClick={() => setOpenBiddingCard(null)}>
+                    <h2 className="text-base font-semibold text-slate-900">Local customer optimization</h2>
+                    <ChevronUp className="h-4 w-4 text-slate-500 cursor-pointer" />
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <p className="text-slate-600 text-xs leading-relaxed">
+                      Show your ad to potential customers who are close to or interested in your business area and are ready to visit, contact, or book immediately.{" "}
+                      <a
+                        href="https://support.google.com/google-ads/answer/17198659?hl=en_US"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline font-semibold"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Learn more about local customer optimization
+                      </a>
+                    </p>
+
+                    <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-800">
+                        Turn on local customer optimization
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setLocalCustomerOptimization(!localCustomerOptimization)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          localCustomerOptimization ? "bg-primary" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            localCustomerOptimization ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setOpenBiddingCard("local")}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Local customer optimization</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {localCustomerOptimization ? "On" : "Off"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* STEP 2: CAMPAIGN SETTINGS */}
           {wizardStep === "CAMPAIGN_SETTINGS" && (
-            <div className="space-y-6 animate-in fade-in duration-200 text-xs">
-              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
-              <p className="text-slate-500">To reach the right people, start by defining key settings for your campaign</p>
+            <div className="space-y-4 animate-in fade-in duration-200 text-xs">
+              <div className="mb-2">
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Campaign settings</h1>
+                <p className="text-slate-500 mt-1">To reach the right people, start by defining key settings for your campaign</p>
+              </div>
 
               {/* Locations */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
-                <p className="text-slate-500">Select locations for this campaign</p>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="no-guidancePmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
-                    <span>All countries and territories</span>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="no-guidancePmaxLoc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
-                    <span>India</span>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="radio" name="no-guidancePmaxLoc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
-                    <span>Enter another location</span>
-                  </label>
-                </div>
-
-                {/* Location Options Accordion */}
-                <div className="pt-2 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setShowLocationOptions(!showLocationOptions)}
-                    className="flex items-center justify-between w-full py-1 text-slate-700 font-semibold cursor-pointer"
-                  >
-                    <span>Location options</span>
-                    {showLocationOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-
-                  {showLocationOptions && (
-                    <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 animate-in fade-in duration-150">
-                      <span className="font-semibold text-slate-800 block">Include</span>
-                      <label className="flex items-start gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="locTargetType"
-                          checked={locationTargetingType === "PRESENCE_INTEREST"}
-                          onChange={() => setLocationTargetingType("PRESENCE_INTEREST")}
-                          className="mt-0.5 text-primary h-4 w-4"
-                        />
-                        <div>
-                          <span className="font-semibold text-slate-800 block">Presence or interest: People in, regularly in, or who've shown interest in your included locations (recommended)</span>
-                        </div>
+              {isLocationsOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
+                    <button 
+                      type="button"
+                      onClick={() => setIsLocationsOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4 pt-1">
+                    <p className="text-slate-500">Select locations for this campaign</p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="radio" name="noGuidancePmaxLoc" checked={selectedLocation === "ALL"} onChange={() => setSelectedLocation("ALL")} className="text-primary h-4 w-4" />
+                        <span>All countries and territories</span>
                       </label>
-                      <label className="flex items-start gap-3 cursor-pointer border-t border-slate-200 pt-2">
-                        <input
-                          type="radio"
-                          name="locTargetType"
-                          checked={locationTargetingType === "PRESENCE"}
-                          onChange={() => setLocationTargetingType("PRESENCE")}
-                          className="mt-0.5 text-primary h-4 w-4"
-                        />
-                        <div>
-                          <span className="font-semibold text-slate-800 block">Presence: People in or regularly in your included locations</span>
-                        </div>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="radio" name="noGuidancePmaxLoc" checked={selectedLocation === "INDIA"} onChange={() => setSelectedLocation("INDIA")} className="text-primary h-4 w-4" />
+                        <span>India</span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="radio" name="noGuidancePmaxLoc" checked={selectedLocation === "CUSTOM"} onChange={() => setSelectedLocation("CUSTOM")} className="text-primary h-4 w-4" />
+                        <span>Enter another location</span>
                       </label>
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Languages */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
-                <p className="text-slate-500">Select the languages your customers speak.</p>
+                    {selectedLocation === "CUSTOM" && (
+                      <div className="pt-2 max-w-md">
+                        <input
+                          type="text"
+                          value={customLocationInput}
+                          onChange={(e) => setCustomLocationInput(e.target.value)}
+                          placeholder="Enter a location (e.g. Mumbai, India)"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
 
-                <div className="relative max-w-md">
-                  <input
-                    type="text"
-                    value={languageSearchInput}
-                    onChange={(e) => setLanguageSearchInput(e.target.value)}
-                    placeholder="Start typing or select a language"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                  />
+                    {/* Location Options Accordion */}
+                    <div className="pt-2 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setShowLocationOptions(!showLocationOptions)}
+                        className="flex items-center justify-between w-full py-1 text-slate-700 font-semibold cursor-pointer"
+                      >
+                        <span>Location options</span>
+                        <Edit3 className="h-3.5 w-3.5 text-slate-400 hover:text-primary" />
+                      </button>
 
-                  {/* API search results popup */}
-                  {languageSearchInput.trim() !== "" && (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-md z-30 max-h-48 overflow-y-auto py-1 text-xs">
-                      {isSearchingLanguages ? (
-                        <p className="px-4 py-2 text-slate-500 font-mono">Searching languages...</p>
-                      ) : languageSearchResults.length > 0 ? (
-                        languageSearchResults.map((lang, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => {
-                              setSelectedLanguages(prev => [...prev, lang]);
-                              setLanguageSearchInput("");
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-800 cursor-pointer flex items-center justify-between"
-                          >
-                            <span>{lang}</span>
-                            <Plus className="h-3.5 w-3.5 text-primary" />
-                          </button>
-                        ))
-                      ) : (
-                        <p className="px-4 py-2 text-slate-500">No matching languages found</p>
+                      {showLocationOptions && (
+                        <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 animate-in fade-in duration-150">
+                          <span className="font-semibold text-slate-800 block">Include</span>
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="locTargetType"
+                              checked={locationTargetingType === "PRESENCE_INTEREST"}
+                              onChange={() => setLocationTargetingType("PRESENCE_INTEREST")}
+                              className="mt-0.5 text-primary h-4 w-4"
+                            />
+                            <div>
+                              <span className="font-semibold text-slate-800 block">Presence or interest: People in, regularly in, or who've shown interest in your included locations (recommended)</span>
+                            </div>
+                          </label>
+                          <label className="flex items-start gap-3 cursor-pointer border-t border-slate-200 pt-2">
+                            <input
+                              type="radio"
+                              name="locTargetType"
+                              checked={locationTargetingType === "PRESENCE"}
+                              onChange={() => setLocationTargetingType("PRESENCE")}
+                              className="mt-0.5 text-primary h-4 w-4"
+                            />
+                            <div>
+                              <span className="font-semibold text-slate-800 block">Presence: People in or regularly in your included locations</span>
+                            </div>
+                          </label>
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsLocationsOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Locations</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {selectedLocation === "ALL" ? "All countries and territories" : selectedLocation === "INDIA" ? "India" : customLocationInput || "Custom locations"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
 
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {selectedLanguages.map((lang, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-xs text-primary font-semibold">
-                      {lang}
-                      <button type="button" onClick={() => setSelectedLanguages(prev => prev.filter((_, i) => i !== idx))}>
-                        <X className="h-3 w-3 hover:text-rose-400" />
-                      </button>
-                    </span>
-                  ))}
+              {/* Languages */}
+              {isLanguagesOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
+                    <button 
+                      type="button"
+                      onClick={() => setIsLanguagesOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4 pt-1">
+                    <p className="text-slate-500">Select the languages your customers speak.</p>
+
+                    <div className="relative max-w-md">
+                      <input
+                        type="text"
+                        value={languageSearchInput}
+                        onChange={(e) => setLanguageSearchInput(e.target.value)}
+                        placeholder="Start typing or select a language"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                      />
+
+                      {/* API search results popup */}
+                      {languageSearchInput.trim() !== "" && (
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-md z-30 max-h-48 overflow-y-auto py-1 text-xs">
+                          {isSearchingLanguages ? (
+                            <p className="px-4 py-2 text-slate-500 font-mono">Searching languages...</p>
+                          ) : languageSearchResults.length > 0 ? (
+                            languageSearchResults.map((lang, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedLanguages(prev => [...prev, lang]);
+                                  setLanguageSearchInput("");
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-800 cursor-pointer flex items-center justify-between"
+                              >
+                                <span>{lang}</span>
+                                <Plus className="h-3.5 w-3.5 text-primary" />
+                              </button>
+                            ))
+                          ) : (
+                            <p className="px-4 py-2 text-slate-500">No matching languages found</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {selectedLanguages.map((lang, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-xs text-primary font-semibold">
+                          {lang}
+                          <button type="button" onClick={() => setSelectedLanguages(prev => prev.filter((_, i) => i !== idx))}>
+                            <X className="h-3 w-3 hover:text-rose-400" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsLanguagesOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Languages</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {selectedLanguages.join(", ") || "All languages"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
 
               {/* EU political ads */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
-                  <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
+              {isEUPoliticalAdsOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
+                      <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setIsEUPoliticalAdsOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3 pt-1">
+                    <p className="text-slate-700">Does your campaign have European Union political ads?</p>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" name="euPolNoGuidance" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
+                      <span>Yes, this campaign has EU political ads</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" name="euPolNoGuidance" checked={euPoliticalAds === "NO"} onChange={() => setEuPoliticalAds("NO")} className="text-primary h-4 w-4" />
+                      <span>No, this campaign doesn't have EU political ads</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 pt-1">EU regulation requires Google to ask this question. Learn how an EU political ad is defined</p>
+                  </div>
                 </div>
-                <p className="text-slate-700">Does your campaign have European Union political ads?</p>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="radio" name="euPolno-guidance" checked={euPoliticalAds === "YES"} onChange={() => setEuPoliticalAds("YES")} className="text-primary h-4 w-4" />
-                  <span>Yes, this campaign has EU political ads</span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="radio" name="euPolno-guidance" checked={euPoliticalAds === "NO"} onChange={() => setEuPoliticalAds("NO")} className="text-primary h-4 w-4" />
-                  <span>No, this campaign doesn't have EU political ads</span>
-                </label>
-                <p className="text-[11px] text-slate-500 pt-1">EU regulation requires Google to ask this question. Learn how an EU political ad is defined</p>
-              </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsEUPoliticalAdsOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56 flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-slate-900">EU political ads</h2>
+                      <span className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-bold rounded">Required</span>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {euPoliticalAds === "YES" ? "Yes, has EU political ads" : "No, does not have EU political ads"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
 
-                       {/* More settings Section */}
-              <div className="mt-8 space-y-4">
-                <div className="flex items-center gap-2 px-1">
-                  <Settings className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-slate-800">More settings</span>
+              {/* More settings Section */}
+              <div className="mt-4 space-y-4">
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm group"
+                  onClick={() => setShowMoreCampaignSettings(!showMoreCampaignSettings)}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Settings className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold text-slate-900 group-hover:text-primary transition-colors">More settings</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
                 </div>
 
+                {showMoreCampaignSettings && (
                 <div className="rounded-2xl border border-slate-200 bg-white/40 divide-y divide-slate-800 overflow-hidden shadow-sm">
                   
                   {/* Ad Schedule Row */}
@@ -1445,1087 +1737,1275 @@ export default function NoGuidancePerformanceMaxPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             </div>
           )}
 
           {/* STEP 3: ASSET GROUP */}
           {wizardStep === "ASSET_GROUP" && (
-            <div className="space-y-6 animate-in fade-in duration-200 text-xs">
-              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Asset group</h1>
-              <p className="text-slate-500">Show high quality ads to the right people. Start by adding your assets, the building blocks of every ad.</p>
-
-              {/* Asset Group Name & Final URL */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div>
-                  <label className="block font-semibold text-slate-700">Asset group name</label>
-                  <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium" />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700">Final URL</label>
-                  <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono" />
-                </div>
+            <div className="space-y-4 animate-in fade-in duration-200 text-xs">
+              <div className="mb-2">
+                <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Asset group</h1>
+                <p className="text-slate-500 mt-1">Show high quality ads to the right people. Start by adding your assets, the building blocks of every ad.</p>
               </div>
 
-              {/* Brand Guidelines */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="border-b border-slate-200 pb-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Brand guidelines</h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about brand guidelines</a></p>
+              {/* Asset Group Name & Final URL */}
+              {isAssetGroupInfoOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h2 className="text-sm font-semibold text-slate-900">Asset group name & Final URL</h2>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsAssetGroupInfoOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4 pt-1">
+                    <div>
+                      <label className="block font-semibold text-slate-700">Asset group name</label>
+                      <input type="text" value={assetGroupName} onChange={(e) => setAssetGroupName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700">Final URL</label>
+                      <input type="text" value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://www.example.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-mono focus:border-primary focus:outline-none" />
+                    </div>
+                  </div>
                 </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsAssetGroupInfoOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Asset group info</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {assetGroupName} &bull; <span className="font-mono text-slate-600">{finalUrl || "No URL set"}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
 
-                {!showBrandGuidelinesDetails ? (
-                  /* Basic Brand Guidelines View */
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <label className="block text-slate-700 font-semibold">Business name</label>
-                        <span className="text-rose-400 font-bold">*</span>
+              {/* Brand Guidelines */}
+              {isBrandGuidelinesMainOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <div className="space-y-0.5">
+                      <h3 className="text-sm font-semibold text-slate-900">Brand guidelines</h3>
+                      <p className="text-[11px] text-slate-500">Control how your brand appears in ads for this campaign. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about brand guidelines</a></p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setIsBrandGuidelinesMainOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+
+                  <div className="pt-2">
+                    {!showBrandGuidelinesDetails ? (
+                      /* Basic Brand Guidelines View */
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <label className="block text-slate-700 font-semibold">Business name</label>
+                            <span className="text-rose-400 font-bold">*</span>
+                          </div>
+                          <input
+                            type="text"
+                            maxLength={25}
+                            value={businessName}
+                            onChange={(e) => setBusinessName(e.target.value)}
+                            placeholder="Business name"
+                            className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                          />
+                          <span className="text-[10px] text-slate-500 block">Text is {businessName.length} characters out of 25</span>
+                        </div>
+
+                        {/* Logos */}
+                        <div className="space-y-2 pt-2 border-t border-slate-200">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-slate-700 font-semibold">Logos</label>
+                            <span className="text-[11px] text-slate-500">{brandLogos.length}/5</span>
+                          </div>
+                          <div className="flex flex-wrap gap-3">
+                            {brandLogos.map((logo, idx) => (
+                              <div key={idx} className="relative h-16 w-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden group">
+                                <img src={logo} alt="Logo" className="h-full w-full object-contain p-1" />
+                                <button
+                                  type="button"
+                                  onClick={() => setBrandLogos(prev => prev.filter((_, i) => i !== idx))}
+                                  className="absolute top-1 right-1 p-1 bg-white rounded-md text-slate-700 hover:text-rose-400"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                            {brandLogos.length < 5 && (
+                              <label className="h-16 w-28 rounded-xl border border-dashed border-slate-300 bg-slate-50 hover:bg-white flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer transition-all">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleLogoUpload}
+                                  className="hidden"
+                                />
+                                <Plus className="h-4 w-4 text-primary" />
+                                <span className="text-[10px] font-semibold">{isUploadingLogo ? "Uploading..." : "Add logo"}</span>
+                              </label>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* More options button */}
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowBrandGuidelinesDetails(true)}
+                            className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all hover:bg-white"
+                          >
+                            <span>Add visual and text guidelines</span>
+                            <Edit3 className="h-3.5 w-3.5 text-slate-400" />
+                          </button>
+                        </div>
                       </div>
-                      <input
-                        type="text"
-                        maxLength={25}
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="Business name"
-                        className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                      />
-                      <span className="text-[10px] text-slate-500 block">Text is {businessName.length} characters out of 25</span>
+                    ) : (
+                      /* Full Brand Guidelines Expanded Details View */
+                      <div className="space-y-6 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h4 className="font-bold text-slate-800 text-xs">Add brand guidelines</h4>
+                          <button
+                            type="button"
+                            onClick={() => setShowBrandGuidelinesDetails(false)}
+                            className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>Hide details</span>
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        {/* Brand Identity */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-slate-700 text-xs">Brand identity</h4>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1">
+                              <label className="block text-slate-700 font-semibold">Business name</label>
+                              <span className="text-rose-400 font-bold">*</span>
+                            </div>
+                            <input
+                              type="text"
+                              maxLength={25}
+                              value={businessName}
+                              onChange={(e) => setBusinessName(e.target.value)}
+                              placeholder="Business name"
+                              className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                            />
+                            <span className="text-[10px] text-slate-500 block">Text is {businessName.length} characters out of 25</span>
+                          </div>
+
+                          <div className="space-y-2 pt-2 border-t border-slate-200">
+                            <div className="flex items-center justify-between max-w-md">
+                              <label className="block text-slate-700 font-semibold">Logos</label>
+                              <span className="text-[11px] text-slate-500">{brandLogos.length}/5</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                              {brandLogos.map((logo, idx) => (
+                                <div key={idx} className="relative h-16 w-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden group">
+                                  <img src={logo} alt="Logo" className="h-full w-full object-contain p-1" />
+                                  <button
+                                    type="button"
+                                    onClick={() => setBrandLogos(prev => prev.filter((_, i) => i !== idx))}
+                                    className="absolute top-1 right-1 p-1 bg-white rounded-md text-slate-700 hover:text-rose-400"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                              {brandLogos.length < 5 && (
+                                <label className="h-16 w-28 rounded-xl border border-dashed border-slate-300 bg-slate-50 hover:bg-white flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer transition-all">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleLogoUpload}
+                                    className="hidden"
+                                  />
+                                  <Plus className="h-4 w-4 text-primary" />
+                                  <span className="text-[10px] font-semibold">{isUploadingLogo ? "Uploading..." : "Add logo"}</span>
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Visual Guidelines */}
+                        <div className="space-y-4 pt-4 border-t border-slate-200">
+                          <div>
+                            <h4 className="font-semibold text-slate-700 text-xs">Visual guidelines</h4>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Add your brand colors and fonts to help Google AI generate on-brand videos and responsive display ads.</p>
+                          </div>
+
+                          {/* Custom Colors */}
+                          <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl max-w-md">
+                            <span className="text-xs font-semibold text-slate-800 block">Custom colors</span>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-500">Main color</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={mainColor}
+                                    onChange={(e) => setMainColor(e.target.value)}
+                                    className="h-8 w-8 rounded cursor-pointer bg-transparent border-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={mainColor}
+                                    onChange={(e) => setMainColor(e.target.value)}
+                                    placeholder="#ffffff"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-mono"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[11px] text-slate-500">Accent color</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={accentColor}
+                                    onChange={(e) => setAccentColor(e.target.value)}
+                                    className="h-8 w-8 rounded cursor-pointer bg-transparent border-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={accentColor}
+                                    onChange={(e) => setAccentColor(e.target.value)}
+                                    placeholder="#4285f4"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-mono"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Font */}
+                          <div className="space-y-1 max-w-md">
+                            <label className="block text-slate-700 font-semibold">Font</label>
+                            <select
+                              value={selectedFont}
+                              onChange={(e) => setSelectedFont(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 font-medium"
+                            >
+                              <option value="Any font">Any font</option>
+                              <option value="Other fonts">Other fonts</option>
+                              <option value="Open Sans">Open Sans</option>
+                              <option value="Roboto">Roboto</option>
+                              <option value="Roboto Slab">Roboto Slab</option>
+                              <option value="Montserrat">Montserrat</option>
+                              <option value="Poppins">Poppins</option>
+                              <option value="Lato">Lato</option>
+                              <option value="Oswald">Oswald</option>
+                              <option value="Playfair Display">Playfair Display</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Text Guidelines */}
+                        <div className="space-y-4 pt-4 border-t border-slate-200">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold text-slate-700 text-xs">Text guidelines</h4>
+                              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-bold rounded">Beta</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Tell Google AI the rules it needs to follow when it creates relevant, on-brand headlines and descriptions for you. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about text guidelines</a></p>
+                          </div>
+
+                          {/* Term exclusions */}
+                          <div className="space-y-2 max-w-md">
+                            <div className="flex justify-between items-center">
+                              <label className="block text-slate-700 font-semibold">Term exclusions</label>
+                              <span className="text-[10px] text-slate-500">{termExclusionsList.length}/25</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={termExclusionsInput}
+                              onChange={(e) => setTermExclusionsInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && termExclusionsInput.trim()) {
+                                  e.preventDefault();
+                                  if (termExclusionsList.length < 25) {
+                                    setTermExclusionsList(prev => [...prev, termExclusionsInput.trim()]);
+                                    setTermExclusionsInput("");
+                                  }
+                                }
+                              }}
+                              placeholder="For example: Cheap, free shipping, etc. Press Enter after each word or phrase."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                            />
+                            {termExclusionsList.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                {termExclusionsList.map((term, i) => (
+                                  <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 font-medium">
+                                    <span>{term}</span>
+                                    <button type="button" onClick={() => setTermExclusionsList(prev => prev.filter((_, idx) => idx !== i))}>
+                                      <X className="h-3 w-3 hover:text-rose-400" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Messaging restrictions */}
+                          <div className="space-y-3 max-w-md pt-2">
+                            <div className="flex justify-between items-center">
+                              <label className="block text-slate-700 font-semibold">Messaging restrictions</label>
+                              <span className="text-[10px] text-slate-500">{messagingRestrictions.length}/40</span>
+                            </div>
+                            {messagingRestrictions.map((restriction, idx) => (
+                              <div key={idx} className="space-y-1">
+                                <div className="relative">
+                                  <textarea
+                                    rows={2}
+                                    maxLength={300}
+                                    value={restriction}
+                                    onChange={(e) => {
+                                      const updated = [...messagingRestrictions];
+                                      updated[idx] = e.target.value;
+                                      setMessagingRestrictions(updated);
+                                    }}
+                                    placeholder={
+                                      idx === 0
+                                        ? "Example: Don't mention competitor names, such as Acme Corp or Plants 4 You"
+                                        : idx === 1
+                                          ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
+                                          : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
+                                    }
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
+                                  />
+                                  {messagingRestrictions.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
+                                      className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-500 block text-right font-mono">{restriction.length} / 300 (Text is {restriction.length} characters out of 300)</span>
+                              </div>
+                            ))}
+
+                            {messagingRestrictions.length < 40 && (
+                              <button
+                                type="button"
+                                onClick={() => setMessagingRestrictions(prev => [...prev, ""])}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Add another restriction
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsBrandGuidelinesMainOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Brand guidelines</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {businessName ? `Business: ${businessName}` : "Not set"} &bull; {brandLogos.length} logo{brandLogos.length === 1 ? "" : "s"} &bull; {selectedFont}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
+
+              {/* Assets Section */}
+              {isAssetsSectionOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h2 className="text-sm font-semibold text-slate-900">Assets</h2>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsAssetsSectionOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 pt-1">
+                    <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 text-[11px]">
+                      Google AI isn't able to generate assets for your final url. You can still add assets yourself. Let's start adding ad assets
                     </div>
 
-                    {/* Logos */}
-                    <div className="space-y-2 pt-2 border-t border-slate-200">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-slate-700 font-semibold">Logos</label>
-                        <span className="text-[11px] text-slate-500">{brandLogos.length}/5</span>
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="font-semibold text-slate-700">Ad strength</span>
+                      <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-600 font-bold border border-amber-500/30">Incomplete</span>
+                    </div>
+
+                    {/* Asset Input Rows */}
+                    <div className="space-y-4 pt-3 border-t border-slate-200">
+
+                      {/* 1) Calls Section at Top */}
+                      <div className="space-y-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-slate-700">Calls</h4>
+                            <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold text-[10px]">1 call (account)</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveModal("CALLS")}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add calls
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 font-mono text-slate-800 text-xs">
+                          <Phone className="h-3.5 w-3.5 text-primary" />
+                          <span>Account-level: 077099 36965</span>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-3">
-                        {brandLogos.map((logo, idx) => (
-                          <div key={idx} className="relative h-16 w-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden group">
-                            <img src={logo} alt="Logo" className="h-full w-full object-contain p-1" />
+
+                      {/* 2) Headlines */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-700">Headlines ({headlines.length})</span>
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => setBrandLogos(prev => prev.filter((_, i) => i !== idx))}
-                              className="absolute top-1 right-1 p-1 bg-white rounded-md text-slate-700 hover:text-rose-400"
+                              onClick={() => {
+                                const aiGens = Array.from({ length: headlines.length }, (_, i) => `AI Headline ${i + 1}: Performance Max Boost`);
+                                setHeadlines(aiGens);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
                             >
-                              <X className="h-3 w-3" />
+                              <Sparkles className="h-3 w-3" /> Generate headlines using AI
                             </button>
+                            <button type="button" onClick={() => setHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add headline</button>
+                          </div>
+                        </div>
+                        {headlines.map((hl, i) => (
+                          <div key={i} className="space-y-1">
+                            <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder="Headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
+                            <div className="flex justify-between text-[10px] text-slate-500">
+                              <span>Text is {hl.length} characters out of 30</span>
+                              <span>{hl.length} / 30</span>
+                            </div>
                           </div>
                         ))}
-                        {brandLogos.length < 5 && (
-                          <label className="h-16 w-28 rounded-xl border border-dashed border-slate-300 bg-slate-50 hover:bg-white flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer transition-all">
+                      </div>
+
+                      {/* 3) Long Headlines */}
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-700">Long headlines ({longHeadlines.length})</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const aiGens = Array.from({ length: longHeadlines.length }, (_, i) => `AI Long Headline ${i + 1}: Comprehensive multi-channel reach and AI automation.`);
+                                setLongHeadlines(aiGens);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Sparkles className="h-3 w-3" /> Generate long headlines using AI
+                            </button>
+                            <button type="button" onClick={() => setLongHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add long headline</button>
+                          </div>
+                        </div>
+                        {longHeadlines.map((lh, i) => (
+                          <div key={i} className="space-y-1">
+                            <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder="Long headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
+                            <div className="flex justify-between text-[10px] text-slate-500">
+                              <span>Text is {lh.length} characters out of 90</span>
+                              <span>{lh.length} / 90</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 4) Descriptions */}
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-700">Descriptions ({descriptions.length})</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const aiGens = Array.from({ length: descriptions.length }, (_, i) => `AI Description ${i + 1}: Custom automated performance max copy tailored to your campaign goals.`);
+                                setDescriptions(aiGens);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Sparkles className="h-3 w-3" /> Generate descriptions using AI
+                            </button>
+                            <button type="button" onClick={() => setDescriptions(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add description</button>
+                          </div>
+                        </div>
+                        {descriptions.map((desc, i) => (
+                          <div key={i} className="space-y-1">
+                            <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder="Description" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
+                            <div className="flex justify-between text-[10px] text-slate-500">
+                              <span>Text is {desc.length} characters out of 90</span>
+                              <span>{desc.length} / 90</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 5) Images, Videos, Animated Clips Uploads */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200">
+                        {/* Images */}
+                        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
+                          <ImageIcon className="h-5 w-5 text-primary mx-auto" />
+                          <span className="font-semibold text-slate-800 block text-xs">Images ({uploadedImages.length})</span>
+                          <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                            + Add images
                             <input
                               type="file"
                               accept="image/*"
-                              onChange={handleLogoUpload}
+                              multiple
+                              onChange={(e) => {
+                                if (e.target.files) {
+                                  const filesArr = Array.from(e.target.files).map(f => f.name);
+                                  setUploadedImages(prev => [...prev, ...filesArr]);
+                                }
+                              }}
                               className="hidden"
                             />
-                            <Plus className="h-4 w-4 text-primary" />
-                            <span className="text-[10px] font-semibold">{isUploadingLogo ? "Uploading..." : "Add logo"}</span>
                           </label>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* More options button */}
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowBrandGuidelinesDetails(true)}
-                        className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all hover:bg-white"
-                      >
-                        <span>Add visual and text guidelines</span>
-                        <ChevronDown className="h-4 w-4 text-slate-500" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* Full Brand Guidelines Expanded Details View */
-                  <div className="space-y-6 animate-in fade-in duration-200">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <h4 className="font-bold text-slate-800 text-xs">Add brand guidelines</h4>
-                      <button
-                        type="button"
-                        onClick={() => setShowBrandGuidelinesDetails(false)}
-                        className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>Hide details</span>
-                        <ChevronUp className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {/* Brand Identity */}
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-slate-700 text-xs">Brand identity</h4>
-                      
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1">
-                          <label className="block text-slate-700 font-semibold">Business name</label>
-                          <span className="text-rose-400 font-bold">*</span>
-                        </div>
-                        <input
-                          type="text"
-                          maxLength={25}
-                          value={businessName}
-                          onChange={(e) => setBusinessName(e.target.value)}
-                          placeholder="Business name"
-                          className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
-                        />
-                        <span className="text-[10px] text-slate-500 block">Text is {businessName.length} characters out of 25</span>
-                      </div>
-
-                      <div className="space-y-2 pt-2 border-t border-slate-200">
-                        <div className="flex items-center justify-between max-w-md">
-                          <label className="block text-slate-700 font-semibold">Logos</label>
-                          <span className="text-[11px] text-slate-500">{brandLogos.length}/5</span>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                          {brandLogos.map((logo, idx) => (
-                            <div key={idx} className="relative h-16 w-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden group">
-                              <img src={logo} alt="Logo" className="h-full w-full object-contain p-1" />
-                              <button
-                                type="button"
-                                onClick={() => setBrandLogos(prev => prev.filter((_, i) => i !== idx))}
-                                className="absolute top-1 right-1 p-1 bg-white rounded-md text-slate-700 hover:text-rose-400"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
+                          {uploadedImages.length > 0 && (
+                            <div className="flex flex-wrap gap-1 justify-center pt-1">
+                              {uploadedImages.map((img, idx) => (
+                                <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{img}</span>
+                              ))}
                             </div>
-                          ))}
-                          {brandLogos.length < 5 && (
-                            <label className="h-16 w-28 rounded-xl border border-dashed border-slate-300 bg-slate-50 hover:bg-white flex flex-col items-center justify-center gap-1 text-slate-500 cursor-pointer transition-all">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleLogoUpload}
-                                className="hidden"
-                              />
-                              <Plus className="h-4 w-4 text-primary" />
-                              <span className="text-[10px] font-semibold">{isUploadingLogo ? "Uploading..." : "Add logo"}</span>
-                            </label>
+                          )}
+                        </div>
+
+                        {/* Videos */}
+                        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
+                          <VideoIcon className="h-5 w-5 text-primary mx-auto" />
+                          <span className="font-semibold text-slate-800 block text-xs">Videos ({uploadedVideos.length})</span>
+                          <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                            + Add videos
+                            <input
+                              type="file"
+                              accept="video/*"
+                              multiple
+                              onChange={(e) => {
+                                if (e.target.files) {
+                                  const filesArr = Array.from(e.target.files).map(f => f.name);
+                                  setUploadedVideos(prev => [...prev, ...filesArr]);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                          {uploadedVideos.length > 0 && (
+                            <div className="flex flex-wrap gap-1 justify-center pt-1">
+                              {uploadedVideos.map((vid, idx) => (
+                                <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{vid}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Animated clips */}
+                        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
+                          <Upload className="h-5 w-5 text-primary mx-auto" />
+                          <span className="font-semibold text-slate-800 block text-xs">Animated clips ({uploadedClips.length})</span>
+                          <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
+                            + Add animated clips
+                            <input
+                              type="file"
+                              accept=".gif,video/*,image/*"
+                              multiple
+                              onChange={(e) => {
+                                if (e.target.files) {
+                                  const filesArr = Array.from(e.target.files).map(f => f.name);
+                                  setUploadedClips(prev => [...prev, ...filesArr]);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                          {uploadedClips.length > 0 && (
+                            <div className="flex flex-wrap gap-1 justify-center pt-1">
+                              {uploadedClips.map((clip, idx) => (
+                                <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{clip}</span>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Visual Guidelines */}
-                    <div className="space-y-4 pt-4 border-t border-slate-200">
-                      <div>
-                        <h4 className="font-semibold text-slate-700 text-xs">Visual guidelines</h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Add your brand colors and fonts to help Google AI generate on-brand videos and responsive display ads.</p>
-                      </div>
-
-                      {/* Custom Colors */}
-                      <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl max-w-md">
-                        <span className="text-xs font-semibold text-slate-800 block">Custom colors</span>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500">Main color</label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="color"
-                                value={mainColor}
-                                onChange={(e) => setMainColor(e.target.value)}
-                                className="h-8 w-8 rounded cursor-pointer bg-transparent border-0"
-                              />
-                              <input
-                                type="text"
-                                value={mainColor}
-                                onChange={(e) => setMainColor(e.target.value)}
-                                placeholder="#ffffff"
-                                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-mono"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-slate-500">Accent color</label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="color"
-                                value={accentColor}
-                                onChange={(e) => setAccentColor(e.target.value)}
-                                className="h-8 w-8 rounded cursor-pointer bg-transparent border-0"
-                              />
-                              <input
-                                type="text"
-                                value={accentColor}
-                                onChange={(e) => setAccentColor(e.target.value)}
-                                placeholder="#4285f4"
-                                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-mono"
-                              />
-                            </div>
-                          </div>
+                      {/* Business Name */}
+                      <div className="space-y-1 pt-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-700">Business name</span>
+                          <span className="text-[10px] text-slate-500">Required</span>
+                        </div>
+                        <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} maxLength={25} placeholder="Business name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs focus:border-primary focus:outline-none" />
+                        <div className="flex justify-between text-[10px] text-slate-500">
+                          <span>Text is {businessName.length} characters out of 25</span>
+                          <span>{businessName.length} / 25</span>
                         </div>
                       </div>
 
-                      {/* Font */}
-                      <div className="space-y-1 max-w-md">
-                        <label className="block text-slate-700 font-semibold">Font</label>
+                      {/* 9) Call-to-action Dropdown */}
+                      <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                        <label className="block text-slate-700 font-semibold">Call-to-action</label>
                         <select
-                          value={selectedFont}
-                          onChange={(e) => setSelectedFont(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 font-medium"
+                          value={ctaOption}
+                          onChange={(e) => setCtaOption(e.target.value)}
+                          className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
                         >
-                          <option value="Any font">Any font</option>
-                          <option value="Other fonts">Other fonts</option>
-                          <option value="Open Sans">Open Sans</option>
-                          <option value="Roboto">Roboto</option>
-                          <option value="Roboto Slab">Roboto Slab</option>
-                          <option value="Montserrat">Montserrat</option>
-                          <option value="Poppins">Poppins</option>
-                          <option value="Lato">Lato</option>
-                          <option value="Oswald">Oswald</option>
-                          <option value="Playfair Display">Playfair Display</option>
+                          <option value="Automated (recommended)">Automated (recommended)</option>
+                          <option value="Learn more">Learn more</option>
+                          <option value="Get quote">Get quote</option>
+                          <option value="Apply now">Apply now</option>
+                          <option value="Sign up">Sign up</option>
+                          <option value="Contact us">Contact us</option>
+                          <option value="Subscribe">Subscribe</option>
+                          <option value="Download">Download</option>
+                          <option value="Book now">Book now</option>
+                          <option value="Shop now">Shop now</option>
                         </select>
                       </div>
-                    </div>
 
-                    {/* Text Guidelines */}
-                    <div className="space-y-4 pt-4 border-t border-slate-200">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-slate-700 text-xs">Text guidelines</h4>
-                          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-bold rounded">Beta</span>
+                      {/* 6) Sitelinks with Display of Saved Sitelinks */}
+                      <div className="space-y-3 pt-3 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-slate-700">Sitelinks ({savedSitelinks.length})</h4>
+                          <button
+                            type="button"
+                            onClick={() => setActiveModal("SITELINKS")}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Create sitelink
+                          </button>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Tell Google AI the rules it needs to follow when it creates relevant, on-brand headlines and descriptions for you. <a href="#" onClick={e => e.preventDefault()} className="text-primary hover:underline font-semibold">Learn more about text guidelines</a></p>
-                      </div>
 
-                      {/* Term exclusions */}
-                      <div className="space-y-2 max-w-md">
-                        <div className="flex justify-between items-center">
-                          <label className="block text-slate-700 font-semibold">Term exclusions</label>
-                          <span className="text-[10px] text-slate-500">{termExclusionsList.length}/25</span>
-                        </div>
-                        <input
-                          type="text"
-                          value={termExclusionsInput}
-                          onChange={(e) => setTermExclusionsInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && termExclusionsInput.trim()) {
-                              e.preventDefault();
-                              if (termExclusionsList.length < 25) {
-                                setTermExclusionsList(prev => [...prev, termExclusionsInput.trim()]);
-                                setTermExclusionsInput("");
-                              }
-                            }
-                          }}
-                          placeholder="For example: Cheap, free shipping, etc. Press Enter after each word or phrase."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                        />
-                        {termExclusionsList.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {termExclusionsList.map((term, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-800 font-medium">
-                                <span>{term}</span>
-                                <button type="button" onClick={() => setTermExclusionsList(prev => prev.filter((_, idx) => idx !== i))}>
+                        {savedSitelinks.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {savedSitelinks.map((st, i) => (
+                              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800">
+                                {st.text}
+                                <button type="button" onClick={() => setSavedSitelinks(prev => prev.filter((_, idx) => idx !== i))}>
                                   <X className="h-3 w-3 hover:text-rose-400" />
                                 </button>
                               </span>
                             ))}
                           </div>
-                        )}
-                      </div>
-
-                      {/* Messaging restrictions */}
-                      <div className="space-y-3 max-w-md pt-2">
-                        <div className="flex justify-between items-center">
-                          <label className="block text-slate-700 font-semibold">Messaging restrictions</label>
-                          <span className="text-[10px] text-slate-500">{messagingRestrictions.length}/40</span>
-                        </div>
-                        {messagingRestrictions.map((restriction, idx) => (
-                          <div key={idx} className="space-y-1">
-                            <div className="relative">
-                              <textarea
-                                rows={2}
-                                maxLength={300}
-                                value={restriction}
-                                onChange={(e) => {
-                                  const updated = [...messagingRestrictions];
-                                  updated[idx] = e.target.value;
-                                  setMessagingRestrictions(updated);
-                                }}
-                                placeholder={
-                                  idx === 0
-                                    ? "Example: Don't mention competitor names, such as Acme Corp or Plants 4 You"
-                                    : idx === 1
-                                    ? "Example: Don't use specific prices, such as $550 per night or $99 intro offer"
-                                    : "Example: Don't use 'only' or 'just for' language, such as 'for high-performance athletes only'"
-                                }
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-primary"
-                              />
-                              {messagingRestrictions.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setMessagingRestrictions(prev => prev.filter((_, i) => i !== idx))}
-                                  className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                            </div>
-                            <span className="text-[10px] text-slate-500 block text-right font-mono">{restriction.length} / 300 (Text is {restriction.length} characters out of 300)</span>
-                          </div>
-                        ))}
-
-                        {messagingRestrictions.length < 40 && (
-                          <button
-                            type="button"
-                            onClick={() => setMessagingRestrictions(prev => [...prev, ""])}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            Add another restriction
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Assets Section */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Assets</h2>
-                <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-300 text-[11px]">
-                  Google AI isn't able to generate assets for your final url. You can still add assets yourself. Let's start adding ad assets
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <span className="font-semibold text-slate-700">Ad strength</span>
-                  <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">Incomplete</span>
-                </div>
-
-                {/* Asset Input Rows */}
-                <div className="space-y-4 pt-3 border-t border-slate-200">
-                  
-                  {/* 1) Calls Section at Top */}
-                  <div className="space-y-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-slate-700">Calls</h4>
-                        <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold text-[10px]">1 call (account)</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveModal("CALLS")}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add calls
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 font-mono text-slate-800 text-xs">
-                      <Phone className="h-3.5 w-3.5 text-primary" />
-                      <span>Account-level: 077099 36965</span>
-                    </div>
-                  </div>
-
-                  {/* 2) Headlines */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-700">Headlines ({headlines.length})</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const aiGens = Array.from({ length: headlines.length }, (_, i) => `AI Headline ${i + 1}: no-guidance Boost`);
-                            setHeadlines(aiGens);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Sparkles className="h-3 w-3" /> Generate headlines using AI
-                        </button>
-                        <button type="button" onClick={() => setHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add headline</button>
-                      </div>
-                    </div>
-                    {headlines.map((hl, i) => (
-                      <div key={i} className="space-y-1">
-                        <input type="text" value={hl} onChange={(e) => { const u = [...headlines]; u[i] = e.target.value; setHeadlines(u); }} maxLength={30} placeholder="Headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
-                        <div className="flex justify-between text-[10px] text-slate-500">
-                          <span>Text is {hl.length} characters out of 30</span>
-                          <span>{hl.length} / 30</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 3) Long Headlines */}
-                  <div className="space-y-2 pt-2 border-t border-slate-200">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-700">Long headlines ({longHeadlines.length})</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const aiGens = Array.from({ length: longHeadlines.length }, (_, i) => `AI Long Headline ${i + 1}: Comprehensive solutions to grow your audience and revenue.`);
-                            setLongHeadlines(aiGens);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Sparkles className="h-3 w-3" /> Generate long headlines using AI
-                        </button>
-                        <button type="button" onClick={() => setLongHeadlines(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add long headline</button>
-                      </div>
-                    </div>
-                    {longHeadlines.map((lh, i) => (
-                      <div key={i} className="space-y-1">
-                        <input type="text" value={lh} onChange={(e) => { const u = [...longHeadlines]; u[i] = e.target.value; setLongHeadlines(u); }} maxLength={90} placeholder="Long headline" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
-                        <div className="flex justify-between text-[10px] text-slate-500">
-                          <span>Text is {lh.length} characters out of 90</span>
-                          <span>{lh.length} / 90</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 4) Descriptions */}
-                  <div className="space-y-2 pt-2 border-t border-slate-200">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-700">Descriptions ({descriptions.length})</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const aiGens = Array.from({ length: descriptions.length }, (_, i) => `AI Description ${i + 1}: High converting copies tailored for your campaigns.`);
-                            setDescriptions(aiGens);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/30 text-[11px] font-semibold hover:bg-primary/20 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Sparkles className="h-3 w-3" /> Generate descriptions using AI
-                        </button>
-                        <button type="button" onClick={() => setDescriptions(prev => [...prev, ""])} className="text-primary font-semibold text-[11px] hover:underline">+ Add description</button>
-                      </div>
-                    </div>
-                    {descriptions.map((desc, i) => (
-                      <div key={i} className="space-y-1">
-                        <input type="text" value={desc} onChange={(e) => { const u = [...descriptions]; u[i] = e.target.value; setDescriptions(u); }} maxLength={90} placeholder="Description" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
-                        <div className="flex justify-between text-[10px] text-slate-500">
-                          <span>Text is {desc.length} characters out of 90</span>
-                          <span>{desc.length} / 90</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 5) Images, Videos, Animated Clips Uploads with Native System Input */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200">
-                    {/* Images */}
-                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
-                      <ImageIcon className="h-5 w-5 text-primary mx-auto" />
-                      <span className="font-semibold text-slate-800 block text-xs">Images ({uploadedImages.length})</span>
-                      <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
-                        + Add images
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={(e) => {
-                            if (e.target.files) {
-                              const filesArr = Array.from(e.target.files).map(f => f.name);
-                              setUploadedImages(prev => [...prev, ...filesArr]);
-                            }
-                          }}
-                          className="hidden"
-                        />
-                      </label>
-                      {uploadedImages.length > 0 && (
-                        <div className="flex flex-wrap gap-1 justify-center pt-1">
-                          {uploadedImages.map((img, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{img}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Videos */}
-                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
-                      <VideoIcon className="h-5 w-5 text-primary mx-auto" />
-                      <span className="font-semibold text-slate-800 block text-xs">Videos ({uploadedVideos.length})</span>
-                      <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
-                        + Add videos
-                        <input
-                          type="file"
-                          accept="video/*"
-                          multiple
-                          onChange={(e) => {
-                            if (e.target.files) {
-                              const filesArr = Array.from(e.target.files).map(f => f.name);
-                              setUploadedVideos(prev => [...prev, ...filesArr]);
-                            }
-                          }}
-                          className="hidden"
-                        />
-                      </label>
-                      {uploadedVideos.length > 0 && (
-                        <div className="flex flex-wrap gap-1 justify-center pt-1">
-                          {uploadedVideos.map((vid, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{vid}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Animated clips */}
-                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-center">
-                      <Upload className="h-5 w-5 text-primary mx-auto" />
-                      <span className="font-semibold text-slate-800 block text-xs">Animated clips ({uploadedClips.length})</span>
-                      <label className="block w-full py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-semibold hover:bg-primary/20 text-xs cursor-pointer">
-                        + Add animated clips
-                        <input
-                          type="file"
-                          accept=".gif,video/*,image/*"
-                          multiple
-                          onChange={(e) => {
-                            if (e.target.files) {
-                              const filesArr = Array.from(e.target.files).map(f => f.name);
-                              setUploadedClips(prev => [...prev, ...filesArr]);
-                            }
-                          }}
-                          className="hidden"
-                        />
-                      </label>
-                      {uploadedClips.length > 0 && (
-                        <div className="flex flex-wrap gap-1 justify-center pt-1">
-                          {uploadedClips.map((clip, idx) => (
-                            <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700 truncate max-w-[100px]">{clip}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Business Name */}
-                  <div className="space-y-1 pt-2 border-t border-slate-200">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-700">Business name</span>
-                      <span className="text-[10px] text-slate-500">Required</span>
-                    </div>
-                    <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} maxLength={25} placeholder="Business name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs" />
-                    <div className="flex justify-between text-[10px] text-slate-500">
-                      <span>Text is {businessName.length} characters out of 25</span>
-                      <span>{businessName.length} / 25</span>
-                    </div>
-                  </div>
-
-                  {/* 9) Call-to-action Dropdown */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200">
-                    <label className="block text-slate-700 font-semibold">Call-to-action</label>
-                    <select
-                      value={ctaOption}
-                      onChange={(e) => setCtaOption(e.target.value)}
-                      className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-primary"
-                    >
-                      <option value="Automated (recommended)">Automated (recommended)</option>
-                      <option value="Learn more">Learn more</option>
-                      <option value="Get quote">Get quote</option>
-                      <option value="Apply now">Apply now</option>
-                      <option value="Sign up">Sign up</option>
-                      <option value="Contact us">Contact us</option>
-                      <option value="Subscribe">Subscribe</option>
-                      <option value="Download">Download</option>
-                      <option value="Book now">Book now</option>
-                      <option value="Shop now">Shop now</option>
-                    </select>
-                  </div>
-
-                  {/* 6) Sitelinks with Display of Saved Sitelinks */}
-                  <div className="space-y-3 pt-3 border-t border-slate-200">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-slate-700">Sitelinks ({savedSitelinks.length})</h4>
-                      <button
-                        type="button"
-                        onClick={() => setActiveModal("SITELINKS")}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 border border-primary/30 text-primary font-bold text-xs hover:bg-primary/20 cursor-pointer transition-all"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Create sitelink
-                      </button>
-                    </div>
-
-                    {savedSitelinks.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {savedSitelinks.map((st, i) => (
-                          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800">
-                            {st.text}
-                            <button type="button" onClick={() => setSavedSitelinks(prev => prev.filter((_, idx) => idx !== i))}>
-                              <X className="h-3 w-3 hover:text-rose-400" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {["Sitelink 1", "Sitelink 2", "Sitelink 3", "Sitelink 4"].map((s, i) => (
-                          <button key={i} type="button" onClick={() => setActiveModal("SITELINKS")} className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-500 hover:text-slate-900 cursor-pointer">{s} (Recommended)</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 7 & 8) More asset types with Live Display of Saved Assets */}
-                  <div className="space-y-3 pt-3 border-t border-slate-200">
-                    <h4 className="font-semibold text-slate-700">More asset types</h4>
-                    <p className="text-[11px] text-slate-500">Improve your ad performance and make your ad more interactive by adding more details about your business and website</p>
-
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <button type="button" onClick={() => setActiveModal("PROMOTIONS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
-                        + Promotions {savedPromotions.length > 0 && `(${savedPromotions.length})`}
-                      </button>
-                      <button type="button" onClick={() => setActiveModal("PRICES")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
-                        + Prices {savedPrices.length > 0 && `(${savedPrices.length})`}
-                      </button>
-                      <button type="button" onClick={() => setActiveModal("APPS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
-                        + Messages {savedMessages.length > 0 && `(${savedMessages.length})`}
-                      </button>
-                      <button type="button" onClick={() => setActiveModal("SNIPPETS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
-                        + Structured snippets {savedSnippets.length > 0 && `(${savedSnippets.length})`}
-                      </button>
-                      <button type="button" onClick={() => setActiveModal("LEAD_FORMS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
-                        + Lead forms {savedLeadForms.length > 0 && `(${savedLeadForms.length})`}
-                      </button>
-                      <button type="button" onClick={() => setActiveModal("BRAND_GUIDELINES")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
-                        + Callouts {savedCallouts.length > 0 && `(${savedCallouts.length})`}
-                      </button>
-                    </div>
-
-                    {/* Display active saved extensions */}
-                    {(savedPromotions.length > 0 || savedPrices.length > 0 || savedSnippets.length > 0 || savedCallouts.length > 0) && (
-                      <div className="pt-2 space-y-2">
-                        <span className="text-[11px] text-slate-500 font-semibold block">Added Extensions:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {savedPromotions.map((p, i) => (
-                            <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Promo: {p.item || "Discount"}</span>
-                          ))}
-                          {savedPrices.map((pr, i) => (
-                            <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Price: {pr.price}</span>
-                          ))}
-                          {savedCallouts.map((co, i) => (
-                            <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Callout: {co}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* More Options Card */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">More options</h2>
-                  <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-semibold">Optional</span>
-                </div>
-                
-                {/* Display path */}
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-slate-800 text-xs">Display path</h3>
-                  <p className="text-[11px] text-slate-500">Add paths to your display URL to show people where your ad will take them.</p>
-                  <div className="flex items-center gap-2 max-w-md">
-                    <span className="text-xs text-slate-500">example.com/</span>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      placeholder="Path 1"
-                      value={displayPath1}
-                      onChange={(e) => setDisplayPath1(e.target.value)}
-                      className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                    />
-                    <span className="text-xs text-slate-500">/</span>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      placeholder="Path 2"
-                      value={displayPath2}
-                      onChange={(e) => setDisplayPath2(e.target.value)}
-                      className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                    />
-                  </div>
-                </div>
-
-                {/* Final URL for mobile */}
-                <div className="space-y-2 border-t border-slate-200 pt-3">
-                  <h3 className="font-semibold text-slate-800 text-xs">Final URL for mobile</h3>
-                  <div className="space-y-2">
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useDiffMobileUrl}
-                        onChange={(e) => setUseDiffMobileUrl(e.target.checked)}
-                        className="mt-0.5 rounded text-primary h-4 w-4"
-                      />
-                      <span className="text-xs text-slate-700 font-medium">Use a different final URL for mobile</span>
-                    </label>
-                    {useDiffMobileUrl && (
-                      <input
-                        type="url"
-                        placeholder="https://mobile.example.com"
-                        value={mobileFinalUrl}
-                        onChange={(e) => setMobileFinalUrl(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 max-w-md"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Asset group URL options */}
-                <div className="space-y-3 border-t border-slate-200 pt-3">
-                  <h3 className="font-semibold text-slate-800 text-xs">Asset group URL options</h3>
-                  
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-slate-500 block font-medium">Tracking template</label>
-                    <input
-                      type="text"
-                      placeholder="https://tracking.example.com?url={lpurl}"
-                      value={assetGroupTrackingTemplate}
-                      onChange={(e) => setAssetGroupTrackingTemplate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 max-w-md"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-slate-500 block font-medium">Final URL suffix</label>
-                    <input
-                      type="text"
-                      placeholder="utm_source=google&utm_medium=cpc"
-                      value={assetGroupFinalUrlSuffix}
-                      onChange={(e) => setAssetGroupFinalUrlSuffix(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 max-w-md"
-                    />
-                  </div>
-
-                  <div className="space-y-2 pt-1">
-                    <label className="text-[11px] text-slate-500 block font-medium font-semibold">Custom parameters</label>
-                    <div className="space-y-2 max-w-md">
-                      {assetGroupCustomParameters.map((param) => (
-                        <div key={param.id} className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500 font-mono">_</span>
-                          <input
-                            type="text"
-                            placeholder="name"
-                            value={param.name}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setAssetGroupCustomParameters(prev => prev.map(p => p.id === param.id ? { ...p, name: val } : p));
-                            }}
-                            className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                          />
-                          <input
-                            type="text"
-                            placeholder="value"
-                            value={param.value}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setAssetGroupCustomParameters(prev => prev.map(p => p.id === param.id ? { ...p, value: val } : p));
-                            }}
-                            className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                          />
-                          {assetGroupCustomParameters.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setAssetGroupCustomParameters(prev => prev.filter(p => p.id !== param.id))}
-                              className="text-slate-500 hover:text-red-400 p-1 cursor-pointer animate-in fade-in"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setAssetGroupCustomParameters(prev => [...prev, { id: `agcp-${Date.now()}-${Math.random()}`, name: "", value: "" }])}
-                        className="inline-flex items-center gap-1 text-primary text-xs font-semibold hover:underline cursor-pointer"
-                      >
-                        + Add custom parameter
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* URL Rules */}
-                <div className="space-y-3 border-t border-slate-200 pt-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-slate-800 text-xs">URL rules</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowUrlRules(!showUrlRules)}
-                      className="px-3 py-1 bg-slate-100 hover:bg-slate-700 text-slate-700 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer"
-                    >
-                      {showUrlRules ? "Hide URL rules" : "Add URL rules"}
-                    </button>
-                  </div>
-
-                  {showUrlRules && (
-                    <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-200 space-y-3 animate-in slide-in-from-top-2 duration-150">
-                      <p className="text-[11px] text-slate-500">
-                        Use URL rules to show your ads based on specific pages or groups of pages on your website. Turning final URL expansion on is the best way to drive performance for your campaign, so only use URL rules when necessary.{" "}
-                        <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>Learn more about URL rules</a>
-                      </p>
-                      
-                      <div className="space-y-2 pt-1">
-                        <span className="font-semibold text-slate-700 block text-xs">Create URL rules</span>
-                        <p className="text-[11px] text-slate-500 font-medium">Specify pages with URLs that contain a certain piece of text</p>
-                        
-                        <div className="flex gap-2 max-w-md">
-                          <input
-                            type="text"
-                            placeholder="URL contains"
-                            value={newUrlRuleInput}
-                            onChange={(e) => setNewUrlRuleInput(e.target.value)}
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (newUrlRuleInput.trim()) {
-                                setUrlRulesList(prev => [...prev, newUrlRuleInput.trim()]);
-                                setNewUrlRuleInput("");
-                              }
-                            }}
-                            className="px-4 py-2 bg-slate-100 text-slate-900 rounded-xl font-semibold hover:bg-slate-700 cursor-pointer"
-                          >
-                            Add URL rule
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Rule List */}
-                      <div className="space-y-1.5 pt-2">
-                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">URL rules:</span>
-                        {urlRulesList.length === 0 ? (
-                          <div className="text-[11px] text-slate-500 italic py-2">
-                            None selected. URL rules you create will appear here.
-                          </div>
                         ) : (
                           <div className="flex flex-wrap gap-2">
-                            {urlRulesList.map((rule, idx) => (
-                              <span key={idx} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800">
-                                URL contains: <strong className="text-slate-900">{rule}</strong>
-                                <button
-                                  type="button"
-                                  onClick={() => setUrlRulesList(prev => prev.filter((_, i) => i !== idx))}
-                                  className="text-slate-500 hover:text-red-400 ml-1"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </span>
+                            {["Sitelink 1", "Sitelink 2", "Sitelink 3", "Sitelink 4"].map((s, i) => (
+                              <button key={i} type="button" onClick={() => setActiveModal("SITELINKS")} className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-500 hover:text-slate-900 cursor-pointer">{s} (Recommended)</button>
                             ))}
                           </div>
                         )}
                       </div>
 
-                      <div className="pt-2 border-t border-slate-200 space-y-1">
-                        <span className="font-semibold text-slate-700 block text-xs">Add custom labels</span>
-                        <p className="text-[11px] text-slate-500">Specify subsets of your page feeds. To add custom labels, add a page feed in campaign settings.</p>
+                      {/* 7 & 8) More asset types with Live Display of Saved Assets */}
+                      <div className="space-y-3 pt-3 border-t border-slate-200">
+                        <h4 className="font-semibold text-slate-700">More asset types</h4>
+                        <p className="text-[11px] text-slate-500">Improve your ad performance and make your ad more interactive by adding more details about your business and website</p>
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button type="button" onClick={() => setActiveModal("PROMOTIONS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
+                            + Promotions {savedPromotions.length > 0 && `(${savedPromotions.length})`}
+                          </button>
+                          <button type="button" onClick={() => setActiveModal("PRICES")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
+                            + Prices {savedPrices.length > 0 && `(${savedPrices.length})`}
+                          </button>
+                          <button type="button" onClick={() => setActiveModal("APPS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
+                            + Messages {savedMessages.length > 0 && `(${savedMessages.length})`}
+                          </button>
+                          <button type="button" onClick={() => setActiveModal("SNIPPETS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
+                            + Structured snippets {savedSnippets.length > 0 && `(${savedSnippets.length})`}
+                          </button>
+                          <button type="button" onClick={() => setActiveModal("LEAD_FORMS")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
+                            + Lead forms {savedLeadForms.length > 0 && `(${savedLeadForms.length})`}
+                          </button>
+                          <button type="button" onClick={() => setActiveModal("BRAND_GUIDELINES")} className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-semibold hover:border-primary cursor-pointer">
+                            + Callouts {savedCallouts.length > 0 && `(${savedCallouts.length})`}
+                          </button>
+                        </div>
+
+                        {/* Display active saved extensions */}
+                        {(savedPromotions.length > 0 || savedPrices.length > 0 || savedSnippets.length > 0 || savedCallouts.length > 0) && (
+                          <div className="pt-2 space-y-2">
+                            <span className="text-[11px] text-slate-500 font-semibold block">Added Extensions:</span>
+                            <div className="flex flex-wrap gap-2">
+                              {savedPromotions.map((p, i) => (
+                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Promo: {p.item || "Discount"}</span>
+                              ))}
+                              {savedPrices.map((pr, i) => (
+                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Price: {pr.price}</span>
+                              ))}
+                              {savedCallouts.map((co, i) => (
+                                <span key={i} className="px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary text-xs rounded-lg font-semibold">Callout: {co}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-
-              {/* Asset optimization Card */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm text-xs">
-                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Asset optimization</h2>
-                <p className="text-slate-500 text-[11px] leading-relaxed">
-                  To show more relevant ads, Google AI can enhance or generate assets using the information you’ve provided. This can help improve performance by increasing asset variety and improving matches to customer intents.{" "}
-                  <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about asset optimization</a>
-                </p>
-
-                {/* Text section */}
-                <div className="space-y-3 pt-2">
-                  <h3 className="font-bold text-slate-900 border-b border-slate-200/40 pb-1 uppercase tracking-wider text-[10px] text-slate-500">Text</h3>
-                  
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={enableTextCustomization}
-                      onChange={(e) => setEnableTextCustomization(e.target.checked)}
-                      className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
-                    />
-                    <div>
-                      <span className="font-semibold text-slate-800 block">Customization</span>
-                      <span className="text-[11px] text-slate-500 block mt-0.5">
-                        Use text from your site, landing pages, ads, and provided assets to create customized ad copy.{" "}
-                        <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
-                      </span>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsAssetsSectionOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Assets</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {headlines.filter(h => h.trim()).length} headlines &bull; {descriptions.filter(d => d.trim()).length} descriptions &bull; {uploadedImages.length} images &bull; {uploadedVideos.length} videos
                     </div>
                   </div>
-                  
-                  <div className="flex items-start gap-3 border-t border-slate-200 pt-2.5 ml-6">
-                    <input
-                      type="checkbox"
-                      checked={enableFinalUrlExpansion}
-                      onChange={(e) => setEnableFinalUrlExpansion(e.target.checked)}
-                      className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
-                      disabled={!enableTextCustomization}
-                    />
-                    <div>
-                      <span className={`font-semibold block ${enableTextCustomization ? "text-slate-800" : "text-slate-500"}`}>Final URL expansion</span>
-                      <span className="text-[11px] text-slate-500 block mt-0.5">
-                        Send traffic to the most relevant URLs on your site when it's likely to result in better performance.{" "}
-                        <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
-                      </span>
-                      {!enableTextCustomization && (
-                        <span className="text-[10px] text-amber-500/80 block mt-1">
-                          Requires text customization to be turned on to ensure ad copy matches landing page.
-                        </span>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
+
+              {/* More Options Card */}
+              {isMoreOptionsCardOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-slate-900">More options</h2>
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-semibold">Optional</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsMoreOptionsCardOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 pt-1">
+                    {/* Display path */}
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-slate-800 text-xs">Display path</h3>
+                      <p className="text-[11px] text-slate-500">Add paths to your display URL to show people where your ad will take them.</p>
+                      <div className="flex items-center gap-2 max-w-md">
+                        <span className="text-xs text-slate-500 font-mono">example.com/</span>
+                        <input
+                          type="text"
+                          maxLength={15}
+                          placeholder="Path 1"
+                          value={displayPath1}
+                          onChange={(e) => setDisplayPath1(e.target.value)}
+                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                        <span className="text-xs text-slate-500">/</span>
+                        <input
+                          type="text"
+                          maxLength={15}
+                          placeholder="Path 2"
+                          value={displayPath2}
+                          onChange={(e) => setDisplayPath2(e.target.value)}
+                          className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Final URL for mobile */}
+                    <div className="space-y-2 border-t border-slate-200 pt-3">
+                      <h3 className="font-semibold text-slate-800 text-xs">Final URL for mobile</h3>
+                      <div className="space-y-2">
+                        <label className="flex items-start gap-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={useDiffMobileUrl}
+                            onChange={(e) => setUseDiffMobileUrl(e.target.checked)}
+                            className="mt-0.5 rounded text-primary h-4 w-4"
+                          />
+                          <span className="text-xs text-slate-700 font-medium">Use a different final URL for mobile</span>
+                        </label>
+                        {useDiffMobileUrl && (
+                          <input
+                            type="url"
+                            placeholder="https://mobile.example.com"
+                            value={mobileFinalUrl}
+                            onChange={(e) => setMobileFinalUrl(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 max-w-md focus:outline-none focus:border-primary"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Asset group URL options */}
+                    <div className="space-y-3 border-t border-slate-200 pt-3">
+                      <h3 className="font-semibold text-slate-800 text-xs">Asset group URL options</h3>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] text-slate-500 block font-medium">Tracking template</label>
+                        <input
+                          type="text"
+                          placeholder="https://tracking.example.com?url={lpurl}"
+                          value={assetGroupTrackingTemplate}
+                          onChange={(e) => setAssetGroupTrackingTemplate(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 max-w-md focus:outline-none focus:border-primary"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] text-slate-500 block font-medium">Final URL suffix</label>
+                        <input
+                          type="text"
+                          placeholder="utm_source=google&utm_medium=cpc"
+                          value={assetGroupFinalUrlSuffix}
+                          onChange={(e) => setAssetGroupFinalUrlSuffix(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 max-w-md focus:outline-none focus:border-primary"
+                        />
+                      </div>
+
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[11px] text-slate-500 block font-medium font-semibold">Custom parameters</label>
+                        <div className="space-y-2 max-w-md">
+                          {assetGroupCustomParameters.map((param) => (
+                            <div key={param.id} className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500 font-mono">_</span>
+                              <input
+                                type="text"
+                                placeholder="name"
+                                value={param.name}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setAssetGroupCustomParameters(prev => prev.map(p => p.id === param.id ? { ...p, name: val } : p));
+                                }}
+                                className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                              />
+                              <input
+                                type="text"
+                                placeholder="value"
+                                value={param.value}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setAssetGroupCustomParameters(prev => prev.map(p => p.id === param.id ? { ...p, value: val } : p));
+                                }}
+                                className="w-1/2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                              />
+                              {assetGroupCustomParameters.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setAssetGroupCustomParameters(prev => prev.filter(p => p.id !== param.id))}
+                                  className="text-slate-500 hover:text-red-400 p-1 cursor-pointer animate-in fade-in"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setAssetGroupCustomParameters(prev => [...prev, { id: `agcp-${Date.now()}-${Math.random()}`, name: "", value: "" }])}
+                            className="inline-flex items-center gap-1 text-primary text-xs font-semibold hover:underline cursor-pointer"
+                          >
+                            + Add custom parameter
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* URL Rules */}
+                    <div className="space-y-3 border-t border-slate-200 pt-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-800 text-xs">URL rules</h3>
+                        <button
+                          type="button"
+                          onClick={() => setShowUrlRules(!showUrlRules)}
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-700 text-slate-700 rounded-xl border border-slate-200 text-xs font-semibold cursor-pointer"
+                        >
+                          {showUrlRules ? "Hide URL rules" : "Add URL rules"}
+                        </button>
+                      </div>
+
+                      {showUrlRules && (
+                        <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-200 space-y-3 animate-in slide-in-from-top-2 duration-150">
+                          <p className="text-[11px] text-slate-500">
+                            Use URL rules to show your ads based on specific pages or groups of pages on your website. Turning final URL expansion on is the best way to drive performance for your campaign, so only use URL rules when necessary.{" "}
+                            <a href="#" className="text-primary hover:underline" onClick={(e) => e.preventDefault()}>Learn more about URL rules</a>
+                          </p>
+
+                          <div className="space-y-2 pt-1">
+                            <span className="font-semibold text-slate-700 block text-xs">Create URL rules</span>
+                            <p className="text-[11px] text-slate-500 font-medium">Specify pages with URLs that contain a certain piece of text</p>
+
+                            <div className="flex gap-2 max-w-md">
+                              <input
+                                type="text"
+                                placeholder="URL contains"
+                                value={newUrlRuleInput}
+                                onChange={(e) => setNewUrlRuleInput(e.target.value)}
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (newUrlRuleInput.trim()) {
+                                    setUrlRulesList(prev => [...prev, newUrlRuleInput.trim()]);
+                                    setNewUrlRuleInput("");
+                                  }
+                                }}
+                                className="px-4 py-2 bg-slate-100 text-slate-900 rounded-xl font-semibold hover:bg-slate-700 cursor-pointer"
+                              >
+                                Add URL rule
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Rule List */}
+                          <div className="space-y-1.5 pt-2">
+                            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">URL rules:</span>
+                            {urlRulesList.length === 0 ? (
+                              <div className="text-[11px] text-slate-500 italic py-2">
+                                None selected. URL rules you create will appear here.
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {urlRulesList.map((rule, idx) => (
+                                  <span key={idx} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800">
+                                    URL contains: <strong className="text-slate-900">{rule}</strong>
+                                    <button
+                                      type="button"
+                                      onClick={() => setUrlRulesList(prev => prev.filter((_, i) => i !== idx))}
+                                      className="text-slate-500 hover:text-red-400 ml-1"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-200 space-y-1">
+                            <span className="font-semibold text-slate-700 block text-xs">Add custom labels</span>
+                            <p className="text-[11px] text-slate-500">Specify subsets of your page feeds. To add custom labels, add a page feed in campaign settings.</p>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
-
-                {/* Image section */}
-                <div className="space-y-3 border-t border-slate-200 pt-3">
-                  <h3 className="font-bold text-slate-900 border-b border-slate-200/40 pb-1 uppercase tracking-wider text-[10px] text-slate-500">Image</h3>
-                  
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={enableImageEnhancement}
-                      onChange={(e) => setEnableImageEnhancement(e.target.checked)}
-                      className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
-                    />
-                    <div>
-                      <span className="font-semibold text-slate-800 block">Enhancement</span>
-                      <span className="text-[11px] text-slate-500 block mt-0.5">
-                        Enhance and adjust images for better appearance, formatting, and layout.{" "}
-                        <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
-                      </span>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsMoreOptionsCardOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">More options</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {displayPath1 || displayPath2 ? `Display path: /${displayPath1}/${displayPath2}` : "Standard display paths"} &bull; {assetGroupTrackingTemplate ? "Custom tracking" : "Default URL options"}
                     </div>
                   </div>
-
-                  <div className="flex items-start gap-3 border-t border-slate-200 pt-2.5">
-                    <input
-                      type="checkbox"
-                      checked={enableLandingPageImages}
-                      onChange={(e) => setEnableLandingPageImages(e.target.checked)}
-                      className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
-                    />
-                    <div>
-                      <span className="font-semibold text-slate-800 block">Landing page images</span>
-                      <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
-                        Get images from your landing page to use in your ads. By turning on landing page images, you confirm that you own all legal rights to the images and have permission to share them with Google for use on your behalf for advertising or other commercial purposes.{" "}
-                        <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Image Enhancement Visual Example */}
-                  <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
-                    <span className="font-semibold text-slate-700 block text-xs">Example of landing page images</span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
-                        <span className="text-[10px] font-bold text-slate-500 block uppercase mb-2">Original</span>
-                        <div className="h-24 bg-slate-50 rounded flex items-center justify-center border border-slate-200 text-[10px] text-slate-500 px-3">
-                          Original image in the example of image extraction
-                        </div>
-                      </div>
-                      <div className="bg-white border border-slate-200 rounded-lg p-3 text-center relative overflow-hidden">
-                        <span className="text-[10px] font-bold text-primary block uppercase mb-2">Optimized</span>
-                        <div className="h-24 bg-gradient-to-br from-primary/10 to-slate-950 rounded flex items-center justify-center border border-primary/20 text-[10px] text-primary px-3 font-semibold">
-                          Optimized image in the example of image extraction
-                        </div>
-                        <div className="absolute top-2 right-2 bg-primary/20 text-primary text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">AI Enhanced</div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
                   </div>
                 </div>
+              )}
 
-                {/* Video section */}
-                <div className="space-y-3 border-t border-slate-200 pt-3">
-                  <h3 className="font-bold text-slate-900 border-b border-slate-200/40 pb-1 uppercase tracking-wider text-[10px] text-slate-500">Video</h3>
-                  
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={enableVideoEnhancement}
-                      onChange={(e) => setEnableVideoEnhancement(e.target.checked)}
-                      className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
-                    />
-                    <div>
-                      <span className="font-semibold text-slate-800 block">Enhancement</span>
-                      <span className="text-[11px] text-slate-500 block mt-0.5">
-                        Allow Google AI to enhance your uploaded videos by creating additional versions in different aspect ratios, shorter versions, and adding a voice-over if missing.{" "}
-                        <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
-                      </span>
-                    </div>
+              {/* Asset optimization Card */}
+              {isAssetOptimizationCardOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150 text-xs">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h2 className="text-sm font-semibold text-slate-900">Asset optimization</h2>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsAssetOptimizationCardOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
                   </div>
 
-                  {/* Video Enhancement Examples */}
-                  <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
-                    <span className="font-semibold text-slate-700 block text-xs">Examples of video enhancement</span>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      From horizontal to vertical square: Intelligent technology ensures that key elements in the original video are shown properly in the new video.
+                  <div className="space-y-4 pt-1">
+                    <p className="text-slate-500 text-[11px] leading-relaxed">
+                      To show more relevant ads, Google AI can enhance or generate assets using the information you’ve provided. This can help improve performance by increasing asset variety and improving matches to customer intents.{" "}
+                      <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about asset optimization</a>
                     </p>
-                    <div className="h-32 bg-white border border-slate-200 rounded-lg flex flex-col items-center justify-center p-3 text-center space-y-2">
-                      <Zap className="h-6 w-6 text-primary animate-pulse" />
-                      <span className="text-[10px] text-slate-500 font-medium">Animated gif to show examples of vertical video enhancement</span>
+
+                    {/* Text section */}
+                    <div className="space-y-3 pt-2">
+                      <h3 className="font-bold text-slate-900 border-b border-slate-200/40 pb-1 uppercase tracking-wider text-[10px] text-slate-500">Text</h3>
+
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={enableTextCustomization}
+                          onChange={(e) => setEnableTextCustomization(e.target.checked)}
+                          className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-800 block">Customization</span>
+                          <span className="text-[11px] text-slate-500 block mt-0.5">
+                            Use text from your site, landing pages, ads, and provided assets to create customized ad copy.{" "}
+                            <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 border-t border-slate-200 pt-2.5 ml-6">
+                        <input
+                          type="checkbox"
+                          checked={enableFinalUrlExpansion}
+                          onChange={(e) => setEnableFinalUrlExpansion(e.target.checked)}
+                          className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
+                          disabled={!enableTextCustomization}
+                        />
+                        <div>
+                          <span className={`font-semibold block ${enableTextCustomization ? "text-slate-800" : "text-slate-500"}`}>Final URL expansion</span>
+                          <span className="text-[11px] text-slate-500 block mt-0.5">
+                            Send traffic to the most relevant URLs on your site when it's likely to result in better performance.{" "}
+                            <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
+                          </span>
+                          {!enableTextCustomization && (
+                            <span className="text-[10px] text-amber-500/80 block mt-1">
+                              Requires text customization to be turned on to ensure ad copy matches landing page.
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Image section */}
+                    <div className="space-y-3 border-t border-slate-200 pt-3">
+                      <h3 className="font-bold text-slate-900 border-b border-slate-200/40 pb-1 uppercase tracking-wider text-[10px] text-slate-500">Image</h3>
+
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={enableImageEnhancement}
+                          onChange={(e) => setEnableImageEnhancement(e.target.checked)}
+                          className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-800 block">Enhancement</span>
+                          <span className="text-[11px] text-slate-500 block mt-0.5">
+                            Enhance and adjust images for better appearance, formatting, and layout.{" "}
+                            <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 border-t border-slate-200 pt-2.5">
+                        <input
+                          type="checkbox"
+                          checked={enableLandingPageImages}
+                          onChange={(e) => setEnableLandingPageImages(e.target.checked)}
+                          className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-800 block">Landing page images</span>
+                          <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
+                            Get images from your landing page to use in your ads. By turning on landing page images, you confirm that you own all legal rights to the images and have permission to share them with Google for use on your behalf for advertising or other commercial purposes.{" "}
+                            <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Image Enhancement Visual Example */}
+                      <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <span className="font-semibold text-slate-700 block text-xs">Example of landing page images</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
+                            <span className="text-[10px] font-bold text-slate-500 block uppercase mb-2">Original</span>
+                            <div className="h-24 bg-slate-50 rounded flex items-center justify-center border border-slate-200 text-[10px] text-slate-500 px-3">
+                              Original image in the example of image extraction
+                            </div>
+                          </div>
+                          <div className="bg-white border border-slate-200 rounded-lg p-3 text-center relative overflow-hidden">
+                            <span className="text-[10px] font-bold text-primary block uppercase mb-2">Optimized</span>
+                            <div className="h-24 bg-gradient-to-br from-primary/10 to-slate-950 rounded flex items-center justify-center border border-primary/20 text-[10px] text-primary px-3 font-semibold">
+                              Optimized image in the example of image extraction
+                            </div>
+                            <div className="absolute top-2 right-2 bg-primary/20 text-primary text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">AI Enhanced</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Video section */}
+                    <div className="space-y-3 border-t border-slate-200 pt-3">
+                      <h3 className="font-bold text-slate-900 border-b border-slate-200/40 pb-1 uppercase tracking-wider text-[10px] text-slate-500">Video</h3>
+
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={enableVideoEnhancement}
+                          onChange={(e) => setEnableVideoEnhancement(e.target.checked)}
+                          className="mt-0.5 rounded text-primary h-4 w-4 cursor-pointer"
+                        />
+                        <div>
+                          <span className="font-semibold text-slate-800 block">Enhancement</span>
+                          <span className="text-[11px] text-slate-500 block mt-0.5">
+                            Allow Google AI to enhance your uploaded videos by creating additional versions in different aspect ratios, shorter versions, and adding a voice-over if missing.{" "}
+                            <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more</a>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Video Enhancement Examples */}
+                      <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <span className="font-semibold text-slate-700 block text-xs">Examples of video enhancement</span>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          From horizontal to vertical square: Intelligent technology ensures that key elements in the original video are shown properly in the new video.
+                        </p>
+                        <div className="h-32 bg-white border border-slate-200 rounded-lg flex flex-col items-center justify-center p-3 text-center space-y-2">
+                          <Zap className="h-6 w-6 text-primary animate-pulse" />
+                          <span className="text-[10px] text-slate-500 font-medium">Animated gif to show examples of vertical video enhancement</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* EU Labeling Footer */}
+                    <p className="text-[10px] text-slate-500 border-t border-slate-200 pt-3 leading-relaxed">
+                      Ads using image or video assets optimized by these features will be labeled as created or edited with AI when shown in the European Union (EU), India, and New York state, in the US. Text assets on matters of public interest will also be labeled when shown in the EU.{" "}
+                      <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about AI labeling requirements</a>
+                    </p>
                   </div>
                 </div>
-
-                {/* EU Labeling Footer */}
-                <p className="text-[10px] text-slate-500 border-t border-slate-200 pt-3 leading-relaxed">
-                  Ads using image or video assets optimized by these features will be labeled as created or edited with AI when shown in the European Union (EU), India, and New York state, in the US. Text assets on matters of public interest will also be labeled when shown in the EU.{" "}
-                  <a href="#" className="text-primary hover:underline font-medium" onClick={(e) => e.preventDefault()}>Learn more about AI labeling requirements</a>
-                </p>
-              </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsAssetOptimizationCardOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Asset optimization</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      Text customization: {enableTextCustomization ? "On" : "Off"} &bull; Images: {enableImageEnhancement ? "Enhance" : "Standard"} &bull; Videos: {enableVideoEnhancement ? "Enhance" : "Standard"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
 
               {/* Signals Card */}
-              <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm">
-                <h2 className="text-sm font-semibold text-slate-900 border-b border-slate-200 pb-2">Signals</h2>
-                <p className="text-slate-500 text-xs">Signals provide valuable information about the people you want to reach.</p>
-                
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-slate-700">Search themes</h3>
-                    <input type="text" placeholder="Add search themes (up to 50)" className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900" />
+              {isSignalsOpen ? (
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white space-y-4 shadow-sm animate-in fade-in duration-150">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h2 className="text-sm font-semibold text-slate-900">Signals</h2>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsSignalsOpen(false)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-primary font-bold rounded-lg text-xs cursor-pointer transition-all"
+                    >
+                      Save
+                    </button>
                   </div>
 
-                  <div className="space-y-3 pt-3 border-t border-slate-200">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-700">Audience signal</h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAudienceNameInput("");
-                          setDemoGenders(["Female", "Male", "Unknown"]);
-                          setDemoAges(["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"]);
-                          setDemoParental(["Parent", "Not a parent", "Unknown"]);
-                          setDemoIncome(["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"]);
-                          setSelectedDataSegments([]);
-                          setActiveModal("AUDIENCE_SIGNAL");
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-700 text-xs text-slate-800 font-semibold border border-slate-300 cursor-pointer"
-                      >
-                        {savedAudienceSignal ? "Edit audience signal" : "+ Add audience signal"}
-                      </button>
-                    </div>
+                  <div className="space-y-4 pt-1">
+                    <p className="text-slate-500 text-xs">Signals provide valuable information about the people you want to reach.</p>
 
-                    {savedAudienceSignal ? (
-                      <div className="p-4 bg-slate-50/40 rounded-xl border border-slate-200 space-y-2">
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-slate-700">Search themes</h3>
+                        <input type="text" placeholder="Add search themes (up to 50)" className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900" />
+                      </div>
+
+                      <div className="space-y-3 pt-3 border-t border-slate-200">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900 text-xs">{savedAudienceSignal.name}</span>
+                          <h3 className="font-semibold text-slate-700">Audience signal</h3>
                           <button
                             type="button"
-                            onClick={() => setSavedAudienceSignal(null)}
-                            className="text-slate-500 hover:text-red-400 text-[11px] font-semibold"
+                            onClick={() => {
+                              setAudienceNameInput("");
+                              setDemoGenders(["Female", "Male", "Unknown"]);
+                              setDemoAges(["18-24", "25-34", "35-44", "45-54", "55-64", "65+", "Unknown"]);
+                              setDemoParental(["Parent", "Not a parent", "Unknown"]);
+                              setDemoIncome(["Top 10%", "11-20%", "21-30%", "31-40%", "41-50%", "Lower 50%", "Unknown"]);
+                              setSelectedDataSegments([]);
+                              setActiveModal("AUDIENCE_SIGNAL");
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-700 text-xs text-slate-800 font-semibold border border-slate-300 cursor-pointer"
                           >
-                            Remove
+                            {savedAudienceSignal ? "Edit audience signal" : "+ Add audience signal"}
                           </button>
                         </div>
-                        <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
-                          {savedAudienceSignal.hasYourData && <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] text-primary">Your Data</span>}
-                          {savedAudienceSignal.hasInterests && <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] text-slate-700">Interests & Demographics</span>}
-                          <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] text-slate-500">Demographics: {savedAudienceSignal.demographicsCount} targeted</span>
-                        </div>
+
+                        {savedAudienceSignal ? (
+                          <div className="p-4 bg-slate-50/40 rounded-xl border border-slate-200 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900 text-xs">{savedAudienceSignal.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setSavedAudienceSignal(null)}
+                                className="text-slate-500 hover:text-red-400 text-[11px] font-semibold"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
+                              {savedAudienceSignal.hasYourData && <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] text-primary">Your Data</span>}
+                              {savedAudienceSignal.hasInterests && <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] text-slate-700">Interests & Demographics</span>}
+                              <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] text-slate-500">Demographics: {savedAudienceSignal.demographicsCount} targeted</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500 italic">No audience signal added yet. Adding an audience signal helps search and automation tools find conversions faster.</p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-500 italic">No audience signal added yet. Adding an audience signal helps search and automation tools find conversions faster.</p>
-                    )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div 
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition-colors shadow-sm animate-in fade-in duration-200 group"
+                  onClick={() => setIsSignalsOpen(true)}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-16">
+                    <div className="w-56">
+                      <h2 className="text-sm font-semibold text-slate-900">Signals</h2>
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      {savedAudienceSignal ? `Audience: ${savedAudienceSignal.name}` : "No audience signal added (optional)"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-primary transition-colors">
+                    <Edit3 className="h-4 w-4" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -5657,6 +6137,59 @@ export default function NoGuidancePerformanceMaxPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Save as a campaign draft Modal ── */}
+      {showDraftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl text-xs">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">Save as a campaign draft?</h3>
+                <p className="text-xs text-slate-500">Come back later to edit or complete this campaign</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDraftModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Your campaign progress will be saved as a draft so you can resume anytime.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowDraftModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDraftModal(false);
+                  router.push(`/ads${customerId ? `?customerId=${customerId}` : ""}`);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-all cursor-pointer"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                disabled={isSavingDraft}
+                onClick={handleSaveDraft}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-primary hover:bg-secondary transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isSavingDraft ? "Saving..." : "Save"}
+              </button>
+            </div>
           </div>
         </div>
       )}
