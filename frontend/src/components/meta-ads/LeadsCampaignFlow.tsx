@@ -69,8 +69,8 @@ export default function LeadsCampaignFlow({
   const [partnershipCode, setPartnershipCode] = useState("");
 
   const [facebookPageId, setFacebookPageId] = useState(fetchedPages[0]?.id || "");
-  const [instagramAccount, setInstagramAccount] = useState(fetchedIgAccounts[0]?.username || "@jisnudigital");
-  const [whatsappPhone, setWhatsappPhone] = useState(fetchedWaNumbers[0]?.phoneNumber || "+91 9876543210");
+  const [instagramAccount, setInstagramAccount] = useState(fetchedIgAccounts[0]?.username || "");
+  const [whatsappPhone, setWhatsappPhone] = useState(fetchedWaNumbers[0]?.phoneNumber || "");
   const [adSetupMode, setAdSetupMode] = useState<"CREATE" | "EXISTING">("CREATE");
   const [adFormat, setAdFormat] = useState<"SINGLE" | "CAROUSEL">("SINGLE");
   const [multiAdvertiser, setMultiAdvertiser] = useState(true);
@@ -643,16 +643,18 @@ export default function LeadsCampaignFlow({
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-bold text-slate-700">Campaign bid strategy</label>
-                        <button type="button" onClick={() => showToast("Edit bid strategy")} className="text-xs font-bold text-blue-600 hover:underline cursor-pointer">Edit</button>
+                        <span className="text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                          {bidStrategy === "HIGHEST_VOLUME" ? "Highest volume" : bidStrategy === "COST_CAP" ? "Cost per result goal" : "Bid cap"}
+                        </span>
                       </div>
                       <select
                         value={bidStrategy}
                         onChange={(e) => setBidStrategy(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                       >
-                        <option value="HIGHEST_VOLUME">Highest volume</option>
-                        <option value="COST_CAP">Cost per result goal</option>
-                        <option value="BID_CAP">Bid cap</option>
+                        <option value="HIGHEST_VOLUME">Highest volume (Lowest Cost - Maximize Results)</option>
+                        <option value="COST_CAP">Cost per result goal (Cost Cap - Control CPR)</option>
+                        <option value="BID_CAP">Bid cap (Set maximum bid per auction)</option>
                       </select>
                     </div>
 
@@ -1177,21 +1179,49 @@ export default function LeadsCampaignFlow({
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">Instagram Profile</label>
-                    <input
-                      type="text"
-                      value={instagramAccount}
-                      onChange={(e) => setInstagramAccount(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
-                    />
+                    {fetchedIgAccounts && fetchedIgAccounts.length > 0 ? (
+                      <select
+                        value={instagramAccount}
+                        onChange={(e) => setInstagramAccount(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                      >
+                        {fetchedIgAccounts.map((ig) => (
+                          <option key={ig.id || ig.username} value={ig.username}>📸 @{ig.username}</option>
+                        ))}
+                        <option value="@custom">Custom / Other Handle</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={instagramAccount}
+                        onChange={(e) => setInstagramAccount(e.target.value)}
+                        placeholder="@yourhandle"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">WhatsApp Phone Number</label>
-                    <input
-                      type="text"
-                      value={whatsappPhone}
-                      onChange={(e) => setWhatsappPhone(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
-                    />
+                    {fetchedWaNumbers && fetchedWaNumbers.length > 0 ? (
+                      <select
+                        value={whatsappPhone}
+                        onChange={(e) => setWhatsappPhone(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                      >
+                        {fetchedWaNumbers.map((wa) => (
+                          <option key={wa.phoneNumber || wa.id} value={wa.phoneNumber}>📱 {wa.verifiedName || wa.phoneNumber} ({wa.phoneNumber})</option>
+                        ))}
+                        <option value="custom">Custom Phone Number</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={whatsappPhone}
+                        onChange={(e) => setWhatsappPhone(e.target.value)}
+                        placeholder="+91..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -1257,21 +1287,31 @@ export default function LeadsCampaignFlow({
               <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
                 <h4 className="font-bold text-slate-900 text-xs">Ad creative</h4>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Media URL</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Media URL (Image or Video)</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={mediaUrl}
                       onChange={(e) => setMediaUrl(e.target.value)}
+                      placeholder="https://... or upload image/video"
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                     />
-                    <button
-                      type="button"
-                      onClick={() => showToast("Fetched media from Meta Library!")}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold shrink-0 cursor-pointer"
-                    >
-                      Fetch Meta Media Library
-                    </button>
+                    <label className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold shrink-0 cursor-pointer border border-blue-200 flex items-center gap-1">
+                      📁 Upload
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const localUrl = URL.createObjectURL(file);
+                            setMediaUrl(localUrl);
+                            showToast(`Selected file: ${file.name}`);
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
 

@@ -1412,6 +1412,7 @@ function MetaAdsWorkspace({
           backendUrl={BACKEND}
           fetchedPages={fetchedPages}
           fetchedIgAccounts={fetchedIgAccounts}
+          fetchedWaNumbers={fetchedWaNumbers}
           onClose={() => setActiveCampaignFlow(null)}
           onPublished={() => {
             setActiveCampaignFlow(null);

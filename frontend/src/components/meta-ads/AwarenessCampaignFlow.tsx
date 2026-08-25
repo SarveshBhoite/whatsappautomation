@@ -10,6 +10,7 @@ interface AwarenessCampaignFlowProps {
   backendUrl: string;
   fetchedPages: any[];
   fetchedIgAccounts: any[];
+  fetchedWaNumbers?: any[];
   onClose: () => void;
   onPublished: () => void;
 }
@@ -19,6 +20,7 @@ export default function AwarenessCampaignFlow({
   backendUrl,
   fetchedPages,
   fetchedIgAccounts,
+  fetchedWaNumbers = [],
   onClose,
   onPublished,
 }: AwarenessCampaignFlowProps) {
@@ -175,8 +177,8 @@ export default function AwarenessCampaignFlow({
 
   // Identity
   const [facebookPageId, setFacebookPageId] = useState(fetchedPages[0]?.id || "");
-  const [instagramAccount, setInstagramAccount] = useState(fetchedIgAccounts[0]?.username || "@jisnudigital");
-  const [whatsappPhone, setWhatsappPhone] = useState("+91 9876543210");
+  const [instagramAccount, setInstagramAccount] = useState(fetchedIgAccounts[0]?.username || "");
+  const [whatsappPhone, setWhatsappPhone] = useState(fetchedWaNumbers[0]?.phoneNumber || "");
 
   // Setup & Format
   const [adSetupMode, setAdSetupMode] = useState<"CREATE" | "EXISTING">("CREATE");
@@ -404,8 +406,8 @@ export default function AwarenessCampaignFlow({
                   <p className="text-xs text-slate-500">1 Ad set • 1 Ad</p>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => showToast("Reviewing Awareness parameters...")} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer">
-                    Review
+                  <button type="button" onClick={() => setActiveStep(4)} className="px-3.5 py-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-xs font-bold cursor-pointer">
+                    Review & Preview →
                   </button>
                   <button type="button" onClick={onClose} className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
                     ← Change Objective
@@ -552,14 +554,25 @@ export default function AwarenessCampaignFlow({
                       </a>
                     </p>
 
-                    <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">Campaign bid strategy: Highest volume</p>
-                        <p className="text-[10px] text-slate-500">Maximise reach or impressions for your budget.</p>
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">Campaign bid strategy</p>
+                          <p className="text-[10px] text-slate-500">Maximise reach or impressions for your budget.</p>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                          {bidStrategy === "HIGHEST_VOLUME" ? "Highest volume" : bidStrategy === "BID_CAP" ? "Bid cap" : "Cost cap"}
+                        </span>
                       </div>
-                      <button type="button" onClick={() => showToast("Bid strategy set to Highest volume.")} className="px-3 py-1 rounded-lg bg-blue-50 text-xs font-bold text-blue-700 border border-blue-200 cursor-pointer">
-                        Edit
-                      </button>
+                      <select
+                        value={bidStrategy}
+                        onChange={(e) => setBidStrategy(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="HIGHEST_VOLUME">Highest volume (Lowest Cost - Maximize Reach)</option>
+                        <option value="BID_CAP">Bid cap (Set maximum bid per 1,000 impressions)</option>
+                        <option value="COST_CAP">Cost per result goal (Cost Cap)</option>
+                      </select>
                     </div>
 
                     <div className="space-y-2 pt-1">
@@ -1375,21 +1388,31 @@ export default function AwarenessCampaignFlow({
               <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
                 <h4 className="font-bold text-slate-900 text-xs">Ad creative</h4>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">* Media</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">* Media (Image or Video URL)</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={mediaUrl}
                       onChange={(e) => setMediaUrl(e.target.value)}
+                      placeholder="https://... or upload brand creative"
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
                     />
-                    <button
-                      type="button"
-                      onClick={() => showToast("Fetched media from Meta Library!")}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold shrink-0 cursor-pointer"
-                    >
-                      Fetch Meta Media Library
-                    </button>
+                    <label className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold shrink-0 cursor-pointer border border-blue-200 flex items-center gap-1">
+                      📁 Upload
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const localUrl = URL.createObjectURL(file);
+                            setMediaUrl(localUrl);
+                            showToast(`Selected file: ${file.name}`);
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -1480,9 +1503,16 @@ export default function AwarenessCampaignFlow({
                       onChange={(e) => setWhatsappPhone(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500"
                     >
-                      <option value="+91 9876543210">+91 9876543210</option>
-                      <option value="+91 77099 36965">+91 77099 36965</option>
-                      <option value="NEW">+ Connect new WhatsApp number</option>
+                      {fetchedWaNumbers && fetchedWaNumbers.length > 0 ? (
+                        fetchedWaNumbers.map((wa) => (
+                          <option key={wa.phoneNumber || wa.id} value={wa.phoneNumber}>
+                            📱 {wa.verifiedName || wa.phoneNumber} ({wa.phoneNumber})
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No connected WhatsApp numbers found</option>
+                      )}
+                      <option value="custom">+ Enter custom WhatsApp number</option>
                     </select>
 
                     <label className="flex items-center gap-2 text-slate-700 pt-1 cursor-pointer font-medium">
