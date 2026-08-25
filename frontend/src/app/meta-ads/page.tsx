@@ -1398,6 +1398,7 @@ function MetaAdsWorkspace({
           fetchedPages={fetchedPages}
           fetchedIgAccounts={fetchedIgAccounts}
           fetchedWaNumbers={fetchedWaNumbers}
+          fetchedPixels={fetchedPixels}
           onClose={() => setActiveCampaignFlow(null)}
           onPublished={() => {
             setActiveCampaignFlow(null);

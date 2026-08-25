@@ -10,6 +10,7 @@ interface LeadsCampaignFlowProps {
   fetchedPages: any[];
   fetchedIgAccounts: any[];
   fetchedWaNumbers: any[];
+  fetchedPixels?: any[];
   onClose: () => void;
   onPublished: () => void;
 }
@@ -20,9 +21,12 @@ export default function LeadsCampaignFlow({
   fetchedPages,
   fetchedIgAccounts,
   fetchedWaNumbers,
+  fetchedPixels = [],
   onClose,
   onPublished,
 }: LeadsCampaignFlowProps) {
+  const [selectedPixelId, setSelectedPixelId] = useState(fetchedPixels[0]?.id || "");
+  const [conversionEvent, setConversionEvent] = useState("LEAD");
   // Current active step (1 to 4)
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(2);
 
@@ -74,7 +78,7 @@ export default function LeadsCampaignFlow({
   const [adSetupMode, setAdSetupMode] = useState<"CREATE" | "EXISTING">("CREATE");
   const [adFormat, setAdFormat] = useState<"SINGLE" | "CAROUSEL">("SINGLE");
   const [multiAdvertiser, setMultiAdvertiser] = useState(true);
-  const [mediaUrl, setMediaUrl] = useState("https://images.unsplash.com/photo-1556761175-5973dc0f32e7");
+  const [mediaUrl, setMediaUrl] = useState("");
   const [aiMedia, setAiMedia] = useState(false);
   const [primaryText, setPrimaryText] = useState("Get high-quality leads directly via instant forms or direct WhatsApp consultation.");
   const [headline, setHeadline] = useState("Sign Up For Your Free Growth Audit Today");
@@ -254,8 +258,8 @@ export default function LeadsCampaignFlow({
   };
 
   // Tracking
-  const [pixelId, setPixelId] = useState("189283719283");
-  const [urlParams, setUrlParams] = useState("utm_source=facebook&utm_medium=cpc&utm_campaign=leads");
+  const [pixelId, setPixelId] = useState("");
+  const [urlParams, setUrlParams] = useState("utm_source={{site_source_name}}&utm_campaign={{campaign.name}}&utm_content={{ad.name}}");
   const [showUtmModal, setShowUtmModal] = useState(false);
 
   const [publishing, setPublishing] = useState(false);
@@ -334,7 +338,8 @@ export default function LeadsCampaignFlow({
           adDestinationRadio,
           websiteUrl,
           chatGreeting,
-          pixelId,
+          pixelId: selectedPixelId,
+          customEventType: conversionEvent,
           urlParams,
         }),
       });
@@ -786,16 +791,20 @@ export default function LeadsCampaignFlow({
                   onChange={(e) => setConversionLocation(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:bg-white focus:outline-none focus:border-blue-500"
                 >
-                  <option value="WEBSITE_AND_INSTANT_FORMS">Website and instant forms</option>
-                  <option value="WEBSITE_AND_CALLS">Website and calls</option>
-                  <option value="INSTANT_FORMS_AND_MESSENGER">Instant forms and Messenger</option>
-                  <option value="INSTANT_FORMS">Instant forms (Recommended)</option>
-                  <option value="WEBSITE">Website</option>
-                  <option value="MESSENGER">Messenger</option>
-                  <option value="INSTAGRAM">Instagram</option>
-                  <option value="WHATSAPP">WhatsApp</option>
-                  <option value="CALLS">Calls</option>
-                  <option value="APP">App</option>
+                  <optgroup label="Multiple">
+                    <option value="WEBSITE_AND_INSTANT_FORMS">Website and instant forms</option>
+                    <option value="WEBSITE_AND_CALLS">Website and calls</option>
+                    <option value="INSTANT_FORMS_AND_MESSENGER">Instant forms and Messenger</option>
+                  </optgroup>
+                  <optgroup label="Single">
+                    <option value="INSTANT_FORMS">Instant forms (Recommended ✓)</option>
+                    <option value="WEBSITE">Website</option>
+                    <option value="MESSENGER">Messenger</option>
+                    <option value="INSTAGRAM">Instagram</option>
+                    <option value="WHATSAPP">WhatsApp</option>
+                    <option value="CALLS">Calls</option>
+                    <option value="APP">App</option>
+                  </optgroup>
                 </select>
 
                 <div>
@@ -810,6 +819,131 @@ export default function LeadsCampaignFlow({
                     ))}
                   </select>
                 </div>
+
+                {/* Dynamic Meta Pixel card when Conversion Location involves Website */}
+                {(conversionLocation === "WEBSITE" || conversionLocation === "WEBSITE_AND_INSTANT_FORMS" || conversionLocation === "WEBSITE_AND_CALLS") && (
+                  <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200 space-y-3 animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
+                        PX
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Meta Pixel & Conversion Event</h5>
+                        <p className="text-[11px] text-slate-500">Track website conversions and optimize ad delivery.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Meta Pixel *</label>
+                        <select
+                          value={selectedPixelId}
+                          onChange={(e) => setSelectedPixelId(e.target.value)}
+                          className="w-full bg-white border border-blue-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500"
+                        >
+                          {fetchedPixels && fetchedPixels.length > 0 ? (
+                            fetchedPixels.map((px) => (
+                              <option key={px.id} value={px.id}>
+                                🎯 {px.name} (ID: {px.id})
+                              </option>
+                            ))
+                          ) : (
+                            <option value="">No Pixels found for this ad account</option>
+                          )}
+                          <option value="new">+ Connect new Pixel</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Conversion Event *</label>
+                        <select
+                          value={conversionEvent}
+                          onChange={(e) => setConversionEvent(e.target.value)}
+                          className="w-full bg-white border border-blue-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="LEAD">Lead (Recommended)</option>
+                          <option value="CONTACT">Contact</option>
+                          <option value="SUBMIT_APPLICATION">Submit Application</option>
+                          <option value="COMPLETE_REGISTRATION">Complete Registration</option>
+                          <option value="PURCHASE">Purchase</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dynamic WhatsApp number card when Conversion Location involves WhatsApp/Messenger/Instagram */}
+                {(conversionLocation === "WHATSAPP" || conversionLocation === "MESSENGER" || conversionLocation === "INSTAGRAM" || conversionLocation === "INSTANT_FORMS_AND_MESSENGER") && (
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2.5 animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold">WA</div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Connected WhatsApp Number</h5>
+                        <p className="text-[11px] text-slate-500">Select which number to route ad conversations to.</p>
+                      </div>
+                    </div>
+                    <select
+                      value={whatsappPhone}
+                      onChange={(e) => setWhatsappPhone(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
+                    >
+                      {fetchedWaNumbers && fetchedWaNumbers.length > 0 ? (
+                        fetchedWaNumbers.map((wa) => (
+                          <option key={wa.phoneNumber || wa.id} value={wa.phoneNumber}>
+                            📱 {wa.phoneNumber} ({wa.verifiedName || "Cloud API number"})
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">⚠ No connected numbers — please connect WhatsApp first</option>
+                      )}
+                      <option value="custom">+ Connect another number</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Dynamic Calls card when Conversion Location involves Calls */}
+                {(conversionLocation === "CALLS" || conversionLocation === "WEBSITE_AND_CALLS") && (
+                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 space-y-2.5 animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px] font-bold">
+                        📞
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Call Destination Phone Number</h5>
+                        <p className="text-[11px] text-slate-500">People will be prompted to call this number when they tap your ad.</p>
+                      </div>
+                    </div>
+
+                    <input
+                      type="tel"
+                      value={whatsappPhone}
+                      onChange={(e) => setWhatsappPhone(e.target.value)}
+                      placeholder="+91..."
+                      className="w-full bg-white border border-amber-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                )}
+
+                {/* Dynamic App card when Conversion Location is App */}
+                {conversionLocation === "APP" && (
+                  <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200 space-y-2.5 animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] font-bold">
+                        📱
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Mobile App Destination</h5>
+                        <p className="text-[11px] text-slate-500">Select the mobile application to drive lead events to.</p>
+                      </div>
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="https://play.google.com/store/apps/details?id=com.example.app"
+                      className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Performance Goal */}

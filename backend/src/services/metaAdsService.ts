@@ -135,22 +135,11 @@ export class MetaAdsService {
       config = await prisma.metaAdConfig.create({
         data: {
           organizationId,
-          appId: process.env.META_APP_ID || null,
-          accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
-          adAccountId: process.env.META_AD_ACCOUNT_ID || null,
-          pixelId: process.env.META_PIXEL_ID || null,
-          systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
-        },
-      });
-    } else if ((!config.accessToken && process.env.META_SYSTEM_USER_TOKEN) || (!config.pixelId && process.env.META_PIXEL_ID)) {
-      config = await prisma.metaAdConfig.update({
-        where: { organizationId },
-        data: {
-          appId: config.appId || process.env.META_APP_ID || null,
-          accessToken: config.accessToken || process.env.META_SYSTEM_USER_TOKEN,
-          adAccountId: config.adAccountId || process.env.META_AD_ACCOUNT_ID || null,
-          pixelId: config.pixelId || process.env.META_PIXEL_ID || null,
-          systemStatus: "CONNECTED",
+          appId: null,
+          accessToken: null,
+          adAccountId: null,
+          pixelId: null,
+          systemStatus: "DISCONNECTED",
         },
       });
     }
@@ -606,7 +595,7 @@ export class MetaAdsService {
         } catch (e) {}
       }
 
-      // Also check client WABA phone numbers endpoint
+      // Also check client WABA phone numbers endpoint or direct WABA ID
       try {
         const wabaRes = await axios.get(`${META_GRAPH_BASE}/me/client_whatsapp_business_accounts`, {
           params: {
@@ -628,6 +617,32 @@ export class MetaAdsService {
           }
         }
       } catch (e) {}
+
+      // Check organization WhatsAppConfig WABA or env WABA
+      try {
+        const waConfig = await prisma.whatsAppConfig.findFirst({ where: { organizationId } });
+        const wabaId = waConfig?.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+        if (wabaId) {
+          const directWabaRes = await axios.get(`${META_GRAPH_BASE}/${wabaId}/phone_numbers`, {
+            params: {
+              access_token: config.accessToken,
+              fields: "id,display_phone_number,verified_name,quality_rating",
+            },
+          });
+          for (const wn of directWabaRes.data?.data || []) {
+            const phone = wn.display_phone_number || wn.id;
+            if (phone && !seenPhones.has(phone)) {
+              seenPhones.add(phone);
+              waNumbers.push({
+                displayPhoneNumber: phone,
+                phoneNumber: phone,
+                verifiedName: wn.verified_name || "WhatsApp Business",
+                id: wn.id,
+              });
+            }
+          }
+        }
+      } catch (wErr: any) {}
 
       return waNumbers;
     } catch (err: any) {

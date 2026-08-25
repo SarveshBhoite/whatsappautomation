@@ -27,6 +27,8 @@ export interface MetaCampaignObjectiveDef {
   tags: string[];
   conversionLocations: {
     id: string;
+    type?: "MULTIPLE" | "SINGLE";
+    isRecommended?: boolean;
     label: string;
     description: string;
     optimizationGoals: { id: string; label: string; default?: boolean }[];
@@ -43,30 +45,45 @@ export const META_CAMPAIGN_OBJECTIVES: Record<string, MetaCampaignObjectiveDef> 
     longDesc: "Find people willing to share their contact information and other details by submitting a form or starting a conversation.",
     tags: ["Instant forms", "Messenger & WhatsApp", "Website", "Calls"],
     conversionLocations: [
+      // Multiple Destinations (Meta dynamic routing)
       {
-        id: "INSTANT_FORMS",
-        label: "Instant forms",
-        description: "Generate leads by asking people to fill out a form on Facebook and Instagram.",
+        id: "WEBSITE_AND_INSTANT_FORMS",
+        type: "MULTIPLE",
+        label: "Website and instant forms",
+        description: "Send people where they're most likely to convert, between your website and instant forms.",
         optimizationGoals: [
           { id: "LEAD_GENERATION", label: "Maximize number of leads", default: true },
-          { id: "QUALITY_LEAD", label: "Maximize conversion leads (quality leads)" }
+          { id: "OFFSITE_CONVERSIONS", label: "Maximize conversion leads" }
         ],
         billingEvents: ["IMPRESSIONS"],
-        requiredFields: ["facebookPageId", "leadGenFormId"]
+        requiredFields: ["facebookPageId", "leadGenFormId", "pixelId", "websiteUrl"]
       },
       {
-        id: "MESSAGING_APPS",
-        label: "Messenger & WhatsApp",
-        description: "Generate leads by encouraging people to send a message to your business.",
+        id: "WEBSITE_AND_CALLS",
+        type: "MULTIPLE",
+        label: "Website and calls",
+        description: "Send people where they're most likely to convert, between your website and phone calls.",
         optimizationGoals: [
-          { id: "CONVERSATIONS", label: "Maximize number of conversations", default: true },
-          { id: "LEAD_GENERATION", label: "Maximize leads in messaging" }
+          { id: "LEAD_GENERATION", label: "Maximize number of leads", default: true }
         ],
         billingEvents: ["IMPRESSIONS"],
-        requiredFields: ["facebookPageId", "whatsappPhone", "chatGreeting"]
+        requiredFields: ["pixelId", "websiteUrl", "phoneNumber"]
       },
+      {
+        id: "INSTANT_FORMS_AND_MESSENGER",
+        type: "MULTIPLE",
+        label: "Instant forms and Messenger",
+        description: "Send people where they're most likely to convert, between instant forms and Messenger chats.",
+        optimizationGoals: [
+          { id: "LEAD_GENERATION", label: "Maximize number of leads", default: true }
+        ],
+        billingEvents: ["IMPRESSIONS"],
+        requiredFields: ["facebookPageId", "leadGenFormId", "chatGreeting"]
+      },
+      // Single Destinations
       {
         id: "WEBSITE",
+        type: "SINGLE",
         label: "Website",
         description: "Direct people to your website to submit a contact form or request a quote.",
         optimizationGoals: [
@@ -77,7 +94,55 @@ export const META_CAMPAIGN_OBJECTIVES: Record<string, MetaCampaignObjectiveDef> 
         requiredFields: ["pixelId", "customEventType", "websiteUrl"]
       },
       {
+        id: "INSTANT_FORMS",
+        type: "SINGLE",
+        label: "Instant forms",
+        isRecommended: true,
+        description: "Generate leads by asking people to fill out a form on Facebook and Instagram.",
+        optimizationGoals: [
+          { id: "LEAD_GENERATION", label: "Maximize number of leads", default: true },
+          { id: "QUALITY_LEAD", label: "Maximize conversion leads (quality leads)" }
+        ],
+        billingEvents: ["IMPRESSIONS"],
+        requiredFields: ["facebookPageId", "leadGenFormId"]
+      },
+      {
+        id: "MESSENGER",
+        type: "SINGLE",
+        label: "Messenger",
+        description: "Generate leads by encouraging people to send a message on Messenger.",
+        optimizationGoals: [
+          { id: "CONVERSATIONS", label: "Maximize number of conversations", default: true },
+          { id: "LEAD_GENERATION", label: "Maximize leads in messaging" }
+        ],
+        billingEvents: ["IMPRESSIONS"],
+        requiredFields: ["facebookPageId", "chatGreeting"]
+      },
+      {
+        id: "INSTAGRAM",
+        type: "SINGLE",
+        label: "Instagram",
+        description: "Generate leads by encouraging people to send a direct message on Instagram.",
+        optimizationGoals: [
+          { id: "CONVERSATIONS", label: "Maximize number of conversations", default: true }
+        ],
+        billingEvents: ["IMPRESSIONS"],
+        requiredFields: ["instagramAccountId"]
+      },
+      {
+        id: "WHATSAPP",
+        type: "SINGLE",
+        label: "WhatsApp",
+        description: "Generate leads by encouraging people to chat with your business on WhatsApp.",
+        optimizationGoals: [
+          { id: "CONVERSATIONS", label: "Maximize number of conversations", default: true }
+        ],
+        billingEvents: ["IMPRESSIONS"],
+        requiredFields: ["whatsappPhone"]
+      },
+      {
         id: "CALLS",
+        type: "SINGLE",
         label: "Calls",
         description: "Encourage people to call your business by displaying a phone call button on the ad.",
         optimizationGoals: [
@@ -85,6 +150,18 @@ export const META_CAMPAIGN_OBJECTIVES: Record<string, MetaCampaignObjectiveDef> 
         ],
         billingEvents: ["IMPRESSIONS"],
         requiredFields: ["phoneNumber", "callCountryCode"]
+      },
+      {
+        id: "APP",
+        type: "SINGLE",
+        label: "App",
+        description: "Direct people to your mobile app to generate in-app leads and actions.",
+        optimizationGoals: [
+          { id: "APP_INSTALLS", label: "Maximize app installs", default: true },
+          { id: "OFFSITE_CONVERSIONS", label: "Maximize in-app lead actions" }
+        ],
+        billingEvents: ["IMPRESSIONS"],
+        requiredFields: ["applicationId", "objectStoreUrl"]
       }
     ]
   },

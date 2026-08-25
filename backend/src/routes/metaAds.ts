@@ -144,7 +144,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
  */
 router.get("/pages", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const pages = await MetaAdsService.getPages(orgId);
     res.json({ success: true, pages });
   } catch (error: any) {
@@ -159,7 +159,7 @@ router.get("/pages", async (req: Request, res: Response) => {
  */
 router.get("/pixels", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const pixels = await MetaAdsService.getPixels(orgId);
     res.json({ success: true, pixels });
   } catch (error: any) {
@@ -174,7 +174,7 @@ router.get("/pixels", async (req: Request, res: Response) => {
  */
 router.get("/instagram-accounts", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const instagramAccounts = await MetaAdsService.getInstagramAccounts(orgId);
     res.json({ success: true, instagramAccounts });
   } catch (error: any) {
@@ -189,7 +189,7 @@ router.get("/instagram-accounts", async (req: Request, res: Response) => {
  */
 router.get("/whatsapp-numbers", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const whatsappNumbers = await MetaAdsService.getWhatsAppNumbers(orgId);
     res.json({ success: true, whatsappNumbers });
   } catch (error: any) {
@@ -204,7 +204,7 @@ router.get("/whatsapp-numbers", async (req: Request, res: Response) => {
  */
 router.get("/applications", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const applications = await MetaAdsService.getApplications(orgId);
     res.json({ success: true, applications });
   } catch (error: any) {
@@ -254,7 +254,7 @@ router.post("/lead-forms", async (req: Request, res: Response) => {
  */
 router.get("/lead-forms/:id/leads", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const formId = req.params.id as string;
     const leads = await MetaAdsService.getFormLeads(orgId, formId);
     res.json({ success: true, leads });
@@ -270,7 +270,7 @@ router.get("/lead-forms/:id/leads", async (req: Request, res: Response) => {
  */
 router.get("/search/targeting", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const q = (req.query.q as string) || "";
     const type = (req.query.type as string) || "adinterest";
     const results = await MetaAdsService.searchTargeting(orgId, q, type);
@@ -287,7 +287,7 @@ router.get("/search/targeting", async (req: Request, res: Response) => {
  */
 router.get("/search/locations", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const q = (req.query.q as string) || "";
     const locationTypes = (req.query.locationTypes as string) || "country,region,city,zip";
     const results = await MetaAdsService.searchLocations(orgId, q, locationTypes);
@@ -304,7 +304,7 @@ router.get("/search/locations", async (req: Request, res: Response) => {
  */
 router.get("/search/languages", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const q = (req.query.q as string) || "";
     const results = await MetaAdsService.searchLanguages(orgId, q);
     res.json({ success: true, results });
@@ -320,7 +320,7 @@ router.get("/search/languages", async (req: Request, res: Response) => {
  */
 router.get("/campaigns", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || "";
     const campaigns = await MetaAdsService.getCampaigns(orgId);
     res.json({ success: true, campaigns });
   } catch (error: any) {
@@ -335,7 +335,7 @@ router.get("/campaigns", async (req: Request, res: Response) => {
  */
 router.post("/campaigns", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const orgId = req.body.organizationId || (req.headers["x-organization-id"] as string) || "";
     const {
       name,
       objective = "OUTCOME_LEADS",
