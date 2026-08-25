@@ -21,7 +21,20 @@ router.get("/config", async (req, res) => {
   try {
     const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || "";
     
-    // Auto-create default config if it doesn't exist yet
+    if (!orgId) {
+      return res.status(200).json(null);
+    }
+
+    // Verify organization exists first
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId }
+    });
+
+    if (!org) {
+      return res.status(200).json(null);
+    }
+
+    // Fetch or create config for this valid organization
     let config = await prisma.googleBusinessConfig.findUnique({
       where: { organizationId: orgId }
     });
@@ -30,7 +43,7 @@ router.get("/config", async (req, res) => {
       config = await prisma.googleBusinessConfig.create({
         data: {
           organizationId: orgId,
-          locationName: "Jisnu Digitals Pune",
+          locationName: org.name || "Business Location",
           googleReviewUrl: "",
           autoReplyEnabled: false,
           autoReplyMinRating: 4,
@@ -511,9 +524,12 @@ router.post("/posts/create", async (req, res) => {
       scheduledAt
     } = req.body;
 
-    if (!summary) {
-      return res.status(400).json({ error: "Summary text is required for GMB Posts." });
+    if (!summary && !title) {
+      return res.status(400).json({ error: "Summary or Title text is required for GMB Posts." });
     }
+
+    // Google My Business local posts only accept a single `summary` text payload
+    const postBody = title ? `${title.trim()}\n\n${(summary || "").trim()}` : (summary || "").trim();
 
     // ── Scheduled post: save to DB for background publisher ──────────────────
     const isScheduled = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
@@ -522,8 +538,7 @@ router.post("/posts/create", async (req, res) => {
         data: {
           organizationId: orgId,
           gmbPostId: null,
-          title: title || "",
-          summary,
+          summary: postBody,
           mediaUrl: mediaUrl || null,
           callToActionType: callToActionType || "NONE",
           callToActionUrl: callToActionUrl || null,
@@ -552,7 +567,7 @@ router.post("/posts/create", async (req, res) => {
         const localPostUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/localPosts`;
 
         const payload = buildGmbPostPayload(
-          summary,
+          postBody,
           callToActionType,
           callToActionUrl,
           mediaUrl,
@@ -575,8 +590,7 @@ router.post("/posts/create", async (req, res) => {
       data: {
         organizationId: orgId,
         gmbPostId: gmbPostId,
-        title: title || "",
-        summary: summary,
+        summary: postBody,
         mediaUrl: mediaUrl || null,
         callToActionType: callToActionType || "NONE",
         callToActionUrl: callToActionUrl || null,

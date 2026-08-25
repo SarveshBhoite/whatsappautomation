@@ -21,8 +21,8 @@ router.get("/media", async (req: Request, res: Response) => {
       }
     });
 
-    const activeToken = process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || config?.pageAccessToken;
-    const instagramAccountId = config?.instagramAccountId || "17841479044967079";
+    const activeToken = config?.pageAccessToken || process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN;
+    const instagramAccountId = config?.instagramAccountId;
 
     if (activeToken && instagramAccountId) {
       try {
@@ -42,7 +42,7 @@ router.get("/media", async (req: Request, res: Response) => {
           const metaRes = await fetch(metaUrl);
           if (!metaRes.ok) {
             const errData = await metaRes.json();
-            console.warn("[META GRAPH API MEDIA FETCH WARN]:", errData);
+            console.warn("[META GRAPH API MEDIA FETCH WARN]:", errData?.error?.message || errData);
             break;
           }
 
@@ -83,12 +83,10 @@ router.get("/media", async (req: Request, res: Response) => {
       }
     }
 
-    // Return fallback items if token expired or missing
+    // Return empty list if credentials missing or not configured
     return res.status(200).json({
-      media: [
-        { id: "17993791172808708", caption: "🚀 We're Hiring | SEO Executive | Jisnu Digital Solutions", media_type: "IMAGE", media_product_type: "FEED", thumbnail_url: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=300", permalink: "#", timestamp: new Date().toISOString(), like_count: 2, comments_count: 0 },
-        { id: "17982994734042524", caption: "🚀 Google Just Made Business Growth Easier!", media_type: "CAROUSEL_ALBUM", media_product_type: "FEED", thumbnail_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300", permalink: "#", timestamp: new Date().toISOString(), like_count: 5, comments_count: 2 }
-      ],
+      media: [],
+      total: 0,
       paging: { after: null, hasMore: false }
     });
   } catch (error: any) {

@@ -518,8 +518,7 @@ export class InstagramCommentEngine {
     } = payload;
 
     // A. Self-Comment / Bot Loop Prevention
-    const isSelfComment = fromUser === "jisnu_digitalsolution_pvt_ltd" ||
-                          fromUserId === pageId;
+    const isSelfComment = fromUserId === pageId;
 
     if (isSelfComment) {
       console.log(`[INSTAGRAM ENGINE] Ignored comment from self/bot account (@${fromUser}).`);
