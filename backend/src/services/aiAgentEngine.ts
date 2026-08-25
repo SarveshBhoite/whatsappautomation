@@ -61,8 +61,8 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       include: {
         organization: {
           include: {
-            waConfig: true,
-            igConfig: true,
+            waConfigs: true,
+            igConfigs: true,
             ytConfig: true,
             linkedInConfig: true,
             aiAgentConfig: true,
@@ -263,8 +263,8 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     const isLinkedIn = conversation.platform === "linkedin";
 
     const customerPhone = conversation.customerPhone;
-    const waConfig = conversation.organization.waConfig;
-    const igConfig = conversation.organization.igConfig;
+    const waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
+    const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
     const ytConfig = conversation.organization.ytConfig;
     const linkedInConfig = conversation.organization.linkedInConfig;
 
@@ -484,11 +484,11 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     try {
       const fallbackConv = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        include: { organization: { include: { waConfig: true, igConfig: true } } },
+        include: { organization: { include: { waConfigs: true, igConfigs: true } } },
       });
       if (fallbackConv && !fallbackConv.isBotPaused) {
         const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
-        const waConfig = fallbackConv.organization.waConfig;
+        const waConfig = fallbackConv.organization.waConfigs?.find((c: any) => c.isDefault) || fallbackConv.organization.waConfigs?.[0];
         const customerPhone = fallbackConv.customerPhone;
         
         let outWaId: string | null = null;

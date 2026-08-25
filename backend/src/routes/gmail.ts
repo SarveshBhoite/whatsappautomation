@@ -25,14 +25,17 @@ const getOrgId = (req: Request): string => {
   return headerVal || DEFAULT_ORG_ID;
 };
 
-// GET: Fetch Gmail configuration settings
+// GET: Fetch Gmail configuration settings and accounts list
 router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
 
-    let config = await prisma.gmailConfig.findUnique({
-      where: { organizationId },
+    const accounts = await prisma.gmailConfig.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { createdAt: "desc" },
     });
+
+    let config = accounts.find((a) => a.isDefault) || accounts[0] || null;
 
     if (!config) {
       config = await prisma.gmailConfig.create({
@@ -41,41 +44,105 @@ router.get("/config", async (req: Request, res: Response) => {
           emailAddress: "",
           accessToken: "",
           refreshToken: "",
+          isDefault: true,
+          isActive: true,
           autoReplyEnabled: false,
           autoReplyTemplate: "You are a helpful customer support agent. Answer questions politely and offer solutions.",
         },
       });
     }
 
-    return res.status(200).json(config);
+    return res.status(200).json({
+      config,
+      accounts: accounts.length > 0 ? accounts : [config],
+    });
   } catch (error: any) {
     console.error("Error fetching Gmail config:", error);
     return res.status(500).json({ error: "Failed to fetch Gmail config", details: error.message });
   }
 });
 
-// POST: Update Gmail Config settings
+// GET: All connected Gmail accounts
+router.get("/accounts", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const accounts = await prisma.gmailConfig.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.status(200).json({ success: true, accounts });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch Gmail accounts", details: error.message });
+  }
+});
+
+// POST: Set default active Gmail account
+router.post("/set-default", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
+
+    if (!accountId) return res.status(400).json({ error: "Missing accountId" });
+
+    await prisma.gmailConfig.updateMany({
+      where: { organizationId },
+      data: { isDefault: false },
+    });
+
+    const updated = await prisma.gmailConfig.update({
+      where: { id: accountId },
+      data: { isDefault: true },
+    });
+
+    return res.status(200).json({ success: true, message: "Default Gmail account updated", activeAccount: updated });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to update default Gmail account", details: error.message });
+  }
+});
+
+// POST: Update or Connect Gmail Config settings
 router.post("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { autoReplyEnabled, autoReplyTemplate, emailAddress } = req.body;
+    const { autoReplyEnabled, autoReplyTemplate, emailAddress, displayName } = req.body;
 
-    const config = await prisma.gmailConfig.upsert({
-      where: { organizationId },
-      update: {
-        autoReplyEnabled,
-        autoReplyTemplate,
-        emailAddress,
-      },
-      create: {
-        organizationId,
-        autoReplyEnabled: autoReplyEnabled || false,
-        autoReplyTemplate: autoReplyTemplate || "",
-        emailAddress: emailAddress || "",
-        accessToken: "",
-        refreshToken: "",
-      },
+    if (!emailAddress) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+
+    const existingCount = await prisma.gmailConfig.count({ where: { organizationId } });
+    const isFirst = existingCount === 0;
+
+    const existing = await prisma.gmailConfig.findFirst({
+      where: { organizationId, emailAddress },
     });
+
+    let config;
+    if (existing) {
+      config = await prisma.gmailConfig.update({
+        where: { id: existing.id },
+        data: {
+          autoReplyEnabled: autoReplyEnabled !== undefined ? autoReplyEnabled : existing.autoReplyEnabled,
+          autoReplyTemplate: autoReplyTemplate !== undefined ? autoReplyTemplate : existing.autoReplyTemplate,
+          displayName: displayName || existing.displayName,
+          isActive: true,
+        },
+      });
+    } else {
+      config = await prisma.gmailConfig.create({
+        data: {
+          organizationId,
+          emailAddress,
+          displayName: displayName || emailAddress.split("@")[0],
+          accessToken: "",
+          refreshToken: "",
+          isDefault: isFirst,
+          isActive: true,
+          autoReplyEnabled: autoReplyEnabled || false,
+          autoReplyTemplate: autoReplyTemplate || "",
+        },
+      });
+    }
 
     return res.status(200).json({ message: "Gmail configuration updated successfully", data: config });
   } catch (error: any) {
@@ -164,23 +231,36 @@ router.get("/oauth/callback", async (req: Request, res: Response) => {
       console.warn("Could not retrieve user email automatically:", profileErr.message);
     }
 
-    // Save tokens in database
-    await prisma.gmailConfig.upsert({
-      where: { organizationId: orgId },
-      update: {
-        accessToken: access_token,
-        refreshToken: refresh_token || undefined,
-        emailAddress: emailAddress || undefined
-      },
-      create: {
-        organizationId: orgId,
-        accessToken: access_token,
-        refreshToken: refresh_token || "",
-        emailAddress: emailAddress || "",
-        autoReplyEnabled: false,
-        autoReplyTemplate: "You are a helpful customer support agent. Answer questions politely and offer solutions."
-      }
-    });
+    // Save tokens in database (Multi-Account Support)
+    const existing = emailAddress 
+      ? await prisma.gmailConfig.findFirst({ where: { organizationId: orgId, emailAddress } })
+      : null;
+
+    if (existing) {
+      await prisma.gmailConfig.update({
+        where: { id: existing.id },
+        data: {
+          accessToken: access_token,
+          ...(refresh_token && { refreshToken: refresh_token }),
+          isActive: true,
+        },
+      });
+    } else {
+      const existingCount = await prisma.gmailConfig.count({ where: { organizationId: orgId } });
+      await prisma.gmailConfig.create({
+        data: {
+          organizationId: orgId,
+          accessToken: access_token,
+          refreshToken: refresh_token || "",
+          emailAddress: emailAddress || "",
+          displayName: emailAddress ? emailAddress.split("@")[0] : "Gmail Account",
+          isDefault: existingCount === 0,
+          isActive: true,
+          autoReplyEnabled: false,
+          autoReplyTemplate: "You are a helpful customer support agent. Answer questions politely and offer solutions."
+        }
+      });
+    }
 
     // Sync threads immediately on success
     try {

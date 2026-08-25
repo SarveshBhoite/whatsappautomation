@@ -50,6 +50,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import InstagramCommentsPage from "./comments/page";
 import InstagramProfilePage from "./profile/page";
+import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -386,12 +387,14 @@ export default function Dashboard() {
     return "";
   };
 
-  // Instagram Config
+  // Instagram Config & Accounts
   const [igConfig, setIgConfig] = useState<InstagramConfig>({
     instagramAccountId: "",
     pageId: "",
     pageAccessToken: ""
   });
+  const [igAccounts, setIgAccounts] = useState<any[]>([]);
+  const [selectedIgAccountId, setSelectedIgAccountId] = useState<string>("");
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
   const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google">("whatsapp");
@@ -903,11 +906,34 @@ export default function Dashboard() {
       const data = await res.json();
       if (data && data.config) {
         setIgConfig(data.config);
+        setSelectedIgAccountId(data.config.id);
       } else if (data && data.instagramAccountId) {
         setIgConfig(data);
+        if (data.id) setSelectedIgAccountId(data.id);
+      }
+      if (data && data.accounts) {
+        setIgAccounts(data.accounts);
       }
     } catch (err) {
       console.warn("Could not fetch Instagram config:", err);
+    }
+  };
+
+  const handleSwitchIgAccount = async (accountId: string) => {
+    try {
+      setSelectedIgAccountId(accountId);
+      const chosen = igAccounts.find((a) => a.id === accountId);
+      if (chosen) setIgConfig(chosen);
+      await fetch(`${BACKEND_URL}/api/admin/instagram/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId })
+      });
+    } catch (err) {
+      console.warn("Error switching Instagram account:", err);
     }
   };
 
@@ -1218,7 +1244,7 @@ export default function Dashboard() {
     <div className="flex flex-col h-full overflow-hidden bg-slate-50 text-slate-900 font-sans">
       {/* TOP SECTION NAVIGATION HEADER */}
       <header className="px-4 sm:px-6 py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-2xs">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-pink-600 shadow-2xs">
             <Instagram className="h-4 w-4" />
           </div>
@@ -1230,6 +1256,29 @@ export default function Dashboard() {
               </span>
             </h1>
           </div>
+
+          {/* Multi-ID Account Selector */}
+          <AccountSwitcher
+            title="Instagram ID"
+            theme="pink"
+            accounts={igAccounts.map((acc) => ({
+              id: acc.id,
+              label: acc.username ? `@${acc.username}` : (acc.name || `IG (${acc.instagramAccountId.slice(-4)})`),
+              sublabel: `ID: ${acc.instagramAccountId}`,
+              isDefault: acc.isDefault,
+              isActive: acc.isActive,
+              type: "instagram",
+              avatarUrl: acc.profilePic,
+            }))}
+            selectedAccountId={selectedIgAccountId || (igConfig as any).id || ""}
+            onSelectAccount={handleSwitchIgAccount}
+            onToggleOpen={fetchInstagramConfig}
+            onAddNewAccount={() => {
+              if (typeof window !== "undefined") {
+                window.location.href = "/settings?tab=instagram";
+              }
+            }}
+          />
         </div>
 
         {/* Section Tabs */}

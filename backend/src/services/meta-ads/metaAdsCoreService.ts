@@ -245,7 +245,7 @@ export class MetaAdsCoreService {
     }
 
     try {
-      const waConfig = await prisma.whatsAppConfig.findUnique({ where: { organizationId } });
+      const waConfig = await prisma.whatsAppConfig.findFirst({ where: { organizationId, isActive: true } });
       if (waConfig && waConfig.phoneNumberId && waConfig.accessToken) {
         whatsappLinked = true;
         messages.push("WhatsApp Cloud API credentials connected for Click-to-WhatsApp ads.");

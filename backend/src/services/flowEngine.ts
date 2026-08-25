@@ -54,8 +54,8 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
       include: {
         organization: {
           include: {
-            waConfig: true,
-            igConfig: true,
+            waConfigs: true,
+            igConfigs: true,
             ytConfig: true,
             linkedInConfig: true,
             aiAgentConfig: true,
@@ -76,8 +76,8 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     const isInstagram = conversation.platform === "instagram";
     const isYouTube = conversation.platform === "youtube";
     const isLinkedIn = conversation.platform === "linkedin";
-    const waConfig = conversation.organization.waConfig;
-    const igConfig = conversation.organization.igConfig;
+    const waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
+    const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
     const ytConfig = conversation.organization.ytConfig;
     const linkedInConfig = conversation.organization.linkedInConfig;
 

@@ -51,6 +51,7 @@ import "reactflow/dist/style.css";
 import WhatsAppBulkBroadcastPage from "./bulk/page";
 import WhatsAppTemplatesPage from "./templates/page";
 import WhatsAppDripCampaignsModule from "./drip/WhatsAppDripCampaignsModule";
+import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -292,7 +293,7 @@ const getOrgId = (): string => {
     const org = localStorage.getItem("organization_id");
     if (org) return org;
   }
-  return "";
+  return "demo-org-123";
 };
 
 // TS Interfaces
@@ -363,6 +364,45 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram">("whatsapp");
+  const [waAccounts, setWaAccounts] = useState<any[]>([]);
+  const [selectedWaAccountId, setSelectedWaAccountId] = useState<string>("");
+
+  const fetchWaAccounts = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/whatsapp-embedded/accounts`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accounts) {
+          setWaAccounts(data.accounts);
+          const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
+          if (defaultAcc) setSelectedWaAccountId(defaultAcc.id);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch WhatsApp accounts:", err);
+    }
+  };
+
+  const handleSwitchWaAccount = async (accountId: string) => {
+    try {
+      setSelectedWaAccountId(accountId);
+      const targetAcc = waAccounts.find(a => a.id === accountId);
+      await fetch(`${BACKEND_URL}/api/whatsapp-embedded/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId })
+      });
+      fetchConversations(targetAcc?.phoneNumberId);
+      fetchWaAccounts();
+    } catch (err) {
+      console.warn("Error switching WhatsApp account:", err);
+    }
+  };
 
   // Helper to construct fully qualified URLs for files saved on backend
   const getMediaUrl = (content: string) => {
@@ -703,6 +743,7 @@ export default function Dashboard() {
 
     // Initial Fetch
     fetchConversations();
+    fetchWaAccounts();
     fetchActiveFlow("whatsapp");
 
     return () => {
@@ -733,16 +774,34 @@ export default function Dashboard() {
     }
   }, [selectedPlatform, activeTab]);
 
+  // Re-fetch conversations isolated to the selected WhatsApp account whenever selected account changes
+  useEffect(() => {
+    if (selectedWaAccountId && waAccounts.length > 0) {
+      const activeAcc = waAccounts.find(a => a.id === selectedWaAccountId) || waAccounts.find(a => a.isDefault);
+      if (activeAcc && activeAcc.phoneNumberId) {
+        fetchConversations(activeAcc.phoneNumberId);
+      }
+    }
+  }, [selectedWaAccountId, waAccounts]);
+
   // 2. HTTP API Calls
-  const fetchConversations = async () => {
+  const fetchConversations = async (targetPhoneId?: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/conversations`, {
+      const activeAcc = waAccounts.find(a => a.id === selectedWaAccountId) || waAccounts.find(a => a.isDefault);
+      const phoneIdParam = targetPhoneId || activeAcc?.phoneNumberId || "";
+      const url = `${BACKEND_URL}/api/admin/conversations?platform=whatsapp${phoneIdParam ? `&phoneNumberId=${phoneIdParam}` : ""}`;
+      const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
         setConversations(data);
+        // Clear active conversation if it does not belong to the newly fetched account list
+        if (activeConv && !data.some((c: any) => c.id === activeConv.id)) {
+          setActiveConv(null);
+          setMessages([]);
+        }
       }
     } catch (err) {
       console.warn("Could not fetch conversations:", err);
@@ -1025,8 +1084,8 @@ export default function Dashboard() {
       </aside>
 
       {/* TOP SECTION NAVIGATION HEADER */}
-      <header className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <header className="px-5 sm:px-7 py-3 bg-white/95 backdrop-blur-md border-b border-slate-200/90 flex items-center justify-between shrink-0 z-20 shadow-xs">
+        <div className="flex items-center gap-3.5 min-w-0">
           <button
             type="button"
             onClick={() => setMobileDrawerOpen(true)}
@@ -1036,16 +1095,45 @@ export default function Dashboard() {
             <Menu className="h-4 w-4" />
           </button>
 
-          <div className="h-8 w-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
-            <MessageSquare className="h-4 w-4" />
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="h-8.5 w-8.5 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+              <MessageSquare className="h-4.5 w-4.5 stroke-[2.5]" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                <span>WhatsApp Suite</span>
+                <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full font-mono lowercase font-extrabold shrink-0">
+                  cloud api
+                </span>
+              </h1>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 truncate">
-              <span>WhatsApp Suite</span>
-              <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full font-mono lowercase font-bold shrink-0">
-                cloud api
-              </span>
-            </h1>
+
+          <div className="h-5 w-px bg-slate-200 hidden sm:block shrink-0" />
+
+          {/* Multi-ID WhatsApp Number Selector */}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-bold text-slate-500 hidden md:inline-block uppercase tracking-wider">Number:</span>
+            <AccountSwitcher
+              title="Select Number"
+              theme="emerald"
+              accounts={waAccounts.map((acc) => ({
+                id: acc.id,
+                label: acc.phoneNumber || acc.accountName || `Phone ID: ${acc.phoneNumberId}`,
+                sublabel: `WABA: ${acc.wabaId}`,
+                isDefault: acc.isDefault,
+                isActive: acc.isActive,
+                type: "whatsapp",
+              }))}
+              selectedAccountId={selectedWaAccountId}
+              onSelectAccount={handleSwitchWaAccount}
+              onToggleOpen={fetchWaAccounts}
+              onAddNewAccount={() => {
+                if (typeof window !== "undefined") {
+                  window.location.href = "/settings?tab=whatsapp";
+                }
+              }}
+            />
           </div>
         </div>
 

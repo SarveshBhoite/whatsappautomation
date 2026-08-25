@@ -4,33 +4,223 @@ import prisma from "../utils/prisma";
 
 const router = Router();
 
+const DEFAULT_ORG_ID = "demo-org-123";
+
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || "";
+  const headerVal = req.headers["x-organization-id"];
+  if (Array.isArray(headerVal) && headerVal[0]) return headerVal[0];
+  if (typeof headerVal === "string" && headerVal.trim() !== "") return headerVal;
+  return DEFAULT_ORG_ID;
 };
 
-// GET: Fetch current organization's WhatsApp connection status
+// GET: Fetch current organization's WhatsApp connection status and active config
 router.get("/status", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const config = await prisma.whatsAppConfig.findUnique({
-      where: { organizationId },
-      select: {
-        id: true,
-        organizationId: true,
-        phoneNumberId: true,
-        wabaId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    let configs = await prisma.whatsAppConfig.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { createdAt: "desc" },
     });
 
+    if (configs.length === 0) {
+      configs = await prisma.whatsAppConfig.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    const activeConfig = configs.find((c) => c.isDefault) || configs[0] || null;
+
     return res.status(200).json({
-      connected: !!(config && config.wabaId),
-      config: config || null,
+      connected: !!(activeConfig && activeConfig.wabaId),
+      config: activeConfig,
+      accounts: configs,
     });
   } catch (error: any) {
     console.error("Error fetching WhatsApp status:", error);
     return res.status(500).json({ error: "Failed to fetch status", details: error.message });
+  }
+});
+
+export async function syncAllWhatsAppAccountsForToken(organizationId: string, accessToken: string, targetWabaId?: string) {
+  try {
+    const wabaIdSet = new Set<string>();
+    if (targetWabaId) wabaIdSet.add(targetWabaId);
+
+    const appId = process.env.META_APP_ID || "36702477879366478";
+    const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
+
+    // 1. Discover WABAs from debug_token granular scopes
+    try {
+      const debugTokenRes = await axios.get("https://graph.facebook.com/v21.0/debug_token", {
+        params: {
+          input_token: accessToken,
+          access_token: `${appId}|${appSecret}`,
+        },
+      });
+      const granularScopes = debugTokenRes.data?.data?.granular_scopes || [];
+      const waScope = granularScopes.find((s: any) => s.scope === "whatsapp_business_management");
+      if (waScope && waScope.target_ids) {
+        waScope.target_ids.forEach((id: string) => wabaIdSet.add(id));
+      }
+    } catch (e) {}
+
+    // 2. For any discovered WABA, inspect owner_business_info to discover Business Manager ID and all owned WABAs
+    const discoveredBusinessIds = new Set<string>();
+    for (const wabaId of Array.from(wabaIdSet)) {
+      try {
+        const wabaInfoRes = await axios.get(
+          `https://graph.facebook.com/v21.0/${wabaId}?fields=id,name,owner_business_info`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const bizId = wabaInfoRes.data?.owner_business_info?.id;
+        if (bizId) {
+          discoveredBusinessIds.add(bizId);
+        }
+      } catch (e) {}
+    }
+
+    // 3. For each Business Manager, fetch ALL owned and client WABAs & phone numbers
+    for (const bizId of Array.from(discoveredBusinessIds)) {
+      try {
+        const ownedRes = await axios.get(
+          `https://graph.facebook.com/v21.0/${bizId}/owned_whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number,verified_name}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const ownedWabas = ownedRes.data?.data || [];
+        ownedWabas.forEach((w: any) => wabaIdSet.add(w.id));
+      } catch (e) {}
+
+      try {
+        const clientRes = await axios.get(
+          `https://graph.facebook.com/v21.0/${bizId}/client_whatsapp_business_accounts?fields=id,name,phone_numbers{id,display_phone_number,verified_name}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const clientWabas = clientRes.data?.data || [];
+        clientWabas.forEach((w: any) => wabaIdSet.add(w.id));
+      } catch (e) {}
+    }
+
+    const allWabaIds = Array.from(wabaIdSet);
+    if (allWabaIds.length === 0) return;
+
+    // 4. Iterate over ALL WABAs and upsert ALL phone numbers into DB
+    for (const wabaId of allWabaIds) {
+      try {
+        await axios.post(
+          `https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`,
+          {},
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        ).catch(() => {});
+
+        const phoneRes = await axios.get(
+          `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const phones = phoneRes.data?.data || [];
+
+        for (const p of phones) {
+          const phoneNumberId = p.id;
+          const displayPhone = p.display_phone_number || p.verified_name || `+${phoneNumberId}`;
+          const accountName = p.verified_name || p.display_phone_number || `WhatsApp Number (${phoneNumberId.slice(-4)})`;
+
+          const existingCount = await prisma.whatsAppConfig.count({ where: { organizationId } });
+          const existing = await prisma.whatsAppConfig.findFirst({
+            where: { organizationId, phoneNumberId }
+          });
+
+          if (existing) {
+            await prisma.whatsAppConfig.update({
+              where: { id: existing.id },
+              data: {
+                accessToken,
+                wabaId,
+                phoneNumber: displayPhone,
+                accountName,
+                isActive: true
+              }
+            });
+          } else {
+            await prisma.whatsAppConfig.create({
+              data: {
+                organizationId,
+                phoneNumberId,
+                wabaId,
+                accessToken,
+                phoneNumber: displayPhone,
+                accountName,
+                isDefault: existingCount === 0,
+                isActive: true
+              }
+            });
+          }
+        }
+      } catch (wabaErr: any) {
+        console.warn(`[MULTI-WA SYNC] Error fetching phone numbers for WABA ${wabaId}:`, wabaErr?.message);
+      }
+    }
+  } catch (err: any) {
+    console.warn("[MULTI-WA SYNC] Auto-sync notice:", err?.message);
+  }
+}
+
+// GET: Fetch all linked WhatsApp accounts for organization
+router.get("/accounts", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    let accounts = await prisma.whatsAppConfig.findMany({
+      where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (accounts.length === 0) {
+      accounts = await prisma.whatsAppConfig.findMany({
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    // Auto-sync if an active config with access token exists
+    const tokenConfig = accounts.find((a) => a.accessToken);
+    if (tokenConfig && tokenConfig.accessToken) {
+      await syncAllWhatsAppAccountsForToken(organizationId, tokenConfig.accessToken, tokenConfig.wabaId || undefined).catch(() => {});
+      // Refetch after sync to pick up newly added phone numbers
+      accounts = await prisma.whatsAppConfig.findMany({
+        where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    return res.status(200).json({ success: true, accounts });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch WhatsApp accounts", details: error.message });
+  }
+});
+
+// POST: Set default active WhatsApp account
+router.post("/set-default", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
+
+    if (!accountId) {
+      return res.status(400).json({ error: "Missing accountId" });
+    }
+
+    // Reset all to isDefault = false
+    await prisma.whatsAppConfig.updateMany({
+      where: { organizationId },
+      data: { isDefault: false },
+    });
+
+    // Set selected to isDefault = true
+    const updated = await prisma.whatsAppConfig.update({
+      where: { id: accountId },
+      data: { isDefault: true },
+    });
+
+    return res.status(200).json({ success: true, message: "Default WhatsApp account updated", activeAccount: updated });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to update default account", details: error.message });
   }
 });
 
@@ -46,7 +236,7 @@ router.get("/embedded-config", (req: Request, res: Response) => {
 router.post("/embedded-signup/callback", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { code, wabaId, phoneNumberId } = req.body;
+    const { code, wabaId, phoneNumberId, phoneNumber, accountName } = req.body;
 
     if (!code) {
       return res.status(400).json({ error: "Missing authorization code from Meta" });
@@ -60,7 +250,6 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
     // 1. Exchange temporary code for access token from Meta Graph API
     console.log(`[EMBEDDED SIGNUP] Exchanging code for token with Meta Graph API for Org: ${organizationId}...`);
     try {
-      // Primary: FB.login SDK code exchange (Meta expects no redirect_uri parameter)
       const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
         params: {
           client_id: appId,
@@ -71,7 +260,6 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
       accessToken = tokenResponse.data.access_token;
     } catch (err1: any) {
       console.warn("[EMBEDDED SIGNUP] SDK exchange fallback, trying with redirect_uri...", err1?.response?.data?.error?.message);
-      // Fallback: If dialog redirect was used
       const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
         params: {
           client_id: appId,
@@ -111,6 +299,7 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
     }
 
     // 3. If WABA ID is present, auto-discover phone number if not directly passed
+    let discoveredPhoneNumber = phoneNumber || "";
     if (finalWabaId && !finalPhoneNumberId) {
       try {
         const phoneNumbersRes = await axios.get(
@@ -120,6 +309,7 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
         const phones = phoneNumbersRes.data?.data || [];
         if (phones.length > 0) {
           finalPhoneNumberId = phones[0].id;
+          discoveredPhoneNumber = phones[0].display_phone_number || phones[0].verified_name || "";
           console.log(`[EMBEDDED SIGNUP] Auto-discovered Phone Number ID: ${finalPhoneNumberId}`);
         }
       } catch (phoneErr: any) {
@@ -127,10 +317,9 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
       }
     }
 
-    // 4. Auto-register phone number on Cloud API (Activates status from Pending to Connected)
+    // 4. Auto-register phone number on Cloud API
     if (finalPhoneNumberId) {
       try {
-        console.log(`[EMBEDDED SIGNUP] Auto-registering phone number: ${finalPhoneNumberId} with Cloud API...`);
         await axios.post(
           `https://graph.facebook.com/v21.0/${finalPhoneNumberId}/register`,
           {
@@ -139,55 +328,67 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
           },
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        console.log(`[EMBEDDED SIGNUP] Successfully registered phone number ${finalPhoneNumberId} on Cloud API!`);
       } catch (regErr: any) {
-        console.warn("[EMBEDDED SIGNUP] Phone registration response/notice:", regErr?.response?.data?.error?.message || regErr.message);
+        console.warn("[EMBEDDED SIGNUP] Phone registration notice:", regErr?.response?.data?.error?.message || regErr.message);
       }
     }
 
-    // 5. Auto-subscribe app to the WABA for webhooks
+    // 5. Auto-subscribe app to WABA webhooks
     if (finalWabaId) {
       try {
-        console.log(`[EMBEDDED SIGNUP] Subscribing app to WABA: ${finalWabaId}...`);
         await axios.post(
           `https://graph.facebook.com/v21.0/${finalWabaId}/subscribed_apps`,
           {},
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        console.log(`[EMBEDDED SIGNUP] Successfully subscribed app to WABA webhooks.`);
       } catch (subErr: any) {
         console.warn("[EMBEDDED SIGNUP] Warning subscribing app to WABA:", subErr?.response?.data || subErr.message);
       }
     }
 
-    // 6. Upsert client's WhatsAppConfig in database
-    const config = await prisma.whatsAppConfig.upsert({
-      where: { organizationId },
-      update: {
-        accessToken,
-        ...(finalWabaId && { wabaId: finalWabaId }),
-        ...(finalPhoneNumberId && { phoneNumberId: finalPhoneNumberId }),
-      },
-      create: {
-        organizationId,
-        accessToken,
-        wabaId: finalWabaId || "",
-        phoneNumberId: finalPhoneNumberId || "",
-        webhookVerifyToken: `verify_${organizationId.slice(0, 8)}`,
-      },
-    });
+    // Check existing count for default setting
+    const existingCount = await prisma.whatsAppConfig.count({ where: { organizationId } });
+    const isFirst = existingCount === 0;
+
+    // Search existing by phoneNumberId or wabaId
+    const existingConfig = finalPhoneNumberId
+      ? await prisma.whatsAppConfig.findFirst({ where: { organizationId, phoneNumberId: finalPhoneNumberId } })
+      : null;
+
+    let config;
+    if (existingConfig) {
+      config = await prisma.whatsAppConfig.update({
+        where: { id: existingConfig.id },
+        data: {
+          accessToken,
+          ...(finalWabaId && { wabaId: finalWabaId }),
+          ...(discoveredPhoneNumber && { phoneNumber: discoveredPhoneNumber }),
+          ...(accountName && { accountName }),
+          isActive: true,
+        },
+      });
+    } else {
+      config = await prisma.whatsAppConfig.create({
+        data: {
+          organizationId,
+          accessToken,
+          wabaId: finalWabaId || "",
+          phoneNumberId: finalPhoneNumberId || "",
+          phoneNumber: discoveredPhoneNumber || "",
+          accountName: accountName || discoveredPhoneNumber || `WhatsApp ID (${finalPhoneNumberId.slice(-4)})`,
+          isDefault: isFirst,
+          isActive: true,
+          webhookVerifyToken: `verify_${organizationId.slice(0, 8)}`,
+        },
+      });
+    }
 
     console.log(`[EMBEDDED SIGNUP] WhatsApp Config saved successfully for Organization: ${organizationId}`);
 
     return res.status(200).json({
       success: true,
       message: "WhatsApp Business Account connected and configured successfully!",
-      config: {
-        id: config.id,
-        organizationId: config.organizationId,
-        wabaId: config.wabaId,
-        phoneNumberId: config.phoneNumberId,
-      },
+      config,
     });
   } catch (error: any) {
     console.error("Error processing Meta Embedded Signup callback:", error?.response?.data || error.message);
@@ -198,36 +399,41 @@ router.post("/embedded-signup/callback", async (req: Request, res: Response) => 
   }
 });
 
-// POST: Cleanly Disconnect WhatsApp Account
+// POST: Cleanly Disconnect a WhatsApp Account
 router.post("/disconnect", async (req: Request, res: Response) => {
   try {
-    const organizationId = (req.headers["x-organization-id"] as string) || req.body.organizationId;
-    if (!organizationId) {
-      return res.status(400).json({ error: "Missing x-organization-id header" });
-    }
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
 
-    const config = await prisma.whatsAppConfig.findUnique({
-      where: { organizationId }
-    });
+    const config = accountId
+      ? await prisma.whatsAppConfig.findUnique({ where: { id: accountId } })
+      : await prisma.whatsAppConfig.findFirst({ where: { organizationId, isDefault: true } });
 
     if (config) {
-      // Unsubscribe app from WABA webhooks if token and WABA ID are present
       if (config.wabaId && config.accessToken) {
         try {
           await axios.delete(
             `https://graph.facebook.com/v21.0/${config.wabaId}/subscribed_apps`,
             { headers: { Authorization: `Bearer ${config.accessToken}` } }
           );
-          console.log(`[WHATSAPP DISCONNECT] Unsubscribed app from WABA: ${config.wabaId}`);
         } catch (unsubErr: any) {
           console.warn("[WHATSAPP DISCONNECT] Warning during unsubscribe:", unsubErr?.response?.data || unsubErr.message);
         }
       }
 
-      // Clear WhatsApp config from database
-      await prisma.whatsAppConfig.delete({
-        where: { organizationId }
+      await prisma.whatsAppConfig.delete({ where: { id: config.id } });
+
+      // If deleted account was default, set next available as default
+      const remaining = await prisma.whatsAppConfig.findFirst({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
       });
+      if (remaining) {
+        await prisma.whatsAppConfig.update({
+          where: { id: remaining.id },
+          data: { isDefault: true },
+        });
+      }
     }
 
     return res.status(200).json({

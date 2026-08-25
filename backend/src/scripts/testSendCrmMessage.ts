@@ -7,15 +7,17 @@ async function main() {
 
   // 1. Get default Organization & Config
   const org = await prisma.organization.findFirst({
-    include: { waConfig: true }
+    include: { waConfigs: true }
   });
 
-  if (!org || !org.waConfig) {
+  const waConfig = org?.waConfigs?.find((c: any) => c.isDefault) || org?.waConfigs?.[0];
+
+  if (!org || !waConfig) {
     console.error("No organization or WhatsApp config found in DB.");
     return;
   }
 
-  const { phoneNumberId, accessToken } = org.waConfig;
+  const { phoneNumberId, accessToken } = waConfig;
   if (!phoneNumberId || !accessToken) {
     console.error("Missing WhatsApp credentials in DB.");
     return;
@@ -34,13 +36,11 @@ async function main() {
   console.log("Meta API Response Message ID:", waMessageId);
 
   // 3. Find or Create Conversation in DB
-  let conversation = await prisma.conversation.findUnique({
+  let conversation = await prisma.conversation.findFirst({
     where: {
-      organizationId_platform_customerPhone: {
-        organizationId: org.id,
-        platform: "whatsapp",
-        customerPhone,
-      },
+      organizationId: org.id,
+      platform: "whatsapp",
+      customerPhone,
     },
   });
 

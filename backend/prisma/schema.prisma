@@ -15,15 +15,15 @@ model Organization {
   status              String                 @default("ACTIVE")
   createdAt           DateTime               @default(now())
   users               User[]
-  waConfig            WhatsAppConfig?
-  igConfig            InstagramConfig?
+  waConfigs           WhatsAppConfig[]
+  igConfigs           InstagramConfig[]
   ytConfig            YouTubeConfig?
   gmbConfig           GoogleBusinessConfig?
   linkedInConfig      LinkedInConfig?
   linkedInPosts       LinkedInPost[]
   linkedInSchedules   LinkedInSchedule[]
   aiContentHistories  AIContentHistory[]
-  gmailConfig         GmailConfig?
+  gmailConfigs        GmailConfig[]
   gmailAutoReplyRules GmailAutoReplyRule[]
   flows               Flow[]
   conversations       Conversation[]
@@ -57,26 +57,39 @@ model User {
 
 model WhatsAppConfig {
   id                 String       @id @default(uuid())
-  organizationId     String       @unique
+  organizationId     String
   organization       Organization @relation(fields: [organizationId], references: [id])
   phoneNumberId      String
+  phoneNumber        String?
+  accountName        String?
   wabaId             String
   accessToken        String
   webhookVerifyToken String       @default(uuid())
+  isDefault          Boolean      @default(false)
+  isActive           Boolean      @default(true)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model InstagramConfig {
   id                 String       @id @default(uuid())
-  organizationId     String       @unique
+  organizationId     String
   organization       Organization @relation(fields: [organizationId], references: [id])
   pageId             String
   instagramAccountId String
+  username           String?
+  name               String?
+  profilePic         String?
   pageAccessToken    String
   webhookVerifyToken String       @default(uuid())
+  isDefault          Boolean      @default(false)
+  isActive           Boolean      @default(true)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model YouTubeConfig {
@@ -336,7 +349,8 @@ model InstagramActionQueueItem {
 
 model GmailConfig {
   id                String         @id @default(uuid())
-  organizationId    String         @unique
+  organizationId    String
+  displayName       String?
   emailAddress      String
   accessToken       String
   refreshToken      String?
@@ -345,11 +359,15 @@ model GmailConfig {
   autoReplyTemplate String?
   autoReplyEnabled  Boolean        @default(true)
   isAutoReplyOn     Boolean        @default(true)
+  isDefault         Boolean        @default(false)
+  isActive          Boolean        @default(true)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   organization      Organization   @relation(fields: [organizationId], references: [id])
   gmailThreads      GmailThread[]
   gmailMessages     GmailMessage[]
+
+  @@index([organizationId])
 }
 
 model GmailThread {
@@ -562,6 +580,8 @@ model Conversation {
   platform       String       @default("whatsapp")
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
+  phoneNumberId  String?
+  accountHandle  String?
   currentStepId  String?
   currentNodeId  String?
   flowState      Json?
@@ -571,8 +591,8 @@ model Conversation {
   updatedAt      DateTime     @updatedAt
   messages       Message[]
 
-  @@unique([organizationId, platform, customerPhone])
-  @@unique([organizationId, customerPhone, platform])
+  @@index([organizationId, phoneNumberId])
+  @@index([organizationId, platform])
 }
 
 model Message {

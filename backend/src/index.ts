@@ -62,6 +62,7 @@ app.use("/api/admin", adminRouter);
 
 // WhatsApp Multi-Tenant Embedded Signup Router
 app.use("/api/whatsapp", whatsappEmbeddedRouter);
+app.use("/api/whatsapp-embedded", whatsappEmbeddedRouter);
 
 // GMB/Google Business Profile Review Router
 app.use("/api/gmb", gmbRouter);

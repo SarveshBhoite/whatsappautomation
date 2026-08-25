@@ -46,7 +46,22 @@ router.post("/send", async (req: Request, res: Response) => {
     const isWhatsApp = conversation.platform === "whatsapp";
     const isInstagram = conversation.platform === "instagram";
     const isYouTube = conversation.platform === "youtube";
-    const waConfig = conversation.organization.waConfig;
+    
+    let waConfig = null;
+    if (isWhatsApp) {
+      if (conversation.phoneNumberId) {
+        waConfig = await prisma.whatsAppConfig.findFirst({
+          where: { organizationId: conversation.organizationId, phoneNumberId: conversation.phoneNumberId }
+        });
+      }
+      if (!waConfig) {
+        waConfig = await prisma.whatsAppConfig.findFirst({
+          where: { organizationId: conversation.organizationId, isActive: true },
+          orderBy: { isDefault: "desc" }
+        });
+      }
+    }
+
     const igConfig = conversation.organization.igConfig;
     const ytConfig = conversation.organization.ytConfig;
 

@@ -425,8 +425,9 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
 router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const config = await prisma.whatsAppConfig.findUnique({
-      where: { organizationId },
+    const config = await prisma.whatsAppConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { isDefault: "desc" },
     });
     return res.status(200).json(config || {
       phoneNumberId: "",
@@ -444,24 +445,37 @@ router.get("/config", async (req: Request, res: Response) => {
 router.post("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { phoneNumberId, wabaId, accessToken } = req.body;
+    const { phoneNumberId, wabaId, accessToken, phoneNumber, accountName } = req.body;
 
-    const config = await prisma.whatsAppConfig.upsert({
-      where: { organizationId },
-      update: {
-        ...(phoneNumberId !== undefined && { phoneNumberId }),
-        ...(wabaId !== undefined && { wabaId }),
-        ...(accessToken !== undefined && { accessToken }),
-      },
-      create: {
-        organizationId,
-        phoneNumberId: phoneNumberId || "",
-        wabaId: wabaId || "",
-        accessToken: accessToken || "",
-        webhookVerifyToken: `verify_${organizationId.slice(0, 8)}`,
-      },
+    const existing = await prisma.whatsAppConfig.findFirst({
+      where: { organizationId, phoneNumberId: phoneNumberId || undefined },
     });
 
+    let config;
+    if (existing) {
+      config = await prisma.whatsAppConfig.update({
+        where: { id: existing.id },
+        data: {
+          ...(phoneNumberId !== undefined && { phoneNumberId }),
+          ...(wabaId !== undefined && { wabaId }),
+          ...(accessToken !== undefined && { accessToken }),
+          ...(phoneNumber && { phoneNumber }),
+          ...(accountName && { accountName }),
+        },
+      });
+    } else {
+      const existingCount = await prisma.whatsAppConfig.count({ where: { organizationId } });
+      config = await prisma.whatsAppConfig.create({
+        data: {
+          organizationId,
+          phoneNumberId: phoneNumberId || "",
+          wabaId: wabaId || "",
+          accessToken: accessToken || "",
+          phoneNumber: phoneNumber || "",
+          isDefault: existingCount === 0,
+        },
+      });
+    }
     return res.status(200).json(config);
   } catch (error: any) {
     console.error("Error saving WhatsApp config:", error);
@@ -473,9 +487,30 @@ router.post("/config", async (req: Request, res: Response) => {
 router.get("/conversations", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const { phoneNumberId, platform } = req.query;
+
+    const whereClause: any = { organizationId };
+
+    if (platform) {
+      whereClause.platform = platform as string;
+    }
+
+    if (platform === "whatsapp") {
+      if (phoneNumberId) {
+        whereClause.phoneNumberId = phoneNumberId as string;
+      } else {
+        const activeConfig = await prisma.whatsAppConfig.findFirst({
+          where: { organizationId, isActive: true },
+          orderBy: { isDefault: "desc" },
+        });
+        if (activeConfig && activeConfig.phoneNumberId) {
+          whereClause.phoneNumberId = activeConfig.phoneNumberId;
+        }
+      }
+    }
 
     const conversations = await prisma.conversation.findMany({
-      where: { organizationId },
+      where: whereClause,
       include: {
         messages: {
           orderBy: { createdAt: "desc" },
@@ -850,18 +885,19 @@ router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
 
-    let config = await prisma.whatsAppConfig.findUnique({
-      where: { organizationId },
+    let config = await prisma.whatsAppConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { isDefault: "desc" },
     });
 
     if (!config) {
-      // Create empty config if not existing
       config = await prisma.whatsAppConfig.create({
         data: {
           organizationId,
           phoneNumberId: "",
           wabaId: "",
           accessToken: "",
+          isDefault: true,
         },
       });
     }
@@ -879,20 +915,32 @@ router.post("/config", async (req: Request, res: Response) => {
     const organizationId = getOrgId(req);
     const { phoneNumberId, wabaId, accessToken } = req.body;
 
-    const config = await prisma.whatsAppConfig.upsert({
-      where: { organizationId },
-      update: {
-        phoneNumberId,
-        wabaId,
-        accessToken,
-      },
-      create: {
-        organizationId,
-        phoneNumberId: phoneNumberId || "",
-        wabaId: wabaId || "",
-        accessToken: accessToken || "",
-      },
+    const existing = await prisma.whatsAppConfig.findFirst({
+      where: { organizationId, phoneNumberId: phoneNumberId || undefined },
     });
+
+    let config;
+    if (existing) {
+      config = await prisma.whatsAppConfig.update({
+        where: { id: existing.id },
+        data: {
+          ...(phoneNumberId !== undefined && { phoneNumberId }),
+          ...(wabaId !== undefined && { wabaId }),
+          ...(accessToken !== undefined && { accessToken }),
+        },
+      });
+    } else {
+      const existingCount = await prisma.whatsAppConfig.count({ where: { organizationId } });
+      config = await prisma.whatsAppConfig.create({
+        data: {
+          organizationId,
+          phoneNumberId: phoneNumberId || "",
+          wabaId: wabaId || "",
+          accessToken: accessToken || "",
+          isDefault: existingCount === 0,
+        },
+      });
+    }
 
     return res.status(200).json({ message: "WhatsApp configuration updated successfully", data: config });
   } catch (error: any) {
@@ -925,17 +973,19 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
       });
     }
 
-    const config = await prisma.instagramConfig.findUnique({
-      where: { organizationId },
+    const accounts = await prisma.instagramConfig.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { createdAt: "desc" },
     });
+
+    const config = accounts.find((a) => a.isDefault) || accounts[0] || null;
 
     let liveProfile: { followers_count?: number; media_count?: number; username?: string; name?: string } | null = null;
 
-    // If Meta Access Token and IG Account ID are available, fetch live profile stats from Meta Graph API
     if (config?.pageAccessToken && config?.instagramAccountId) {
       try {
         const metaRes = await fetch(
-          `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=followers_count,media_count,username,name&access_token=${config.pageAccessToken}`
+          `https://graph.facebook.com/v19.0/${config.instagramAccountId}?fields=followers_count,media_count,username,name,profile_picture_url&access_token=${config.pageAccessToken}`
         );
         if (metaRes.ok) {
           const metaData = await metaRes.json();
@@ -948,6 +998,7 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
 
     return res.status(200).json({
       config,
+      accounts,
       liveProfile: liveProfile || null
     });
   } catch (error: any) {
@@ -956,26 +1007,180 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
   }
 });
 
-// POST: Update Instagram Config credentials
+export async function syncAllInstagramAccountsForToken(organizationId: string, accessToken: string) {
+  try {
+    const pagesRes = await fetch(
+      `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&access_token=${accessToken}`
+    );
+
+    if (!pagesRes.ok) return;
+    const pagesData = await pagesRes.json();
+    const pages = pagesData.data || [];
+
+    for (const page of pages) {
+      const ig = page.instagram_business_account;
+      if (ig && ig.id) {
+        const instagramAccountId = ig.id;
+        const pageId = page.id;
+        const pageAccessToken = page.access_token || accessToken;
+        const username = ig.username || "";
+        const name = ig.name || page.name || "";
+        const profilePic = ig.profile_picture_url || "";
+
+        const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
+        const existing = await prisma.instagramConfig.findFirst({
+          where: { organizationId, instagramAccountId }
+        });
+
+        if (existing) {
+          await prisma.instagramConfig.update({
+            where: { id: existing.id },
+            data: {
+              pageId,
+              pageAccessToken,
+              username,
+              name,
+              profilePic,
+              isActive: true,
+            }
+          });
+        } else {
+          await prisma.instagramConfig.create({
+            data: {
+              organizationId,
+              instagramAccountId,
+              pageId,
+              pageAccessToken,
+              username,
+              name,
+              profilePic,
+              isDefault: existingCount === 0,
+              isActive: true,
+            }
+          });
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn("[MULTI-IG SYNC] Auto-sync notice:", err?.message);
+  }
+}
+
+// GET: All linked Instagram accounts
+router.get("/instagram/accounts", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    let accounts = await prisma.instagramConfig.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (accounts.length === 0) {
+      accounts = await prisma.instagramConfig.findMany({
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    const tokenConfig = accounts.find((a) => a.pageAccessToken);
+    if (tokenConfig && tokenConfig.pageAccessToken) {
+      syncAllInstagramAccountsForToken(organizationId, tokenConfig.pageAccessToken).catch(() => {});
+    }
+
+    return res.status(200).json({ success: true, accounts });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch Instagram accounts", details: error.message });
+  }
+});
+
+// POST: Set default Instagram account
+router.post("/instagram/set-default", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
+
+    if (!accountId) return res.status(400).json({ error: "Missing accountId" });
+
+    await prisma.instagramConfig.updateMany({
+      where: { organizationId },
+      data: { isDefault: false },
+    });
+
+    const updated = await prisma.instagramConfig.update({
+      where: { id: accountId },
+      data: { isDefault: true },
+    });
+
+    return res.status(200).json({ success: true, message: "Default Instagram account set", activeAccount: updated });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to set default Instagram account", details: error.message });
+  }
+});
+
+// POST: Update or Connect Instagram Config credentials
 router.post("/instagram/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { instagramAccountId, pageId, pageAccessToken } = req.body;
+    const { instagramAccountId, pageId, pageAccessToken, username, name } = req.body;
 
-    const config = await prisma.instagramConfig.upsert({
-      where: { organizationId },
-      update: {
-        instagramAccountId,
-        pageId,
-        pageAccessToken,
-      },
-      create: {
-        organizationId,
-        instagramAccountId: instagramAccountId || "",
-        pageId: pageId || "",
-        pageAccessToken: pageAccessToken || "",
-      },
+    if (!instagramAccountId) {
+      return res.status(400).json({ error: "Instagram Account ID is required" });
+    }
+
+    // Try fetching profile details from Meta Graph API
+    let metaUsername = username || "";
+    let metaName = name || "";
+    let profilePic = "";
+    if (pageAccessToken && instagramAccountId) {
+      try {
+        const metaRes = await fetch(
+          `https://graph.facebook.com/v19.0/${instagramAccountId}?fields=username,name,profile_picture_url&access_token=${pageAccessToken}`
+        );
+        if (metaRes.ok) {
+          const metaData = await metaRes.json();
+          if (metaData.username) metaUsername = metaData.username;
+          if (metaData.name) metaName = metaData.name;
+          if (metaData.profile_picture_url) profilePic = metaData.profile_picture_url;
+        }
+      } catch (err) {
+        console.warn("Could not auto-fetch IG username details:", err);
+      }
+    }
+
+    const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
+    const isFirst = existingCount === 0;
+
+    const existing = await prisma.instagramConfig.findFirst({
+      where: { organizationId, instagramAccountId },
     });
+
+    let config;
+    if (existing) {
+      config = await prisma.instagramConfig.update({
+        where: { id: existing.id },
+        data: {
+          pageId: pageId || existing.pageId,
+          pageAccessToken: pageAccessToken || existing.pageAccessToken,
+          ...(metaUsername && { username: metaUsername }),
+          ...(metaName && { name: metaName }),
+          ...(profilePic && { profilePic }),
+          isActive: true,
+        },
+      });
+    } else {
+      config = await prisma.instagramConfig.create({
+        data: {
+          organizationId,
+          instagramAccountId,
+          pageId: pageId || "",
+          pageAccessToken: pageAccessToken || "",
+          username: metaUsername || `ig_${instagramAccountId.slice(-4)}`,
+          name: metaName || "",
+          profilePic,
+          isDefault: isFirst,
+          isActive: true,
+        },
+      });
+    }
 
     return res.status(200).json({ message: "Instagram configuration updated successfully", data: config });
   } catch (error: any) {
@@ -998,8 +1203,9 @@ export const instagramCommentsFeed: Array<{
 router.get("/instagram/comments", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const config = await prisma.instagramConfig.findUnique({
-      where: { organizationId }
+    const config = await prisma.instagramConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { isDefault: "desc" },
     });
 
     let liveComments = [...instagramCommentsFeed];
@@ -1140,8 +1346,9 @@ router.post("/upload", async (req: Request, res: Response) => {
 router.get("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    let waConfig = await prisma.whatsAppConfig.findUnique({
-      where: { organizationId }
+    let waConfig = await prisma.whatsAppConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { isDefault: "desc" },
     });
     if (!waConfig || !waConfig.accessToken) {
       waConfig = await prisma.whatsAppConfig.findFirst();
@@ -1183,8 +1390,9 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
 
     const cleanName = name.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_");
 
-    const waConfig = await prisma.whatsAppConfig.findUnique({
-      where: { organizationId }
+    const waConfig = await prisma.whatsAppConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { isDefault: "desc" },
     });
 
     if (!waConfig?.accessToken || !waConfig?.wabaId) {
@@ -1365,8 +1573,9 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
     const targetTemplate = templateName || "jisnu_official_welcome";
     const templateLang = targetTemplate === "hello_world" ? "en_US" : "en";
 
-    const waConfig = await prisma.whatsAppConfig.findUnique({
-      where: { organizationId }
+    const waConfig = await prisma.whatsAppConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { isDefault: "desc" },
     });
 
     const results: any[] = [];
@@ -1387,13 +1596,11 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
 
       try {
         // 1. Find or create conversation
-        let conversation = await prisma.conversation.findUnique({
+        let conversation = await prisma.conversation.findFirst({
           where: {
-            organizationId_platform_customerPhone: {
-              organizationId,
-              platform: "whatsapp",
-              customerPhone: cleanPhone
-            }
+            organizationId,
+            platform: "whatsapp",
+            customerPhone: cleanPhone
           }
         });
 

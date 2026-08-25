@@ -34,7 +34,8 @@ import {
   Search,
   ShieldCheck,
   Terminal,
-  Activity
+  Activity,
+  Mail
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -424,6 +425,11 @@ export default function Dashboard() {
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram" | "youtube">("whatsapp");
   const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube" | "api-keys">("whatsapp");
+
+  // Multi-Account Lists State
+  const [waAccounts, setWaAccounts] = useState<any[]>([]);
+  const [igAccounts, setIgAccounts] = useState<any[]>([]);
+  const [gmailAccounts, setGmailAccounts] = useState<any[]>([]);
 
   // Google GMB Config
   const [googleConfig, setGoogleConfig] = useState({
@@ -1615,9 +1621,12 @@ print(res.json())`;
     // Initial Fetch
     fetchConversations();
     fetchConfig();
+    fetchWaAccounts();
     fetchInstagramConfig();
+    fetchIgAccounts();
     fetchYoutubeConfig();
     fetchGoogleConfig();
+    fetchGmailAccounts();
     fetchActiveFlow("whatsapp");
 
     return () => {
@@ -1677,6 +1686,37 @@ print(res.json())`;
     }
   };
 
+  const fetchWaAccounts = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/whatsapp-embedded/accounts`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accounts) setWaAccounts(data.accounts);
+      }
+    } catch (err) {
+      console.warn("Error fetching WhatsApp accounts:", err);
+    }
+  };
+
+  const setDefaultWaAccount = async (accountId: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/whatsapp-embedded/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId })
+      });
+      fetchConfig();
+      fetchWaAccounts();
+    } catch (err) {
+      console.warn("Error setting default WhatsApp account:", err);
+    }
+  };
+
   const fetchConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/config`, {
@@ -1687,6 +1727,7 @@ print(res.json())`;
       if (data) {
         setConfig(data);
       }
+      fetchWaAccounts();
     } catch (err) {
       console.warn("Error fetching config:", err);
     }
@@ -1706,12 +1747,43 @@ print(res.json())`;
       });
       if (res.ok) {
         setSaveStatus("success");
+        fetchConfig();
         setTimeout(() => setSaveStatus("idle"), 3000);
       } else {
         setSaveStatus("error");
       }
     } catch (err) {
       setSaveStatus("error");
+    }
+  };
+
+  const fetchIgAccounts = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/accounts`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accounts) setIgAccounts(data.accounts);
+      }
+    } catch (err) {
+      console.warn("Error fetching IG accounts:", err);
+    }
+  };
+
+  const setDefaultIgAccount = async (accountId: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/admin/instagram/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId })
+      });
+      fetchInstagramConfig();
+    } catch (err) {
+      console.warn("Error setting default IG account:", err);
     }
   };
 
@@ -1723,8 +1795,10 @@ print(res.json())`;
       if (!res.ok) return;
       const data = await res.json();
       if (data) {
-        setIgConfig(data);
+        if (data.config) setIgConfig(data.config);
+        if (data.accounts) setIgAccounts(data.accounts);
       }
+      fetchIgAccounts();
     } catch (err) {
       console.warn("Error fetching Instagram config:", err);
     }
@@ -1744,12 +1818,43 @@ print(res.json())`;
       });
       if (res.ok) {
         setIgSaveStatus("success");
+        fetchInstagramConfig();
         setTimeout(() => setIgSaveStatus("idle"), 3000);
       } else {
         setIgSaveStatus("error");
       }
     } catch (err) {
       setIgSaveStatus("error");
+    }
+  };
+
+  const fetchGmailAccounts = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmail/accounts`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accounts) setGmailAccounts(data.accounts);
+      }
+    } catch (err) {
+      console.warn("Error fetching Gmail accounts:", err);
+    }
+  };
+
+  const setDefaultGmailAccount = async (accountId: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/gmail/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId })
+      });
+      fetchGmailAccounts();
+    } catch (err) {
+      console.warn("Error setting default Gmail account:", err);
     }
   };
 
@@ -3922,6 +4027,74 @@ print(res.json())`;
                             </div>
                           </div>
                         )}
+
+                        {/* Linked WhatsApp Numbers List */}
+                        <div className="mt-5 pt-5 border-t border-emerald-200/90 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-emerald-600" /> Linked Phone Numbers & WABA IDs ({waAccounts.length})
+                              </h4>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Switch active default number or connect additional numbers to your organization.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={launchWhatsAppSignup}
+                              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-emerald-600/20 cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Plus className="w-4 h-4 stroke-[2.5]" />
+                              Link Additional Number
+                            </button>
+                          </div>
+
+                          <div className="space-y-2.5">
+                            {waAccounts.length === 0 ? (
+                              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                                No numbers linked yet. Click <strong>"Link Additional Number"</strong> to add your first Meta Cloud API number.
+                              </div>
+                            ) : (
+                              waAccounts.map((acc) => (
+                                <div key={acc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-white to-slate-50/50 border border-slate-200/90 rounded-2xl text-xs shadow-2xs hover:border-emerald-300 transition-all">
+                                  <div className="flex items-center gap-3.5">
+                                    <div className="relative p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100/80">
+                                      <Phone className="w-5 h-5" />
+                                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white animate-pulse" />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                                        <span>{acc.phoneNumber || acc.accountName || `Phone ID: ${acc.phoneNumberId}`}</span>
+                                        {acc.isDefault && (
+                                          <span className="px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800 bg-emerald-100 rounded-full border border-emerald-200/80">
+                                            Active Default Number
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                                        <span>WABA ID: <strong className="text-slate-700">{acc.wabaId}</strong></span>
+                                        <span>•</span>
+                                        <span>Phone ID: <strong className="text-slate-700">{acc.phoneNumberId}</strong></span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {!acc.isDefault ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDefaultWaAccount(acc.id)}
+                                      className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 hover:border-emerald-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
+                                    >
+                                      Set as Active Number
+                                    </button>
+                                  ) : (
+                                    <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs rounded-xl flex items-center gap-1.5">
+                                      <Check className="w-3.5 h-3.5 stroke-[3]" /> Active Number
+                                    </span>
+                                  )}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       {/* WhatsApp Manual Credentials Form */}
@@ -3979,6 +4152,51 @@ print(res.json())`;
                     </>
                   ) : settingsSubTab === "instagram" ? (
                   <>
+                    {/* Linked Instagram Accounts List */}
+                    {igAccounts.length > 0 && (
+                      <div className="bg-white border border-pink-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                          <Instagram className="h-4.5 w-4.5 text-pink-600" /> Linked Instagram Accounts ({igAccounts.length})
+                        </h3>
+                        <div className="space-y-2">
+                          {igAccounts.map((acc) => (
+                            <div key={acc.id} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                              <div className="flex items-center gap-3">
+                                {acc.profilePic ? (
+                                  <img src={acc.profilePic} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                                ) : (
+                                  <div className="p-2 rounded-lg bg-pink-100 text-pink-600">
+                                    <Instagram className="w-4 h-4" />
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-2">
+                                    {acc.username ? `@${acc.username}` : (acc.name || `IG (${acc.instagramAccountId.slice(-4)})`)}
+                                    {acc.isDefault && (
+                                      <span className="px-2 py-0.5 text-[9px] font-bold text-pink-700 bg-pink-100 rounded-full">
+                                        Active Default
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 font-mono">IG Account ID: {acc.instagramAccountId} | Page ID: {acc.pageId}</div>
+                                </div>
+                              </div>
+
+                              {!acc.isDefault && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDefaultIgAccount(acc.id)}
+                                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] rounded-lg transition-colors cursor-pointer"
+                                >
+                                  Set Active
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Instagram Credentials Form */}
                     <form onSubmit={saveInstagramConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
                       <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -4066,6 +4284,47 @@ print(res.json())`;
                   </>
                 ) : settingsSubTab === "google" ? (
                   <>
+                    {/* Linked Gmail Accounts List */}
+                    {gmailAccounts.length > 0 && (
+                      <div className="bg-white border border-rose-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                          <Mail className="h-4.5 w-4.5 text-rose-500" /> Linked Gmail / Google Accounts ({gmailAccounts.length})
+                        </h3>
+                        <div className="space-y-2">
+                          {gmailAccounts.map((acc) => (
+                            <div key={acc.id} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-rose-100 text-rose-600">
+                                  <Mail className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-2">
+                                    {acc.emailAddress || "Connected Gmail Account"}
+                                    {acc.isDefault && (
+                                      <span className="px-2 py-0.5 text-[9px] font-bold text-rose-700 bg-rose-100 rounded-full">
+                                        Primary Email
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 font-mono">Display Name: {acc.displayName || acc.emailAddress?.split("@")[0]}</div>
+                                </div>
+                              </div>
+
+                              {!acc.isDefault && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDefaultGmailAccount(acc.id)}
+                                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] rounded-lg transition-colors cursor-pointer"
+                                >
+                                  Set Primary
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Google GMB Credentials Form */}
                     <form onSubmit={saveGoogleConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
                       <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -4198,28 +4457,36 @@ print(res.json())`;
                   </>
                 ) : settingsSubTab === "youtube" ? (
                   <>
-                    {/* YouTube Credentials Form */}
-                    <form onSubmit={saveYoutubeConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                    {/* YouTube One-Click Google OAuth Card */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                         <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                          <Video className="h-4.5 w-4.5 text-red-600" /> YouTube Channel Configuration
+                          <Video className="h-4.5 w-4.5 text-red-600" /> YouTube Channel Integration
                         </h3>
                         {ytConfig.refreshToken || ytConfig.channelId ? (
                           <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
                             Connected ✓
                           </span>
-                        ) : null}
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                            Not Connected
+                          </span>
+                        )}
                       </div>
 
-                      {(ytConfig.refreshToken || ytConfig.channelId) && (
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Connect your YouTube channel to automatically sync video comments, enable AI bot responses on channel videos, and monitor community interactions in real-time.
+                      </p>
+
+                      {ytConfig.refreshToken || ytConfig.channelId ? (
                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Connected Account</span>
-                            <span className="text-sm font-bold text-slate-900">
-                              {ytConfig.channelTitle || ytConfig.channelId || "Connected YouTube Channel"}
+                            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Connected YouTube Channel</span>
+                            <span className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                              {ytConfig.channelTitle || ytConfig.channelId || "Connected Channel"}
                             </span>
                             <span className="text-xs text-slate-600 font-mono">
-                              Channel ID: {ytConfig.channelId || "N/A"}
+                              Channel ID: <strong>{ytConfig.channelId || "N/A"}</strong>
                             </span>
                           </div>
                           <button
@@ -4228,13 +4495,97 @@ print(res.json())`;
                               setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
                               saveYoutubeConfig({ preventDefault: () => {} } as any);
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-all cursor-pointer shrink-0"
+                            className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer shrink-0"
                           >
-                            Disconnect
+                            Disconnect Channel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={handleYoutubeOAuthConnect}
+                            disabled={ytOauthStatus === "connecting"}
+                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/20 cursor-pointer"
+                          >
+                            <Video className="w-4 h-4" />
+                            {ytOauthStatus === "connecting" ? "Connecting to Google..." : "Connect YouTube Account with Google OAuth"}
                           </button>
                         </div>
                       )}
+                    </div>
+
+                    {/* YouTube Manual Credentials Form */}
+                    <form onSubmit={saveYoutubeConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Key className="h-4.5 w-4.5 text-red-600" /> Manual API Credentials (Advanced)
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">YouTube Channel ID</label>
+                          <input
+                            type="text"
+                            value={ytConfig.channelId || ""}
+                            onChange={(e) => setYtConfig({ ...ytConfig, channelId: e.target.value })}
+                            placeholder="e.g. UCxxxxxxxxxxxxxxxxxxxx"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 font-mono"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-700 font-semibold">Channel Title / Name</label>
+                          <input
+                            type="text"
+                            value={ytConfig.channelTitle || ""}
+                            onChange={(e) => setYtConfig({ ...ytConfig, channelTitle: e.target.value })}
+                            placeholder="e.g. My Official Channel"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-700 font-semibold">Google OAuth Refresh Token (Offline Access)</label>
+                        <textarea
+                          value={ytConfig.refreshToken || ""}
+                          onChange={(e) => setYtConfig({ ...ytConfig, refreshToken: e.target.value })}
+                          rows={3}
+                          placeholder="Paste your 1//0... Refresh Token here"
+                          className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 font-mono leading-relaxed"
+                        />
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <button
+                          type="submit"
+                          disabled={ytSaveStatus === "saving"}
+                          className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-md shadow-red-600/20 cursor-pointer"
+                        >
+                          <Save className="h-4 w-4" />
+                          {ytSaveStatus === "saving" ? "Saving..." : ytSaveStatus === "success" ? "Saved Successfully!" : "Save YouTube Credentials"}
+                        </button>
+                        
+                        {ytSaveStatus === "error" && (
+                          <span className="text-xs text-rose-600 font-medium">Failed to save settings.</span>
+                        )}
+                      </div>
                     </form>
+
+                    {/* YouTube Real-Time Webhook Configuration */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <Database className="h-4.5 w-4.5 text-red-600" /> YouTube Webhook Callback Endpoint
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Use this endpoint for YouTube PubSubHubbub subscription notifications to listen to live comment events.
+                      </p>
+
+                      <div className="flex flex-col gap-1 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                        <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">PubSubHubbub Callback URL</span>
+                        <span className="text-xs text-slate-800 font-mono truncate">{`${BACKEND_URL}/api/youtube/webhook`}</span>
+                      </div>
+                    </div>
                   </>
                 ) : null}
               </div>
@@ -4259,6 +4610,13 @@ print(res.json())`;
                       <li>Add the <strong>Messenger</strong> product to your Meta Developer app.</li>
                       <li>Generate a <strong>Permanent System User Access Token</strong> with <code className="text-[10px] bg-slate-100 text-slate-800 p-0.5 px-1 rounded border border-slate-200">instagram_basic</code> scope.</li>
                       <li>Link your Facebook Page and Instagram Business Account.</li>
+                    </ul>
+                  ) : settingsSubTab === "youtube" ? (
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-red-600 marker:font-bold animate-fadeIn">
+                      <li>Go to <strong>Google Cloud Console</strong> and create a project.</li>
+                      <li>Enable the <strong>YouTube Data API v3</strong> product.</li>
+                      <li>Click <strong>"Connect YouTube Account"</strong> to authorize with 1-click Google OAuth.</li>
+                      <li>Alternatively, input your <strong>Channel ID</strong> and <strong>OAuth Refresh Token</strong> manually.</li>
                     </ul>
                   ) : (
                     <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-brand-blue marker:font-bold animate-fadeIn">

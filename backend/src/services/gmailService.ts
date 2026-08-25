@@ -9,8 +9,9 @@ const DEFAULT_ORG_ID = "demo-org-123";
  * If expired, it automatically refreshes it using the Google OAuth refresh token.
  */
 export async function getGmailAccessToken(orgId: string, forceRefresh = false): Promise<string> {
-  const config = await prisma.gmailConfig.findUnique({
-    where: { organizationId: orgId },
+  const config = await prisma.gmailConfig.findFirst({
+    where: { organizationId: orgId, isActive: true },
+    orderBy: { isDefault: "desc" },
   });
 
   if (!config || (!config.accessToken && !config.refreshToken)) {
@@ -40,7 +41,7 @@ export async function getGmailAccessToken(orgId: string, forceRefresh = false): 
       const { access_token, refresh_token } = response.data;
 
       const updated = await prisma.gmailConfig.update({
-        where: { organizationId: orgId },
+        where: { id: config.id },
         data: {
           accessToken: access_token,
           refreshToken: refresh_token || undefined,
@@ -182,8 +183,9 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
     let syncedCount = 0;
     console.log(`[GMAIL SERVICE] Fetched ${threads.length} threads for label '${label}'. Processing...`);
 
-    const config = await prisma.gmailConfig.findUnique({
-      where: { organizationId: orgId }
+    const config = await prisma.gmailConfig.findFirst({
+      where: { organizationId: orgId, isActive: true },
+      orderBy: { isDefault: "desc" },
     });
     const userEmail = config?.emailAddress?.toLowerCase() || "";
     const activeRules = (config && config.autoReplyEnabled)
@@ -402,8 +404,9 @@ export async function generateGmailAiDraft(
     return "";
   }
 
-  const config = await prisma.gmailConfig.findUnique({
-    where: { organizationId: orgId }
+  const config = await prisma.gmailConfig.findFirst({
+    where: { organizationId: orgId, isActive: true },
+    orderBy: { isDefault: "desc" },
   });
 
   const customTemplate = config?.autoReplyTemplate || 

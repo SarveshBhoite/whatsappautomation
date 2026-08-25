@@ -204,13 +204,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
       }
 
       // Find or create conversation
-      let conversation = await prisma.conversation.findUnique({
+      let conversation = await prisma.conversation.findFirst({
         where: {
-          organizationId_platform_customerPhone: {
-            organizationId,
-            platform: "instagram",
-            customerPhone,
-          },
+          organizationId,
+          platform: "instagram",
+          customerPhone,
         },
       });
 
@@ -318,10 +316,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
       // Fallback to default organization if matching by phoneNumberId fails
       console.warn(`No exact match for Phone Number ID: ${phoneNumberId}. Falling back to default organization...`);
       const defaultOrg = await prisma.organization.findFirst({
-        include: { waConfig: true }
+        include: { waConfigs: true }
       });
-      if (defaultOrg && defaultOrg.waConfig) {
-        waConfig = defaultOrg.waConfig as any;
+      if (defaultOrg && defaultOrg.waConfigs?.length) {
+        waConfig = (defaultOrg.waConfigs.find((c: any) => c.isDefault) || defaultOrg.waConfigs[0]) as any;
       }
     }
 
@@ -477,14 +475,13 @@ export const handleWebhook = async (req: Request, res: Response) => {
           content = `[Customer clicked Meta Ad: "${adHeadline}"] ${content}`;
         }
 
-        // Find or create the conversation using unique index organizationId_platform_customerPhone
-        let conversation = await prisma.conversation.findUnique({
+        // Find or create the conversation using organizationId, platform, customerPhone, and phoneNumberId
+        let conversation = await prisma.conversation.findFirst({
           where: {
-            organizationId_platform_customerPhone: {
-              organizationId,
-              platform: "whatsapp",
-              customerPhone,
-            },
+            organizationId,
+            platform: "whatsapp",
+            customerPhone,
+            phoneNumberId: phoneNumberId || undefined,
           },
         });
 
@@ -495,6 +492,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
               platform: "whatsapp",
               customerPhone,
               customerName: contactName,
+              phoneNumberId: phoneNumberId || waConfig.phoneNumberId || null,
               isBotPaused: false,
             },
           });
@@ -502,7 +500,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           // Keep customer name updated with WhatsApp Profile Name
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
-            data: { customerName: contactName },
+            data: { customerName: contactName, phoneNumberId: phoneNumberId || (conversation as any).phoneNumberId },
           });
         }
 

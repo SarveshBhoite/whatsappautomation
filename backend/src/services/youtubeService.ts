@@ -153,13 +153,11 @@ export class YouTubeService {
         }
 
         // Find or create conversation
-        let conversation = await prisma.conversation.findUnique({
+        let conversation = await prisma.conversation.findFirst({
           where: {
-            organizationId_platform_customerPhone: {
-              organizationId,
-              platform: "youtube",
-              customerPhone: threadId
-            }
+            organizationId,
+            platform: "youtube",
+            customerPhone: threadId
           }
         });
 

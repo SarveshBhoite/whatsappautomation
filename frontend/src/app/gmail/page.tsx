@@ -35,6 +35,7 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
+import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -299,6 +300,45 @@ export default function GmailDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Multi-Account Gmail State
+  const [gmailAccounts, setGmailAccounts] = useState<any[]>([]);
+  const [selectedGmailAccountId, setSelectedGmailAccountId] = useState<string>("");
+
+  const fetchGmailAccounts = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmail/accounts`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accounts) {
+          setGmailAccounts(data.accounts);
+          const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
+          if (defaultAcc) setSelectedGmailAccountId(defaultAcc.id);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch Gmail accounts:", err);
+    }
+  };
+
+  const handleSwitchGmailAccount = async (accountId: string) => {
+    try {
+      setSelectedGmailAccountId(accountId);
+      await fetch(`${BACKEND_URL}/api/gmail/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId })
+      });
+      fetchData();
+    } catch (err) {
+      console.warn("Error switching Gmail account:", err);
+    }
+  };
+
   // Bulk Email Campaign State
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -385,6 +425,7 @@ export default function GmailDashboard() {
       }).catch(console.error);
 
       fetchRules();
+      fetchGmailAccounts();
     } catch (err: any) {
       console.error("Failed to load Gmail data:", err);
       setErrorMsg("Failed to connect to the backend server.");
@@ -1092,7 +1133,7 @@ export default function GmailDashboard() {
               <Mail className="h-4 w-4 lg:h-5 lg:w-5 text-emerald-600" />
             </div>
             <div>
-              <h1 className="font-black text-sm lg:text-lg tracking-tight text-slate-900 truncate max-w-[160px] sm:max-w-xs md:max-w-md">
+              <h1 className="font-black text-sm lg:text-lg tracking-tight text-slate-900 truncate max-w-[160px] sm:max-w-xs md:max-w-md flex items-center gap-2">
                 {activeTab === "CAMPAIGNS" ? "Bulk Email Campaigns" : activeTab === "SETTINGS" ? "Automation Configuration" : `Mailbox: ${selectedLabel}`}
               </h1>
               <p className="text-[10px] lg:text-[11px] text-slate-500 mt-0.5 hidden sm:block">
@@ -1103,6 +1144,24 @@ export default function GmailDashboard() {
                   : "On-demand AI sentiment response manager"}
               </p>
             </div>
+
+            {/* Multi-ID Gmail Account Switcher */}
+            <AccountSwitcher
+              title="Gmail Account"
+              theme="rose"
+              accounts={gmailAccounts.map((acc) => ({
+                id: acc.id,
+                label: acc.displayName ? `${acc.displayName} (${acc.emailAddress})` : acc.emailAddress,
+                sublabel: acc.isDefault ? "Primary Email Account" : "Linked Email Account",
+                isDefault: acc.isDefault,
+                isActive: acc.isActive,
+                type: "gmail",
+              }))}
+              selectedAccountId={selectedGmailAccountId}
+              onSelectAccount={handleSwitchGmailAccount}
+              onToggleOpen={fetchGmailAccounts}
+              onAddNewAccount={handleConnectGmail}
+            />
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
