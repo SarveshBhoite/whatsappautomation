@@ -244,7 +244,11 @@ async function runBackgroundGmbSync() {
           console.warn(`[BACKGROUND SCHEDULER] Posts sync skipped for ${config.organizationId}: ${postErr.message}`);
         }
       } catch (err: any) {
-        console.error(`[BACKGROUND SCHEDULER] Sync failed for Organization ${config.organizationId}:`, err.message);
+        if (err?.message?.includes("invalid_grant") || err?.message?.includes("Token has been expired") || err?.message?.includes("Failed to authenticate")) {
+          console.warn(`[BACKGROUND SCHEDULER] ⚠️ Google Business OAuth token expired for Organization '${config.organizationId}'. Re-connect GMB in Settings.`);
+        } else {
+          console.error(`[BACKGROUND SCHEDULER] Sync failed for Organization ${config.organizationId}:`, err.message);
+        }
       }
     }
   } catch (err: any) {
@@ -278,14 +282,25 @@ async function runBackgroundGmailSync() {
   try {
     const configs = await prisma.gmailConfig.findMany({
       where: {
-        refreshToken: { not: "" }
+        OR: [
+          { refreshToken: { not: null } },
+          { accessToken: { not: "" } }
+        ]
       }
     });
 
     console.log(`[BACKGROUND SCHEDULER] Found ${configs.length} active Gmail configurations to sync.`);
 
     for (const config of configs) {
-      await syncGmailThreads(config.organizationId, io);
+      try {
+        await syncGmailThreads(config.organizationId, io);
+      } catch (syncErr: any) {
+        if (syncErr?.message?.includes("invalid_grant") || syncErr?.message?.includes("insufficient authentication scopes") || syncErr?.status === 403) {
+          console.warn(`[BACKGROUND SCHEDULER] ⚠️ Google OAuth token expired or revoked for Org '${config.organizationId}'. Re-connect Gmail at /gmail or /api/gmail/oauth/connect`);
+        } else {
+          console.error(`[BACKGROUND SCHEDULER] Gmail sync error for Org '${config.organizationId}':`, syncErr.message);
+        }
+      }
     }
   } catch (err: any) {
     console.error("[BACKGROUND SCHEDULER] Gmail sync scheduler error:", err.message);

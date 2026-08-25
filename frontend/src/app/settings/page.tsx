@@ -34,7 +34,9 @@ import {
   Search,
   ShieldCheck,
   Terminal,
-  Activity
+  Activity,
+  Copy,
+  Download
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -854,6 +856,15 @@ print(res.json())`;
   const [updatingKey, setUpdatingKey] = useState(false);
 
   const AVAILABLE_SCOPES = [
+    {
+      category: "Email",
+      color: "blue",
+      items: [
+        { id: "email_send", name: "email_send", label: "Send Emails", desc: "Dispatch single & bulk marketing emails" },
+        { id: "email_automation", name: "email_automation", label: "Manage Email Automations", desc: "Create & edit keyword auto-reply rules" },
+        { id: "email_read", name: "email_read", label: "Read Email Threads", desc: "Fetch inbox threads & connection status" }
+      ]
+    },
     {
       category: "WhatsApp",
       color: "emerald",
@@ -4617,6 +4628,83 @@ print(res.json())`;
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DISPLAY GENERATED RAW API KEY SECRET CARD */}
+        {showRawKeyModal && createdRawKey && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl max-w-lg w-full p-6 md:p-8 space-y-6 shadow-2xl relative text-slate-100">
+              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 shadow-lg shadow-emerald-500/10">
+                  <Key className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-100 flex items-center gap-2">
+                    API Key Generated Successfully!
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Copy and store this API key in a secure location.
+                  </p>
+                </div>
+              </div>
+
+              {/* WARNING BOX */}
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 space-y-1 text-amber-200 text-xs">
+                <div className="flex items-center gap-2 font-bold text-amber-300">
+                  <ShieldCheck className="h-4 w-4 text-amber-400" />
+                  <span>Important Security Notice</span>
+                </div>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  For security reasons, this raw API key secret will <strong>never be displayed again</strong>. If you lose it, you will need to revoke it and generate a new key.
+                </p>
+              </div>
+
+              {/* RAW KEY DISPLAY & COPY CARD */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300">Your New API Key Secret:</label>
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-inner">
+                  <code className="text-xs font-mono text-emerald-400 break-all select-all leading-relaxed">
+                    {createdRawKey}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdRawKey);
+                      setCopiedKey(true);
+                      showToast("API Key copied to clipboard!");
+                      setTimeout(() => setCopiedKey(false), 2500);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-lg shadow-emerald-600/20"
+                  >
+                    {copiedKey ? <Check className="h-4 w-4 text-white" /> : <Copy className="h-4 w-4" />}
+                    {copiedKey ? "Copied!" : "Copy Key"}
+                  </button>
+                </div>
+              </div>
+
+              {/* QUICK ACTIONS & CLOSE */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => downloadEnvFile(createdRawKey, newKeyName || "crm_api_key")}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl border border-slate-800 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Download className="h-4 w-4 text-blue-400" /> Download .env File
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRawKeyModal(false);
+                    setCreatedRawKey(null);
+                  }}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+                >
+                  Done & Close
+                </button>
+              </div>
             </div>
           </div>
         )}

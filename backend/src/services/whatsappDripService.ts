@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma";
 import { WhatsAppService } from "../services/whatsappService";
+import { MetaCostingService } from "../services/metaCostingService";
 import axios from "axios";
 
 export class WhatsAppDripEngine {
@@ -542,6 +543,21 @@ export class WhatsAppDripEngine {
           performedBy: "SYSTEM_SCHEDULER"
         }
       });
+
+      // Record estimated cost record for analytics
+      if (item.templateName) {
+        await MetaCostingService.calculateAndRecordEstimatedCost({
+          metaMessageId: waMsgId,
+          organizationId: campaign.organizationId,
+          wabaId: waConfig?.wabaId,
+          phoneNumberId: phoneId,
+          templateName: item.templateName,
+          templateLanguage: step?.languageCode || "en_US",
+          templateCategory: "MARKETING",
+          recipientPhone: item.customerPhone,
+          campaignId: campaign.id
+        }).catch(() => {});
+      }
 
       console.log(`[DRIP SCHEDULER SUCCESS] Campaign: ${campaign.id} | Contact: ${item.customerPhone} | Step: ${enrollment.currentStepNo} | Template: ${item.templateName} | MsgID: ${waMsgId}`);
 

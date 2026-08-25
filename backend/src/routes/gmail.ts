@@ -97,9 +97,11 @@ router.get("/oauth/connect", (req: Request, res: Response) => {
       return res.status(400).send("GOOGLE_CLIENT_ID is not configured in backend .env");
     }
 
-    // Gmail modify scope (read, send, update labels) plus metadata info
+    // Full Gmail API scopes (read, send, modify) plus userinfo
     const scopes = [
+      "https://mail.google.com/",
       "https://www.googleapis.com/auth/gmail.modify",
+      "https://www.googleapis.com/auth/gmail.send",
       "https://www.googleapis.com/auth/userinfo.email"
     ].join(" ");
     

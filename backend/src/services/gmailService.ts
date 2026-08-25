@@ -737,3 +737,223 @@ export async function sendSingleBulkEmail(
 
   return response.data;
 }
+
+/**
+ * Sends an outbound email with full options (HTML, text, CC, BCC) via Gmail API and logs locally.
+ */
+export async function sendSingleEmailWithOptions(
+  orgId: string,
+  options: {
+    to: string;
+    subject: string;
+    bodyText?: string;
+    bodyHtml?: string;
+    cc?: string;
+    bcc?: string;
+    senderName?: string;
+  }
+): Promise<any> {
+  const { to, subject, bodyText = "", bodyHtml, cc, bcc, senderName = "Jisnu Digital Solutions" } = options;
+  const token = await getGmailAccessToken(orgId);
+
+  const config = await prisma.gmailConfig.findUnique({
+    where: { organizationId: orgId }
+  });
+  const senderEmail = config?.emailAddress || "";
+  const fromHeader = senderEmail ? `From: "${senderName}" <${senderEmail}>` : "";
+
+  const emailParts: string[] = [];
+  if (fromHeader) emailParts.push(fromHeader);
+  emailParts.push(`To: ${to}`);
+  emailParts.push(`Subject: ${subject}`);
+
+  if (cc) emailParts.push(`Cc: ${cc}`);
+  if (bcc) emailParts.push(`Bcc: ${bcc}`);
+
+  if (bodyHtml) {
+    const boundary = "====_Boundary_Email_API_" + Date.now().toString(16);
+    emailParts.push(
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      `Content-Transfer-Encoding: 7bit`,
+      "",
+      bodyText || bodyHtml.replace(/<[^>]+>/g, ""),
+      "",
+      `--${boundary}`,
+      `Content-Type: text/html; charset="UTF-8"`,
+      `Content-Transfer-Encoding: 7bit`,
+      "",
+      bodyHtml,
+      "",
+      `--${boundary}--`
+    );
+  } else {
+    emailParts.push(
+      `Content-Type: text/plain; charset="UTF-8"`,
+      `MIME-Version: 1.0`,
+      "",
+      bodyText
+    );
+  }
+
+  const rawEmail = Buffer.from(emailParts.join("\r\n"))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const response = await axios.post(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    { raw: rawEmail },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+  const sentMessage = response.data;
+  const sentMessageId = sentMessage.id;
+  const sentThreadId = sentMessage.threadId || sentMessageId;
+
+  // Log locally in database
+  try {
+    const upsertedThread = await prisma.gmailThread.upsert({
+      where: { threadId: sentThreadId },
+      update: {
+        subject,
+        sender: `To: ${to}`,
+        snippet: (bodyText || bodyHtml || "").substring(0, 100),
+        label: "SENT",
+        updatedAt: new Date()
+      },
+      create: {
+        threadId: sentThreadId,
+        organizationId: orgId,
+        subject,
+        sender: `To: ${to}`,
+        snippet: (bodyText || bodyHtml || "").substring(0, 100),
+        label: "SENT",
+        status: "REPLIED"
+      }
+    });
+
+    await prisma.gmailMessage.create({
+      data: {
+        threadId: upsertedThread.id,
+        messageId: sentMessageId,
+        direction: "outbound",
+        content: bodyText || bodyHtml || "",
+        bodyText: bodyText || "",
+        bodyHtml: bodyHtml || null,
+        sender: `${senderName} (${to})`,
+        organizationId: orgId,
+        createdAt: new Date(),
+        internalDate: new Date(),
+      }
+    });
+  } catch (dbErr: any) {
+    console.warn(`[GMAIL SERVICE] Failed to store outbound API message locally: ${dbErr.message}`);
+  }
+
+  return response.data;
+}
+
+/**
+ * Retrieves connected Gmail status for an organization.
+ */
+export async function getGmailStatus(orgId: string) {
+  const config = await prisma.gmailConfig.findUnique({
+    where: { organizationId: orgId }
+  });
+
+  if (!config || (!config.accessToken && !config.refreshToken)) {
+    return {
+      connected: false,
+      emailAddress: null,
+      autoReplyEnabled: false
+    };
+  }
+
+  return {
+    connected: true,
+    emailAddress: config.emailAddress || "Connected Gmail Account",
+    autoReplyEnabled: config.autoReplyEnabled,
+    autoReplyTemplate: config.autoReplyTemplate,
+    updatedAt: config.updatedAt
+  };
+}
+
+/**
+ * Gets all active Gmail Auto-Reply automation rules for an organization.
+ */
+export async function getAutoReplyRules(orgId: string) {
+  return prisma.gmailAutoReplyRule.findMany({
+    where: { organizationId: orgId },
+    orderBy: { createdAt: "desc" }
+  });
+}
+
+/**
+ * Creates or updates a Gmail Auto-Reply automation rule.
+ */
+export async function createOrUpdateAutoReplyRule(
+  orgId: string,
+  ruleData: {
+    id?: string;
+    keyword: string;
+    replyTemplate?: string;
+    replyText?: string;
+    useAiDraft?: boolean;
+    isActive?: boolean;
+    fileUrl?: string;
+    fileName?: string;
+    mimeType?: string;
+  }
+) {
+  const { id, keyword, replyTemplate, replyText, useAiDraft = false, isActive = true, fileUrl, fileName, mimeType } = ruleData;
+
+  if (id) {
+    return prisma.gmailAutoReplyRule.updateMany({
+      where: { id, organizationId: orgId },
+      data: {
+        keyword,
+        replyTemplate: replyTemplate || replyText || "",
+        replyText: replyText || replyTemplate || "",
+        useAiDraft,
+        isActive,
+        fileUrl,
+        fileName,
+        mimeType
+      }
+    });
+  }
+
+  return prisma.gmailAutoReplyRule.create({
+    data: {
+      organizationId: orgId,
+      keyword,
+      replyTemplate: replyTemplate || replyText || "",
+      replyText: replyText || replyTemplate || "",
+      useAiDraft,
+      isActive,
+      fileUrl,
+      fileName,
+      mimeType
+    }
+  });
+}
+
+/**
+ * Deletes an auto reply rule.
+ */
+export async function deleteAutoReplyRule(orgId: string, ruleId: string) {
+  return prisma.gmailAutoReplyRule.deleteMany({
+    where: { id: ruleId, organizationId: orgId }
+  });
+}
+

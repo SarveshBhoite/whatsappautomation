@@ -1,6 +1,15 @@
 import { Router, Response } from "express";
 import { apiKeyAuth, requirePermission, AuthenticatedApiRequest } from "../middleware/apiKeyAuth";
 import { WhatsAppService } from "../services/whatsappService";
+import { MetaCostingService } from "../services/metaCostingService";
+import { 
+  getGmailStatus, 
+  sendSingleEmailWithOptions, 
+  sendSingleBulkEmail, 
+  getAutoReplyRules, 
+  createOrUpdateAutoReplyRule, 
+  deleteAutoReplyRule 
+} from "../services/gmailService";
 import prisma from "../utils/prisma";
 
 const router = Router();
@@ -175,6 +184,55 @@ router.post("/whatsapp/send-template", requirePermission("whatsapp_send"), async
     );
 
     const waMsgId = result?.messages?.[0]?.id || `ext_${Date.now()}`;
+
+    // Log outbound message & cost record for dynamic template analytics
+    try {
+      const orgId = req.organizationId || req.apiKeyRecord?.organizationId;
+      if (orgId) {
+        let conv = await prisma.conversation.findUnique({
+          where: {
+            organizationId_platform_customerPhone: {
+              organizationId: orgId,
+              platform: "whatsapp",
+              customerPhone: formattedTo
+            }
+          }
+        });
+        if (!conv) {
+          conv = await prisma.conversation.create({
+            data: {
+              organizationId: orgId,
+              platform: "whatsapp",
+              customerPhone: formattedTo,
+              isBotPaused: false
+            }
+          });
+        }
+        await prisma.message.create({
+          data: {
+            conversationId: conv.id,
+            direction: "outbound",
+            messageType: "text",
+            content: `[TEMPLATE: ${targetTemplate}] External API template message sent to ${formattedTo}`,
+            waMessageId: waMsgId,
+            status: "sent",
+            senderName: "API Key"
+          }
+        });
+        await MetaCostingService.calculateAndRecordEstimatedCost({
+          metaMessageId: waMsgId,
+          organizationId: orgId,
+          wabaId: waConfig.wabaId,
+          phoneNumberId: waConfig.phoneNumberId,
+          templateName: targetTemplate,
+          templateLanguage: langToUse,
+          templateCategory: "MARKETING",
+          recipientPhone: formattedTo
+        }).catch(() => {});
+      }
+    } catch (dbErr) {
+      console.warn("[EXTERNAL_API_TEMPLATE_LOG_ERR]:", dbErr);
+    }
 
     return res.status(200).json({
       success: true,
@@ -378,6 +436,271 @@ router.get("/whatsapp/templates", requirePermission("whatsapp_templates"), async
     return res.status(200).json({ success: true, count: templates?.data?.length || 0, templates: templates?.data || [] });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to fetch templates", details: error.message });
+  }
+});
+
+// ─── EMAIL AUTOMATION & DISPATCH API V1 ENDPOINTS ────────────────────────────
+
+// ─── GET /api/v1/email/status ─────────────────────────────────────────────────
+// External Endpoint: Check Gmail Account Connection Status for Organization (Scope: email_read)
+router.get("/email/status", requirePermission("email_read"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const status = await getGmailStatus(organizationId);
+    return res.status(200).json({
+      success: true,
+      data: status
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch email status", details: error.message });
+  }
+});
+
+// ─── POST /api/v1/email/send ──────────────────────────────────────────────────
+// External Endpoint: Send Outbound Single/Custom Email via API Key (Scope: email_send)
+router.post("/email/send", requirePermission("email_send"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const bodyData = req.body || {};
+    const { to, recipient, subject, body, bodyText, bodyHtml, text, html, message, content, cc, bcc, senderName } = bodyData;
+
+    const targetTo = to || recipient;
+    if (!targetTo) {
+      return res.status(400).json({ 
+        error: "Validation Error", 
+        message: "Missing required parameter 'to' or 'recipient'. Please ensure Postman Body is set to 'raw -> JSON' and header 'Content-Type: application/json' is sent." 
+      });
+    }
+
+    if (!subject) {
+      return res.status(400).json({ error: "Validation Error", message: "Missing required parameter 'subject'." });
+    }
+
+    const finalBodyText = bodyText || text || body || message || content || "";
+    const finalBodyHtml = bodyHtml || html || undefined;
+
+    if (!finalBodyText && !finalBodyHtml) {
+      return res.status(400).json({ error: "Validation Error", message: "Missing email content. Please provide 'bodyText', 'bodyHtml', 'message', or 'body'." });
+    }
+
+    const result = await sendSingleEmailWithOptions(organizationId, {
+      to: targetTo,
+      subject,
+      bodyText: finalBodyText,
+      bodyHtml: finalBodyHtml,
+      cc,
+      bcc,
+      senderName: senderName || "API Dispatch"
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Email dispatched successfully to ${targetTo}`,
+      data: {
+        messageId: result.id,
+        threadId: result.threadId || result.id,
+        recipient: targetTo,
+        subject,
+        status: "SENT"
+      }
+    });
+  } catch (error: any) {
+    console.error("[EXTERNAL_API_EMAIL_SEND_ERR]:", error?.response?.data || error.message);
+    return res.status(500).json({
+      error: "Email Dispatch Failed",
+      details: error?.response?.data?.error?.message || error.message
+    });
+  }
+});
+
+// ─── POST /api/v1/email/send-bulk ─────────────────────────────────────────────
+// External Endpoint: Send Bulk Campaign Email to Multiple Recipients (Scope: email_send)
+router.post("/email/send-bulk", requirePermission("email_send"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const bodyData = req.body || {};
+    const { recipients, toList, subject, body, bodyText } = bodyData;
+
+    const targetList: string[] = recipients || toList;
+    if (!Array.isArray(targetList) || targetList.length === 0) {
+      return res.status(400).json({ error: "Validation Error", message: "Missing parameter 'recipients' (must be a non-empty array of email addresses)." });
+    }
+
+    if (!subject) {
+      return res.status(400).json({ error: "Validation Error", message: "Missing required parameter 'subject'." });
+    }
+
+    const emailContent = bodyText || body;
+    if (!emailContent) {
+      return res.status(400).json({ error: "Validation Error", message: "Missing required parameter 'bodyText' or 'body'." });
+    }
+
+    const results: any[] = [];
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    for (const recipient of targetList) {
+      try {
+        const resData = await sendSingleBulkEmail(organizationId, recipient, subject, emailContent);
+        totalSent++;
+        results.push({ recipient, status: "SENT", messageId: resData?.id });
+      } catch (err: any) {
+        totalFailed++;
+        results.push({ recipient, status: "FAILED", error: err.message });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Bulk email campaign processed: ${totalSent} sent, ${totalFailed} failed out of ${targetList.length} total.`,
+      data: {
+        total: targetList.length,
+        totalSent,
+        totalFailed,
+        results
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Bulk Email Dispatch Failed", details: error.message });
+  }
+});
+
+// ─── GET /api/v1/email/threads ────────────────────────────────────────────────
+// External Endpoint: List Email Threads (Scope: email_read)
+router.get("/email/threads", requirePermission("email_read"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const label = (req.query.label as string) || undefined;
+
+    const threads = await (prisma as any).gmailThread.findMany({
+      where: { 
+        organizationId,
+        ...(label ? { label: label.toUpperCase() } : {})
+      },
+      take: limit,
+      orderBy: { updatedAt: "desc" },
+      include: {
+        messages: {
+          take: 1,
+          orderBy: { createdAt: "desc" }
+        }
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: threads.length,
+      limit,
+      threads
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch email threads", details: error.message });
+  }
+});
+
+// ─── GET /api/v1/email/threads/:threadId ──────────────────────────────────────
+// External Endpoint: Fetch Thread Details & Messages (Scope: email_read)
+router.get("/email/threads/:threadId", requirePermission("email_read"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const { threadId } = req.params;
+
+    const thread = await (prisma as any).gmailThread.findFirst({
+      where: { 
+        organizationId,
+        OR: [{ id: threadId }, { threadId }]
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+          include: { attachments: true }
+        }
+      }
+    });
+
+    if (!thread) {
+      return res.status(404).json({ error: "Not Found", message: `Email thread '${threadId}' not found.` });
+    }
+
+    return res.status(200).json({
+      success: true,
+      thread
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch email thread details", details: error.message });
+  }
+});
+
+// ─── GET /api/v1/email/auto-reply-rules ───────────────────────────────────────
+// External Endpoint: List Email Auto-Reply Automation Rules (Scope: email_automation)
+router.get("/email/auto-reply-rules", requirePermission("email_automation"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const rules = await getAutoReplyRules(organizationId);
+
+    return res.status(200).json({
+      success: true,
+      count: rules.length,
+      rules
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch email auto-reply rules", details: error.message });
+  }
+});
+
+// ─── POST /api/v1/email/auto-reply-rules ──────────────────────────────────────
+// External Endpoint: Create or Update Email Auto-Reply Automation Rule (Scope: email_automation)
+router.post("/email/auto-reply-rules", requirePermission("email_automation"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const { id, keyword, replyTemplate, replyText, useAiDraft, isActive, fileUrl, fileName, mimeType } = req.body;
+
+    if (!keyword || typeof keyword !== "string" || !keyword.trim()) {
+      return res.status(400).json({ error: "Validation Error", message: "Missing required parameter 'keyword'." });
+    }
+
+    const rule = await createOrUpdateAutoReplyRule(organizationId, {
+      id,
+      keyword: keyword.trim(),
+      replyTemplate: replyTemplate || replyText || "",
+      replyText: replyText || replyTemplate || "",
+      useAiDraft: Boolean(useAiDraft),
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
+      fileUrl,
+      fileName,
+      mimeType
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: id ? "Email auto-reply rule updated successfully" : "Email auto-reply rule created successfully",
+      rule
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to save email auto-reply rule", details: error.message });
+  }
+});
+
+// ─── DELETE /api/v1/email/auto-reply-rules/:id ───────────────────────────────
+// External Endpoint: Delete Email Auto-Reply Automation Rule (Scope: email_automation)
+router.delete("/email/auto-reply-rules/:id", requirePermission("email_automation"), async (req: AuthenticatedApiRequest, res: Response) => {
+  try {
+    const organizationId = req.organizationId!;
+    const { id } = req.params;
+
+    const deleteResult = await deleteAutoReplyRule(organizationId, id);
+
+    if (deleteResult.count === 0) {
+      return res.status(404).json({ error: "Not Found", message: `Auto-reply rule '${id}' not found or already deleted.` });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Email auto-reply rule '${id}' deleted successfully.`
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to delete email auto-reply rule", details: error.message });
   }
 });
 

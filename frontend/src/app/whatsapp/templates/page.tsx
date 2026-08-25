@@ -43,6 +43,10 @@ interface MetaTemplate {
     readRate?: number;
     ctrRate?: number;
     costPerMessage?: number;
+    costPerMessageInr?: number;
+    costPerMessageUsd?: number;
+    totalCostUsd?: number | string;
+    totalCostInr?: number | string;
     qualityRating?: "HIGH" | "MEDIUM" | "LOW";
   };
   components: Array<{
@@ -108,27 +112,27 @@ export default function WhatsAppTemplatesPage() {
   const [templateName, setTemplateName] = useState<string>("");
   const [category, setCategory] = useState<string>("MARKETING");
   const [language, setLanguage] = useState<string>("en_US");
-  const [headerType, setHeaderType] = useState<"TEXT" | "IMAGE" | "DOCUMENT" | "VIDEO" | "NONE">("TEXT");
-  const [headerText, setHeaderText] = useState<string>("JISNU Digital Solutions");
+  const [headerType, setHeaderType] = useState<"TEXT" | "IMAGE" | "DOCUMENT" | "VIDEO" | "NONE">("NONE");
+  const [headerText, setHeaderText] = useState<string>("");
   const [headerMediaUrl, setHeaderMediaUrl] = useState<string>("");
   const [uploadingHeaderMedia, setUploadingHeaderMedia] = useState<boolean>(false);
-  const [bodyText, setBodyText] = useState<string>("Hello {{1}}! Welcome to JISNU Digital Solutions. Use coupon code {{2}} to get 20% off.");
-  const [sampleVariables, setSampleVariables] = useState<string[]>(["Rahul", "SUMMER20"]);
-  const [footerText, setFooterText] = useState<string>("Powered by JISNU CRM");
+  const [bodyText, setBodyText] = useState<string>("");
+  const [sampleVariables, setSampleVariables] = useState<string[]>([]);
+  const [footerText, setFooterText] = useState<string>("");
 
   // Button States
   const [buttonType, setButtonType] = useState<"URL" | "QUICK_REPLY" | "PHONE_NUMBER" | "COPY_CODE">("URL");
-  const [buttonText, setButtonText] = useState<string>("Visit website");
-  const [buttonUrl, setButtonUrl] = useState<string>("https://www.jisnudigital.com/");
-  const [buttonPhoneNumber, setButtonPhoneNumber] = useState<string>("+919876543210");
-  const [buttonCopyCode, setButtonCopyCode] = useState<string>("SUMMER20");
+  const [buttonText, setButtonText] = useState<string>("");
+  const [buttonUrl, setButtonUrl] = useState<string>("");
+  const [buttonPhoneNumber, setButtonPhoneNumber] = useState<string>("");
+  const [buttonCopyCode, setButtonCopyCode] = useState<string>("");
 
   // Dynamic Variable Test Send Modal States
   const [showTestModal, setShowTestModal] = useState<boolean>(false);
   const [testTemplate, setTestTemplate] = useState<MetaTemplate | null>(null);
   const [testPhone, setTestPhone] = useState<string>("");
-  const [testCustomerName, setTestCustomerName] = useState<string>("Akash");
-  const [testVariable2, setTestVariable2] = useState<string>("SUMMER20");
+  const [testCustomerName, setTestCustomerName] = useState<string>("");
+  const [testVariable2, setTestVariable2] = useState<string>("");
   const [testSending, setTestSending] = useState<boolean>(false);
   const [testStatus, setTestStatus] = useState<string | null>(null);
 
@@ -929,9 +933,19 @@ export default function WhatsAppTemplatesPage() {
               {/* Real-time Dynamic Message Preview Box */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Live WhatsApp Delivered Message Preview:</span>
-                <p className="text-xs text-slate-800 leading-relaxed font-sans bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
-                  Hello <span className="font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{testCustomerName || "Akash"}</span>! Welcome to JISNU Digital Solutions. Use coupon code <span className="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">{testVariable2 || "SUMMER20"}</span> to get 20% off.
-                </p>
+                <div className="text-xs text-slate-800 leading-relaxed font-sans bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs whitespace-pre-wrap">
+                  {(() => {
+                    const bodyText = testTemplate.components?.find((c) => c.type === "BODY")?.text || "";
+                    let rendered = bodyText;
+                    if (testCustomerName) {
+                      rendered = rendered.replace(/\{\{1\}\}/g, testCustomerName);
+                    }
+                    if (testVariable2) {
+                      rendered = rendered.replace(/\{\{2\}\}/g, testVariable2);
+                    }
+                    return rendered || "No body content";
+                  })()}
+                </div>
               </div>
 
               {testStatus && (

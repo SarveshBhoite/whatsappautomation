@@ -1276,33 +1276,26 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
     const dbCostStats = await (prisma as any).messageCostRecord.groupBy({
       by: ["templateName"],
       where: { organizationId },
-      _sum: { billableQuantity: true, estimatedCost: true, reconciledCost: true }
+      _sum: { billableQuantity: true, estimatedCost: true, reconciledCost: true },
+      _count: { id: true }
     }).catch(() => []);
 
     const costStatsMap: Record<string, { count: number; totalCostInr: number }> = {};
     for (const r of dbCostStats) {
       const sumEst = r._sum?.estimatedCost || 0;
       const sumRec = r._sum?.reconciledCost;
+      const cnt = (r._sum?.billableQuantity && r._sum.billableQuantity > 0) ? r._sum.billableQuantity : (r._count?.id || 0);
       costStatsMap[r.templateName] = {
-        count: r._sum?.billableQuantity || 0,
+        count: cnt,
         totalCostInr: sumRec ?? sumEst
       };
     }
 
-    // Official Meta WhatsApp Manager Authoritative Reconciliation Map (Matching Date Range 15 Aug 2026 - 22 Aug 2026)
-    const META_MANAGER_AUTHORITATIVE_DATA: Record<string, { usedCount: number; totalCostInr: number; costPerMessageInr: number }> = {
-      "hello_world": { usedCount: 4, totalCostInr: 1.38, costPerMessageInr: 0.345 },
-      "jisnu_official_welcome": { usedCount: 7, totalCostInr: 6.04, costPerMessageInr: 0.8628 },
-      "welcome_jisnu_marketing": { usedCount: 13, totalCostInr: 11.22, costPerMessageInr: 0.863 },
-      "promo_discount_offer": { usedCount: 7, totalCostInr: 7.77, costPerMessageInr: 1.11 },
-      "name_test": { usedCount: 6, totalCostInr: 5.18, costPerMessageInr: 0.8633 }
-    };
-
-    // Attach real analytics data to every template matching Meta Business Suite
+    // Attach real analytics data to every template strictly from DB records and Meta Cloud API
     const templates = rawTemplates.map((t: any) => {
       const cat = (t.category || "").toUpperCase();
       let costPerMessageUsd = 0.0037;
-      let costPerMessageInr = 0.8633; // Default Meta Marketing conversation rate for 6 msgs = ₹5.18
+      let costPerMessageInr = 0.8633; // Default Meta Marketing conversation rate
       if (cat.includes("MARKETING")) {
         costPerMessageUsd = 0.0104;
         costPerMessageInr = 0.8633;
@@ -1317,21 +1310,19 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
       const realStats = statsByTemplate[t.name] || { used: 0, delivered: 0, read: 0 };
       const costRecordStat = costStatsMap[t.name];
 
-      let usedCount = costRecordStat && costRecordStat.count > 0 ? costRecordStat.count : realStats.used;
-      let totalCostInr = costRecordStat && costRecordStat.count > 0 ? Number(costRecordStat.totalCostInr.toFixed(2)) : Number((usedCount * costPerMessageInr).toFixed(2));
+      // Calculate total live DB dispatches recorded across queues, outbound messages, and cost records
+      const usedCount = Math.max(realStats.used, costRecordStat?.count || 0);
 
-      if (usedCount === 0 && META_MANAGER_AUTHORITATIVE_DATA[t.name]) {
-        const metaAuth = META_MANAGER_AUTHORITATIVE_DATA[t.name];
-        usedCount = metaAuth.usedCount;
-        totalCostInr = metaAuth.totalCostInr;
-        costPerMessageInr = metaAuth.costPerMessageInr;
-      }
+      // Real recorded cost from MessageCostRecord or calculated strictly from actual dispatches
+      const totalCostInr = costRecordStat && costRecordStat.count > 0 && costRecordStat.totalCostInr > 0
+        ? Number(costRecordStat.totalCostInr.toFixed(2))
+        : Number((usedCount * costPerMessageInr).toFixed(2));
 
       const deliveredCount = realStats.delivered;
       const readCount = realStats.read;
 
-      const deliveryRate = usedCount > 0 ? Number(((deliveredCount / usedCount) * 100).toFixed(1)) : 0;
-      const readRate = deliveredCount > 0 ? Number(((readCount / deliveredCount) * 100).toFixed(1)) : 0;
+      const deliveryRate = usedCount > 0 ? Number((Math.min(100, (deliveredCount / usedCount) * 100)).toFixed(1)) : 0;
+      const readRate = deliveredCount > 0 ? Number((Math.min(100, (readCount / deliveredCount) * 100)).toFixed(1)) : 0;
       const totalCostUsd = Number((totalCostInr / 83).toFixed(2));
 
       // Quality rating from Meta API or status
@@ -1814,7 +1805,21 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
           }
         });
 
-        // 4. Broadcast to frontend agents via Socket.IO
+        // 4. Record cost record for template dispatches
+        if (sendType === "template" && targetTemplate) {
+          await MetaCostingService.calculateAndRecordEstimatedCost({
+            metaMessageId: waMessageId,
+            organizationId,
+            wabaId: waConfig?.wabaId,
+            phoneNumberId: waConfig?.phoneNumberId,
+            templateName: targetTemplate,
+            templateLanguage: templateLang || "en_US",
+            templateCategory: "MARKETING",
+            recipientPhone: cleanPhone
+          }).catch(err => console.warn("[BROADCAST COST RECORD NOTICE]:", err?.message || err));
+        }
+
+        // 5. Broadcast to frontend agents via Socket.IO
         io.to(organizationId).emit("new-message", {
           conversationId: conversation.id,
           message: savedMessage
