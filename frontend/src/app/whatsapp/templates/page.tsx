@@ -16,7 +16,8 @@ import {
   Check,
   Upload,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -64,12 +65,19 @@ export default function WhatsAppTemplatesPage() {
   const [sampleVariables, setSampleVariables] = useState<string[]>(["Rahul", "SUMMER20"]);
   const [footerText, setFooterText] = useState<string>("Powered by JISNU CRM");
 
+  // Button Item Interface
+  interface TemplateButton {
+    type: "URL" | "QUICK_REPLY" | "PHONE_NUMBER" | "COPY_CODE";
+    text: string;
+    url?: string;
+    phone_number?: string;
+    code?: string;
+  }
+
   // Button States
-  const [buttonType, setButtonType] = useState<"URL" | "QUICK_REPLY" | "PHONE_NUMBER" | "COPY_CODE">("URL");
-  const [buttonText, setButtonText] = useState<string>("Visit website");
-  const [buttonUrl, setButtonUrl] = useState<string>("https://www.jisnudigital.com/");
-  const [buttonPhoneNumber, setButtonPhoneNumber] = useState<string>("+919876543210");
-  const [buttonCopyCode, setButtonCopyCode] = useState<string>("SUMMER20");
+  const [buttonsList, setButtonsList] = useState<TemplateButton[]>([
+    { type: "URL", text: "Visit website", url: "https://www.jisnudigital.com/" }
+  ]);
 
   const fetchTemplates = async () => {
     try {
@@ -97,14 +105,19 @@ export default function WhatsAppTemplatesPage() {
 
   // Auto-extract placeholders {{1}}, {{2}} to manage Meta mandated sample variable inputs
   useEffect(() => {
-    const matches = bodyText.match(/\{\{\d+\}\}/g);
-    if (matches) {
+    // Extract unique parameter numbers present in the body text (e.g. {{1}}, {{2}}, {{4}})
+    const matches = bodyText.match(/\{\{(\d+)\}\}/g);
+    if (matches && matches.length > 0) {
+      // Find highest index referenced in body
+      const nums = matches.map(m => parseInt(m.replace(/\D/g, ""), 10)).filter(n => !isNaN(n));
+      const maxParam = nums.length > 0 ? Math.max(...nums) : 0;
+      
       setSampleVariables((prev) => {
-        const next = [...prev];
-        for (let i = 0; i < matches.length; i++) {
-          if (!next[i]) next[i] = `Sample_${i + 1}`;
+        const next = [];
+        for (let i = 0; i < maxParam; i++) {
+          next[i] = prev[i] || `Sample_${i + 1}`;
         }
-        return next.slice(0, matches.length);
+        return next;
       });
     } else {
       setSampleVariables([]);
@@ -141,11 +154,7 @@ export default function WhatsAppTemplatesPage() {
           bodyText,
           sampleVariables,
           footerText,
-          buttonType,
-          buttonText,
-          buttonUrl,
-          buttonPhoneNumber,
-          buttonCopyCode
+          buttons: buttonsList
         })
       });
 
@@ -574,78 +583,136 @@ export default function WhatsAppTemplatesPage() {
               </div>
 
               {/* Interactive Buttons Config */}
-              <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                <label className="text-xs font-bold text-slate-800">Action Button (Optional)</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {(["URL", "QUICK_REPLY", "PHONE_NUMBER", "COPY_CODE"] as const).map((type) => (
+              <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800">Action Buttons (Optional - Max 3)</label>
+                  {buttonsList.length < 3 && (
                     <button
                       type="button"
-                      key={type}
-                      onClick={() => setButtonType(type)}
-                      className={`py-1.5 px-2 text-[10px] font-bold rounded-xl border transition-all cursor-pointer ${
-                        buttonType === type
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                      }`}
+                      onClick={() => {
+                        setButtonsList([...buttonsList, { type: "QUICK_REPLY", text: "Yes send preview" }]);
+                      }}
+                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-emerald-100/80 hover:bg-emerald-200/80 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
                     >
-                      {type.replace("_", " ")}
+                      <Plus className="h-3 w-3" /> Add Button
                     </button>
-                  ))}
+                  )}
                 </div>
 
-                <div className="pt-2 space-y-2">
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-slate-600 font-bold">Button Display Text</label>
-                    <input
-                      type="text"
-                      maxLength={25}
-                      value={buttonText}
-                      onChange={(e) => setButtonText(e.target.value)}
-                      placeholder="e.g. Visit Website"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
-                    />
+                {buttonsList.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">No action buttons added. Click "+ Add Button" above if needed.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {buttonsList.map((btn, bIdx) => (
+                      <div key={bIdx} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 relative">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Button #{bIdx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => setButtonsList(buttonsList.filter((_, i) => i !== bIdx))}
+                            className="text-red-500 hover:text-red-700 p-1 rounded-lg hover:bg-red-50 cursor-pointer"
+                            title="Remove button"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Button Type Selection */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                          {(["URL", "QUICK_REPLY", "PHONE_NUMBER", "COPY_CODE"] as const).map((t) => (
+                            <button
+                              type="button"
+                              key={t}
+                              onClick={() => {
+                                const next = [...buttonsList];
+                                next[bIdx].type = t;
+                                setButtonsList(next);
+                              }}
+                              className={`py-1 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                                btn.type === t
+                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                              }`}
+                            >
+                              {t.replace("_", " ")}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Button Input Fields */}
+                        <div className="space-y-2 pt-1">
+                          <div className="space-y-1">
+                            <label className="text-[10px] text-slate-600 font-bold">Button Text</label>
+                            <input
+                              type="text"
+                              maxLength={25}
+                              value={btn.text}
+                              onChange={(e) => {
+                                const next = [...buttonsList];
+                                next[bIdx].text = e.target.value;
+                                setButtonsList(next);
+                              }}
+                              placeholder="e.g. Yes send preview"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-medium"
+                            />
+                          </div>
+
+                          {btn.type === "URL" && (
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-slate-600 font-bold">Target Web URL</label>
+                              <input
+                                type="url"
+                                value={btn.url || ""}
+                                onChange={(e) => {
+                                  const next = [...buttonsList];
+                                  next[bIdx].url = e.target.value;
+                                  setButtonsList(next);
+                                }}
+                                placeholder="https://www.jisnudigital.com/"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono"
+                              />
+                            </div>
+                          )}
+
+                          {btn.type === "PHONE_NUMBER" && (
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-slate-600 font-bold">Phone Number (with country code)</label>
+                              <input
+                                type="text"
+                                value={btn.phone_number || ""}
+                                onChange={(e) => {
+                                  const next = [...buttonsList];
+                                  next[bIdx].phone_number = e.target.value;
+                                  setButtonsList(next);
+                                }}
+                                placeholder="+919876543210"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          )}
+
+                          {btn.type === "COPY_CODE" && (
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-slate-600 font-bold">Coupon Code</label>
+                              <input
+                                type="text"
+                                maxLength={15}
+                                value={btn.code || ""}
+                                onChange={(e) => {
+                                  const next = [...buttonsList];
+                                  next[bIdx].code = e.target.value;
+                                  setButtonsList(next);
+                                }}
+                                placeholder="SUMMER20"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-
-                  {buttonType === "URL" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-600 font-bold">Target Web URL</label>
-                      <input
-                        type="url"
-                        value={buttonUrl}
-                        onChange={(e) => setButtonUrl(e.target.value)}
-                        placeholder="https://www.example.com/"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono"
-                      />
-                    </div>
-                  )}
-
-                  {buttonType === "PHONE_NUMBER" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-600 font-bold">Dial Phone Number (with country code)</label>
-                      <input
-                        type="text"
-                        value={buttonPhoneNumber}
-                        onChange={(e) => setButtonPhoneNumber(e.target.value)}
-                        placeholder="+919876543210"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  )}
-
-                  {buttonType === "COPY_CODE" && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-slate-600 font-bold">Coupon Code to Copy</label>
-                      <input
-                        type="text"
-                        maxLength={15}
-                        value={buttonCopyCode}
-                        onChange={(e) => setButtonCopyCode(e.target.value)}
-                        placeholder="SUMMER20"
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
