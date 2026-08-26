@@ -76,7 +76,12 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     const isInstagram = conversation.platform === "instagram";
     const isYouTube = conversation.platform === "youtube";
     const isLinkedIn = conversation.platform === "linkedin";
-    const waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
+    let waConfig = conversation.phoneNumberId
+      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversation.phoneNumberId)
+      : null;
+    if (!waConfig) {
+      waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
+    }
     const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
     const ytConfig = conversation.organization.ytConfig;
     const linkedInConfig = conversation.organization.linkedInConfig;

@@ -263,7 +263,12 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     const isLinkedIn = conversation.platform === "linkedin";
 
     const customerPhone = conversation.customerPhone;
-    const waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
+    let waConfig = conversation.phoneNumberId
+      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversation.phoneNumberId)
+      : null;
+    if (!waConfig) {
+      waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
+    }
     const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
     const ytConfig = conversation.organization.ytConfig;
     const linkedInConfig = conversation.organization.linkedInConfig;

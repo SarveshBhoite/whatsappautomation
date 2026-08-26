@@ -31,6 +31,10 @@ async function addMissingColumn() {
     await prisma.$executeRawUnsafe('ALTER TABLE "GmailConfig" ADD COLUMN IF NOT EXISTS "isDefault" BOOLEAN DEFAULT false;');
     await prisma.$executeRawUnsafe('ALTER TABLE "GmailConfig" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;');
 
+    // Conversation missing columns for multi-account routing
+    await prisma.$executeRawUnsafe('ALTER TABLE "Conversation" ADD COLUMN IF NOT EXISTS "phoneNumberId" TEXT;');
+    await prisma.$executeRawUnsafe('ALTER TABLE "Conversation" ADD COLUMN IF NOT EXISTS "accountHandle" TEXT;');
+
     console.log('✅ Database columns confirmed to exist in PostgreSQL!');
   } catch (err) {
     console.error('Error adding column:', err);
