@@ -3778,6 +3778,30 @@ print(res.json())`;
                                   <td className="py-4 px-5 font-mono text-slate-600">
                                     <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
                                       <span className="text-slate-800 font-mono font-semibold">{k.keyPrefix}</span>
+                                      <button
+                                        type="button"
+                                        title="Copy Key Identifier"
+                                        onClick={() => {
+                                          if (navigator.clipboard && window.isSecureContext) {
+                                            navigator.clipboard.writeText(k.keyPrefix);
+                                          } else {
+                                            const textArea = document.createElement("textarea");
+                                            textArea.value = k.keyPrefix;
+                                            textArea.style.position = "fixed";
+                                            textArea.style.left = "-999999px";
+                                            document.body.appendChild(textArea);
+                                            textArea.focus();
+                                            textArea.select();
+                                            try { document.execCommand("copy"); } catch (err) {}
+                                            document.body.removeChild(textArea);
+                                          }
+                                          setCopiedKey(true);
+                                          setTimeout(() => setCopiedKey(false), 2000);
+                                        }}
+                                        className="text-slate-400 hover:text-blue-600 p-0.5 rounded cursor-pointer transition-colors"
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                      </button>
                                     </div>
                                   </td>
                                   <td className="py-4 px-5">
@@ -5325,21 +5349,35 @@ print(res.json())`;
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                  Your Full Secret API Key
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>Your Full Secret API Key</span>
+                  <span className="text-[10px] text-amber-600 font-normal lowercase">(only shown once)</span>
                 </label>
                 <div className="relative flex items-center">
                   <input
                     type="text"
                     readOnly
+                    onClick={(e) => e.currentTarget.select()}
                     value={createdRawKey}
-                    className="w-full bg-slate-900 text-emerald-400 font-mono text-xs rounded-2xl pl-4 pr-32 py-3.5 border border-slate-800 focus:outline-none shadow-inner selection:bg-emerald-900 selection:text-emerald-200"
+                    className="w-full bg-slate-950 text-emerald-400 font-mono text-xs rounded-2xl pl-4 pr-28 py-3.5 border border-slate-800 focus:outline-none shadow-inner selection:bg-emerald-800 selection:text-emerald-100 cursor-pointer"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(createdRawKey);
+                      if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(createdRawKey);
+                      } else {
+                        const textArea = document.createElement("textarea");
+                        textArea.value = createdRawKey;
+                        textArea.style.position = "fixed";
+                        textArea.style.left = "-999999px";
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        try { document.execCommand("copy"); } catch (err) {}
+                        document.body.removeChild(textArea);
+                      }
                       setCopiedKey(true);
                       setTimeout(() => setCopiedKey(false), 3000);
                     }}
@@ -5362,14 +5400,45 @@ print(res.json())`;
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => downloadEnvFile(createdRawKey, "CRM_API_KEY")}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Download className="h-4 w-4 text-slate-600" /> Download .env File
-                </button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(createdRawKey);
+                      } else {
+                        const textArea = document.createElement("textarea");
+                        textArea.value = createdRawKey;
+                        textArea.style.position = "fixed";
+                        textArea.style.left = "-999999px";
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        try { document.execCommand("copy"); } catch (err) {}
+                        document.body.removeChild(textArea);
+                      }
+                      setCopiedKey(true);
+                      setTimeout(() => setCopiedKey(false), 3000);
+                    }}
+                    className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                      copiedKey
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                        : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                    }`}
+                  >
+                    {copiedKey ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiedKey ? "Copied!" : "Copy Key"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => downloadEnvFile(createdRawKey, "CRM_API_KEY")}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Download className="h-4 w-4 text-slate-600" /> Download .env
+                  </button>
+                </div>
 
                 <button
                   type="button"
