@@ -136,8 +136,17 @@ export class YouTubeService {
         }
       }
 
-      const threads = await this.listCommentThreads(config.channelId, token);
-      console.log(`[YOUTUBE SYNC] Found ${threads.length} comment threads for channel ${config.channelId}`);
+      let threads = [];
+      try {
+        threads = await this.listCommentThreads(config.channelId, token);
+        console.log(`[YOUTUBE SYNC] Found ${threads.length} comment threads for channel ${config.channelId}`);
+      } catch (apiErr: any) {
+        if (apiErr?.response?.status === 401) {
+          console.warn(`[YOUTUBE SYNC] YouTube access token expired for org ${organizationId}. Re-authentication required via Settings.`);
+          return;
+        }
+        throw apiErr;
+      }
 
       for (const thread of threads) {
         const threadId = thread.id; // Maps to conversation.customerPhone

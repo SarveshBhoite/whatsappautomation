@@ -283,8 +283,22 @@ router.get("/threads", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const label = ((req.query.label as string) || "INBOX").toUpperCase();
+    const accountId = req.query.accountId as string;
+
+    let targetConfigId = accountId;
+    if (!targetConfigId) {
+      const defaultAcc = await prisma.gmailConfig.findFirst({
+        where: { organizationId, isActive: true },
+        orderBy: { isDefault: "desc" },
+      });
+      if (defaultAcc) targetConfigId = defaultAcc.id;
+    }
 
     let whereClause: any = { organizationId };
+
+    if (targetConfigId) {
+      whereClause.gmailConfigId = targetConfigId;
+    }
 
     if (label === "STARRED") {
       whereClause.isStarred = true;
@@ -299,7 +313,7 @@ router.get("/threads", async (req: Request, res: Response) => {
       whereClause.label = "INBOX";
     }
 
-    const threads = await prisma.gmailThread.findMany({
+    let threads = await prisma.gmailThread.findMany({
       where: whereClause,
       include: {
         messages: {
@@ -311,6 +325,28 @@ router.get("/threads", async (req: Request, res: Response) => {
       },
       orderBy: { updatedAt: "desc" }
     });
+
+    // Auto-sync from Gmail API if no local threads exist for this account yet
+    if (threads.length === 0) {
+      try {
+        console.log(`[GMAIL ROUTE] 0 local threads found for account '${targetConfigId}' label '${label}'. Triggering live sync...`);
+        await syncGmailThreads(organizationId, (global as any).io, label, targetConfigId);
+        threads = await prisma.gmailThread.findMany({
+          where: whereClause,
+          include: {
+            messages: {
+              orderBy: { createdAt: "asc" },
+              include: {
+                attachments: true
+              }
+            }
+          },
+          orderBy: { updatedAt: "desc" }
+        });
+      } catch (syncErr: any) {
+        console.warn("[GMAIL ROUTE] Auto-sync on 0 threads failed:", syncErr.message);
+      }
+    }
 
     return res.status(200).json(threads);
   } catch (error: any) {
@@ -528,7 +564,8 @@ router.post("/sync", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const label = (req.body.label as string) || (req.query.label as string) || "INBOX";
-    const result = await syncGmailThreads(organizationId, (global as any).io, label);
+    const accountId = (req.body.accountId as string) || (req.query.accountId as string);
+    const result = await syncGmailThreads(organizationId, (global as any).io, label, accountId);
     return res.status(200).json({ success: true, message: "Sync completed", syncedCount: result.syncedCount });
   } catch (error: any) {
     console.error("Manual sync failed:", error);

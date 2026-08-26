@@ -1,7 +1,6 @@
-"use client";
-
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check, Plus, User, Phone, Mail, ShieldCheck, Sparkles, CheckCircle2 } from "lucide-react";
+import { useAccount, PlatformType } from "@/context/AccountContext";
 
 export interface AccountOption {
   id: string;
@@ -38,6 +37,13 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  let activeAccountContext: any = null;
+  try {
+    activeAccountContext = useAccount();
+  } catch (e) {
+    // Context fallback if mounted outside provider
+  }
 
   const selectedAccount = accounts.find((acc) => acc.id === selectedAccountId) || accounts[0];
 
@@ -210,6 +216,15 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                   <button
                     key={acc.id}
                     onClick={() => {
+                      if (activeAccountContext && activeAccountContext.setActiveAccount) {
+                        const plat = (acc.type || "whatsapp") as PlatformType;
+                        activeAccountContext.setActiveAccount(plat, acc.id, {
+                          name: acc.label,
+                          identifier: acc.sublabel,
+                          avatarUrl: acc.avatarUrl,
+                          isDefault: acc.isDefault,
+                        });
+                      }
                       onSelectAccount(acc.id);
                       setIsOpen(false);
                     }}

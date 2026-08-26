@@ -35,7 +35,10 @@ import {
   ShieldCheck,
   Terminal,
   Activity,
-  Mail
+  Mail,
+  Copy,
+  Download,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -334,6 +337,9 @@ interface InstagramConfig {
   instagramAccountId: string;
   pageId: string;
   pageAccessToken: string;
+  username?: string;
+  name?: string;
+  profilePic?: string;
 }
 
 interface YouTubeConfig {
@@ -360,42 +366,6 @@ export default function Dashboard() {
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get("tab");
-      if (tab === "chats_whatsapp" || tab === "chats_instagram" || tab === "flows" || tab === "settings") {
-        setActiveTab(tab as any);
-      }
-
-      const oauth = params.get("oauth");
-      const platform = params.get("platform");
-      if (oauth === "success") {
-        if (platform === "youtube") {
-          setSettingsSubTab("youtube");
-          setYtOauthStatus("success");
-          setTimeout(() => setYtOauthStatus("idle"), 3000);
-        } else {
-          setSettingsSubTab("google");
-          setGoogleOauthStatus("success");
-          setTimeout(() => setGoogleOauthStatus("idle"), 3000);
-        }
-        window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
-      } else if (oauth === "error") {
-        if (platform === "youtube") {
-          setSettingsSubTab("youtube");
-          setYtOauthStatus("error");
-          setTimeout(() => setYtOauthStatus("idle"), 3000);
-        } else {
-          setSettingsSubTab("google");
-          setGoogleOauthStatus("error");
-          setTimeout(() => setGoogleOauthStatus("idle"), 3000);
-        }
-        window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
-      }
-    }
-  }, []);
-  
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -484,6 +454,64 @@ export default function Dashboard() {
   // Telemetry Audit Logs State
   const [telemetryLogs, setTelemetryLogs] = useState<any[]>([]);
   const [loadingTelemetry, setLoadingTelemetry] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab === "chats_whatsapp" || tab === "chats_instagram" || tab === "flows" || tab === "settings") {
+        setActiveTab(tab as any);
+      } else if (tab === "instagram" || tab === "whatsapp" || tab === "google" || tab === "youtube" || tab === "api-keys") {
+        setActiveTab("settings");
+        setSettingsSubTab(tab as any);
+      }
+
+      const oauth = params.get("oauth");
+      const platform = params.get("platform");
+      if (oauth === "success") {
+        if (platform === "youtube") {
+          setSettingsSubTab("youtube");
+          setYtOauthStatus("success");
+          fetchYoutubeConfig();
+          setTimeout(() => setYtOauthStatus("idle"), 3000);
+        } else {
+          setSettingsSubTab("google");
+          setGoogleOauthStatus("success");
+          fetchGoogleConfig();
+          fetchGmailAccounts();
+          setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        }
+        window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
+      } else if (oauth === "error") {
+        if (platform === "youtube") {
+          setSettingsSubTab("youtube");
+          setYtOauthStatus("error");
+          setTimeout(() => setYtOauthStatus("idle"), 3000);
+        } else {
+          setSettingsSubTab("google");
+          setGoogleOauthStatus("error");
+          setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        }
+        window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
+      }
+    }
+  }, []);
+
+  // Automatically refetch channel / account details whenever the subtab is selected
+  useEffect(() => {
+    if (settingsSubTab === "youtube") {
+      fetchYoutubeConfig();
+    } else if (settingsSubTab === "google") {
+      fetchGoogleConfig();
+      fetchGmailAccounts();
+    } else if (settingsSubTab === "instagram") {
+      fetchInstagramConfig();
+      fetchIgAccounts();
+    } else if (settingsSubTab === "whatsapp") {
+      fetchConfig();
+      fetchWaAccounts();
+    }
+  }, [settingsSubTab]);
 
   const fetchTelemetryLogs = async () => {
     try {
@@ -1216,6 +1244,11 @@ print(res.json())`;
             return;
           }
 
+          if (data.type === "IG_EMBEDDED_CODE" && data.code) {
+            processInstagramEmbeddedCode(data.code);
+            return;
+          }
+
           if (data.type === "WA_EMBEDDED_SIGNUP" || data.event === "FINISH") {
             const waba_id = data.data?.waba_id;
             const phone_number_id = data.data?.phone_number_id;
@@ -1238,17 +1271,23 @@ print(res.json())`;
       // Check if current window was loaded with OAuth callback code
       const urlParams = new URLSearchParams(window.location.search);
       const incomingCode = urlParams.get("code");
+      const tabParam = urlParams.get("tab");
       if (incomingCode) {
         if (window.opener) {
           try {
-            window.opener.postMessage({ type: "WA_EMBEDDED_CODE", code: incomingCode }, "*");
+            const msgType = tabParam === "instagram" ? "IG_EMBEDDED_CODE" : "WA_EMBEDDED_CODE";
+            window.opener.postMessage({ type: msgType, code: incomingCode }, "*");
             window.close();
             return;
           } catch (e) {
             console.error("Failed to post message to opener:", e);
           }
         }
-        processEmbeddedCode(incomingCode);
+        if (tabParam === "instagram") {
+          processInstagramEmbeddedCode(incomingCode);
+        } else {
+          processEmbeddedCode(incomingCode);
+        }
       }
 
       return () => window.removeEventListener("message", sessionMessageListener);
@@ -1405,6 +1444,160 @@ print(res.json())`;
             clearInterval(pollTimer);
             popup.close();
             processEmbeddedCode(code);
+          }
+        }
+      } catch {
+        // Cross-origin before redirect is normal
+      }
+    }, 500);
+  };
+
+  // Meta Instagram Embedded Signup States & Handlers
+  const [igEmbeddedConnecting, setIgEmbeddedConnecting] = useState(false);
+  const [igEmbeddedSuccess, setIgEmbeddedSuccess] = useState(false);
+
+  const processInstagramEmbeddedCode = async (code: string) => {
+    try {
+      setIgEmbeddedConnecting(true);
+      const orgId = getOrgId();
+      const targetOrigin = window.location.origin.startsWith("https://")
+        ? window.location.origin
+        : "https://crm.jisnudigital.com";
+
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/embedded-signup/callback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId,
+        },
+        body: JSON.stringify({
+          code,
+          redirectUri: `${targetOrigin}/settings?tab=instagram`,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || "Failed to exchange token with Meta for Instagram");
+
+      setIgEmbeddedSuccess(true);
+      if (resData.config) {
+        setIgConfig(prev => ({
+          ...prev,
+          instagramAccountId: resData.config.instagramAccountId || prev.instagramAccountId,
+          pageId: resData.config.pageId || prev.pageId,
+          pageAccessToken: resData.config.pageAccessToken || prev.pageAccessToken,
+        }));
+      }
+      alert("✓ Instagram Business Account connected successfully via Meta!");
+      fetchInstagramConfig();
+    } catch (err: any) {
+      console.error("Instagram token exchange failed:", err);
+      alert(`Instagram Connection Error: ${err.message}`);
+    } finally {
+      setIgEmbeddedConnecting(false);
+    }
+  };
+
+  const handleDisconnectInstagram = async () => {
+    if (!confirm("Are you sure you want to disconnect this Instagram Business Account? Incoming DMs and story mentions will no longer route to this CRM.")) return;
+    try {
+      setIgEmbeddedConnecting(true);
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId(),
+        },
+      });
+      if (res.ok) {
+        alert("✓ Instagram account disconnected successfully.");
+        setIgConfig(prev => ({ ...prev, instagramAccountId: "", pageId: "", pageAccessToken: "" }));
+        fetchInstagramConfig();
+      } else {
+        alert("Failed to disconnect Instagram account.");
+      }
+    } catch (err: any) {
+      console.error("Instagram disconnect failed:", err);
+      alert(`Disconnect Error: ${err.message}`);
+    } finally {
+      setIgEmbeddedConnecting(false);
+    }
+  };
+
+  const launchInstagramSignup = () => {
+    if (typeof window === "undefined") return;
+
+    setIgEmbeddedConnecting(true);
+    const FB = (window as any).FB;
+
+    // 1. Primary Automated Flow: Native Facebook JS SDK with Instagram scopes
+    if (FB && window.location.protocol === "https:") {
+      try {
+        FB.login(
+          (response: any) => {
+            console.log("[META INSTAGRAM FB.LOGIN RESPONSE]:", response);
+            if (response.authResponse && response.authResponse.code) {
+              processInstagramEmbeddedCode(response.authResponse.code);
+            } else {
+              setIgEmbeddedConnecting(false);
+            }
+          },
+          {
+            scope: "instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_read_engagement,pages_show_list,public_profile",
+            response_type: "code",
+            override_default_response_type: true,
+          }
+        );
+        return;
+      } catch (err) {
+        console.warn("FB.login Instagram fallback triggered:", err);
+      }
+    }
+
+    // 2. Secondary Automated Flow: OAuth Popup Dialog with auto-polling
+    const appId = "36702477879366478";
+    const targetOrigin = window.location.origin.startsWith("https://")
+      ? window.location.origin
+      : "https://crm.jisnudigital.com";
+
+    const redirectUri = encodeURIComponent(`${targetOrigin}/settings?tab=instagram`);
+    const scope = encodeURIComponent("instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_read_engagement,pages_show_list,public_profile");
+
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+
+    const width = 600;
+    const height = 750;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      oauthUrl,
+      "MetaInstagramSignup",
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes`
+    );
+
+    if (!popup) {
+      alert("Popup blocked! Please allow popups for this site in your browser.");
+      setIgEmbeddedConnecting(false);
+      return;
+    }
+
+    const pollTimer = setInterval(() => {
+      try {
+        if (!popup || popup.closed) {
+          clearInterval(pollTimer);
+          setIgEmbeddedConnecting(false);
+          return;
+        }
+
+        const currentUrl = popup.location.href;
+        if (currentUrl && currentUrl.includes("code=")) {
+          const urlObj = new URL(currentUrl);
+          const code = urlObj.searchParams.get("code");
+          if (code) {
+            clearInterval(pollTimer);
+            popup.close();
+            processInstagramEmbeddedCode(code);
           }
         }
       } catch {
@@ -1983,6 +2176,63 @@ print(res.json())`;
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
       window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}`;
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    if (!confirm("Are you sure you want to disconnect Google Business Profile? Automated review monitoring will be stopped.")) return;
+    try {
+      setGoogleOauthStatus("connecting");
+      const res = await fetch(`${BACKEND_URL}/api/gmb/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId(),
+        },
+        body: JSON.stringify({ orgId: getOrgId() })
+      });
+      if (res.ok) {
+        alert("✓ Google Business profile disconnected successfully.");
+        setGoogleConfig(prev => ({
+          ...prev,
+          googleRefreshToken: "",
+          googleLocationId: "",
+          googlePlaceId: "",
+          googleReviewUrl: ""
+        }));
+        fetchGoogleConfig();
+      } else {
+        alert("Failed to disconnect Google Business profile.");
+      }
+    } catch (err: any) {
+      alert(`Disconnect Error: ${err.message}`);
+    } finally {
+      setGoogleOauthStatus("idle");
+    }
+  };
+
+  const handleDisconnectYoutube = async () => {
+    if (!confirm("Are you sure you want to disconnect your YouTube Channel? Video comment monitoring will be stopped.")) return;
+    try {
+      setYtOauthStatus("connecting");
+      const res = await fetch(`${BACKEND_URL}/api/youtube/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId(),
+        },
+      });
+      if (res.ok) {
+        alert("✓ YouTube Channel disconnected successfully.");
+        setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
+        fetchYoutubeConfig();
+      } else {
+        alert("Failed to disconnect YouTube channel.");
+      }
+    } catch (err: any) {
+      alert(`Disconnect Error: ${err.message}`);
+    } finally {
+      setYtOauthStatus("idle");
     }
   };
 
@@ -4152,50 +4402,135 @@ print(res.json())`;
                     </>
                   ) : settingsSubTab === "instagram" ? (
                   <>
-                    {/* Linked Instagram Accounts List */}
-                    {igAccounts.length > 0 && (
-                      <div className="bg-white border border-pink-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
-                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                          <Instagram className="h-4.5 w-4.5 text-pink-600" /> Linked Instagram Accounts ({igAccounts.length})
-                        </h3>
-                        <div className="space-y-2">
-                          {igAccounts.map((acc) => (
-                            <div key={acc.id} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                              <div className="flex items-center gap-3">
-                                {acc.profilePic ? (
-                                  <img src={acc.profilePic} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-200" />
-                                ) : (
-                                  <div className="p-2 rounded-lg bg-pink-100 text-pink-600">
-                                    <Instagram className="w-4 h-4" />
-                                  </div>
-                                )}
-                                <div>
-                                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                                    {acc.username ? `@${acc.username}` : (acc.name || `IG (${acc.instagramAccountId.slice(-4)})`)}
-                                    {acc.isDefault && (
-                                      <span className="px-2 py-0.5 text-[9px] font-bold text-pink-700 bg-pink-100 rounded-full">
-                                        Active Default
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 font-mono">IG Account ID: {acc.instagramAccountId} | Page ID: {acc.pageId}</div>
-                                </div>
-                              </div>
-
-                              {!acc.isDefault && (
-                                <button
-                                  type="button"
-                                  onClick={() => setDefaultIgAccount(acc.id)}
-                                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] rounded-lg transition-colors cursor-pointer"
-                                >
-                                  Set Active
-                                </button>
-                              )}
+                    {/* Meta Official Instagram Embedded Signup */}
+                    <div className="bg-gradient-to-br from-pink-50 via-white to-purple-50 border border-pink-200 rounded-2xl p-6 space-y-4 shadow-2xs relative overflow-hidden animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-pink-100 border border-pink-200 flex items-center justify-center text-pink-700 shrink-0">
+                            <Instagram className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-extrabold text-base text-slate-900">Meta Instagram Embedded Signup</h3>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-pink-800 border border-pink-200 uppercase">
+                                OFFICIAL TECH PROVIDER
+                              </span>
                             </div>
-                          ))}
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Connect your Instagram Business account or Facebook Page instantly via Meta login to automate DMs and story replies.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={launchInstagramSignup}
+                            disabled={igEmbeddedConnecting}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-pink-600/20 transition-all cursor-pointer"
+                          >
+                            <Instagram className="h-4 w-4" />
+                            <span>{igEmbeddedConnecting ? "Connecting via Meta..." : igConfig.instagramAccountId ? "Reconnect Instagram Account" : "Connect with Instagram"}</span>
+                          </button>
+
+                          {(igConfig.instagramAccountId || igConfig.pageId) && (
+                            <button
+                              type="button"
+                              onClick={handleDisconnectInstagram}
+                              disabled={igEmbeddedConnecting}
+                              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                              Disconnect
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
+
+                      {(igConfig.instagramAccountId || igConfig.pageId) && (
+                        <div className="bg-pink-50/70 border border-pink-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-pink-800 font-bold">
+                            <Check className="h-4.5 w-4.5" />
+                            <span>Status: Connected to Meta Instagram Messaging API</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-slate-700 font-mono text-[11px]">
+                            {igConfig.username && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Handle: <strong className="text-slate-900">@{igConfig.username}</strong></span>}
+                            <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">IG Account ID: <strong className="text-slate-900">{igConfig.instagramAccountId || "Connected"}</strong></span>
+                            <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Page ID: <strong className="text-slate-900">{igConfig.pageId || "Connected"}</strong></span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Linked Instagram Accounts List */}
+                      <div className="mt-5 pt-5 border-t border-pink-200/90 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                              <Instagram className="w-4 h-4 text-pink-600" /> Linked Instagram Accounts ({igAccounts.length})
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Switch active default account or connect additional Instagram accounts to your organization.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={launchInstagramSignup}
+                            className="px-4 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-pink-600/20 cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Plus className="w-4 h-4 stroke-[2.5]" />
+                            Link Additional Account
+                          </button>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {igAccounts.length === 0 ? (
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                              No Instagram accounts linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with Instagram"</strong> to add your first account.
+                            </div>
+                          ) : (
+                            igAccounts.map((acc) => (
+                              <div key={acc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-white to-slate-50/50 border border-slate-200/90 rounded-2xl text-xs shadow-2xs hover:border-pink-300 transition-all">
+                                <div className="flex items-center gap-3.5">
+                                  {acc.profilePic ? (
+                                    <img src={acc.profilePic} alt="" className="w-10 h-10 rounded-full object-cover border border-pink-200" />
+                                  ) : (
+                                    <div className="relative p-2.5 rounded-xl bg-pink-50 text-pink-600 border border-pink-100/80">
+                                      <Instagram className="w-5 h-5" />
+                                    </div>
+                                  )}
+                                  <div className="space-y-0.5">
+                                    <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                                      <span>{acc.username ? `@${acc.username}` : (acc.name || `IG (${acc.instagramAccountId.slice(-4)})`)}</span>
+                                      {acc.isDefault && (
+                                        <span className="px-2.5 py-0.5 text-[10px] font-extrabold text-pink-800 bg-pink-100 rounded-full border border-pink-200/80">
+                                          Active Default Account
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                                      <span>IG ID: <strong className="text-slate-700">{acc.instagramAccountId}</strong></span>
+                                      <span>•</span>
+                                      <span>Page ID: <strong className="text-slate-700">{acc.pageId}</strong></span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {!acc.isDefault ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDefaultIgAccount(acc.id)}
+                                    className="px-4 py-2 bg-white hover:bg-pink-50 text-pink-700 border border-slate-200 hover:border-pink-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
+                                  >
+                                    Set as Active Account
+                                  </button>
+                                ) : (
+                                  <span className="px-3 py-1 bg-pink-50 text-pink-700 border border-pink-200 font-bold text-xs rounded-xl flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Active Account
+                                  </span>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Instagram Credentials Form */}
                     <form onSubmit={saveInstagramConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
@@ -4284,46 +4619,126 @@ print(res.json())`;
                   </>
                 ) : settingsSubTab === "google" ? (
                   <>
-                    {/* Linked Gmail Accounts List */}
-                    {gmailAccounts.length > 0 && (
-                      <div className="bg-white border border-rose-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
-                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                          <Mail className="h-4.5 w-4.5 text-rose-500" /> Linked Gmail / Google Accounts ({gmailAccounts.length})
-                        </h3>
-                        <div className="space-y-2">
-                          {gmailAccounts.map((acc) => (
-                            <div key={acc.id} className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-rose-100 text-rose-600">
-                                  <Mail className="w-4 h-4" />
-                                </div>
-                                <div>
-                                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                                    {acc.emailAddress || "Connected Gmail Account"}
-                                    {acc.isDefault && (
-                                      <span className="px-2 py-0.5 text-[9px] font-bold text-rose-700 bg-rose-100 rounded-full">
-                                        Primary Email
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 font-mono">Display Name: {acc.displayName || acc.emailAddress?.split("@")[0]}</div>
-                                </div>
-                              </div>
-
-                              {!acc.isDefault && (
-                                <button
-                                  type="button"
-                                  onClick={() => setDefaultGmailAccount(acc.id)}
-                                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] rounded-lg transition-colors cursor-pointer"
-                                >
-                                  Set Primary
-                                </button>
-                              )}
+                    {/* Official Google Business & Gmail Embedded Signup Card */}
+                    <div className="bg-gradient-to-br from-amber-50 via-white to-blue-50 border border-amber-200 rounded-2xl p-6 space-y-4 shadow-2xs relative overflow-hidden animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+                            <Star className="h-6 w-6 text-amber-500 fill-amber-400" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-extrabold text-base text-slate-900">Google Business & Gmail Embedded Signup</h3>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase">
+                                OFFICIAL GOOGLE PROVIDER
+                              </span>
                             </div>
-                          ))}
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Connect your Google Business Profile & Gmail accounts with 1-click Google OAuth to monitor reviews and automate customer interactions.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleGoogleOAuthConnect}
+                            disabled={googleOauthStatus === "connecting"}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                          >
+                            <RefreshCw className={`h-4 w-4 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
+                            <span>{googleOauthStatus === "connecting" ? "Connecting via Google..." : googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect with Google"}</span>
+                          </button>
+
+                          {googleConfig.googleRefreshToken && (
+                            <button
+                              type="button"
+                              onClick={handleDisconnectGoogle}
+                              disabled={googleOauthStatus === "connecting"}
+                              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                              Disconnect
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
+
+                      {googleConfig.googleRefreshToken && (
+                        <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-amber-800 font-bold">
+                            <Check className="h-4.5 w-4.5 text-amber-600" />
+                            <span>Status: Connected to Google Business API & Review Auto-Pilot</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-slate-700 font-mono text-[11px]">
+                            {googleConfig.locationName && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Location: <strong className="text-slate-900">{googleConfig.locationName}</strong></span>}
+                            {googleConfig.googleLocationId && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Location ID: <strong className="text-slate-900">{googleConfig.googleLocationId}</strong></span>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Linked Gmail Accounts List */}
+                      <div className="mt-5 pt-5 border-t border-amber-200/90 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                              <Mail className="w-4 h-4 text-rose-500" /> Linked Gmail & Google Accounts ({gmailAccounts.length})
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Switch active primary Gmail account or connect additional Google accounts to your workspace.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleGoogleOAuthConnect}
+                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-blue-600/20 cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Plus className="w-4 h-4 stroke-[2.5]" />
+                            Link Additional Account
+                          </button>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {gmailAccounts.length === 0 ? (
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                              No Gmail accounts linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with Google"</strong> to add your first Google account.
+                            </div>
+                          ) : (
+                            gmailAccounts.map((acc) => (
+                              <div key={acc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-white to-slate-50/50 border border-slate-200/90 rounded-2xl text-xs shadow-2xs hover:border-amber-300 transition-all">
+                                <div className="flex items-center gap-3.5">
+                                  <div className="relative p-2.5 rounded-xl bg-rose-50 text-rose-600 border border-rose-100/80">
+                                    <Mail className="w-5 h-5" />
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                                      <span>{acc.emailAddress || "Connected Gmail Account"}</span>
+                                      {acc.isDefault && (
+                                        <span className="px-2.5 py-0.5 text-[10px] font-extrabold text-rose-800 bg-rose-100 rounded-full border border-rose-200/80">
+                                          Primary Email
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 font-mono">Display Name: {acc.displayName || acc.emailAddress?.split("@")[0]}</div>
+                                  </div>
+                                </div>
+
+                                {!acc.isDefault ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDefaultGmailAccount(acc.id)}
+                                    className="px-4 py-2 bg-white hover:bg-rose-50 text-rose-700 border border-slate-200 hover:border-rose-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
+                                  >
+                                    Set Primary Email
+                                  </button>
+                                ) : (
+                                  <span className="px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Primary Email
+                                  </span>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Google GMB Credentials Form */}
                     <form onSubmit={saveGoogleConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
@@ -4415,104 +4830,114 @@ print(res.json())`;
                         )}
                       </div>
                     </form>
-
-                    {/* Google OAuth Live Connection Panel */}
-                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Database className="h-4.5 w-4.5 text-brand-blue" /> Google Business Profile Authorization
-                      </h3>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        Connect your live Google Business Profile account so the system can automatically monitor reviews and post automated replies on your behalf.
-                      </p>
-
-                      <div className="flex items-center gap-3.5 bg-slate-50 border border-slate-200 p-4 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={handleGoogleOAuthConnect}
-                          disabled={googleOauthStatus === "connecting"}
-                          className="bg-brand-blue hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shrink-0 cursor-pointer disabled:opacity-50"
-                        >
-                          <RefreshCw className={`h-4.5 w-4.5 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                          {googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect Google Account"}
-                        </button>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-slate-900">
-                            {googleConfig.googleRefreshToken ? "Status: CONNECTED" : "Google Login (OAuth)"}
-                          </span>
-                          <span className="text-[10px] text-slate-500 leading-normal">
-                            {googleConfig.googleRefreshToken 
-                              ? "Your Google Business account token is active. Ready to manage reviews."
-                              : "Click to authorize GMB review API access via Google's secure portal."}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {googleOauthStatus === "success" && (
-                        <span className="text-xs text-emerald-600 font-medium block animate-fadeIn">Google profile connected successfully!</span>
-                      )}
-                      {googleOauthStatus === "error" && (
-                        <span className="text-xs text-rose-600 font-medium block animate-fadeIn">Failed to connect Google account. Please verify .env credentials.</span>
-                      )}
-                    </div>
                   </>
                 ) : settingsSubTab === "youtube" ? (
                   <>
-                    {/* YouTube One-Click Google OAuth Card */}
-                    <div className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                          <Video className="h-4.5 w-4.5 text-red-600" /> YouTube Channel Integration
-                        </h3>
-                        {ytConfig.refreshToken || ytConfig.channelId ? (
-                          <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
-                            Connected ✓
-                          </span>
-                        ) : (
-                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                            Not Connected
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        Connect your YouTube channel to automatically sync video comments, enable AI bot responses on channel videos, and monitor community interactions in real-time.
-                      </p>
-
-                      {ytConfig.refreshToken || ytConfig.channelId ? (
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Connected YouTube Channel</span>
-                            <span className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                              {ytConfig.channelTitle || ytConfig.channelId || "Connected Channel"}
-                            </span>
-                            <span className="text-xs text-slate-600 font-mono">
-                              Channel ID: <strong>{ytConfig.channelId || "N/A"}</strong>
-                            </span>
+                    {/* Official YouTube Channel Embedded Signup Card */}
+                    <div className="bg-gradient-to-br from-red-50 via-white to-rose-50 border border-red-200 rounded-2xl p-6 space-y-4 shadow-2xs relative overflow-hidden animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-red-100 border border-red-200 flex items-center justify-center text-red-600 shrink-0">
+                            <Video className="h-6 w-6" />
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
-                              saveYoutubeConfig({ preventDefault: () => {} } as any);
-                            }}
-                            className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer shrink-0"
-                          >
-                            Disconnect Channel
-                          </button>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-extrabold text-base text-slate-900">Google YouTube Embedded Signup</h3>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-200 uppercase">
+                                OFFICIAL YOUTUBE PROVIDER
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Connect your YouTube channel with 1-click Google OAuth to auto-sync video comments, deploy AI response bots, and monitor subscriber engagement.
+                            </p>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="pt-1">
+
+                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                           <button
                             type="button"
                             onClick={handleYoutubeOAuthConnect}
                             disabled={ytOauthStatus === "connecting"}
-                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-red-600/20 cursor-pointer"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-red-600/20 transition-all cursor-pointer"
                           >
-                            <Video className="w-4 h-4" />
-                            {ytOauthStatus === "connecting" ? "Connecting to Google..." : "Connect YouTube Account with Google OAuth"}
+                            <Video className="h-4 w-4" />
+                            <span>{ytOauthStatus === "connecting" ? "Connecting via Google..." : (ytConfig.refreshToken || ytConfig.channelId) ? "Reconnect YouTube Channel" : "Connect with YouTube"}</span>
                           </button>
+
+                          {(ytConfig.refreshToken || ytConfig.channelId) && (
+                            <button
+                              type="button"
+                              onClick={handleDisconnectYoutube}
+                              disabled={ytOauthStatus === "connecting"}
+                              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                              Disconnect
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {(ytConfig.refreshToken || ytConfig.channelId) && (
+                        <div className="bg-red-50/70 border border-red-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-red-800 font-bold">
+                            <Check className="h-4.5 w-4.5 text-red-600" />
+                            <span>Status: Connected to YouTube Data API & Real-time Comment Bot</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-slate-700 font-mono text-[11px]">
+                            {ytConfig.channelTitle && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Channel: <strong className="text-slate-900">{ytConfig.channelTitle}</strong></span>}
+                            {ytConfig.channelId && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Channel ID: <strong className="text-slate-900">{ytConfig.channelId}</strong></span>}
+                          </div>
                         </div>
                       )}
+
+                      {/* Linked YouTube Channels List / Link Additional Account */}
+                      <div className="mt-5 pt-5 border-t border-red-200/90 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                              <Video className="w-4 h-4 text-red-600" /> Linked YouTube Channels
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Connect additional YouTube channels to your organization via 1-click Google OAuth.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleYoutubeOAuthConnect}
+                            className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-red-600/20 cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Plus className="w-4 h-4 stroke-[2.5]" />
+                            Link Additional Account
+                          </button>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {!(ytConfig.channelId || ytConfig.refreshToken) ? (
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                              No YouTube channel linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with YouTube"</strong> to authorize your channel.
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-white to-slate-50/50 border border-slate-200/90 rounded-2xl text-xs shadow-2xs hover:border-red-300 transition-all">
+                              <div className="flex items-center gap-3.5">
+                                <div className="relative p-2.5 rounded-xl bg-red-50 text-red-600 border border-red-100/80">
+                                  <Video className="w-5 h-5" />
+                                </div>
+                                <div className="space-y-0.5">
+                                  <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                                    <span>{ytConfig.channelTitle || "Connected YouTube Channel"}</span>
+                                    <span className="px-2.5 py-0.5 text-[10px] font-extrabold text-red-800 bg-red-100 rounded-full border border-red-200/80">
+                                      Active Channel
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 font-mono">Channel ID: <strong className="text-slate-700">{ytConfig.channelId || "Connected"}</strong></div>
+                                </div>
+                              </div>
+
+                              <span className="px-3 py-1 bg-red-50 text-red-700 border border-red-200 font-bold text-xs rounded-xl flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" /> Active Channel
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* YouTube Manual Credentials Form */}
@@ -4866,6 +5291,97 @@ print(res.json())`;
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 1B: DISPLAY NEWLY GENERATED SECRET API KEY & COPY BUTTON */}
+        {showRawKeyModal && createdRawKey && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl relative">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0 shadow-2xs">
+                  <Check className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                    API Key Created Successfully!
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Copy and store your secret key securely now.
+                  </p>
+                </div>
+              </div>
+
+              {createdKeyWarning && (
+                <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-4 space-y-1.5 text-amber-900">
+                  <div className="flex items-center gap-2 font-bold text-xs">
+                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>Important Security Notice</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    {createdKeyWarning}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                  Your Full Secret API Key
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    readOnly
+                    value={createdRawKey}
+                    className="w-full bg-slate-900 text-emerald-400 font-mono text-xs rounded-2xl pl-4 pr-32 py-3.5 border border-slate-800 focus:outline-none shadow-inner selection:bg-emerald-900 selection:text-emerald-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdRawKey);
+                      setCopiedKey(true);
+                      setTimeout(() => setCopiedKey(false), 3000);
+                    }}
+                    className={`absolute right-2 px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                      copiedKey
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20"
+                    }`}
+                  >
+                    {copiedKey ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" /> Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" /> Copy Key
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => downloadEnvFile(createdRawKey, "CRM_API_KEY")}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Download className="h-4 w-4 text-slate-600" /> Download .env File
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRawKeyModal(false);
+                    setCreatedRawKey(null);
+                  }}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-sm"
+                >
+                  I Have Saved My Key ✓
+                </button>
+              </div>
             </div>
           </div>
         )}

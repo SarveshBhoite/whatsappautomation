@@ -4,6 +4,8 @@ import prisma from "../utils/prisma";
 import { WhatsAppDripEngine } from "../services/whatsappDripService";
 import { WhatsAppService } from "../services/whatsappService";
 
+import { validateAccountOwnership } from "../utils/accountResolver";
+
 const router = Router();
 
 const getOrgId = (req: Request): string => {
@@ -12,13 +14,27 @@ const getOrgId = (req: Request): string => {
 
 // ─── 1. CAMPAIGN DASHBOARD & CRUD ──────────────────────────────────────────
 
-// GET: Fetch all campaigns with dashboard metrics summary
+// GET: Fetch all campaigns with dashboard metrics summary (account-scoped)
 router.get("/campaigns", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const accountId = req.query.accountId as string;
+
+    const whereClause: any = { organizationId };
+
+    if (accountId) {
+      const isValid = await validateAccountOwnership(organizationId, "whatsapp", accountId);
+      if (!isValid) {
+        return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "Account does not belong to organization" });
+      }
+      whereClause.OR = [
+        { whatsappConfigId: accountId },
+        { whatsappConfigId: null }
+      ];
+    }
 
     const campaigns = await (prisma as any).whatsAppDripCampaign.findMany({
-      where: { organizationId },
+      where: whereClause,
       include: {
         steps: { orderBy: { stepNumber: "asc" } },
         enrollments: true,

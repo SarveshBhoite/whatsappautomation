@@ -13,6 +13,8 @@ import {
 } from "../services/gmbSyncService";
 import { syncGmailThreads } from "../services/gmailService";
 
+import { validateAccountOwnership } from "../utils/accountResolver";
+
 const router = Router();
 const DEFAULT_ORG_ID = "";
 
@@ -52,10 +54,14 @@ router.get("/config", async (req, res) => {
       });
     }
 
-    res.status(200).json(config);
+    const accounts = await prisma.googleBusinessConfig.findMany({
+      where: { organizationId: orgId }
+    });
+
+    return res.status(200).json({ config, accounts });
   } catch (error: any) {
     console.error("Error fetching GMB config:", error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -1441,6 +1447,29 @@ router.get("/places/search", async (req, res) => {
   } catch (error: any) {
     console.error("Google Places search failed:", error.message);
     res.status(500).json({ error: "Places autocomplete service is currently unavailable. Please enter search terms manually." });
+  }
+});
+
+// POST: Disconnect Google Business Profile
+router.post("/disconnect", async (req, res) => {
+  try {
+    const orgId = (req.body.orgId as string) || (req.headers["x-organization-id"] as string) || "";
+    if (orgId) {
+      await prisma.googleBusinessConfig.updateMany({
+        where: { organizationId: orgId },
+        data: {
+          googleRefreshToken: null,
+          refreshToken: null,
+          accessToken: "",
+          googleLocationId: null,
+          googlePlaceId: null,
+          googleReviewUrl: null,
+        },
+      });
+    }
+    return res.status(200).json({ success: true, message: "Google Business profile disconnected successfully." });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to disconnect Google Business profile", details: error.message });
   }
 });
 

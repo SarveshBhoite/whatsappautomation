@@ -8,11 +8,17 @@ const DEFAULT_ORG_ID = "demo-org-123";
  * Returns a valid access token for Gmail API.
  * If expired, it automatically refreshes it using the Google OAuth refresh token.
  */
-export async function getGmailAccessToken(orgId: string, forceRefresh = false): Promise<string> {
-  const config = await prisma.gmailConfig.findFirst({
-    where: { organizationId: orgId, isActive: true },
-    orderBy: { isDefault: "desc" },
-  });
+export async function getGmailAccessToken(orgId: string, forceRefresh = false, accountId?: string): Promise<{ token: string; config: any }> {
+  let config = accountId
+    ? await prisma.gmailConfig.findFirst({ where: { id: accountId, organizationId: orgId, isActive: true } })
+    : null;
+
+  if (!config) {
+    config = await prisma.gmailConfig.findFirst({
+      where: { organizationId: orgId, isActive: true },
+      orderBy: { isDefault: "desc" },
+    });
+  }
 
   if (!config || (!config.accessToken && !config.refreshToken)) {
     throw new Error("Gmail configuration or access token not found. Please connect your Gmail account.");
@@ -49,14 +55,14 @@ export async function getGmailAccessToken(orgId: string, forceRefresh = false): 
         },
       });
 
-      return updated.accessToken || "";
+      return { token: updated.accessToken || "", config: updated };
     } catch (err: any) {
       console.error("[GMAIL SERVICE] Failed to refresh access token:", err?.response?.data || err.message);
       throw new Error(`Failed to refresh Gmail API credentials: ${err.message}`);
     }
   }
 
-  return config.accessToken || "";
+  return { token: config.accessToken || "", config };
 }
 
 interface ParsedMessageParts {
@@ -121,9 +127,9 @@ export function parseGmailMessage(payload: any): ParsedMessageParts {
 /**
  * Syncs recent email threads from Gmail API.
  */
-export async function syncGmailThreads(orgId: string, io?: Server, label: string = "INBOX") {
+export async function syncGmailThreads(orgId: string, io?: Server, label: string = "INBOX", accountId?: string) {
   try {
-    let token = await getGmailAccessToken(orgId);
+    let { token, config } = await getGmailAccessToken(orgId, false, accountId);
 
     let query = "";
     const upperLabel = label.toUpperCase();
@@ -145,7 +151,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
     // When syncing STARRED folder specifically, reset isStarred flag first so unstarred emails are pruned
     if (upperLabel === "STARRED") {
       await prisma.gmailThread.updateMany({
-        where: { organizationId: orgId },
+        where: { organizationId: orgId, ...(config?.id && { gmailConfigId: config.id }) },
         data: { isStarred: false }
       });
     }
@@ -164,7 +170,9 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
     } catch (err: any) {
       if (err?.response?.status === 401) {
         console.log(`[GMAIL SERVICE] 401 Unauthorized encountered. Forcing access token refresh...`);
-        token = await getGmailAccessToken(orgId, true);
+        const refreshed = await getGmailAccessToken(orgId, true, accountId);
+        token = refreshed.token;
+        config = refreshed.config;
         listRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
           headers: { Authorization: `Bearer ${token}` },
           params: { 
@@ -179,14 +187,23 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
       }
     }
 
-    const threads = listRes.data.threads || [];
-    let syncedCount = 0;
-    console.log(`[GMAIL SERVICE] Fetched ${threads.length} threads for label '${label}'. Processing...`);
+    let threads = listRes.data.threads || [];
+    if (threads.length === 0 && upperLabel === "INBOX") {
+      try {
+        const fallbackRes = await axios.get("https://gmail.googleapis.com/gmail/v1/users/me/threads", {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { maxResults: 30 },
+          timeout: 15000
+        });
+        threads = fallbackRes.data.threads || [];
+      } catch (fbErr: any) {
+        console.warn("[GMAIL SERVICE] Fallback list threads without query failed:", fbErr.message);
+      }
+    }
 
-    const config = await prisma.gmailConfig.findFirst({
-      where: { organizationId: orgId, isActive: true },
-      orderBy: { isDefault: "desc" },
-    });
+    let syncedCount = 0;
+    console.log(`[GMAIL SERVICE] Fetched ${threads.length} threads for label '${label}' account '${config?.emailAddress}'. Processing...`);
+
     const userEmail = config?.emailAddress?.toLowerCase() || "";
     const activeRules = (config && config.autoReplyEnabled)
       ? await prisma.gmailAutoReplyRule.findMany({ where: { organizationId: orgId, isActive: true } })
@@ -254,11 +271,13 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
           label: effectiveLabel,
           isStarred,
           isSpam,
+          gmailConfigId: config.id,
           updatedAt: actualEmailDate,
         },
         create: {
           threadId,
           organizationId: orgId,
+          gmailConfigId: config.id,
           subject,
           sender,
           snippet,
@@ -313,6 +332,7 @@ export async function syncGmailThreads(orgId: string, io?: Server, label: string
               createdAt: msgDate,
               internalDate: msgDate,
               organizationId: orgId,
+              gmailConfigId: config.id,
             }
           });
 

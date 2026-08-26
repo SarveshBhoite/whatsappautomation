@@ -363,6 +363,8 @@ export default function Dashboard() {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
   useEffect(() => {
+    fetchYoutubeConfig();
+
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
@@ -372,14 +374,9 @@ export default function Dashboard() {
 
       const oauth = params.get("oauth");
       if (oauth === "success") {
-        setSettingsSubTab("google");
-        setGoogleOauthStatus("success");
-        setTimeout(() => setGoogleOauthStatus("idle"), 3000);
+        fetchYoutubeConfig();
         window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
       } else if (oauth === "error") {
-        setSettingsSubTab("google");
-        setGoogleOauthStatus("error");
-        setTimeout(() => setGoogleOauthStatus("idle"), 3000);
         window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
       }
     }
@@ -1029,14 +1026,24 @@ export default function Dashboard() {
     }
   };
 
+
+
   const fetchYoutubeConfig = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/youtube/config`, {
         headers: { "x-organization-id": getOrgId() }
       });
-      const data = await res.json();
-      if (data) {
-        setYtConfig(data);
+      if (res.ok) {
+        const data = await res.json();
+        const cfg = data.config || data;
+        if (cfg) {
+          setYtConfig({
+            channelId: cfg.channelId || "",
+            channelTitle: cfg.channelTitle || "",
+            accessToken: cfg.accessToken || "",
+            refreshToken: cfg.refreshToken || ""
+          });
+        }
       }
     } catch (err) {
       console.error("Error fetching YouTube config:", err);

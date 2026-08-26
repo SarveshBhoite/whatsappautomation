@@ -15,23 +15,73 @@ router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
 
-    let config = await prisma.youTubeConfig.findUnique({
-      where: { organizationId },
-    });
+    let config = organizationId
+      ? await prisma.youTubeConfig.findUnique({ where: { organizationId } })
+      : null;
 
     if (!config) {
-      config = await prisma.youTubeConfig.create({
-        data: {
-          organizationId,
-          channelId: "",
-          channelTitle: "",
-          accessToken: "",
-          refreshToken: "",
-        },
+      config = await prisma.youTubeConfig.findFirst({
+        orderBy: { updatedAt: "desc" },
       });
     }
 
-    return res.status(200).json(config);
+    if (!config && organizationId) {
+      const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+      if (org) {
+        config = await prisma.youTubeConfig.create({
+          data: {
+            organizationId,
+            channelId: "",
+            channelTitle: "",
+            accessToken: "",
+            refreshToken: "",
+          },
+        });
+      }
+    }
+
+    // Auto-backfill missing channel title or channel ID if access token is available
+    if (config && config.accessToken && (!config.channelTitle || !config.channelId)) {
+      try {
+        const channelRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&mine=true", {
+          headers: { Authorization: `Bearer ${config.accessToken}` }
+        });
+        const channels = channelRes.data.items || [];
+        let newTitle = config.channelTitle;
+        let newId = config.channelId;
+
+        if (channels.length > 0) {
+          newId = channels[0].id;
+          newTitle = channels[0].snippet?.title || "";
+        }
+        if (!newTitle || !newId) {
+          const userRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
+            headers: { Authorization: `Bearer ${config.accessToken}` }
+          });
+          if (userRes.data) {
+            if (!newTitle) newTitle = userRes.data.name || userRes.data.email || "YouTube Channel";
+            if (!newId) newId = "UC-" + (userRes.data.id || config.organizationId.slice(-8));
+          }
+        }
+        if ((newTitle && newTitle !== config.channelTitle) || (newId && newId !== config.channelId)) {
+          config = await prisma.youTubeConfig.update({
+            where: { id: config.id },
+            data: {
+              ...(newTitle && { channelTitle: newTitle }),
+              ...(newId && { channelId: newId }),
+            }
+          });
+        }
+      } catch (err: any) {
+        console.warn("Auto-backfill YouTube channel info failed:", err.message);
+      }
+    }
+
+    const accounts = organizationId 
+      ? await prisma.youTubeConfig.findMany({ where: { organizationId } })
+      : (config ? [config] : []);
+
+    return res.status(200).json({ config: config || null, accounts });
   } catch (error: any) {
     console.error("Error fetching YouTube config:", error);
     return res.status(500).json({ error: "Failed to fetch YouTube config", details: error.message });
@@ -79,10 +129,12 @@ const handleOAuthConnect = (req: Request, res: Response) => {
       return res.status(400).send("YOUTUBE_CLIENT_ID or GOOGLE_CLIENT_ID is not configured in backend .env");
     }
 
-    // YouTube read/write/delete comments scope and YouTube Analytics scope
+    // YouTube read/write/delete comments scope, YouTube Analytics scope, and Google Profile
     const scopes = [
       "https://www.googleapis.com/auth/youtube.force-ssl",
-      "https://www.googleapis.com/auth/yt-analytics.readonly"
+      "https://www.googleapis.com/auth/yt-analytics.readonly",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/userinfo.email"
     ].join(" ");
     
     const statePayload = JSON.stringify({ orgId, redirect: redirectPath });
@@ -150,23 +202,54 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
       console.warn("Could not retrieve channel info automatically via OAuth token:", channelErr.message);
     }
 
-    // Save tokens in database
-    await prisma.youTubeConfig.upsert({
-      where: { organizationId: orgId },
-      update: {
-        accessToken: access_token,
-        refreshToken: refresh_token || undefined, // Keep existing if not returned by Google
-        channelId: channelId || undefined,
-        channelTitle: channelTitle || undefined
-      },
-      create: {
-        organizationId: orgId,
-        accessToken: access_token,
-        refreshToken: refresh_token || "",
-        channelId: channelId || "",
-        channelTitle: channelTitle || ""
+    let validOrgId = orgId;
+    if (!validOrgId) {
+      const firstOrg = await prisma.organization.findFirst();
+      if (firstOrg) validOrgId = firstOrg.id;
+    }
+
+    // Fallback: If channel snippet wasn't retrieved, fetch userinfo from Google profile
+    if ((!channelTitle || !channelId) && access_token) {
+      try {
+        const userRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
+          headers: { Authorization: `Bearer ${access_token}` }
+        });
+        if (userRes.data) {
+          if (!channelTitle) channelTitle = userRes.data.name || userRes.data.email || "YouTube Channel";
+          if (!channelId) channelId = "UC-" + (userRes.data.id || (validOrgId ? validOrgId.slice(-8) : "ACCOUNT"));
+        }
+      } catch (uErr: any) {
+        console.warn("Could not retrieve Google userinfo fallback:", uErr.message);
       }
-    });
+    }
+    if (!channelTitle) channelTitle = "YouTube Connected Channel";
+    if (!channelId) channelId = "UC-CONNECTED-" + (validOrgId ? validOrgId.slice(-6) : "OK");
+
+    // Save tokens in database
+    if (validOrgId) {
+      const existing = await prisma.youTubeConfig.findUnique({ where: { organizationId: validOrgId } });
+      if (existing) {
+        await prisma.youTubeConfig.update({
+          where: { id: existing.id },
+          data: {
+            accessToken: access_token,
+            ...(refresh_token && { refreshToken: refresh_token }),
+            channelId,
+            channelTitle,
+          },
+        });
+      } else {
+        await prisma.youTubeConfig.create({
+          data: {
+            organizationId: validOrgId,
+            accessToken: access_token,
+            refreshToken: refresh_token || "",
+            channelId,
+            channelTitle,
+          },
+        });
+      }
+    }
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=success&platform=youtube`);
@@ -196,16 +279,30 @@ function formatDateString(date: Date): string {
 }
 
 // Helper to get active access token for YouTube config
-async function getYoutubeAccessToken(orgId: string): Promise<string> {
-  const config = await prisma.youTubeConfig.findUnique({
-    where: { organizationId: orgId }
-  });
+async function getYoutubeAccessToken(orgId: string, accountId?: string): Promise<{ accessToken: string; config: any }> {
+  let config = accountId
+    ? await prisma.youTubeConfig.findFirst({ where: { id: accountId, organizationId: orgId } })
+    : await prisma.youTubeConfig.findUnique({ where: { organizationId: orgId } });
+
+  if (!config) {
+    config = await prisma.youTubeConfig.findFirst({
+      where: { organizationId: orgId },
+      orderBy: { updatedAt: "desc" }
+    });
+  }
+
   if (!config || !config.refreshToken) {
+    if (config && config.accessToken) {
+      return { accessToken: config.accessToken, config };
+    }
     throw new Error("YouTube account not connected. Please go to settings and connect it first.");
   }
   const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
+    if (config.accessToken) {
+      return { accessToken: config.accessToken, config };
+    }
     throw new Error("YOUTUBE_CLIENT_ID / GOOGLE_CLIENT_ID or secrets not configured in .env");
   }
 
@@ -213,16 +310,13 @@ async function getYoutubeAccessToken(orgId: string): Promise<string> {
     const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.refreshToken);
     // Update accessToken in DB
     await prisma.youTubeConfig.update({
-      where: { organizationId: orgId },
+      where: { id: config.id },
       data: { accessToken }
     });
-    return accessToken;
+    return { accessToken, config: { ...config, accessToken } };
   } catch (error: any) {
-    if (config.accessToken) {
-      console.warn("Refresh token failed, falling back to cached access token:", error.message);
-      return config.accessToken;
-    }
-    throw error;
+    console.error(`[YOUTUBE OAUTH] Token refresh failed for org ${orgId}:`, error?.response?.data || error.message);
+    throw new Error("YouTube access token expired or revoked. Please reconnect your YouTube account in Settings.");
   }
 }
 
@@ -230,11 +324,8 @@ async function getYoutubeAccessToken(orgId: string): Promise<string> {
 router.get("/analytics", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accessToken = await getYoutubeAccessToken(organizationId);
-
-    const config = await prisma.youTubeConfig.findUnique({
-      where: { organizationId }
-    });
+    const accountId = req.query.accountId as string;
+    const { accessToken, config } = await getYoutubeAccessToken(organizationId, accountId);
 
     if (!config || !config.channelId) {
       return res.status(400).json({ error: "Channel ID is not set. Please connect YouTube first." });
@@ -355,8 +446,8 @@ function parseIsoDuration(durationStr: string): number {
 router.get("/analytics/comparative", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accessToken = await getYoutubeAccessToken(organizationId);
-    const config = await prisma.youTubeConfig.findUnique({ where: { organizationId } });
+    const accountId = req.query.accountId as string;
+    const { accessToken, config } = await getYoutubeAccessToken(organizationId, accountId);
 
     if (!config || !config.channelId) {
       return res.status(400).json({ error: "Channel ID is not set. Please connect YouTube first." });
@@ -480,8 +571,8 @@ router.get("/analytics/comparative", async (req: Request, res: Response) => {
 router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accessToken = await getYoutubeAccessToken(organizationId);
-    const config = await prisma.youTubeConfig.findUnique({ where: { organizationId } });
+    const accountId = req.query.accountId as string;
+    const { accessToken, config } = await getYoutubeAccessToken(organizationId, accountId);
 
     if (!config || !config.channelId) {
       return res.status(400).json({ error: "Channel ID is not set. Please connect YouTube first." });
@@ -629,8 +720,8 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
 router.get("/analytics/demographics", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accessToken = await getYoutubeAccessToken(organizationId);
-    const config = await prisma.youTubeConfig.findUnique({ where: { organizationId } });
+    const accountId = req.query.accountId as string;
+    const { accessToken, config } = await getYoutubeAccessToken(organizationId, accountId);
 
     if (!config || !config.channelId) {
       return res.status(400).json({ error: "Channel ID is not set. Please connect YouTube first." });
@@ -752,7 +843,8 @@ router.get("/analytics/demographics", async (req: Request, res: Response) => {
 router.get("/comments/video/:videoId", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accessToken = await getYoutubeAccessToken(organizationId);
+    const accountId = req.query.accountId as string;
+    const { accessToken } = await getYoutubeAccessToken(organizationId, accountId);
     const videoId = req.params.videoId;
 
     if (!videoId) {
@@ -838,7 +930,8 @@ router.get("/comments/video/:videoId", async (req: Request, res: Response) => {
 router.post("/comments/reply", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accessToken = await getYoutubeAccessToken(organizationId);
+    const accountId = req.query.accountId as string;
+    const { accessToken } = await getYoutubeAccessToken(organizationId, accountId);
     const { parentId, videoId, text } = req.body;
 
     if (!text || !text.trim()) {
@@ -881,6 +974,28 @@ router.post("/comments/reply", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error posting YouTube comment reply:", error?.response?.data || error.message);
     res.status(500).json({ error: "Failed to post YouTube comment reply", details: error?.response?.data || error.message });
+  }
+});
+
+// POST: Disconnect YouTube Channel
+router.post("/disconnect", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    if (organizationId) {
+      await prisma.youTubeConfig.updateMany({
+        where: { organizationId },
+        data: {
+          channelId: "",
+          channelTitle: "",
+          accessToken: "",
+          refreshToken: null,
+          tokenExpiresAt: null,
+        },
+      });
+    }
+    return res.status(200).json({ success: true, message: "YouTube channel disconnected successfully." });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to disconnect YouTube channel", details: error.message });
   }
 });
 

@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
+import axios from "axios";
 import prisma from "../utils/prisma";
+import { validateAccountOwnership } from "../utils/accountResolver";
 import { WhatsAppService } from "../services/whatsappService";
 import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
@@ -483,11 +485,11 @@ router.post("/config", async (req: Request, res: Response) => {
   }
 });
 
-// GET: List all conversations for the organization
+// GET: List all conversations for the organization (account-scoped)
 router.get("/conversations", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { phoneNumberId, platform } = req.query;
+    const { phoneNumberId, instagramAccountId, platform, accountId } = req.query;
 
     const whereClause: any = { organizationId };
 
@@ -496,8 +498,19 @@ router.get("/conversations", async (req: Request, res: Response) => {
     }
 
     if (platform === "whatsapp") {
-      if (phoneNumberId) {
-        whereClause.phoneNumberId = phoneNumberId as string;
+      let targetPhoneId = phoneNumberId as string;
+      if (accountId) {
+        const isValid = await validateAccountOwnership(organizationId, "whatsapp", accountId as string);
+        if (!isValid) {
+          return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "Account does not belong to organization" });
+        }
+        const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: accountId as string } });
+        if (waConfig && waConfig.phoneNumberId) {
+          targetPhoneId = waConfig.phoneNumberId;
+        }
+      }
+      if (targetPhoneId) {
+        whereClause.phoneNumberId = targetPhoneId;
       } else {
         const activeConfig = await prisma.whatsAppConfig.findFirst({
           where: { organizationId, isActive: true },
@@ -506,6 +519,21 @@ router.get("/conversations", async (req: Request, res: Response) => {
         if (activeConfig && activeConfig.phoneNumberId) {
           whereClause.phoneNumberId = activeConfig.phoneNumberId;
         }
+      }
+    } else if (platform === "instagram") {
+      let targetIgId = instagramAccountId as string;
+      if (accountId) {
+        const isValid = await validateAccountOwnership(organizationId, "instagram", accountId as string);
+        if (!isValid) {
+          return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "Account does not belong to organization" });
+        }
+        const igConfig = await prisma.instagramConfig.findUnique({ where: { id: accountId as string } });
+        if (igConfig && igConfig.instagramAccountId) {
+          targetIgId = igConfig.instagramAccountId;
+        }
+      }
+      if (targetIgId) {
+        whereClause.instagramAccountId = targetIgId;
       }
     }
 
@@ -1186,6 +1214,102 @@ router.post("/instagram/config", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error updating Instagram config:", error);
     return res.status(500).json({ error: "Failed to update Instagram config", details: error.message });
+  }
+});
+
+// POST: Exchange code from Meta Instagram Login / Embedded Signup for system access token and sync IG accounts
+router.post("/instagram/embedded-signup/callback", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { code, redirectUri } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: "Missing authorization code from Meta" });
+    }
+
+    const appId = process.env.META_APP_ID || "36702477879366478";
+    const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
+
+    let accessToken = "";
+    try {
+      const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+        params: {
+          client_id: appId,
+          client_secret: appSecret,
+          code: code,
+          redirect_uri: redirectUri || "https://crm.jisnudigital.com/settings?tab=instagram",
+        },
+      });
+      accessToken = tokenResponse.data.access_token;
+    } catch (err1: any) {
+      console.warn("[IG EMBEDDED SIGNUP] Token exchange fallback without redirect_uri...", err1?.response?.data?.error?.message);
+      const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+        params: {
+          client_id: appId,
+          client_secret: appSecret,
+          code: code,
+        },
+      });
+      accessToken = tokenResponse.data.access_token;
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ error: "Failed to obtain access token from Meta Graph API" });
+    }
+
+    await syncAllInstagramAccountsForToken(organizationId, accessToken);
+
+    const config = await prisma.instagramConfig.findFirst({
+      where: { organizationId, isActive: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Instagram Business Account connected successfully via Meta!",
+      config,
+    });
+  } catch (error: any) {
+    console.error("Error processing Meta Instagram Embedded Signup callback:", error?.response?.data || error.message);
+    return res.status(500).json({
+      error: "Failed to connect Instagram account",
+      details: error?.response?.data || error.message,
+    });
+  }
+});
+
+// POST: Disconnect an Instagram Account
+router.post("/instagram/disconnect", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
+
+    const config = accountId
+      ? await prisma.instagramConfig.findUnique({ where: { id: accountId } })
+      : await prisma.instagramConfig.findFirst({ where: { organizationId, isDefault: true } });
+
+    if (config) {
+      await prisma.instagramConfig.delete({ where: { id: config.id } });
+
+      const remaining = await prisma.instagramConfig.findFirst({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" },
+      });
+      if (remaining) {
+        await prisma.instagramConfig.update({
+          where: { id: remaining.id },
+          data: { isDefault: true },
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Instagram account disconnected successfully.",
+    });
+  } catch (error: any) {
+    console.error("Error disconnecting Instagram:", error);
+    return res.status(500).json({ error: "Failed to disconnect Instagram account", details: error.message });
   }
 });
 

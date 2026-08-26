@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 
+import { AccountProvider } from "@/context/AccountContext";
+
 const PUBLIC_ROUTES = ["/", "/login", "/admin", "/privacy", "/terms", "/reviews/submit"];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -41,7 +43,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   if (isPublic) {
     // Render full screen without app sidebar for landing & auth pages
-    return <>{children}</>;
+    return <AccountProvider>{children}</AccountProvider>;
   }
 
   if (checkingAuth) {
@@ -56,13 +58,15 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      <AppSidebar />
-      {/* Page content fills the remaining space */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-slate-50 text-slate-900">
-        {children}
+    <AccountProvider>
+      <div className="flex h-[100dvh] w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
+        <AppSidebar />
+        {/* Page content fills the remaining space */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-slate-50 text-slate-900">
+          {children}
+        </div>
       </div>
-    </div>
+    </AccountProvider>
   );
 }
 

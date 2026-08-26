@@ -43,6 +43,7 @@ import { io } from "socket.io-client";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
+import { AccountSwitcher, AccountOption } from "@/components/AccountSwitcher";
 
 
 // Native SVG Instagram & WhatsApp icons matching main page
@@ -587,6 +588,46 @@ export default function GmbPerformanceDashboard() {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const [activeSubTab, setActiveSubTab] = useState<"performance" | "profile" | "posts" | "qa" | "media">("performance");
+
+  // Account Switcher State
+  const [gmbAccounts, setGmbAccounts] = useState<AccountOption[]>([]);
+  const [selectedGmbAccountId, setSelectedGmbAccountId] = useState<string>("");
+
+  const fetchGmbAccounts = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        const accList = resData?.accounts || (resData?.config ? [resData.config] : []);
+        if (Array.isArray(accList) && accList.length > 0) {
+          const options: AccountOption[] = accList.map((a: any) => ({
+            id: a.id,
+            label: a.locationName || "Google Business Location",
+            sublabel: a.googleLocationId || a.googleAdsCustomerId || "Connected",
+            isDefault: a.isDefault,
+            type: "google",
+          }));
+          setGmbAccounts(options);
+          const defaultAcc = options.find((o) => o.isDefault) || options[0];
+          if (!selectedGmbAccountId && defaultAcc) {
+            setSelectedGmbAccountId(defaultAcc.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch GMB accounts:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchGmbAccounts();
+  }, [orgId]);
+
+  const handleSwitchGmbAccount = (accountId: string) => {
+    setSelectedGmbAccountId(accountId);
+  };
 
   // GMB Profile Editor States
   const [profileTitle, setProfileTitle] = useState("");
@@ -1617,6 +1658,18 @@ export default function GmbPerformanceDashboard() {
                   {data ? `${data.locationName} • GMB Complete Solution` : "Manage and track Google Business profile details"}
                 </p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <AccountSwitcher
+                title="Select GMB Location"
+                accounts={gmbAccounts}
+                selectedAccountId={selectedGmbAccountId}
+                onSelectAccount={handleSwitchGmbAccount}
+                onAddNewAccount={() => {
+                  window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/gmb`;
+                }}
+              />
             </div>
 
             {/* Horizontal Sub-tabs Navigation */}
