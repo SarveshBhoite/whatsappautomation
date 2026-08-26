@@ -371,22 +371,66 @@ export const handleWebhook = async (req: Request, res: Response) => {
               });
             }
 
+            // Attempt to fetch full template body text from Meta API if WABA credentials available
+            let templateBodyText = "";
             const categoryName = statusObj.pricing?.category ? ` (${statusObj.pricing.category.toUpperCase()})` : "";
-            const autoMsg = await prisma.message.create({
-              data: {
-                conversationId: conversation.id,
-                direction: "outbound",
-                messageType: "template",
-                content: `📋 Outbound Template Message${categoryName}`,
-                waMessageId: waMessageId,
-                status: status
+            
+            if (waConfig.wabaId && waConfig.accessToken) {
+              try {
+                const metaTplRes = await fetch(
+                  `https://graph.facebook.com/v21.0/${waConfig.wabaId}/message_templates?limit=100&access_token=${waConfig.accessToken}`
+                );
+                if (metaTplRes.ok) {
+                  const tplData = await metaTplRes.json();
+                  const matchedTpl = (tplData.data || []).find((t: any) =>
+                    statusObj.pricing?.category ? t.category?.toLowerCase() === statusObj.pricing.category.toLowerCase() : true
+                  );
+                  if (matchedTpl) {
+                    const bodyComp = matchedTpl.components?.find((c: any) => c.type === "BODY");
+                    if (bodyComp?.text) {
+                      templateBodyText = `📋 [Template: ${matchedTpl.name}]\n${bodyComp.text}`;
+                    }
+                  }
+                }
+              } catch (metaErr) {
+                console.warn("[WEBHOOK_META_FETCH_WARN]: Could not fetch template text from Meta:", metaErr);
               }
-            });
+            }
 
-            // Touch conversation timestamp
-            await prisma.conversation.update({
+            const finalContent = templateBodyText || `📋 Outbound WhatsApp Template Message${categoryName}`;
+
+            // Prevent race condition duplicate insertion if multiple webhooks arrive simultaneously
+            const existingMsg = await prisma.message.findFirst({ where: { waMessageId } });
+            let autoMsg: any = null;
+
+            if (!existingMsg) {
+              autoMsg = await prisma.message.create({
+                data: {
+                  conversationId: conversation.id,
+                  direction: "outbound",
+                  messageType: "template",
+                  content: finalContent,
+                  waMessageId: waMessageId,
+                  status: status
+                }
+              });
+            } else {
+              autoMsg = await prisma.message.update({
+                where: { id: existingMsg.id },
+                data: { status }
+              });
+            }
+
+            // Touch conversation timestamp and store latest snippet
+            const updatedConv = await prisma.conversation.update({
               where: { id: conversation.id },
-              data: { updatedAt: new Date() }
+              data: { updatedAt: new Date() },
+              include: {
+                messages: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1
+                }
+              }
             });
 
             console.log(`✅ Auto-synced external template message ${waMessageId} into CRM conversation ${conversation.id}`);
@@ -396,7 +440,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
             if (socketIo) {
               socketIo.to(organizationId).emit("new-message", {
                 message: autoMsg,
-                conversation: conversation
+                conversation: updatedConv
               });
             }
           } catch (autoErr: any) {
