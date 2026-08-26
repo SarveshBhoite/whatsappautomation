@@ -1588,11 +1588,19 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
     };
 
     // Extract placeholders {{1}}, {{2}} to build required example body_text parameters array
-    const matches = bodyText.match(/\{\{\d+\}\}/g);
+    const matches = bodyText.match(/\{\{(\d+)\}\}/g);
     if (matches && matches.length > 0) {
-      const sampleParams = Array.isArray(sampleVariables) && sampleVariables.length === matches.length
-        ? sampleVariables
-        : matches.map((placeholder: string, idx: number) => `Sample_${idx + 1}`);
+      const nums = matches.map((m: string) => parseInt(m.replace(/\D/g, ""), 10)).filter((n: number) => !isNaN(n));
+      const maxIndex = nums.length > 0 ? Math.max(...nums) : matches.length;
+
+      const sampleParams: string[] = [];
+      for (let i = 0; i < maxIndex; i++) {
+        if (Array.isArray(sampleVariables) && sampleVariables[i] && String(sampleVariables[i]).trim()) {
+          sampleParams.push(String(sampleVariables[i]).trim());
+        } else {
+          sampleParams.push(`Sample_${i + 1}`);
+        }
+      }
       bodyObj.example = {
         body_text: [sampleParams]
       };
