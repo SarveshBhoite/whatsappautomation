@@ -38,6 +38,14 @@ const AccountContext = createContext<AccountContextType | undefined>(undefined);
 const STORAGE_KEY = "jisnu_active_accounts_v1";
 
 export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  return (
+    <React.Suspense fallback={null}>
+      <AccountProviderContent>{children}</AccountProviderContent>
+    </React.Suspense>
+  );
+};
+
+const AccountProviderContent: React.FC<{ children: ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

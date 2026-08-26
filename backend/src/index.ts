@@ -348,6 +348,12 @@ function startGmbSyncScheduler() {
 const PORT = process.env.PORT || 5000;
 server.listen(Number(PORT), () => {
   console.log(`Backend server running on port ${PORT}`);
+  // Run database column patch to ensure missing columns exist on Render/PostgreSQL
+  try {
+    require("../prisma/add_column");
+  } catch (err: any) {
+    console.warn("Auto column patch warning:", err.message);
+  }
   startGmbSyncScheduler();
   // Pre-upload SEO proof images to Meta and store Media IDs in active flow
   preCacheSeoMediaIds();
