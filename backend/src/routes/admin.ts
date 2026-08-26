@@ -89,12 +89,12 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
     const org = await (prisma.organization as any).findUnique({
       where: { id: organizationId },
       include: {
-        waConfig: true,
-        igConfig: true,
+        waConfigs: true,
+        igConfigs: true,
         ytConfig: true,
         gmbConfig: true,
         linkedInConfig: true,
-        gmailConfig: true,
+        gmailConfigs: true,
         aiAgentConfig: true,
       }
     });
@@ -103,6 +103,10 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Organization not found" });
     }
 
+    const defaultWa = org.waConfigs?.find((c: any) => c.isDefault) || org.waConfigs?.[0];
+    const defaultIg = org.igConfigs?.find((c: any) => c.isDefault) || org.igConfigs?.[0];
+    const defaultGmail = org.gmailConfigs?.find((c: any) => c.isDefault) || org.gmailConfigs?.[0];
+
     // 2. Compute Connected Platforms Health Status
     const isGoogleConnected = Boolean(org.gmbConfig?.googleRefreshToken || org.gmbConfig?.accessToken || org.gmbConfig?.refreshToken);
     const hasGoogleAds = Boolean(org.gmbConfig?.googleAdsCustomerId || org.gmbConfig?.accountId || isGoogleConnected);
@@ -110,14 +114,14 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
 
     const platforms = {
       whatsapp: {
-        connected: Boolean(org.waConfig?.phoneNumberId && org.waConfig?.accessToken),
+        connected: Boolean(defaultWa?.phoneNumberId && defaultWa?.accessToken),
         name: "WhatsApp Cloud API",
-        status: org.waConfig?.phoneNumberId ? "Operational" : "Not Configured"
+        status: defaultWa?.phoneNumberId ? "Operational" : "Not Configured"
       },
       instagram: {
-        connected: Boolean(org.igConfig?.pageAccessToken && org.igConfig?.instagramAccountId),
+        connected: Boolean(defaultIg?.pageAccessToken && defaultIg?.instagramAccountId),
         name: "Instagram Messaging",
-        status: org.igConfig?.instagramAccountId ? "Operational" : "Not Configured"
+        status: defaultIg?.instagramAccountId ? "Operational" : "Not Configured"
       },
       google_ads: {
         connected: hasGoogleAds,
@@ -125,9 +129,9 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         status: hasGoogleAds ? "Operational" : "Not Configured"
       },
       meta_ads: {
-        connected: Boolean(org.igConfig?.pageAccessToken),
+        connected: Boolean(defaultIg?.pageAccessToken),
         name: "Meta Ads Manager",
-        status: org.igConfig?.pageAccessToken ? "Operational" : "Not Configured"
+        status: defaultIg?.pageAccessToken ? "Operational" : "Not Configured"
       },
       linkedin: {
         connected: Boolean(org.linkedInConfig?.accessToken),
@@ -145,9 +149,9 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         status: hasGmb ? "Operational" : "Not Configured"
       },
       gmail: {
-        connected: Boolean(org.gmailConfig?.emailAddress && (org.gmailConfig?.accessToken || org.gmailConfig?.refreshToken)),
+        connected: Boolean(defaultGmail?.emailAddress && (defaultGmail?.accessToken || defaultGmail?.refreshToken)),
         name: "Gmail Auto-Pilot",
-        status: org.gmailConfig?.emailAddress ? "Operational" : "Not Configured"
+        status: defaultGmail?.emailAddress ? "Operational" : "Not Configured"
       },
       ai_agent: {
         connected: Boolean(org.aiAgentConfig?.isActive !== false),
@@ -510,14 +514,28 @@ router.get("/conversations", async (req: Request, res: Response) => {
         }
       }
       if (targetPhoneId) {
-        whereClause.phoneNumberId = targetPhoneId;
+        // Match specific phoneNumberId OR include legacy NULL records if target is the primary default number
+        const defaultConfig = await prisma.whatsAppConfig.findFirst({
+          where: { organizationId, isDefault: true }
+        });
+        if (defaultConfig && defaultConfig.phoneNumberId === targetPhoneId) {
+          whereClause.OR = [
+            { phoneNumberId: targetPhoneId },
+            { phoneNumberId: null }
+          ];
+        } else {
+          whereClause.phoneNumberId = targetPhoneId;
+        }
       } else {
         const activeConfig = await prisma.whatsAppConfig.findFirst({
           where: { organizationId, isActive: true },
           orderBy: { isDefault: "desc" },
         });
         if (activeConfig && activeConfig.phoneNumberId) {
-          whereClause.phoneNumberId = activeConfig.phoneNumberId;
+          whereClause.OR = [
+            { phoneNumberId: activeConfig.phoneNumberId },
+            { phoneNumberId: null }
+          ];
         }
       }
     } else if (platform === "instagram") {
@@ -1887,9 +1905,9 @@ router.get("/organizations", async (req: Request, res: Response) => {
     const organizations = await prisma.organization.findMany({
       include: {
         users: { select: { id: true, email: true, name: true, role: true } },
-        waConfig: { select: { phoneNumberId: true, wabaId: true } },
+        waConfigs: { select: { phoneNumberId: true, wabaId: true } },
         gmbConfig: { select: { locationId: true, accountId: true } },
-        gmailConfig: { select: { emailAddress: true } },
+        gmailConfigs: { select: { emailAddress: true } },
         linkedInConfig: { select: { memberName: true, companyName: true } }
       },
       orderBy: { createdAt: "desc" }
