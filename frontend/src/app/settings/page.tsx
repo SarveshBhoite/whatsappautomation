@@ -3780,7 +3780,7 @@ print(res.json())`;
                                       <span className="text-slate-800 font-mono font-semibold">{k.keyPrefix}</span>
                                       <button
                                         type="button"
-                                        title="Copy Key Identifier"
+                                        title="Copy Key Identifier / Prefix (Full secret key is only revealed once upon creation)"
                                         onClick={() => {
                                           if (navigator.clipboard && window.isSecureContext) {
                                             navigator.clipboard.writeText(k.keyPrefix);

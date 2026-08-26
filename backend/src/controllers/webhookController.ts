@@ -345,8 +345,65 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         console.log(`Updated status of message ${waMessageId} to "${status}". DB Count: ${updatedMessage.count}`);
 
-        // If updated, notify the agents in real-time
-        if (updatedMessage.count > 0) {
+        // If message was sent by external software/dashboard (DB Count === 0), auto-create the message in CRM chat history!
+        if (updatedMessage.count === 0 && recipient_id) {
+          try {
+            const formattedCustomerPhone = recipient_id.replace(/\D/g, "");
+            let conversation = await prisma.conversation.findFirst({
+              where: {
+                organizationId,
+                platform: "whatsapp",
+                customerPhone: formattedCustomerPhone,
+                phoneNumberId: waConfig.phoneNumberId || undefined
+              }
+            });
+
+            if (!conversation) {
+              conversation = await prisma.conversation.create({
+                data: {
+                  organizationId,
+                  platform: "whatsapp",
+                  customerPhone: formattedCustomerPhone,
+                  customerName: `Lead (+${formattedCustomerPhone})`,
+                  phoneNumberId: waConfig.phoneNumberId || null,
+                  isBotPaused: false
+                }
+              });
+            }
+
+            const categoryName = statusObj.pricing?.category ? ` (${statusObj.pricing.category.toUpperCase()})` : "";
+            const autoMsg = await prisma.message.create({
+              data: {
+                conversationId: conversation.id,
+                direction: "outbound",
+                messageType: "template",
+                content: `📋 Outbound Template Message${categoryName}`,
+                waMessageId: waMessageId,
+                status: status
+              }
+            });
+
+            // Touch conversation timestamp
+            await prisma.conversation.update({
+              where: { id: conversation.id },
+              data: { updatedAt: new Date() }
+            });
+
+            console.log(`✅ Auto-synced external template message ${waMessageId} into CRM conversation ${conversation.id}`);
+
+            // Emit real-time socket event so chat sidebar updates live
+            const socketIo = req.app.get("io") || io;
+            if (socketIo) {
+              socketIo.to(organizationId).emit("new-message", {
+                message: autoMsg,
+                conversation: conversation
+              });
+            }
+          } catch (autoErr: any) {
+            console.warn(`[WEBHOOK_AUTO_SYNC_WARN] Failed to auto-sync external status message:`, autoErr.message);
+          }
+        } else if (updatedMessage.count > 0) {
+          // If updated, notify the agents in real-time
           const socketIo = req.app.get("io") || io;
           if (socketIo) {
             socketIo.to(organizationId).emit("message-status-update", {

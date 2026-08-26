@@ -158,6 +158,67 @@ router.post("/whatsapp/send-template", requirePermission("whatsapp_send"), async
 
     const waMsgId = result?.messages?.[0]?.id || `ext_${Date.now()}`;
 
+    // ─── CRM CONVERSATION & CHAT HISTORY AUTO-SYNC ───
+    if (organizationId) {
+      try {
+        let conversation = await prisma.conversation.findFirst({
+          where: {
+            organizationId,
+            platform: "whatsapp",
+            customerPhone: formattedTo,
+            phoneNumberId: waConfig.phoneNumberId || undefined
+          }
+        });
+
+        if (!conversation) {
+          conversation = await prisma.conversation.create({
+            data: {
+              organizationId,
+              platform: "whatsapp",
+              customerPhone: formattedTo,
+              customerName: `Lead (${formattedTo})`,
+              phoneNumberId: waConfig.phoneNumberId || null,
+              isBotPaused: false
+            }
+          });
+        }
+
+        // Build friendly text content summarizing variables
+        const varTexts = (finalComponents?.[0]?.parameters || []).map((p: any) => p.text).filter(Boolean);
+        const varSummary = varTexts.length > 0 ? ` [${varTexts.join(", ")}]` : "";
+        const displayContent = `📋 Template Sent: ${targetTemplate}${varSummary}`;
+
+        const savedMsg = await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: "outbound",
+            messageType: "template",
+            content: displayContent,
+            waMessageId: waMsgId,
+            status: "sent"
+          }
+        });
+
+        // Update conversation lastMessage time
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { updatedAt: new Date() }
+        });
+
+        // Emit real-time Socket event so CRM chat sidebar updates live!
+        const reqApp = req.app;
+        const io = reqApp?.get("io");
+        if (io) {
+          io.to(organizationId).emit("new-message", {
+            message: savedMsg,
+            conversation: conversation
+          });
+        }
+      } catch (dbErr: any) {
+        console.warn("[EXTERNAL_API_SYNC_WARN] Failed to auto-save template message to CRM history:", dbErr.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: `Template '${targetTemplate}' sent successfully to ${formattedTo}`,
