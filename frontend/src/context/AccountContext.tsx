@@ -175,3 +175,5 @@ export const useAccount = () => {
   }
   return context;
 };
+
+export const useAccountContext = useAccount;

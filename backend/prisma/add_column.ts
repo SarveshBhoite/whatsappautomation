@@ -39,6 +39,13 @@ async function addMissingColumn() {
     await prisma.$executeRawUnsafe('DROP INDEX IF EXISTS "WhatsAppConfig_organizationId_key" CASCADE;');
     await prisma.$executeRawUnsafe('DROP INDEX IF EXISTS "InstagramConfig_organizationId_key" CASCADE;');
 
+    // Backfill legacy NULL phoneNumberId conversations to default WhatsApp number
+    await prisma.$executeRawUnsafe(`
+      UPDATE "Conversation" 
+      SET "phoneNumberId" = '1192785647248309' 
+      WHERE "platform" = 'whatsapp' AND "phoneNumberId" IS NULL;
+    `);
+
     console.log('✅ Database columns & multi-tenant indexes confirmed to exist in PostgreSQL!');
   } catch (err) {
     console.error('Error adding column:', err);

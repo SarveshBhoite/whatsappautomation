@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAccountContext } from "@/context/AccountContext";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -78,11 +79,16 @@ export default function WhatsAppTemplatesPage() {
   const [buttonsList, setButtonsList] = useState<TemplateButton[]>([
     { type: "URL", text: "Visit website", url: "https://www.jisnudigital.com/" }
   ]);
+  const { getActiveAccountId } = useAccountContext();
+  const activeAccountId = getActiveAccountId("whatsapp");
 
   const fetchTemplates = async () => {
     try {
       setRefreshing(true);
-      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
+      const url = activeAccountId
+        ? `${BACKEND_URL}/api/admin/whatsapp/templates?accountId=${encodeURIComponent(activeAccountId)}`
+        : `${BACKEND_URL}/api/admin/whatsapp/templates`;
+      const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -101,7 +107,7 @@ export default function WhatsAppTemplatesPage() {
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [activeAccountId]);
 
   // Auto-extract placeholders {{1}}, {{2}} to manage Meta mandated sample variable inputs
   useEffect(() => {
@@ -138,7 +144,10 @@ export default function WhatsAppTemplatesPage() {
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
+      const url = activeAccountId
+        ? `${BACKEND_URL}/api/admin/whatsapp/templates?accountId=${encodeURIComponent(activeAccountId)}`
+        : `${BACKEND_URL}/api/admin/whatsapp/templates`;
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
