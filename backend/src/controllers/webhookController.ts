@@ -353,9 +353,9 @@ export const handleWebhook = async (req: Request, res: Response) => {
               where: {
                 organizationId,
                 platform: "whatsapp",
-                customerPhone: formattedCustomerPhone,
-                phoneNumberId: waConfig.phoneNumberId || undefined
-              }
+                customerPhone: { contains: formattedCustomerPhone.slice(-10) }
+              },
+              orderBy: { updatedAt: "desc" }
             });
 
             if (!conversation) {
