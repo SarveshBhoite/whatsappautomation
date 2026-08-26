@@ -141,6 +141,15 @@ export default function WhatsAppTemplatesPage() {
       return;
     }
 
+    // Meta Cloud API Rule (Subcode 2388299): Variables cannot be at the very start or end of template body text
+    let cleanBodyText = bodyText.trim();
+    if (/^\s*\{\{\d+\}\}/.test(cleanBodyText)) {
+      cleanBodyText = `Hi, ${cleanBodyText}`;
+    }
+    if (/\{\{\d+\}\}\s*[\?\!\.\,]?$/.test(cleanBodyText)) {
+      cleanBodyText = `${cleanBodyText} Please let us know.`;
+    }
+
     setSubmitting(true);
 
     try {
@@ -160,7 +169,7 @@ export default function WhatsAppTemplatesPage() {
           headerType,
           headerText,
           headerMediaUrl,
-          bodyText,
+          bodyText: cleanBodyText,
           sampleVariables,
           footerText,
           buttons: buttonsList

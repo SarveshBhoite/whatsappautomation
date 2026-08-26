@@ -1605,10 +1605,19 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
       components.push(headerObj);
     }
 
+    // Meta Cloud API Rule (Subcode 2388299): Variables cannot be at the very start or very end of template body text.
+    let sanitizedBodyText = bodyText.trim();
+    if (/^\s*\{\{\d+\}\}/.test(sanitizedBodyText)) {
+      sanitizedBodyText = `Hi, ${sanitizedBodyText}`;
+    }
+    if (/\{\{\d+\}\}\s*[\?\!\.\,]?$/.test(sanitizedBodyText)) {
+      sanitizedBodyText = `${sanitizedBodyText} Please let us know.`;
+    }
+
     // Body component with variable placeholder examples support (Meta Graph API mandate)
     const bodyObj: any = {
       type: "BODY",
-      text: bodyText.trim()
+      text: sanitizedBodyText
     };
 
     // Extract placeholders {{1}}, {{2}} to build required example body_text parameters array
