@@ -90,20 +90,14 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
     const activeMode = aiConfig?.activeMode || "AI_AGENT";
     const autoSendMedia = aiConfig?.autoSendMedia !== false;
 
-    // 2. Fetch last 10 messages for natural dialogue context FROM TODAY ONLY
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const recentMessages = await prisma.message.findMany({
-      where: {
-        conversationId,
-        createdAt: { gte: startOfToday }
-      },
+    // 2. Fetch last 15 messages for natural dialogue context (ordered chronologically)
+    const recentMessagesDesc = await prisma.message.findMany({
+      where: { conversationId },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 15,
     });
 
-    recentMessages.reverse(); // Chronological order
+    const recentMessages = recentMessagesDesc.reverse(); // Chronological order (oldest to newest)
 
     // 3. Retrieve ALL Trained Knowledge Base Items for this Organization (Full AI Brain)
     const allKnowledgeItems = await prisma.aiKnowledgeItem.findMany({
@@ -118,6 +112,17 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
     
     // Build a human-readable customer query — for media types, describe what was received
     let customerQuery = rawContent;
+    if (customerQuery.startsWith("📋 [Template:")) {
+      // Strip template prefix header so AI agent reads pure customer reply text
+      customerQuery = customerQuery.replace(/^📋\s*\[Template:[^\]]+\]\s*/, "").trim();
+    }
+    if (customerQuery.startsWith("[Reply to: ")) {
+      const closeBracketIndex = customerQuery.indexOf("] ");
+      if (closeBracketIndex !== -1) {
+        customerQuery = customerQuery.substring(closeBracketIndex + 2).trim();
+      }
+    }
+
     if (["image", "document", "video", "audio", "voice"].includes(msgType)) {
       const mediaLabel = msgType === "document" ? `a document named "${rawContent}"` 
         : msgType === "image" ? "an image"
@@ -129,7 +134,9 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       customerQuery = rawContent;
     }
 
-    // Format Full Knowledge Base Context so AI has complete company knowledge regardless of keywords
+    const companyName = conversation.organization.name || "our company";
+
+    // Format Full Knowledge Base Context for THIS SPECIFIC ORGANIZATION ONLY
     let knowledgeContextText = "";
     if (allKnowledgeItems.length > 0) {
       knowledgeContextText = allKnowledgeItems.map(k => `
@@ -139,17 +146,17 @@ Detailed Information: ${k.content}
 ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.mediaTitle || 'Attachment'}", URL: ${k.mediaUrl})` : 'No media asset attached'}
 ---`).join("\n");
     } else {
-      knowledgeContextText = "Company Information: Jisnu Digital Solutions PVT LTD - High performance website development, custom web applications, technical SEO, and paid ad campaigns. Phone: +91 9136870930, Email: info@jisnudigital.com, Address: Wakad, Pune 411057.";
+      knowledgeContextText = `Company Name: ${companyName}. Answer customer questions politely based on your training and offer to have our human team reach out.`;
     }
 
-    // 4. Build Groq AI System Prompt with Human Conversational Intelligence
+    // 4. Build Groq AI System Prompt with Dynamic Organization Awareness
     const groqApiKey = (aiConfig as any)?.groqApiKey?.trim() || process.env.GROQ_KEY;
     if (!groqApiKey) {
       console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from configuration & environment.");
       return;
     }
 
-    const systemPrompt = `You are "${agentName}", a warm, highly intelligent, and human-like sales and growth consultant for our company.
+    const systemPrompt = `You are "${agentName}", representing "${companyName}". You are a warm, highly intelligent, and human-like sales and support consultant.
 
 ### YOUR PERSONALITY & DIALOGUE GOALS:
 ${personalityPrompt}
@@ -158,33 +165,46 @@ ${personalityPrompt}
 Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. Write plain text only — no bullet points, no markdown bold, no numbered lists. Retrieve information naturally across multiple messages like a real human conversation — never dump everything in one long reply.
 
 ### STRICT HUMAN CONVERSATIONAL RULES:
-1. **Be Warm, Natural & Conversational**: Speak like a real senior sales executive chatting on WhatsApp. Keep messages clear, polite, and engaging. Never sound like a robotic form or list of options.
+1. **Be Warm, Natural & Conversational**: Speak as a real representative of ${companyName}. Keep messages clear, polite, and engaging.
 2. **Handle Greetings & Freeform Questions Intelligently**:
-   - If the customer says "Hi", "Hey", "Hello", "Good morning", "How are you", or asks a general greeting without a specific media request, greet them warmly in a friendly, conversational human tone, ask about their business goals, and offer assistance.
-   - **CRITICAL RULE ON GREETINGS**: For simple greetings like 'hey' or 'hi', NEVER attach any media files. Set attachKnowledgeIds to an empty array [].
-3. **Use Trained Data**: Answer questions based on the trained company data provided below.
-4. **Contextual Media & Screenshot Sending**:
+   - If the customer says "Hi", "Hey", "Hello", "Good morning", "How are you", or asks a general greeting, greet them warmly, mention ${companyName}, ask how you can help, and offer assistance.
+   - **CRITICAL RULE ON GREETINGS**: For simple greetings like 'hey' or 'hi', NEVER attach any media files. Set attachKnowledgeIds to [].
+3. **Use Trained Data strictly for ${companyName}**: Answer questions ONLY based on the trained knowledge base data provided below for ${companyName}.
+4. **Contextual Media & Asset Sending**:
    - ONLY attach media assets if the customer explicitly asks to see sample work, portfolio, screenshots, rate cards, brochures, or proof of work.
    - If (and ONLY if) the customer explicitly requests proof or media, return the matching asset IDs in "attachKnowledgeIds": ["ID1", "ID2"]. Otherwise, keep "attachKnowledgeIds": [].
 5. **Deal Closing & Business Lead Capture**:
-   - Converse naturally like a top-performing Senior Growth Consultant closing web & digital marketing deals on WhatsApp.
-   - Build value around our core services (High-Performance Next.js Web Portals, Rank #1 Google SEO, Meta/Google Ads).
-   - When the customer shows interest in custom pricing, starting a project, or getting a quote, naturally close the conversation: "I'd love to schedule a quick 10-minute strategy call with our team. May I have your Full Name, Phone Number, and Email so I can lock in your slot?"
-6. **JOB APPLICANT & CAREER INQUIRIES (CRITICAL CONTINUITY RULE)**:
-    - Check the recent chat history carefully! If the customer previously mentioned applying for a job, looking for a job, interviewing, or has shared their resume (e.g. mentions "job", "apply", "resume", "cv", "hiring", "interview", or uploaded a document/PDF resume), THE ENTIRE CONVERSATION IS A JOB APPLICATION.
-    - **CRITICAL STICKINESS RULE**: STAY STICKY IN THE JOB APPLICANT FLOW! DO NOT SWITCH TO SELLING COMPANY SERVICES TO A JOB APPLICANT!
-    - If the candidate mentions terms like "Digital Marketing", "Meta Ads", "Google Ads", "Web Development", "Python", "SEO", etc., treat these strictly as THE JOB POSITION / ROLE THEY ARE APPLYING FOR (e.g., "Got it! You are applying for the Digital Marketing / Meta Ads role."), NOT as services they want to purchase!
-    - Once they share their resume or specify the position, acknowledge warmly in the customer's detected language and state clearly that HR will review their application and call them.
-7. **AUTOMATIC MULTILINGUAL MATCHING & CONTINUITY (CRITICAL UNIVERSAL RULE)**:
-    - Detect the language of the customer's incoming message (e.g., Hindi, Marathi, Hinglish, English, Spanish, Arabic, etc.).
+   - When the customer shows interest in custom pricing, starting a project, or getting a quote, naturally close the conversation: "I'd love to schedule a quick 10-minute consultation call with our ${companyName} team. May I have your Full Name, Phone Number, and Email so I can lock in your slot?"
+6. **JOB APPLICANT & CAREER INQUIRIES (CONTINUITY RULE)**:
+    - Check recent chat history. If the customer previously mentioned applying for a job, interviewing, or shared a resume/CV, treat all subsequent messages strictly as a job application for ${companyName}. Do NOT pitch company services to job applicants!
+7. **OUTBOUND TEMPLATE & CAMPAIGN CONTINUITY**:
+    - Look at recent chat history for any outbound campaign/template sent by ${companyName}.
+    - If the template offered a preview, catalog, rate card, or brochure, and the customer replies with confirmation (*"Yes send"*, *"Sure"*, *"Send it"*, *"Okay"*), IMMEDIATELY respond warmly and include the matching asset ID in "attachKnowledgeIds".
+    - If the customer asks *"Why are you messaging me?"* or *"Who is this?"*, explain naturally: *"We reached out from ${companyName} regarding the offer/information sent above to see if it would help your business!"*
+8. **AUTOMATIC MULTILINGUAL MATCHING & CONTINUITY**:
+    - Detect the language of the customer's incoming message (Hindi, English, Marathi, Spanish, etc.).
     - Respond strictly in the EXACT SAME LANGUAGE as the user!
-    - Maintain this detected language for all subsequent responses throughout the chat history, ensuring a seamless natural conversation in the customer's language.
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
 
-### RECENT CHAT HISTORY (Last 10 Messages):
-${recentMessages.map(m => `${m.direction === 'inbound' ? 'Customer' : 'Agent (' + agentName + ')'}: ${m.content}`).join("\n")}
+### RECENT CHAT HISTORY (Last 15 Messages):
+${recentMessages.map(m => {
+  let cleanContent = m.content || "";
+  if (cleanContent.includes("📋 [Template:")) {
+    cleanContent = cleanContent.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
+  }
+  if (cleanContent.startsWith("[Reply to: ")) {
+    const closeBracketIndex = cleanContent.indexOf("] ");
+    if (closeBracketIndex !== -1) {
+      const quotePart = cleanContent.substring(11, closeBracketIndex);
+      const bodyPart = cleanContent.substring(closeBracketIndex + 2);
+      cleanContent = `(Quoted "${quotePart.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "").slice(0, 60)}...") ${bodyPart}`;
+    }
+  }
+  cleanContent = cleanContent.replace(/_Powered by [^_]+_/g, "").trim();
+  return `${m.direction === 'inbound' ? 'Customer' : 'Agent (' + agentName + ')'}: ${cleanContent}`;
+}).join("\n")}
 
 ### REQUIRED JSON OUTPUT FORMAT:
 Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no markdown, no long paragraphs:
@@ -200,25 +220,55 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
   }
 }`;
 
-    // 5. Call Groq LLaMA 3.3 70B REST API
-    const response = await axios.post(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        model: "openai/gpt-oss-120b",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
-        ],
-        temperature: 0.6,
-        response_format: { type: "json_object" }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${groqApiKey}`,
-          "Content-Type": "application/json"
+    // 5. Call Groq REST API using GPT model
+    let response: any;
+    const primaryModel = "openai/gpt-oss-120b";
+    const fallbackModel = "openai/gpt-oss-120b";
+
+    try {
+      response = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: primaryModel,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
+          ],
+          temperature: 0.6,
+          response_format: { type: "json_object" }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json"
+          }
         }
+      );
+    } catch (primaryErr: any) {
+      if (primaryErr?.response?.data?.error?.code === "rate_limit_exceeded" || primaryErr?.response?.status === 429) {
+        console.warn(`[AI AGENT ENGINE] Primary model ${primaryModel} rate limited. Retrying with fallback model ${fallbackModel}...`);
+        response = await axios.post(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            model: fallbackModel,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Respond in valid json format to the incoming customer message: "${customerQuery}"` }
+            ],
+            temperature: 0.6,
+            response_format: { type: "json_object" }
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${groqApiKey}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+      } else {
+        throw primaryErr;
       }
-    );
+    }
 
     const rawChoiceContent = response.data.choices?.[0]?.message?.content;
     if (!rawChoiceContent) {

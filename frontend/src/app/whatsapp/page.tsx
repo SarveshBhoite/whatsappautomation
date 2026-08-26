@@ -1271,7 +1271,13 @@ export default function Dashboard() {
                           </div>
                           <div className="flex justify-between items-center">
                             <p className="text-xs text-slate-500 truncate max-w-[180px]">
-                              {lastMsg?.content || "No messages yet"}
+                              {(() => {
+                                let snippet = lastMsg?.content || "No messages yet";
+                                if (snippet.includes("📋 [Template:")) {
+                                  snippet = snippet.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
+                                }
+                                return snippet.replace(/_Powered by [^_]+_/g, "").trim();
+                              })()}
                             </p>
                             {conv.isBotPaused ? (
                               <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
@@ -1383,12 +1389,20 @@ export default function Dashboard() {
                         
                         if (msg.quotedMessage) {
                           const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
-                          const contentSnippet = msg.quotedMessage.content.split("|")[0];
+                          let contentSnippet = msg.quotedMessage.content.split("|")[0];
+                          if (contentSnippet.includes("📋 [Template:")) {
+                            contentSnippet = contentSnippet.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
+                          }
+                          contentSnippet = contentSnippet.replace(/_Powered by [^_]+_/g, "").trim();
                           quoteText = `${sender}: ${contentSnippet}`;
                         } else if (msg.content.startsWith("[Reply to: ")) {
                           const closeBracketIndex = msg.content.indexOf("] ");
                           if (closeBracketIndex !== -1) {
-                            quoteText = msg.content.substring(11, closeBracketIndex);
+                            let rawQuote = msg.content.substring(11, closeBracketIndex);
+                            if (rawQuote.includes("📋 [Template:")) {
+                              rawQuote = rawQuote.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
+                            }
+                            quoteText = rawQuote.replace(/_Powered by [^_]+_/g, "").trim();
                             messageBody = msg.content.substring(closeBracketIndex + 2);
                           }
                         }
@@ -1446,7 +1460,7 @@ export default function Dashboard() {
                             <div
                               className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
                             >
-                            <div className="relative max-w-[70%]">
+                            <div className="relative max-w-[85%] sm:max-w-[70%] min-w-0">
                               {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
                               <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
                                 <button
@@ -1460,7 +1474,7 @@ export default function Dashboard() {
                               </div>
 
                               {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-xs flex flex-col gap-1 ${
+                              <div className={`rounded-2xl px-4 py-2.5 shadow-xs flex flex-col gap-1 min-w-0 max-w-full overflow-hidden break-words ${
                                 isInbound 
                                   ? "bg-white text-slate-900 border border-slate-200/90 rounded-tl-none" 
                                   : activeConv?.platform === "instagram"
@@ -1475,7 +1489,7 @@ export default function Dashboard() {
                                 
                                 {/* Render Quoted Reply Box inside Bubble */}
                                 {hasQuote && (
-                                  <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${
+                                  <div className={`border-l-4 rounded px-2.5 py-1 mb-1.5 text-[10px] leading-snug truncate max-w-[280px] sm:max-w-[360px] overflow-hidden whitespace-nowrap text-ellipsis ${
                                     isInbound 
                                       ? "bg-slate-100 border-slate-400 text-slate-600" 
                                       : activeConv?.platform === "instagram"
@@ -1557,39 +1571,20 @@ export default function Dashboard() {
                                       )}
                                     </div>
                                   );
-                                })() : msg.messageType === "template" || msg.content.startsWith("📋") ? (
-                                  <div className="flex flex-col gap-1.5 min-w-0 max-w-full">
-                                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 bg-emerald-100/70 border border-emerald-200/80 px-2.5 py-1 rounded-md w-fit">
-                                      <FileText className="h-3 w-3 text-emerald-700" />
-                                      <span>Official WhatsApp Template</span>
-                                    </div>
-                                    <div className="space-y-1 mt-1">
-                                      {msg.content.split("\n\n").map((paragraph, pIdx) => {
-                                        if (paragraph.startsWith("📋 [Template:")) {
-                                          return (
-                                            <p key={pIdx} className="text-[11px] font-mono font-bold text-slate-500 pb-0.5 border-b border-slate-950/10">
-                                              {paragraph.replace("📋 ", "")}
-                                            </p>
-                                          );
-                                        }
-                                        if (paragraph.startsWith("_") && paragraph.endsWith("_")) {
-                                          return (
-                                            <p key={pIdx} className="text-[11px] italic opacity-75 mt-1">
-                                              {paragraph.replace(/_/g, "")}
-                                            </p>
-                                          );
-                                        }
-                                        return (
-                                          <p key={pIdx} className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere font-medium text-slate-900">
-                                            {paragraph}
-                                          </p>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-col gap-2 min-w-0 max-w-full">
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere">{messageBody}</p>
+                                })() : (
+                                 /* Clean message body text */
+                                 (() => {
+                                   let cleanText = messageBody;
+                                   if (cleanText.includes("📋 [Template:")) {
+                                     cleanText = cleanText.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
+                                   }
+                                   cleanText = cleanText.replace(/_Powered by [^_]+_/g, "").trim();
+
+                                   return (
+                                     <div className="flex flex-col gap-2 min-w-0 max-w-full">
+                                       <p className="text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden text-slate-900 font-normal">
+                                         {cleanText}
+                                       </p>
                                     
                                     {/* Render Clickable WhatsApp-styled buttons in chat logs */}
                                     {hasButtons && (
@@ -1603,8 +1598,7 @@ export default function Dashboard() {
                                               key={index}
                                               className="w-full bg-white text-slate-700 border border-slate-200/80 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
                                             >
-                                              <Bot className={`h-3 w-3 ${btnIconColor}`} />
-                                              {btnTitle}
+                                              <span className={btnTextColor}>{btnTitle}</span>
                                             </div>
                                           );
                                         })}
@@ -1657,6 +1651,8 @@ export default function Dashboard() {
                                       </div>
                                     )}
                                   </div>
+                                   );
+                                 })()
                                 )}
 
                                 {/* Ticks status and time */}
