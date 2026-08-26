@@ -1557,7 +1557,37 @@ export default function Dashboard() {
                                       )}
                                     </div>
                                   );
-                                })() : (
+                                })() : msg.messageType === "template" || msg.content.startsWith("📋") ? (
+                                  <div className="flex flex-col gap-1.5 min-w-0 max-w-full">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800 bg-emerald-100/70 border border-emerald-200/80 px-2.5 py-1 rounded-md w-fit">
+                                      <FileText className="h-3 w-3 text-emerald-700" />
+                                      <span>Official WhatsApp Template</span>
+                                    </div>
+                                    <div className="space-y-1 mt-1">
+                                      {msg.content.split("\n\n").map((paragraph, pIdx) => {
+                                        if (paragraph.startsWith("📋 [Template:")) {
+                                          return (
+                                            <p key={pIdx} className="text-[11px] font-mono font-bold text-slate-500 pb-0.5 border-b border-slate-950/10">
+                                              {paragraph.replace("📋 ", "")}
+                                            </p>
+                                          );
+                                        }
+                                        if (paragraph.startsWith("_") && paragraph.endsWith("_")) {
+                                          return (
+                                            <p key={pIdx} className="text-[11px] italic opacity-75 mt-1">
+                                              {paragraph.replace(/_/g, "")}
+                                            </p>
+                                          );
+                                        }
+                                        return (
+                                          <p key={pIdx} className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere font-medium text-slate-900">
+                                            {paragraph}
+                                          </p>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : (
                                   <div className="flex flex-col gap-2 min-w-0 max-w-full">
                                     <p className="text-sm leading-relaxed whitespace-pre-wrap break-all overflow-wrap-anywhere">{messageBody}</p>
                                     

@@ -371,25 +371,34 @@ export const handleWebhook = async (req: Request, res: Response) => {
               });
             }
 
-            // Attempt to fetch full template body text from Meta API if WABA credentials available
+            // Attempt to fetch full template text (Header, Body, Footer) from Meta WABA API
             let templateBodyText = "";
             const categoryName = statusObj.pricing?.category ? ` (${statusObj.pricing.category.toUpperCase()})` : "";
             
             if (waConfig.wabaId && waConfig.accessToken) {
               try {
                 const metaTplRes = await fetch(
-                  `https://graph.facebook.com/v21.0/${waConfig.wabaId}/message_templates?limit=100&access_token=${waConfig.accessToken}`
+                  `https://graph.facebook.com/v21.0/${waConfig.wabaId}/message_templates?limit=250&access_token=${waConfig.accessToken}`
                 );
                 if (metaTplRes.ok) {
                   const tplData = await metaTplRes.json();
-                  const matchedTpl = (tplData.data || []).find((t: any) =>
+                  const templatesList: any[] = tplData.data || [];
+                  
+                  // Match template by pricing category or pick the latest approved template
+                  const matchedTpl = templatesList.find((t: any) =>
                     statusObj.pricing?.category ? t.category?.toLowerCase() === statusObj.pricing.category.toLowerCase() : true
-                  );
-                  if (matchedTpl) {
-                    const bodyComp = matchedTpl.components?.find((c: any) => c.type === "BODY");
-                    if (bodyComp?.text) {
-                      templateBodyText = `📋 [Template: ${matchedTpl.name}]\n${bodyComp.text}`;
-                    }
+                  ) || templatesList[0];
+
+                  if (matchedTpl && matchedTpl.components) {
+                    const headerComp = matchedTpl.components.find((c: any) => c.type === "HEADER");
+                    const bodyComp = matchedTpl.components.find((c: any) => c.type === "BODY");
+                    const footerComp = matchedTpl.components.find((c: any) => c.type === "FOOTER");
+
+                    const headerText = headerComp?.text ? `${headerComp.text}\n\n` : "";
+                    const bodyText = bodyComp?.text || "";
+                    const footerText = footerComp?.text ? `\n\n_${footerComp.text}_` : "";
+
+                    templateBodyText = `📋 [Template: ${matchedTpl.name}]\n${headerText}${bodyText}${footerText}`;
                   }
                 }
               } catch (metaErr) {
@@ -417,7 +426,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
             } else {
               autoMsg = await prisma.message.update({
                 where: { id: existingMsg.id },
-                data: { status }
+                data: {
+                  status,
+                  // Update content with full template body text if it was previously default placeholder
+                  content: existingMsg.content.includes("📋 Outbound") && templateBodyText ? templateBodyText : existingMsg.content
+                }
               });
             }
 
