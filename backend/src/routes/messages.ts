@@ -31,9 +31,9 @@ router.post("/send", async (req: Request, res: Response) => {
       include: {
         organization: {
           include: {
-            waConfig: true,
-            igConfig: true,
-            ytConfig: true,
+            waConfigs: true,
+            igConfigs: true,
+            ytConfigs: true,
           },
         },
       },

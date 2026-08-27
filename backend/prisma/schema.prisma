@@ -17,8 +17,8 @@ model Organization {
   users               User[]
   waConfigs           WhatsAppConfig[]
   igConfigs           InstagramConfig[]
-  ytConfig            YouTubeConfig?
-  gmbConfig           GoogleBusinessConfig?
+  ytConfigs           YouTubeConfig[]
+  gmbConfigs          GoogleBusinessConfig[]
   linkedInConfig      LinkedInConfig?
   linkedInPosts       LinkedInPost[]
   linkedInSchedules   LinkedInSchedule[]
@@ -41,6 +41,8 @@ model Organization {
   whatsappDripCampaigns WhatsAppDripCampaign[]
   instagramCommentAutomations InstagramCommentAutomation[]
   apiKeys             ApiKey[]
+  googleCalendarConfigs GoogleCalendarConfig[]
+  appointments        Appointment[]
 }
 
 model User {
@@ -94,15 +96,19 @@ model InstagramConfig {
 
 model YouTubeConfig {
   id             String       @id @default(uuid())
-  organizationId String       @unique
+  organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   channelId      String
   channelTitle   String?
   accessToken    String
   refreshToken   String?
   tokenExpiresAt DateTime?
+  isDefault      Boolean      @default(false)
+  isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model LinkedInConfig {
@@ -443,7 +449,7 @@ model GmailAutoReplyRule {
 
 model GoogleBusinessConfig {
   id                  String       @id @default(uuid())
-  organizationId      String       @unique
+  organizationId      String
   organization        Organization @relation(fields: [organizationId], references: [id])
   accountId           String       @default("")
   locationId          String       @default("")
@@ -462,14 +468,19 @@ model GoogleBusinessConfig {
   accessToken         String       @default("")
   refreshToken        String?
   tokenExpiresAt      DateTime?
+  isDefault           Boolean      @default(false)
+  isActive            Boolean      @default(true)
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model GoogleReview {
   id             String             @id @default(uuid())
   organizationId String
   organization   Organization       @relation(fields: [organizationId], references: [id])
+  accountId      String?
   reviewId       String             @default(uuid())
   reviewerName   String             @default("Customer")
   customerName   String?
@@ -502,6 +513,7 @@ model GooglePost {
   id               String       @id @default(uuid())
   organizationId   String
   organization     Organization @relation(fields: [organizationId], references: [id])
+  accountId        String?
   name             String?      @unique
   summary          String
   topicType        String       @default("STANDARD")
@@ -526,6 +538,7 @@ model GoogleQuestion {
   id             String         @id @default(uuid())
   organizationId String
   organization   Organization   @relation(fields: [organizationId], references: [id])
+  accountId      String?
   name           String         @default(uuid())
   gmbQuestionId  String?        @unique
   authorName     String         @default("User")
@@ -1155,3 +1168,58 @@ model ApiKey {
   @@index([hashedKey])
   @@map("api_keys")
 }
+
+model GoogleCalendarConfig {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  googleAccountId    String?
+  googleEmail        String
+  accessToken        String
+  refreshToken       String?
+  tokenExpiresAt     DateTime?
+  selectedCalendarId String       @default("primary")
+  calendarName       String?      @default("Primary Calendar")
+  isDefault          Boolean      @default(true)
+  isActive           Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  appointments       Appointment[]
+
+  @@index([organizationId])
+  @@map("google_calendar_configs")
+}
+
+model Appointment {
+  id                     String                @id @default(uuid())
+  organizationId         String
+  organization           Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId         String?
+  customerPhone          String?
+  customerName           String
+  customerEmail          String?
+  title                  String
+  description            String?
+  startTime              DateTime
+  endTime                DateTime
+  timezone               String                @default("Asia/Kolkata")
+  status                 String                @default("CONFIRMED") // CONFIRMED, RESCHEDULED, CANCELLED
+  googleAccountId        String?
+  googleCalendarConfig   GoogleCalendarConfig? @relation(fields: [googleAccountId], references: [id], onDelete: SetNull)
+  googleCalendarId       String?
+  googleCalendarEventId  String?
+  googleMeetUrl          String?
+  googleMeetConferenceId String?
+  googleEventHtmlLink    String?
+  googleSyncStatus       String?               @default("PENDING") // PENDING, SYNCED, FAILED, AUTH_REQUIRED
+  googleSyncError        String?
+  notificationSent       Boolean               @default(false)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  @@index([organizationId])
+  @@index([customerPhone])
+  @@map("appointments")
+}
+

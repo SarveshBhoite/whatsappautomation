@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check, Plus, User, Phone, Mail, ShieldCheck, Sparkles, CheckCircle2 } from "lucide-react";
+import { ChevronDown, Check, Plus, User, Phone, Mail, ShieldCheck, Sparkles, CheckCircle2, Tv, Globe } from "lucide-react";
 import { useAccount, PlatformType } from "@/context/AccountContext";
 
 export interface AccountOption {
@@ -8,11 +8,11 @@ export interface AccountOption {
   sublabel?: string;
   isDefault?: boolean;
   isActive?: boolean;
-  type?: "instagram" | "whatsapp" | "gmail" | "google" | "meta";
+  type?: "instagram" | "whatsapp" | "gmail" | "google" | "meta" | "youtube";
   avatarUrl?: string;
 }
 
-export type SwitcherTheme = "emerald" | "pink" | "rose" | "indigo";
+export type SwitcherTheme = "emerald" | "pink" | "rose" | "indigo" | "red" | "blue";
 
 interface AccountSwitcherProps {
   title?: string;
@@ -20,6 +20,7 @@ interface AccountSwitcherProps {
   selectedAccountId: string;
   onSelectAccount: (accountId: string) => void;
   onAddNewAccount?: () => void;
+  addNewAccountText?: string;
   onToggleOpen?: () => void;
   className?: string;
   theme?: SwitcherTheme;
@@ -31,6 +32,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
   selectedAccountId,
   onSelectAccount,
   onAddNewAccount,
+  addNewAccountText,
   onToggleOpen,
   className = "",
   theme,
@@ -54,8 +56,12 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
     ? "pink"
     : selectedAccount?.type === "gmail"
     ? "rose"
+    : selectedAccount?.type === "youtube"
+    ? "red"
     : selectedAccount?.type === "whatsapp"
     ? "emerald"
+    : selectedAccount?.type === "google"
+    ? "blue"
     : "indigo";
 
   const handleToggle = () => {
@@ -84,13 +90,17 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
         return <Mail className="w-4 h-4 text-rose-600" />;
       case "instagram":
         return <User className="w-4 h-4 text-pink-600" />;
+      case "youtube":
+        return <Tv className="w-4 h-4 text-red-600" />;
+      case "google":
+        return <Globe className="w-4 h-4 text-blue-600" />;
       default:
         return <ShieldCheck className="w-4 h-4 text-indigo-600" />;
     }
   };
 
   // Dynamic theme style maps
-  const themeStyles = {
+  const themeMap: Record<SwitcherTheme, any> = {
     emerald: {
       hoverBorder: "hover:border-emerald-400",
       focusRing: "focus:ring-emerald-500/20",
@@ -133,6 +143,34 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
       chevronActive: "text-rose-600",
       btnText: "Connect New Gmail Account",
     },
+    red: {
+      hoverBorder: "hover:border-red-400",
+      focusRing: "focus:ring-red-500/20",
+      pulse: "bg-red-500",
+      iconBox: "bg-red-50 text-red-600 border-red-100/90",
+      activeBadge: "bg-red-100/90 text-red-800 border-red-200/80",
+      headerBadge: "bg-red-100/80 text-red-700 border-red-200/80",
+      sparkle: "text-red-500",
+      selectedBg: "bg-red-50/90 border-red-300/90 text-red-950",
+      selectedCheck: "bg-red-600",
+      buttonBg: "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-red-600/20",
+      chevronActive: "text-red-600",
+      btnText: "Link Another YouTube Channel",
+    },
+    blue: {
+      hoverBorder: "hover:border-blue-400",
+      focusRing: "focus:ring-blue-500/20",
+      pulse: "bg-blue-500",
+      iconBox: "bg-blue-50 text-blue-600 border-blue-100/90",
+      activeBadge: "bg-blue-100/90 text-blue-800 border-blue-200/80",
+      headerBadge: "bg-blue-100/80 text-blue-700 border-blue-200/80",
+      sparkle: "text-blue-500",
+      selectedBg: "bg-blue-50/90 border-blue-300/90 text-blue-950",
+      selectedCheck: "bg-blue-600",
+      buttonBg: "bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-blue-600/20",
+      chevronActive: "text-blue-600",
+      btnText: "Link Google Calendar",
+    },
     indigo: {
       hoverBorder: "hover:border-indigo-400",
       focusRing: "focus:ring-indigo-500/20",
@@ -147,17 +185,19 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
       chevronActive: "text-indigo-600",
       btnText: "Link New Account",
     },
-  }[activeTheme];
+  };
+
+  const themeStyles = themeMap[activeTheme] || themeMap.indigo;
 
   return (
-    <div className={`relative inline-block text-left ${className}`} ref={dropdownRef}>
+    <div className={`relative ${className || "w-full sm:w-auto"}`} ref={dropdownRef}>
       {/* Sleek Trigger Button with Dynamic Theme Styling */}
       <button
         type="button"
         onClick={handleToggle}
-        className={`group relative inline-flex items-center justify-between gap-3 px-3.5 py-2 text-xs font-semibold text-slate-800 bg-white border border-slate-200/90 rounded-2xl shadow-2xs ${themeStyles.hoverBorder} hover:shadow-md hover:bg-slate-50/80 focus:outline-none focus:ring-2 ${themeStyles.focusRing} transition-all duration-200 cursor-pointer`}
+        className={`group relative w-full inline-flex items-center justify-between gap-3 px-3.5 py-2 min-h-[44px] text-xs font-semibold text-slate-800 bg-white border border-slate-200/90 rounded-2xl shadow-2xs ${themeStyles.hoverBorder} hover:shadow-md hover:bg-slate-50/80 focus:outline-none focus:ring-2 ${themeStyles.focusRing} transition-all duration-200 cursor-pointer`}
       >
-        <div className="flex items-center gap-2.5 max-w-[260px] truncate">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 truncate">
           <div className="relative flex items-center justify-center shrink-0">
             {selectedAccount?.avatarUrl ? (
               <img src={selectedAccount.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-slate-200" />
@@ -169,11 +209,11 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
             <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${themeStyles.pulse} ring-2 ring-white animate-pulse`} />
           </div>
 
-          <div className="flex flex-col text-left truncate min-w-0">
+          <div className="flex flex-col text-left truncate min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-900 truncate">
               <span className="truncate">{selectedAccount?.label || title}</span>
               {selectedAccount?.isDefault && (
-                <span className={`px-2 py-0.5 text-[9px] font-extrabold tracking-wide border rounded-md shrink-0 ${themeStyles.activeBadge}`}>
+                <span className={`px-1.5 py-0.2 text-[9px] font-extrabold tracking-wide border rounded-md shrink-0 ${themeStyles.activeBadge}`}>
                   Active
                 </span>
               )}
@@ -191,7 +231,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
 
       {/* Floating Dropdown Modal */}
       {isOpen && (
-        <div className="absolute right-0 sm:left-0 mt-2 w-80 origin-top-left rounded-2xl bg-white shadow-2xl border border-slate-200/90 ring-1 ring-black/5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-84 sm:w-96 origin-top-right rounded-2xl bg-white shadow-2xl border border-slate-200/90 ring-1 ring-black/5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
           {/* Header Bar */}
           <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
             <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -234,7 +274,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                         : "bg-white border-transparent hover:bg-slate-50 hover:border-slate-200 text-slate-700"
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       {acc.avatarUrl ? (
                         <img src={acc.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shrink-0" />
                       ) : (
@@ -242,11 +282,11 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                           {getAccountIcon(acc.type)}
                         </div>
                       )}
-                      <div className="min-w-0 space-y-0.5">
-                        <div className="text-xs font-extrabold text-slate-900 truncate flex items-center gap-1.5">
-                          <span>{acc.label}</span>
+                      <div className="min-w-0 space-y-0.5 flex-1">
+                        <div className="text-xs font-extrabold text-slate-900 truncate flex items-center justify-between gap-2">
+                          <span className="truncate">{acc.label}</span>
                           {acc.isDefault && (
-                            <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded-md ${themeStyles.activeBadge}`}>Primary</span>
+                            <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded-md shrink-0 ${themeStyles.activeBadge}`}>Primary</span>
                           )}
                         </div>
                         {acc.sublabel && (
@@ -278,7 +318,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                 className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-extrabold text-white rounded-xl transition-all shadow-md cursor-pointer ${themeStyles.buttonBg}`}
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
-                {themeStyles.btnText}
+                {addNewAccountText || themeStyles.btnText}
               </button>
             </div>
           )}

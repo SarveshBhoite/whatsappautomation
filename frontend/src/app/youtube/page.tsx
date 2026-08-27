@@ -39,6 +39,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import Link from "next/link";
+import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
 import { io, Socket } from "socket.io-client";
 import ReactFlow, { 
   MiniMap, 
@@ -363,7 +364,15 @@ export default function Dashboard() {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
   useEffect(() => {
+    fetchYoutubeAccounts();
     fetchYoutubeConfig();
+
+    const handleAccountChange = (e: any) => {
+      if (e.detail?.platform === "youtube" && e.detail?.accountId) {
+        handleSwitchYoutubeAccount(e.detail.accountId);
+      }
+    };
+    window.addEventListener("account-changed", handleAccountChange);
 
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -374,12 +383,14 @@ export default function Dashboard() {
 
       const oauth = params.get("oauth");
       if (oauth === "success") {
+        fetchYoutubeAccounts();
         fetchYoutubeConfig();
         window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
       } else if (oauth === "error") {
         window.history.replaceState({}, document.title, window.location.pathname + "?tab=settings");
       }
     }
+    return () => window.removeEventListener("account-changed", handleAccountChange);
   }, []);
 
   // Video-Specific Comment Filtering State
@@ -450,6 +461,7 @@ export default function Dashboard() {
 
   // YouTube Config
   interface YouTubeConfig {
+    id?: string;
     channelId: string;
     channelTitle?: string;
     accessToken: string;
@@ -463,6 +475,10 @@ export default function Dashboard() {
   });
   const [ytSaveStatus, setYtSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [ytOauthStatus, setYtOauthStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
+
+  // Multi-Account YouTube State
+  const [youtubeAccounts, setYoutubeAccounts] = useState<any[]>([]);
+  const [selectedYoutubeAccountId, setSelectedYoutubeAccountId] = useState<string>("");
 
   // Google GMB Config
   const [googleConfig, setGoogleConfig] = useState({
@@ -864,10 +880,11 @@ export default function Dashboard() {
     }
   };
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (accountId?: string) => {
     setLoadingAnalytics(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics`, {
+      const targetId = accountId || selectedYoutubeAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics${targetId ? `?accountId=${targetId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -903,10 +920,11 @@ export default function Dashboard() {
     }
   };
 
-  const fetchVideosShorts = async () => {
+  const fetchVideosShorts = async (accountId?: string) => {
     setLoadingVideosShorts(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/videos-shorts`, {
+      const targetId = accountId || selectedYoutubeAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/videos-shorts${targetId ? `?accountId=${targetId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -920,10 +938,11 @@ export default function Dashboard() {
     }
   };
 
-  const fetchComparative = async (days: number | string = 30) => {
+  const fetchComparative = async (days: number | string = comparativeDays, accountId?: string) => {
     setLoadingComparative(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/comparative?days=${days}`, {
+      const targetId = accountId || selectedYoutubeAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/comparative?days=${days}${targetId ? `&accountId=${targetId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -937,10 +956,11 @@ export default function Dashboard() {
     }
   };
 
-  const fetchDemographics = async () => {
+  const fetchDemographics = async (accountId?: string) => {
     setLoadingDemographics(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/demographics`, {
+      const targetId = accountId || selectedYoutubeAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/demographics${targetId ? `?accountId=${targetId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -1028,9 +1048,31 @@ export default function Dashboard() {
 
 
 
-  const fetchYoutubeConfig = async () => {
+  const fetchYoutubeAccounts = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/youtube/config`, {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/accounts`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.accounts && data.accounts.length > 0) {
+          setYoutubeAccounts(data.accounts);
+          setSelectedYoutubeAccountId(prev => {
+            if (prev) return prev;
+            const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
+            return defaultAcc?.id || "";
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch YouTube accounts list:", err);
+    }
+  };
+
+  const fetchYoutubeConfig = async (accountId?: string) => {
+    try {
+      const targetId = accountId || selectedYoutubeAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/youtube/config${targetId ? `?accountId=${targetId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -1038,15 +1080,56 @@ export default function Dashboard() {
         const cfg = data.config || data;
         if (cfg) {
           setYtConfig({
+            id: cfg.id || "",
             channelId: cfg.channelId || "",
             channelTitle: cfg.channelTitle || "",
             accessToken: cfg.accessToken || "",
             refreshToken: cfg.refreshToken || ""
           });
         }
+        if (data.accounts && data.accounts.length > 0) {
+          setYoutubeAccounts(data.accounts);
+          setSelectedYoutubeAccountId(prev => {
+            if (accountId) return accountId;
+            if (prev) return prev;
+            const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
+            return defaultAcc?.id || "";
+          });
+        }
       }
     } catch (err) {
       console.error("Error fetching YouTube config:", err);
+    }
+  };
+
+  const handleSwitchYoutubeAccount = async (accountId: string) => {
+    try {
+      setSelectedYoutubeAccountId(accountId);
+      const acc = youtubeAccounts.find(a => a.id === accountId);
+      if (acc) {
+        setYtConfig({
+          id: acc.id || "",
+          channelId: acc.channelId || "",
+          channelTitle: acc.channelTitle || "",
+          accessToken: acc.accessToken || "",
+          refreshToken: acc.refreshToken || ""
+        });
+      }
+      await fetch(`${BACKEND_URL}/api/youtube/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId })
+      });
+      await fetchYoutubeConfig(accountId);
+      fetchAnalytics(accountId);
+      fetchVideosShorts(accountId);
+      fetchComparative(comparativeDays, accountId);
+      fetchDemographics(accountId);
+    } catch (err) {
+      console.warn("Error switching YouTube account:", err);
     }
   };
 
@@ -1355,12 +1438,12 @@ export default function Dashboard() {
       {/* 2. MAIN CONTENT BODY */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
         {/* Top Sub-Nav Navigation Bar */}
-        <div className="h-12 border-b border-slate-200 bg-white px-4 sm:px-6 flex items-center justify-between z-20 shrink-0 gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden shadow-2xs">
-          <div className="flex items-center gap-1.5 shrink-0">
+        <div className="min-h-12 border-b border-slate-200 bg-white px-4 sm:px-6 flex items-center justify-between z-30 shrink-0 gap-2 shadow-2xs">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden py-1">
             <button
               type="button"
               onClick={() => setActiveTab("analytics")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                 activeTab === "analytics"
                   ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -1372,7 +1455,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setActiveTab("chats_youtube")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                 activeTab === "chats_youtube"
                   ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -1384,7 +1467,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setActiveTab("videos_shorts")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                 activeTab === "videos_shorts"
                   ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -1396,7 +1479,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setActiveTab("comparative")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                 activeTab === "comparative"
                   ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -1408,7 +1491,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setActiveTab("demographics")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                 activeTab === "demographics"
                   ? "bg-red-50 text-red-700 border border-red-200 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -1418,7 +1501,25 @@ export default function Dashboard() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 py-1">
+            <AccountSwitcher
+              title="YouTube Channel"
+              theme="red"
+              addNewAccountText="Link Another YouTube Channel"
+              accounts={(youtubeAccounts.length > 0 ? youtubeAccounts : (ytConfig.channelId ? [{ id: ytConfig.id || "default", channelTitle: ytConfig.channelTitle, channelId: ytConfig.channelId, isDefault: true }] : [])).map((acc) => ({
+                id: acc.id,
+                label: acc.channelTitle || acc.channelId || "YouTube Channel",
+                sublabel: acc.channelId ? `${acc.channelId} • ${acc.isDefault ? "Primary Channel" : "Linked"}` : (acc.isDefault ? "Primary Channel" : "Linked Channel"),
+                isDefault: acc.isDefault,
+                isActive: acc.isActive !== false,
+                type: "youtube",
+              }))}
+              selectedAccountId={selectedYoutubeAccountId}
+              onSelectAccount={handleSwitchYoutubeAccount}
+              onToggleOpen={fetchYoutubeAccounts}
+              onAddNewAccount={handleYoutubeOAuthConnect}
+            />
+
             <button
               type="button"
               onClick={() => setActiveTab("settings")}
@@ -1444,7 +1545,7 @@ export default function Dashboard() {
                 <h2 className="text-xl font-extrabold text-slate-900 font-sans tracking-tight">YouTube Channel Performance Overview</h2>
               </div>
               <button
-                onClick={fetchAnalytics}
+                onClick={() => fetchAnalytics()}
                 disabled={loadingAnalytics}
                 className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all"
               >
@@ -2274,7 +2375,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <button
-                onClick={fetchVideosShorts}
+                onClick={() => fetchVideosShorts()}
                 disabled={loadingVideosShorts}
                 className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition-all"
               >
@@ -2572,7 +2673,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <button
-                onClick={fetchDemographics}
+                onClick={() => fetchDemographics()}
                 disabled={loadingDemographics}
                 className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition-all"
               >

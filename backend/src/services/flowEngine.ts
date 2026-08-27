@@ -56,7 +56,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
           include: {
             waConfigs: true,
             igConfigs: true,
-            ytConfig: true,
+            ytConfigs: true,
             linkedInConfig: true,
             aiAgentConfig: true,
           },
@@ -78,7 +78,7 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     const isLinkedIn = conversation.platform === "linkedin";
     const waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
     const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
-    const ytConfig = conversation.organization.ytConfig;
+    const ytConfig = (conversation.organization as any).ytConfigs?.find((c: any) => c.isDefault) || (conversation.organization as any).ytConfigs?.[0];
     const linkedInConfig = conversation.organization.linkedInConfig;
 
     // Check Platform Checklist for AI Agent Mode vs Static Flow Mode

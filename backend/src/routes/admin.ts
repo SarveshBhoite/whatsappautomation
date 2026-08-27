@@ -1470,12 +1470,16 @@ router.post("/upload", async (req: Request, res: Response) => {
 router.get("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    let waConfig = await prisma.whatsAppConfig.findFirst({
-      where: { organizationId, isActive: true },
-      orderBy: { isDefault: "desc" },
-    });
+    const accountId = (req.query.accountId as string) || (req.headers["x-account-id"] as string);
+
+    let waConfig = accountId
+      ? await (prisma as any).whatsAppEmbeddedConfig.findFirst({ where: { id: accountId } })
+        || await prisma.whatsAppConfig.findFirst({ where: { id: accountId } })
+      : await (prisma as any).whatsAppEmbeddedConfig.findFirst({ where: { organizationId, isDefault: true } })
+        || await prisma.whatsAppConfig.findFirst({ where: { organizationId, isActive: true }, orderBy: { isDefault: "desc" } });
+
     if (!waConfig || !waConfig.accessToken) {
-      waConfig = await prisma.whatsAppConfig.findFirst();
+      waConfig = await (prisma as any).whatsAppEmbeddedConfig.findFirst() || await prisma.whatsAppConfig.findFirst();
     }
 
     if (!waConfig?.accessToken || !waConfig?.wabaId) {
@@ -1506,7 +1510,7 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
 router.post("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl, sampleVariables, buttons } = req.body;
+    const { accountId, name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl, sampleVariables, buttons } = req.body;
 
     if (!name || !bodyText) {
       return res.status(400).json({ error: "Template name and body text are required" });
@@ -1514,10 +1518,11 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
 
     const cleanName = name.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_");
 
-    const waConfig = await prisma.whatsAppConfig.findFirst({
-      where: { organizationId, isActive: true },
-      orderBy: { isDefault: "desc" },
-    });
+    let waConfig = accountId
+      ? await (prisma as any).whatsAppEmbeddedConfig.findFirst({ where: { id: accountId } })
+        || await prisma.whatsAppConfig.findFirst({ where: { id: accountId } })
+      : await (prisma as any).whatsAppEmbeddedConfig.findFirst({ where: { organizationId, isDefault: true } })
+        || await prisma.whatsAppConfig.findFirst({ where: { organizationId, isActive: true }, orderBy: { isDefault: "desc" } });
 
     if (!waConfig?.accessToken || !waConfig?.wabaId) {
       return res.status(400).json({ error: "WhatsApp WABA ID or Access Token missing" });

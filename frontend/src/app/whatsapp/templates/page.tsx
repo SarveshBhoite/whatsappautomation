@@ -45,7 +45,7 @@ interface MetaTemplate {
   }>;
 }
 
-export default function WhatsAppTemplatesPage() {
+export default function WhatsAppTemplatesPage({ selectedAccountId }: { selectedAccountId?: string }) {
   const [templates, setTemplates] = useState<MetaTemplate[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -74,7 +74,7 @@ export default function WhatsAppTemplatesPage() {
   const fetchTemplates = async () => {
     try {
       setRefreshing(true);
-      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates?accountId=${selectedAccountId || ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -93,7 +93,7 @@ export default function WhatsAppTemplatesPage() {
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [selectedAccountId]);
 
   // Auto-extract placeholders {{1}}, {{2}} to manage Meta mandated sample variable inputs
   useEffect(() => {

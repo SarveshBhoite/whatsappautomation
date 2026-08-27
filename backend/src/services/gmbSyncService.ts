@@ -181,7 +181,9 @@ export async function executeAutoReplyIfApplicable(review: any, config: any) {
 
 // Core sync function
 export async function syncGmbReviews(orgId: string, io?: any) {
-  const config = await prisma.googleBusinessConfig.findUnique({
+  const config = await (prisma as any).googleBusinessConfig.findFirst({
+    where: { organizationId: orgId, isDefault: true }
+  }) || await (prisma as any).googleBusinessConfig.findFirst({
     where: { organizationId: orgId }
   });
 
@@ -305,7 +307,9 @@ export function logGmbRequest(method: string, url: string, headers: Record<strin
 
 // Sync live GMB posts from the Google API into our local database
 export async function syncGmbPosts(orgId: string, io?: any) {
-  const config = await prisma.googleBusinessConfig.findUnique({
+  const config = await (prisma as any).googleBusinessConfig.findFirst({
+    where: { organizationId: orgId, isDefault: true }
+  }) || await (prisma as any).googleBusinessConfig.findFirst({
     where: { organizationId: orgId }
   });
 
@@ -393,7 +397,9 @@ export async function publishPostToGmb(postId: string, io?: any) {
   if (io) io.to(post.organizationId).emit("post-updated", currentPost);
 
   try {
-    const config = await prisma.googleBusinessConfig.findUnique({
+    const config = await (prisma as any).googleBusinessConfig.findFirst({
+      where: { organizationId: post.organizationId, isDefault: true }
+    }) || await (prisma as any).googleBusinessConfig.findFirst({
       where: { organizationId: post.organizationId }
     });
     if (!config) throw new Error("Google Business Configuration not found.");

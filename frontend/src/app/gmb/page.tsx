@@ -595,25 +595,26 @@ export default function GmbPerformanceDashboard() {
 
   const fetchGmbAccounts = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config`, {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/accounts`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const resData = await res.json();
-        const accList = resData?.accounts || (resData?.config ? [resData.config] : []);
+        const accList = resData?.accounts || [];
         if (Array.isArray(accList) && accList.length > 0) {
           const options: AccountOption[] = accList.map((a: any) => ({
             id: a.id,
             label: a.locationName || "Google Business Location",
-            sublabel: a.googleLocationId || a.googleAdsCustomerId || "Connected",
+            sublabel: a.googleLocationId ? `${a.googleLocationId.split("/").pop()} • ${a.isDefault ? "Primary" : "Linked"}` : (a.isDefault ? "Primary Location" : "Linked Location"),
             isDefault: a.isDefault,
             type: "google",
           }));
           setGmbAccounts(options);
-          const defaultAcc = options.find((o) => o.isDefault) || options[0];
-          if (!selectedGmbAccountId && defaultAcc) {
-            setSelectedGmbAccountId(defaultAcc.id);
-          }
+          setSelectedGmbAccountId(prev => {
+            if (prev) return prev;
+            const defaultAcc = options.find((o) => o.isDefault) || options[0];
+            return defaultAcc?.id || "";
+          });
         }
       }
     } catch (err) {
@@ -623,11 +624,34 @@ export default function GmbPerformanceDashboard() {
 
   useEffect(() => {
     fetchGmbAccounts();
+
+    const handleAccountChange = (e: any) => {
+      if ((e.detail?.platform === "gmb" || e.detail?.platform === "google") && e.detail?.accountId) {
+        setSelectedGmbAccountId(e.detail.accountId);
+      }
+    };
+    window.addEventListener("account-changed", handleAccountChange);
+    return () => window.removeEventListener("account-changed", handleAccountChange);
   }, [orgId]);
 
   const handleSwitchGmbAccount = (accountId: string) => {
     setSelectedGmbAccountId(accountId);
+    fetchPerformance(selectedAMonth, selectedAYear, selectedBMonth, selectedBYear, accountId);
+    fetchProfileDetails(accountId);
+    fetchPosts(accountId);
+    fetchQuestions(accountId);
+    fetchMedia(accountId);
   };
+
+  useEffect(() => {
+    if (selectedGmbAccountId) {
+      fetchPerformance(selectedAMonth, selectedAYear, selectedBMonth, selectedBYear, selectedGmbAccountId);
+      fetchProfileDetails(selectedGmbAccountId);
+      fetchPosts(selectedGmbAccountId);
+      fetchQuestions(selectedGmbAccountId);
+      fetchMedia(selectedGmbAccountId);
+    }
+  }, [selectedGmbAccountId]);
 
   // GMB Profile Editor States
   const [profileTitle, setProfileTitle] = useState("");
@@ -837,10 +861,11 @@ export default function GmbPerformanceDashboard() {
   }, [orgId]);
 
   // Fetch GMB Profile Details
-  const fetchProfileDetails = async () => {
+  const fetchProfileDetails = async (targetAccountId?: string) => {
     setLoadingProfile(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/profile?orgId=${orgId}`);
+      const accId = targetAccountId || selectedGmbAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/gmb/profile?orgId=${orgId}${accId ? `&accountId=${accId}` : ""}`);
       if (res.ok) {
         const data = await res.json();
         setProfileTitle(data.title || "");
@@ -998,13 +1023,14 @@ export default function GmbPerformanceDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orgId,
+          accountId: selectedGmbAccountId,
           updateMask: "title,phoneNumbers,websiteUri,profile.description,storefrontAddress,regularHours,specialHours,openInfo.openingDate,labels,serviceArea",
           locationData
         })
       });
       if (res.ok) {
         alert("Business profile details successfully updated!");
-        await fetchProfileDetails();
+        await fetchProfileDetails(selectedGmbAccountId);
       } else {
         const errData = await res.json();
         alert(`Failed to save profile: ${errData.error}`);
@@ -1124,10 +1150,11 @@ export default function GmbPerformanceDashboard() {
   }, [orgId]);
 
   // Fetch GMB Posts
-  const fetchPosts = async () => {
+  const fetchPosts = async (targetAccountId?: string) => {
     setLoadingPosts(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/posts?orgId=${orgId}`);
+      const accId = targetAccountId || selectedGmbAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/gmb/posts?orgId=${orgId}${accId ? `&accountId=${accId}` : ""}`);
       if (res.ok) {
         const data = await res.json();
         setPosts(data);
@@ -1140,10 +1167,11 @@ export default function GmbPerformanceDashboard() {
   };
 
   // Fetch GMB Questions
-  const fetchQuestions = async () => {
+  const fetchQuestions = async (targetAccountId?: string) => {
     setLoadingQuestions(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/questions?orgId=${orgId}`);
+      const accId = targetAccountId || selectedGmbAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/gmb/questions?orgId=${orgId}${accId ? `&accountId=${accId}` : ""}`);
       if (res.ok) {
         const data = await res.json();
         setQuestions(data);
@@ -1156,10 +1184,11 @@ export default function GmbPerformanceDashboard() {
   };
 
   // Fetch GMB Gallery Photos
-  const fetchMedia = async () => {
+  const fetchMedia = async (targetAccountId?: string) => {
     setLoadingMedia(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/media?orgId=${orgId}`);
+      const accId = targetAccountId || selectedGmbAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/gmb/media?orgId=${orgId}${accId ? `&accountId=${accId}` : ""}`);
       if (res.ok) {
         const data = await res.json();
         setMediaItems(data);
@@ -1172,10 +1201,11 @@ export default function GmbPerformanceDashboard() {
   };
 
   // Sync Q&A Questions from Google
-  const handleSyncQuestions = async () => {
+  const handleSyncQuestions = async (targetAccountId?: string) => {
     setLoadingQuestions(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/questions/sync?orgId=${orgId}`);
+      const accId = targetAccountId || selectedGmbAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/gmb/questions/sync?orgId=${orgId}${accId ? `&accountId=${accId}` : ""}`);
       if (res.ok) {
         const result = await res.json();
         setQuestions(result.questions || []);
@@ -1384,12 +1414,14 @@ export default function GmbPerformanceDashboard() {
     aM = selectedAMonth, 
     aY = selectedAYear, 
     bM = selectedBMonth, 
-    bY = selectedBYear
+    bY = selectedBYear,
+    targetAccountId?: string
   ) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/performance?orgId=${orgId}&aMonth=${aM}&aYear=${aY}&bMonth=${bM}&bYear=${bY}`);
+      const accId = targetAccountId || selectedGmbAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/gmb/performance?orgId=${orgId}&aMonth=${aM}&aYear=${aY}&bMonth=${bM}&bYear=${bY}${accId ? `&accountId=${accId}` : ""}`);
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.error || "Failed to load GMB performance metrics.");
@@ -1663,9 +1695,11 @@ export default function GmbPerformanceDashboard() {
             <div className="flex items-center gap-3">
               <AccountSwitcher
                 title="Select GMB Location"
+                theme="indigo"
                 accounts={gmbAccounts}
                 selectedAccountId={selectedGmbAccountId}
                 onSelectAccount={handleSwitchGmbAccount}
+                onToggleOpen={fetchGmbAccounts}
                 onAddNewAccount={() => {
                   window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/gmb`;
                 }}
@@ -3307,7 +3341,7 @@ export default function GmbPerformanceDashboard() {
                     <span className="text-xs text-slate-500 font-medium">Manage scheduled and live posts on Google Maps</span>
                   </div>
                   <button
-                    onClick={fetchPosts}
+                    onClick={() => fetchPosts()}
                     className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
                   >
                     <RefreshCw className={`h-4.5 w-4.5 ${loadingPosts ? "animate-spin" : ""}`} />
@@ -3406,7 +3440,7 @@ export default function GmbPerformanceDashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleSyncQuestions}
+                    onClick={() => handleSyncQuestions()}
                     disabled={loadingQuestions}
                     className="bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-xs shadow-teal-600/20 flex items-center gap-1.5 cursor-pointer"
                   >
@@ -3578,7 +3612,7 @@ export default function GmbPerformanceDashboard() {
                     <span className="text-xs text-slate-500 font-medium">Live storefront and workspace media from your business page</span>
                   </div>
                   <button
-                    onClick={fetchMedia}
+                    onClick={() => fetchMedia()}
                     className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
                   >
                     <RefreshCw className={`h-4.5 w-4.5 ${loadingMedia ? "animate-spin" : ""}`} />

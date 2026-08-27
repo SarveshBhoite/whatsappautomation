@@ -105,7 +105,12 @@ import { WhatsAppDripEngine } from "./services/whatsappDripService";
 import apiKeysRouter from "./routes/apiKeys";
 import externalApiV1Router from "./routes/externalApiV1";
 
+import googleCalendarRouter from "./routes/googleCalendar";
+import appointmentsRouter from "./routes/appointments";
+
 app.use("/api/whatsapp/drip", whatsappDripRouter);
+app.use("/api/google-calendar", googleCalendarRouter);
+app.use("/api/appointments", appointmentsRouter);
 app.use("/api/api-keys", apiKeysRouter);
 app.use("/api/v1", externalApiV1Router);
 app.use("/v1", externalApiV1Router);
