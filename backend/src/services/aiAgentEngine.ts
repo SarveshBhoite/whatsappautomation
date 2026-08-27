@@ -63,7 +63,7 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
           include: {
             waConfigs: true,
             igConfigs: true,
-            ytConfig: true,
+            ytConfigs: true,
             linkedInConfig: true,
             aiAgentConfig: true,
           },
@@ -155,8 +155,12 @@ ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.med
       console.warn("[AI AGENT ENGINE] GROQ_KEY is missing from configuration & environment.");
       return;
     }
+    const currentTimestamp = new Date();
+    const currentDateStr = currentTimestamp.toISOString().split("T")[0];
+    const currentTimeStr = currentTimestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 
-    const systemPrompt = `You are "${agentName}", representing "${companyName}". You are a warm, highly intelligent, and human-like sales and support consultant.
+    const systemPrompt = `You are "${agentName}", representing "${companyName}". You are a warm, highly intelligent, and human-like sales, growth and support consultant.
+Current Date & Time in IST: ${currentDateStr} at ${currentTimeStr}.
 
 ### YOUR PERSONALITY & DIALOGUE GOALS:
 ${personalityPrompt}
@@ -175,15 +179,37 @@ Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. W
    - If (and ONLY if) the customer explicitly requests proof or media, return the matching asset IDs in "attachKnowledgeIds": ["ID1", "ID2"]. Otherwise, keep "attachKnowledgeIds": [].
 5. **Deal Closing & Business Lead Capture**:
    - When the customer shows interest in custom pricing, starting a project, or getting a quote, naturally close the conversation: "I'd love to schedule a quick 10-minute consultation call with our ${companyName} team. May I have your Full Name, Phone Number, and Email so I can lock in your slot?"
-6. **JOB APPLICANT & CAREER INQUIRIES (CONTINUITY RULE)**:
-    - Check recent chat history. If the customer previously mentioned applying for a job, interviewing, or shared a resume/CV, treat all subsequent messages strictly as a job application for ${companyName}. Do NOT pitch company services to job applicants!
-7. **OUTBOUND TEMPLATE & CAMPAIGN CONTINUITY**:
-    - Look at recent chat history for any outbound campaign/template sent by ${companyName}.
-    - If the template offered a preview, catalog, rate card, or brochure, and the customer replies with confirmation (*"Yes send"*, *"Sure"*, *"Send it"*, *"Okay"*), IMMEDIATELY respond warmly and include the matching asset ID in "attachKnowledgeIds".
-    - If the customer asks *"Why are you messaging me?"* or *"Who is this?"*, explain naturally: *"We reached out from ${companyName} regarding the offer/information sent above to see if it would help your business!"*
-8. **AUTOMATIC MULTILINGUAL MATCHING & CONTINUITY**:
-    - Detect the language of the customer's incoming message (Hindi, English, Marathi, Spanish, etc.).
-    - Respond strictly in the EXACT SAME LANGUAGE as the user!
+6. **JOB APPLICANTS & RECRUITMENT HANDLING (CRITICAL RULE)**:
+   - Check recent chat history. If the candidate mentions applying for a job, interviewing, or shares a resume/CV, treat all subsequent messages strictly as a job application for ${companyName}. Do NOT pitch company services to job applicants!
+   - If the candidate mentions terms like "Digital Marketing", "Meta Ads", "Google Ads", "Web Development", "Python", "SEO", etc., treat these strictly as THE JOB POSITION / ROLE THEY ARE APPLYING FOR.
+   - **ALWAYS ACKNOWLEDGE RESUME & CONFIRM CALL BACK**: Once they share their resume or specify the position, acknowledge warmly in the customer's detected language (English, Hindi, Hinglish, Marathi, etc.) and state clearly that HR will review their application and call them shortly.
+7. **AUTOMATIC MULTILINGUAL MATCHING & CONTINUITY (CRITICAL RULE)**:
+   - Detect the language of the customer's incoming message (e.g., Hindi, Marathi, Telugu, Tamil, Kannada, Gujarati, Hinglish, English, etc.).
+   - Respond strictly in the EXACT SAME LANGUAGE as the user! Maintain this detected language for all subsequent responses throughout the chat history.
+8. **OUTBOUND TEMPLATE, ADS & CAMPAIGN CONTINUITY**:
+   - If the customer clicked on a Meta Ad (e.g. contains '[Customer clicked Meta Ad]' or mentions seeing an ad/offer/promotion), immediately welcome them enthusiastically to the promotion:
+     "Welcome! You've unlocked our active Meta Ads Special Offer: 50% OFF on all Website & Mobile App Development packages (starting at ₹5,999/-) and 30% OFF on Digital Marketing & SEO! What project can we help you build today to lock in your discount?"
+   - If the template offered a preview, catalog, rate card, or brochure, and the customer replies with confirmation (*"Yes send"*, *"Sure"*, *"Send it"*, *"Okay"*), IMMEDIATELY respond warmly and include the matching asset ID in "attachKnowledgeIds".
+   - If the customer asks *"Why are you messaging me?"* or *"Who is this?"*, explain naturally: *"We reached out from ${companyName} regarding the offer/information sent above to see if it would help your business!"*
+9. **GOOGLE MEET APPOINTMENT BOOKING (CRITICAL RULE)**:
+   - For regular inquiries, greetings ('Hi', 'Hello'), questions, pricing, or casual talk:
+     - Keep "requestedAppointment": { "isBookingRequested": false }
+     - Answer the user's question naturally and conversationally.
+   - ONLY when the customer EXPLICITLY asks to book or schedule a meeting/call (e.g. 'Schedule a google meet', 'book a slot', 'send instant meeting link', 'call me tomorrow at 4pm'):
+     - **DO NOT WRITE ANY LINK OR URL IN YOUR replyText**. The system will automatically generate and attach the authentic Google Meet room.
+     - Generate a personalized, dynamic "title" based specifically on what the user wants to discuss (e.g. "Instant Strategy Meeting with [Name]", "SEO & Ads Growth Consultation", "Custom Web App Discussion", "Careers & Interview Call").
+     - If the user says "instant", "now", or "today", set dateStr to "${currentDateStr}" and timeStr to "${currentTimeStr}".
+     - Just write a short warm confirmation sentence in your replyText (e.g., "I have scheduled your consultation right away. Here are your joining details:").
+     - Set:
+       "requestedAppointment": {
+         "isBookingRequested": true,
+         "customerName": "<extracted_name_or_from_history>",
+         "customerEmail": "<extracted_email_or_from_history>",
+         "dateStr": "<YYYY-MM-DD>",
+         "timeStr": "<HH:MM AM/PM>",
+         "title": "<Dynamic Subject/Title Based On User Topic>"
+       }
+>>>>>>> origin/feature/multi-id
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
@@ -209,8 +235,16 @@ ${recentMessages.map(m => {
 ### REQUIRED JSON OUTPUT FORMAT:
 Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no markdown, no long paragraphs:
 {
-  "replyText": "Your short, natural WhatsApp reply here — plain text, 1-3 sentences only",
+  "replyText": "Your short, natural WhatsApp reply here — plain text, 1-3 sentences only. NEVER write links here.",
   "attachKnowledgeIds": ["only_when_customer_explicitly_asks_for_media"],
+  "requestedAppointment": {
+    "isBookingRequested": true_or_false,
+    "customerName": "extracted_name_or_null",
+    "customerEmail": "extracted_email_or_null",
+    "dateStr": "YYYY-MM-DD_or_null",
+    "timeStr": "HH:MM AM/PM_or_null",
+    "title": "Dynamic specific subject based on user discussion"
+  },
   "capturedLead": {
     "name": "extracted_name_or_null",
     "email": "extracted_email_or_null",
@@ -284,7 +318,107 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
       parsedResult = { replyText: rawChoiceContent };
     }
 
-    const replyText = parsedResult.replyText || "Thank you for reaching out! Let me connect you with our team specialist for full details.";
+    let replyText = parsedResult.replyText || "Thank you for reaching out! Let me connect you with our team specialist for full details.";
+    
+    // Strip any hallucinated/fake meet.google.com links the LLM might have written
+    replyText = replyText.replace(/https?:\/\/meet\.google\.com\/[a-zA-Z0-9_-]+/gi, "").trim();
+
+    const customerPhone = conversation.customerPhone;
+
+    // Scan full chat history & current message for email address
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const combinedChatText = `${recentMessages.map(m => m.content).join(" ")} ${customerQuery} ${replyText}`;
+    const matchedEmails = combinedChatText.match(emailRegex);
+    const extractedEmail = parsedResult.requestedAppointment?.customerEmail || (matchedEmails ? matchedEmails[0] : null);
+
+    // 5.5 Automatic Google Calendar & Google Meet Appointment Scheduling
+    // CRITICAL: ONLY trigger when customer EXPLICITLY requests a meeting/call in their current message OR the LLM marked isBookingRequested = true
+    const explicitBookingRegex = /\b(schedule|book|appointment|calendar|google\s+meet|zoom|consultation|joining\s+link|meet\s+link|call\s+me|set\s+up\s+a\s+meeting|demo\s+call|arrange\s+a\s+meet)\b/i;
+    const isExplicitlyRequestedByCustomer = explicitBookingRegex.test(customerQuery);
+    const isBookingRequested = Boolean(
+      (parsedResult.requestedAppointment?.isBookingRequested === true && isExplicitlyRequestedByCustomer) ||
+      (isExplicitlyRequestedByCustomer && !/^(hi|hii|hiii|hello|hey|good\s+morning|good\s+evening|namaste)$/i.test(customerQuery.trim()))
+    );
+
+    if (isBookingRequested) {
+      try {
+        const reqAppt = parsedResult.requestedAppointment || {};
+        const isInstant = /instant|now|right now|immediately|today/i.test(customerQuery);
+        
+        let startTime: Date;
+        if (isInstant || !reqAppt.dateStr) {
+          // Instant meeting starts now (or within 2 minutes)
+          startTime = new Date();
+        } else {
+          const apptDate = reqAppt.dateStr;
+          const apptTime = reqAppt.timeStr || "11:00 AM";
+          const startTimeStr = `${apptDate} ${apptTime}`;
+          startTime = isNaN(new Date(startTimeStr).getTime()) ? new Date() : new Date(startTimeStr);
+        }
+        const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
+
+        const customerName = reqAppt.customerName || conversation.customerName || customerPhone;
+
+        // Dynamic Title Generation matching user context
+        let dynamicTitle = reqAppt.title;
+        if (!dynamicTitle || dynamicTitle === "AI Consultation / Demo / Service Meeting" || dynamicTitle === "AI Strategy & Consultation Meeting") {
+          if (/seo|ranking|google search/i.test(customerQuery)) {
+            dynamicTitle = `SEO & Search Growth Consultation with ${customerName}`;
+          } else if (/web|website|portal|app|development|software/i.test(customerQuery)) {
+            dynamicTitle = `Web & App Development Strategy Session with ${customerName}`;
+          } else if (/ad|meta|facebook|instagram|ppc/i.test(customerQuery)) {
+            dynamicTitle = `Performance Ads & ROI Consultation with ${customerName}`;
+          } else if (/job|career|interview|resume|hiring/i.test(customerQuery)) {
+            dynamicTitle = `Careers & Candidate Interview Call with ${customerName}`;
+          } else if (isInstant) {
+            dynamicTitle = `Instant Strategy Call with ${customerName}`;
+          } else {
+            dynamicTitle = `Strategy & Growth Consultation with ${customerName}`;
+          }
+        }
+
+        const { AppointmentService } = require("./appointmentService");
+        const apptResult = await AppointmentService.createAppointment({
+          organizationId: orgId,
+          conversationId: conversation.id,
+          customerPhone,
+          customerName,
+          customerEmail: extractedEmail || null,
+          title: dynamicTitle,
+          description: `Booked via WhatsApp AI Agent. Topic: ${customerQuery}`,
+          startTime,
+          endTime,
+          timezone: "Asia/Kolkata",
+          skipWhatsAppNotification: true // AI agent sends the single combined natural reply below
+        });
+
+        const formattedDate = new Date(startTime).toLocaleDateString("en-IN", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          year: "numeric"
+        });
+        const formattedTime = `${new Date(startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+        // Clean out any broken LLM text remnants like "here's a link:" before appending real link
+        replyText = replyText
+          .replace(/here['’]?s\s+(a\s+)?(fresh\s+)?(google\s+meet\s+)?link:?/gi, "")
+          .replace(/sure,?\s*:?/gi, "")
+          .replace(/let me know if you need anything else\.?/gi, "")
+          .trim();
+
+        const prefix = replyText ? `${replyText}\n\n` : "I have scheduled your consultation right away!\n\n";
+
+        // Attach verified, genuine Google Meet link to the WhatsApp message
+        if (apptResult.meetUrl) {
+          replyText = `${prefix}🎥 *Join Google Meet:* ${apptResult.meetUrl}\n📅 *Time:* ${formattedDate} at ${formattedTime}\n\nLooking forward to speaking with you!`;
+        }
+
+        console.log(`[AI AGENT ENGINE] 🚀 Authentic Google Meet link generated & saved to Appointments for ${customerName} (${customerPhone}): ${apptResult.meetUrl}`);
+      } catch (apptErr: any) {
+        console.error("[AI AGENT ENGINE] Appointment scheduling error:", apptErr.message);
+      }
+    }
     
     // Support single ID or array of IDs
     let rawAttachIds: string[] = [];
@@ -311,15 +445,12 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     const isYouTube = conversation.platform === "youtube";
     const isLinkedIn = conversation.platform === "linkedin";
 
-    const customerPhone = conversation.customerPhone;
-    let waConfig = conversation.phoneNumberId
-      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversation.phoneNumberId)
-      : null;
-    if (!waConfig) {
-      waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
-    }
+    const conversationPhoneId = (conversation as any).phoneNumberId;
+    const waConfig = (conversationPhoneId 
+      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversationPhoneId)
+      : null) || conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
     const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
-    const ytConfig = conversation.organization.ytConfig;
+    const ytConfig = (conversation.organization as any).ytConfigs?.find((a: any) => a.isDefault) || (conversation.organization as any).ytConfigs?.[0];
     const linkedInConfig = conversation.organization.linkedInConfig;
 
     // Dispatch Text Message

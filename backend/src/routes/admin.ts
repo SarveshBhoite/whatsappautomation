@@ -1488,25 +1488,27 @@ router.post("/upload", async (req: Request, res: Response) => {
 router.get("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { accountId } = req.query;
+    const rawAccountId = (req.query.accountId as string) || (req.headers["x-account-id"] as string);
 
     let waConfig: any = null;
-    if (accountId) {
-      const isValid = await validateAccountOwnership(organizationId, "whatsapp", accountId as string);
+    if (rawAccountId) {
+      const isValid = await validateAccountOwnership(organizationId, "whatsapp", rawAccountId);
       if (isValid) {
-        waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: accountId as string } });
+        waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { id: rawAccountId } })
+          || await prisma.whatsAppConfig.findUnique({ where: { id: rawAccountId } });
       }
     }
 
     if (!waConfig || !waConfig.accessToken) {
-      waConfig = await prisma.whatsAppConfig.findFirst({
-        where: { organizationId, isActive: true },
-        orderBy: { isDefault: "desc" },
-      });
+      waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { organizationId, isDefault: true } })
+        || await prisma.whatsAppConfig.findFirst({
+          where: { organizationId, isActive: true },
+          orderBy: { isDefault: "desc" },
+        });
     }
 
     if (!waConfig || !waConfig.accessToken) {
-      waConfig = await prisma.whatsAppConfig.findFirst();
+      waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst() || await prisma.whatsAppConfig.findFirst();
     }
 
     if (!waConfig?.accessToken || !waConfig?.wabaId) {
@@ -1537,8 +1539,8 @@ router.get("/whatsapp/templates", async (req: Request, res: Response) => {
 router.post("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { accountId } = req.query;
-    const { name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl, sampleVariables, buttons } = req.body;
+    const { accountId: bodyAccountId, name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl, sampleVariables, buttons } = req.body;
+    const rawAccountId = (req.query.accountId as string) || bodyAccountId || (req.headers["x-account-id"] as string);
 
     if (!name || !bodyText) {
       return res.status(400).json({ error: "Template name and body text are required" });
@@ -1547,18 +1549,20 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
     const cleanName = name.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_");
 
     let waConfig: any = null;
-    if (accountId) {
-      const isValid = await validateAccountOwnership(organizationId, "whatsapp", accountId as string);
+    if (rawAccountId) {
+      const isValid = await validateAccountOwnership(organizationId, "whatsapp", rawAccountId);
       if (isValid) {
-        waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: accountId as string } });
+        waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { id: rawAccountId } })
+          || await prisma.whatsAppConfig.findUnique({ where: { id: rawAccountId } });
       }
     }
 
     if (!waConfig || !waConfig.accessToken) {
-      waConfig = await prisma.whatsAppConfig.findFirst({
-        where: { organizationId, isActive: true },
-        orderBy: { isDefault: "desc" },
-      });
+      waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { organizationId, isDefault: true } })
+        || await prisma.whatsAppConfig.findFirst({
+          where: { organizationId, isActive: true },
+          orderBy: { isDefault: "desc" },
+        });
     }
 
     if (!waConfig?.accessToken || !waConfig?.wabaId) {
@@ -1947,7 +1951,7 @@ router.get("/organizations", async (req: Request, res: Response) => {
       include: {
         users: { select: { id: true, email: true, name: true, role: true } },
         waConfigs: { select: { phoneNumberId: true, wabaId: true } },
-        gmbConfig: { select: { locationId: true, accountId: true } },
+        gmbConfigs: { select: { locationId: true, accountId: true } },
         gmailConfigs: { select: { emailAddress: true } },
         linkedInConfig: { select: { memberName: true, companyName: true } }
       },

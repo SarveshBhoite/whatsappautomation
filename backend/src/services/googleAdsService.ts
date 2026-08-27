@@ -14,7 +14,9 @@ export class GoogleAdsService {
   // CORE: Build Ads API headers (MCC-aware)
   // ─────────────────────────────────────────────────────────────────────────
   public static async getAdsHeaders(organizationId: string, customerId?: string) {
-    const config = await prisma.googleBusinessConfig.findUnique({
+    const config = await (prisma as any).googleBusinessConfig.findFirst({
+      where: { organizationId, isDefault: true }
+    }) || await (prisma as any).googleBusinessConfig.findFirst({
       where: { organizationId }
     });
 
@@ -64,7 +66,7 @@ export class GoogleAdsService {
 
   /** Build headers for manager-level calls (accessible-customers, sub-account listing) */
   public static async getManagerHeaders(organizationId: string) {
-    const config = await prisma.googleBusinessConfig.findUnique({ where: { organizationId } });
+    const config = await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId, isDefault: true } }) || await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId } });
     if (!config?.googleRefreshToken) throw new Error("Google account not connected.");
     const accessToken = await getGoogleAccessToken(this.CLIENT_ID, this.CLIENT_SECRET, config.googleRefreshToken);
     return {
@@ -112,7 +114,7 @@ export class GoogleAdsService {
    * Uses customer_client GAQL — the proper way to enumerate MCC children.
    */
   public static async listSubAccounts(organizationId: string, managerCustomerId: string) {
-    const config = await prisma.googleBusinessConfig.findUnique({ where: { organizationId } });
+    const config = await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId, isDefault: true } }) || await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId } });
     if (!config?.googleRefreshToken) throw new Error("Google account not connected.");
     const accessToken = await getGoogleAccessToken(this.CLIENT_ID, this.CLIENT_SECRET, config.googleRefreshToken);
 
@@ -230,7 +232,7 @@ export class GoogleAdsService {
   // ─────────────────────────────────────────────────────────────────────────
 
   public static async getCampaignPerformance(organizationId: string, customerId?: string) {
-    const config = await prisma.googleBusinessConfig.findUnique({ where: { organizationId } });
+    const config = await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId, isDefault: true } }) || await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId } });
     const cid = (customerId || config?.googleAdsCustomerId || "").replace(/-/g, "");
     if (!cid) throw new Error("No customer ID");
 

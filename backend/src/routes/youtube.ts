@@ -13,78 +13,130 @@ const getOrgId = (req: Request): string => {
 // GET: Fetch YouTube Config credentials
 router.get("/config", async (req: Request, res: Response) => {
   try {
-    const organizationId = getOrgId(req);
+    let organizationId = getOrgId(req);
+    if (!organizationId) {
+      const firstOrg = await prisma.organization.findFirst();
+      if (firstOrg) organizationId = firstOrg.id;
+    }
+    const requestedAccountId = req.query.accountId as string;
 
-    let config = organizationId
-      ? await prisma.youTubeConfig.findUnique({ where: { organizationId } })
-      : null;
-
-    if (!config) {
-      config = await prisma.youTubeConfig.findFirst({
-        orderBy: { updatedAt: "desc" },
+    let accounts: any[] = [];
+    if (organizationId) {
+      accounts = await (prisma as any).youTubeConfig.findMany({
+        where: { organizationId },
+        orderBy: { createdAt: "desc" }
       });
+    }
+
+    let config: any = null;
+    if (requestedAccountId) {
+      config = accounts.find((a: any) => a.id === requestedAccountId);
+    }
+    if (!config) {
+      config = accounts.find((a: any) => a.isDefault) || accounts[0] || null;
     }
 
     if (!config && organizationId) {
       const org = await prisma.organization.findUnique({ where: { id: organizationId } });
       if (org) {
-        config = await prisma.youTubeConfig.create({
+        config = await (prisma as any).youTubeConfig.create({
           data: {
             organizationId,
             channelId: "",
             channelTitle: "",
             accessToken: "",
             refreshToken: "",
+            isDefault: true,
+            isActive: true
           },
         });
+        accounts = [config];
       }
     }
 
-    // Auto-backfill missing channel title or channel ID if access token is available
-    if (config && config.accessToken && (!config.channelTitle || !config.channelId)) {
+    // Auto-backfill & auto-discover all owned (mine=true) and managed (managedByMe=true) channels
+    if (config && config.accessToken && organizationId) {
       try {
-        const channelRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&mine=true", {
-          headers: { Authorization: `Bearer ${config.accessToken}` }
-        });
-        const channels = channelRes.data.items || [];
-        let newTitle = config.channelTitle;
-        let newId = config.channelId;
-
-        if (channels.length > 0) {
-          newId = channels[0].id;
-          newTitle = channels[0].snippet?.title || "";
-        }
-        if (!newTitle || !newId) {
-          const userRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
+        let chItems: any[] = [];
+        try {
+          const mineRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&mine=true", {
             headers: { Authorization: `Bearer ${config.accessToken}` }
           });
-          if (userRes.data) {
-            if (!newTitle) newTitle = userRes.data.name || userRes.data.email || "YouTube Channel";
-            if (!newId) newId = "UC-" + (userRes.data.id || config.organizationId.slice(-8));
-          }
+          chItems = mineRes.data.items || [];
+        } catch (mineErr: any) {
+          console.warn("Could not fetch mine=true channels:", mineErr.message);
         }
-        if ((newTitle && newTitle !== config.channelTitle) || (newId && newId !== config.channelId)) {
-          config = await prisma.youTubeConfig.update({
-            where: { id: config.id },
-            data: {
-              ...(newTitle && { channelTitle: newTitle }),
-              ...(newId && { channelId: newId }),
-            }
+
+        try {
+          const managedRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&managedByMe=true", {
+            headers: { Authorization: `Bearer ${config.accessToken}` }
           });
+          const mItems = managedRes.data.items || [];
+          for (const mi of mItems) {
+            if (!chItems.some((c: any) => c.id === mi.id)) {
+              chItems.push(mi);
+            }
+          }
+        } catch (managedErr: any) {
+          console.warn("Could not fetch managedByMe=true channels:", managedErr.message);
+        }
+
+        for (const ch of chItems) {
+          const chId = ch.id;
+          const chTitle = ch.snippet?.title || "YouTube Channel";
+          const existingAcc = accounts.find((a: any) => a.channelId === chId);
+          if (!existingAcc && chId) {
+            const newRecord = await (prisma as any).youTubeConfig.create({
+              data: {
+                organizationId,
+                channelId: chId,
+                channelTitle: chTitle,
+                accessToken: config.accessToken,
+                refreshToken: config.refreshToken || "",
+                isDefault: false,
+                isActive: true
+              }
+            });
+            accounts.push(newRecord);
+          } else if (existingAcc && chTitle && existingAcc.channelTitle !== chTitle) {
+            await (prisma as any).youTubeConfig.update({
+              where: { id: existingAcc.id },
+              data: { channelTitle: chTitle }
+            });
+            existingAcc.channelTitle = chTitle;
+          }
         }
       } catch (err: any) {
         console.warn("Auto-backfill YouTube channel info failed:", err.message);
       }
     }
 
-    const accounts = organizationId 
-      ? await prisma.youTubeConfig.findMany({ where: { organizationId } })
-      : (config ? [config] : []);
-
     return res.status(200).json({ config: config || null, accounts });
   } catch (error: any) {
     console.error("Error fetching YouTube config:", error);
     return res.status(500).json({ error: "Failed to fetch YouTube config", details: error.message });
+  }
+});
+
+// GET: Fetch all YouTube accounts list
+router.get("/accounts", async (req: Request, res: Response) => {
+  try {
+    let organizationId = getOrgId(req);
+    if (!organizationId) {
+      const firstOrg = await prisma.organization.findFirst();
+      if (firstOrg) organizationId = firstOrg.id;
+    }
+
+    const accounts = organizationId
+      ? await (prisma as any).youTubeConfig.findMany({
+          where: { organizationId },
+          orderBy: { createdAt: "desc" }
+        })
+      : [];
+
+    return res.status(200).json({ success: true, accounts });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch YouTube accounts", details: error.message });
   }
 });
 
@@ -94,27 +146,62 @@ router.post("/config", async (req: Request, res: Response) => {
     const organizationId = getOrgId(req);
     const { channelId, channelTitle, accessToken, refreshToken } = req.body;
 
-    const config = await prisma.youTubeConfig.upsert({
-      where: { organizationId },
-      update: {
-        channelId,
-        channelTitle,
-        accessToken,
-        refreshToken,
-      },
-      create: {
-        organizationId,
-        channelId: channelId || "",
-        channelTitle: channelTitle || "",
-        accessToken: accessToken || "",
-        refreshToken: refreshToken || "",
-      },
-    });
+    let existing = await (prisma as any).youTubeConfig.findFirst({ where: { organizationId } });
+    let config: any = null;
+    if (existing) {
+      config = await (prisma as any).youTubeConfig.update({
+        where: { id: existing.id },
+        data: {
+          channelId,
+          channelTitle,
+          accessToken,
+          refreshToken,
+        }
+      });
+    } else {
+      config = await (prisma as any).youTubeConfig.create({
+        data: {
+          organizationId,
+          channelId: channelId || "",
+          channelTitle: channelTitle || "",
+          accessToken: accessToken || "",
+          refreshToken: refreshToken || "",
+          isDefault: true,
+          isActive: true
+        }
+      });
+    }
 
     return res.status(200).json({ message: "YouTube configuration updated successfully", data: config });
   } catch (error: any) {
     console.error("Error updating YouTube config:", error);
     return res.status(500).json({ error: "Failed to update YouTube config", details: error.message });
+  }
+});
+
+// POST: Set default active YouTube channel account
+router.post("/set-default", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
+
+    if (!accountId) return res.status(400).json({ error: "Missing accountId" });
+
+    // Reset all accounts in organization to isDefault: false
+    await (prisma as any).youTubeConfig.updateMany({
+      where: { organizationId },
+      data: { isDefault: false }
+    });
+
+    // Set target account as the single primary account
+    const account = await (prisma as any).youTubeConfig.update({
+      where: { id: accountId },
+      data: { isDefault: true }
+    });
+
+    return res.status(200).json({ success: true, account });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to set default YouTube account", details: error.message });
   }
 });
 
@@ -138,7 +225,7 @@ const handleOAuthConnect = (req: Request, res: Response) => {
     ].join(" ");
     
     const statePayload = JSON.stringify({ orgId, redirect: redirectPath });
-    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(statePayload)}`;
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=select_account%20consent&state=${encodeURIComponent(statePayload)}`;
     
     res.redirect(oauthUrl);
   } catch (error: any) {
@@ -186,20 +273,29 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
 
     const { refresh_token, access_token } = tokenRes.data;
 
-    // Fetch channel details to automatically capture channel ID and channelTitle
-    let channelId = "";
-    let channelTitle = "";
+    // Fetch channel details to automatically capture channel ID and channelTitle (both mine=true and managedByMe=true)
+    let fetchedChannels: any[] = [];
     try {
       const channelRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&mine=true", {
         headers: { Authorization: `Bearer ${access_token}` }
       });
-      const channels = channelRes.data.items || [];
-      if (channels.length > 0) {
-        channelId = channels[0].id;
-        channelTitle = channels[0].snippet?.title || "";
-      }
+      fetchedChannels = channelRes.data.items || [];
     } catch (channelErr: any) {
-      console.warn("Could not retrieve channel info automatically via OAuth token:", channelErr.message);
+      console.warn("Could not retrieve mine=true channel info:", channelErr.message);
+    }
+
+    try {
+      const managedRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&managedByMe=true", {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      const managedItems = managedRes.data.items || [];
+      for (const mItem of managedItems) {
+        if (!fetchedChannels.some((c: any) => c.id === mItem.id)) {
+          fetchedChannels.push(mItem);
+        }
+      }
+    } catch (managedErr: any) {
+      console.warn("Could not retrieve managedByMe=true channel info:", managedErr.message);
     }
 
     let validOrgId = orgId;
@@ -208,46 +304,87 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
       if (firstOrg) validOrgId = firstOrg.id;
     }
 
-    // Fallback: If channel snippet wasn't retrieved, fetch userinfo from Google profile
-    if ((!channelTitle || !channelId) && access_token) {
-      try {
-        const userRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
-          headers: { Authorization: `Bearer ${access_token}` }
-        });
-        if (userRes.data) {
-          if (!channelTitle) channelTitle = userRes.data.name || userRes.data.email || "YouTube Channel";
-          if (!channelId) channelId = "UC-" + (userRes.data.id || (validOrgId ? validOrgId.slice(-8) : "ACCOUNT"));
-        }
-      } catch (uErr: any) {
-        console.warn("Could not retrieve Google userinfo fallback:", uErr.message);
-      }
-    }
-    if (!channelTitle) channelTitle = "YouTube Connected Channel";
-    if (!channelId) channelId = "UC-CONNECTED-" + (validOrgId ? validOrgId.slice(-6) : "OK");
-
-    // Save tokens in database
     if (validOrgId) {
-      const existing = await prisma.youTubeConfig.findUnique({ where: { organizationId: validOrgId } });
-      if (existing) {
-        await prisma.youTubeConfig.update({
-          where: { id: existing.id },
-          data: {
-            accessToken: access_token,
-            ...(refresh_token && { refreshToken: refresh_token }),
-            channelId,
-            channelTitle,
-          },
-        });
+      if (fetchedChannels.length > 0) {
+        for (let i = 0; i < fetchedChannels.length; i++) {
+          const ch = fetchedChannels[i];
+          const chId = ch.id;
+          const chTitle = ch.snippet?.title || "YouTube Channel";
+
+          const existing = await (prisma as any).youTubeConfig.findFirst({
+            where: { organizationId: validOrgId, channelId: chId }
+          });
+
+          if (existing) {
+            await (prisma as any).youTubeConfig.update({
+              where: { id: existing.id },
+              data: {
+                accessToken: access_token,
+                ...(refresh_token && { refreshToken: refresh_token }),
+                channelTitle: chTitle,
+              }
+            });
+          } else {
+            const hasDefault = await (prisma as any).youTubeConfig.findFirst({
+              where: { organizationId: validOrgId, isDefault: true }
+            });
+            await (prisma as any).youTubeConfig.create({
+              data: {
+                organizationId: validOrgId,
+                accessToken: access_token,
+                refreshToken: refresh_token || "",
+                channelId: chId,
+                channelTitle: chTitle,
+                isDefault: !hasDefault && i === 0,
+                isActive: true
+              }
+            });
+          }
+        }
       } else {
-        await prisma.youTubeConfig.create({
-          data: {
-            organizationId: validOrgId,
-            accessToken: access_token,
-            refreshToken: refresh_token || "",
-            channelId,
-            channelTitle,
-          },
+        // Fallback: If channel snippet wasn't retrieved, fetch userinfo from Google profile
+        let channelTitle = "";
+        let channelId = "";
+        try {
+          const userRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
+            headers: { Authorization: `Bearer ${access_token}` }
+          });
+          if (userRes.data) {
+            channelTitle = userRes.data.name || userRes.data.email || "YouTube Channel";
+            channelId = "UC-" + (userRes.data.id || (validOrgId ? validOrgId.slice(-8) : "ACCOUNT"));
+          }
+        } catch (uErr: any) {
+          console.warn("Could not retrieve Google userinfo fallback:", uErr.message);
+        }
+        if (!channelTitle) channelTitle = "YouTube Connected Channel";
+        if (!channelId) channelId = "UC-CONNECTED-" + (validOrgId ? validOrgId.slice(-6) : "OK");
+
+        const existing = await (prisma as any).youTubeConfig.findFirst({
+          where: { organizationId: validOrgId, channelId }
         });
+        if (existing) {
+          await (prisma as any).youTubeConfig.update({
+            where: { id: existing.id },
+            data: {
+              accessToken: access_token,
+              ...(refresh_token && { refreshToken: refresh_token }),
+              channelTitle,
+            }
+          });
+        } else {
+          const count = await (prisma as any).youTubeConfig.count({ where: { organizationId: validOrgId } });
+          await (prisma as any).youTubeConfig.create({
+            data: {
+              organizationId: validOrgId,
+              accessToken: access_token,
+              refreshToken: refresh_token || "",
+              channelId,
+              channelTitle,
+              isDefault: count === 0,
+              isActive: true
+            }
+          });
+        }
       }
     }
 
@@ -281,11 +418,11 @@ function formatDateString(date: Date): string {
 // Helper to get active access token for YouTube config
 async function getYoutubeAccessToken(orgId: string, accountId?: string): Promise<{ accessToken: string; config: any }> {
   let config = accountId
-    ? await prisma.youTubeConfig.findFirst({ where: { id: accountId, organizationId: orgId } })
-    : await prisma.youTubeConfig.findUnique({ where: { organizationId: orgId } });
+    ? await (prisma as any).youTubeConfig.findFirst({ where: { id: accountId, organizationId: orgId } })
+    : await (prisma as any).youTubeConfig.findFirst({ where: { organizationId: orgId, isDefault: true } });
 
   if (!config) {
-    config = await prisma.youTubeConfig.findFirst({
+    config = await (prisma as any).youTubeConfig.findFirst({
       where: { organizationId: orgId },
       orderBy: { updatedAt: "desc" }
     });
@@ -333,9 +470,12 @@ router.get("/analytics", async (req: Request, res: Response) => {
 
     const channelId = config.channelId;
 
-    // Get summary report for last 30 days
-    const endDateStr = formatDateString(new Date());
-    const startDate = new Date();
+    // Get summary report for last 30 days (YouTube Analytics API requires a 2-day processing latency safety window)
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() - 2);
+    const endDateStr = formatDateString(endDate);
+
+    const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - 30);
     const startDateStr = formatDateString(startDate);
 
@@ -403,7 +543,7 @@ router.get("/analytics", async (req: Request, res: Response) => {
       }
     }
 
-    const topVideos = topVideosRaw.map((row: any) => {
+    let topVideos = topVideosRaw.map((row: any) => {
       const id = row[0];
       const meta = videoMetadataMap[id] || { title: `Video (${id})`, thumbnail: "" };
       const rawLikes = Number(row[2] || 0);
@@ -417,6 +557,38 @@ router.get("/analytics", async (req: Request, res: Response) => {
         estimatedMinutesWatched: Number(row[3] || 0)
       };
     });
+
+    // Fallback: If Analytics API returns 0 or few videos (e.g. videos with 0 views in last 30 days), fetch directly from playlistItems
+    if (topVideos.length < 5) {
+      try {
+        const uploadsPlaylistId = `UU${channelId.length > 2 ? channelId.substring(2) : channelId}`;
+        const playlistRes = await axios.get(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const fallbackIds = (playlistRes.data.items || []).map((it: any) => it.contentDetails?.videoId || it.snippet?.resourceId?.videoId).filter(Boolean);
+        const missingIds = fallbackIds.filter((id: string) => !topVideos.some((tv: any) => tv.id === id));
+        if (missingIds.length > 0) {
+          const vRes = await axios.get(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${missingIds.slice(0, 50).join(",")}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+          const fetchedItems = vRes.data.items || [];
+          fetchedItems.forEach((item: any) => {
+            const rawL = Number(item.statistics?.likeCount ?? 0);
+            topVideos.push({
+              id: item.id,
+              title: item.snippet?.title || "Video",
+              thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || "",
+              views: Number(item.statistics?.viewCount || 0),
+              likes: rawL < 0 ? 0 : rawL,
+              likesHidden: rawL < 0,
+              estimatedMinutesWatched: 0
+            });
+          });
+        }
+      } catch (fbErr: any) {
+        console.warn("Fallback top videos fetch failed:", fbErr.message);
+      }
+    }
 
     res.status(200).json({
       summary: summaryRes.data,
@@ -458,9 +630,11 @@ router.get("/analytics/comparative", async (req: Request, res: Response) => {
     const isLifetime = daysParam === "0" || daysParam === "lifetime";
     const days = isLifetime ? 3650 : parseInt(daysParam, 10);
 
-    // Current period dates
+    // Current period dates (subtract 2 days for YouTube Analytics API latency compliance)
     const currentEnd = new Date();
-    const currentStart = new Date();
+    currentEnd.setDate(currentEnd.getDate() - 2);
+
+    const currentStart = new Date(currentEnd);
     if (isLifetime) {
       currentStart.setFullYear(2005, 0, 1);
     } else {
@@ -594,102 +768,102 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
       console.warn("Notice fetching channel uploads playlist ID:", e.message);
     }
 
-    // 2. Fetch video IDs from channel uploads playlist
+    // 2. Fetch video IDs from channel uploads playlist with pagination
     let rawVideoIds: string[] = [];
+    let pageToken = "";
     try {
-      const playlistRes = await axios.get(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      rawVideoIds = (playlistRes.data.items || [])
-        .map((it: any) => it.contentDetails?.videoId || it.snippet?.resourceId?.videoId)
-        .filter(Boolean);
+      do {
+        const playlistRes: any = await axios.get(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const items = playlistRes.data.items || [];
+        const ids = items.map((it: any) => it.contentDetails?.videoId || it.snippet?.resourceId?.videoId).filter(Boolean);
+        rawVideoIds.push(...ids);
+        pageToken = playlistRes.data.nextPageToken || "";
+      } while (pageToken && rawVideoIds.length < 250);
     } catch (e: any) {
       console.warn("Notice fetching playlistItems from uploads playlist:", e.message);
     }
 
-    // Fallback to Search API if playlistItems returns 0 items
-    if (rawVideoIds.length === 0) {
-      try {
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=50&order=date&type=video`;
-        const searchRes = await axios.get(searchUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        rawVideoIds = (searchRes.data.items || []).map((it: any) => it.id?.videoId).filter(Boolean);
-      } catch (e: any) {
-        console.warn("Notice fetching search videos:", e.message);
+    // Supplementary search query to ensure all videos are captured
+    try {
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=50&order=date&type=video`;
+      const searchRes = await axios.get(searchUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const searchIds = (searchRes.data.items || []).map((it: any) => it.id?.videoId).filter(Boolean);
+      for (const sId of searchIds) {
+        if (!rawVideoIds.includes(sId)) {
+          rawVideoIds.push(sId);
+        }
       }
+    } catch (e: any) {
+      console.warn("Notice fetching search videos:", e.message);
     }
 
-    const videoIdsStr = Array.from(new Set(rawVideoIds)).join(",");
-
-    if (!videoIdsStr) {
+    const uniqueIds = Array.from(new Set(rawVideoIds));
+    if (uniqueIds.length === 0) {
       return res.status(200).json({ videos: [], shorts: [], summary: { videoCount: 0, shortCount: 0, videoViews: 0, shortViews: 0 } });
     }
 
-    // 3. Fetch full metadata & statistics for these videos
-    const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${videoIdsStr}`;
-    const videosRes = await axios.get(videosUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const videoItems = videosRes.data.items || [];
-
-    const checkIfShort = async (videoId: string): Promise<boolean> => {
+    // 3. Fetch full metadata & statistics in 50-item batches to avoid YouTube API truncation limits
+    const videoItems: any[] = [];
+    for (let i = 0; i < uniqueIds.length; i += 50) {
+      const chunkStr = uniqueIds.slice(i, i + 50).join(",");
       try {
-        const response = await axios.head(`https://www.youtube.com/shorts/${videoId}`, {
-          maxRedirects: 0,
-          validateStatus: (status) => status >= 200 && status < 400
+        const videosRes = await axios.get(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${chunkStr}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
         });
-        return response.status === 200;
-      } catch (err) {
-        return false;
+        videoItems.push(...(videosRes.data.items || []));
+      } catch (err: any) {
+        console.warn("Batch video details fetch warning:", err.message);
       }
-    };
+    }
 
     const videosList: any[] = [];
     const shortsList: any[] = [];
 
-    await Promise.all(
-      videoItems.map(async (item: any) => {
-        const durationSec = parseIsoDuration(item.contentDetails?.duration);
-        const title = item.snippet?.title || "Untitled";
-        const titleLower = title.toLowerCase();
-        const descLower = (item.snippet?.description || "").toLowerCase();
+    videoItems.forEach((item: any) => {
+      const durationSec = parseIsoDuration(item.contentDetails?.duration);
+      const title = item.snippet?.title || "Untitled";
+      const titleLower = title.toLowerCase();
+      const descLower = (item.snippet?.description || "").toLowerCase();
 
-        let isShort = false;
-        if (titleLower.includes("#shorts") || descLower.includes("#shorts")) {
-          isShort = true;
-        } else {
-          isShort = await checkIfShort(item.id);
-        }
-        const rawLikes = Number(item.statistics?.likeCount ?? 0);
-        const likes = rawLikes < 0 ? 0 : rawLikes;
-        const views = Number(item.statistics?.viewCount || 0);
-        const comments = Number(item.statistics?.commentCount || 0);
+      let isShort = false;
+      if (durationSec > 0 && durationSec <= 60) {
+        isShort = true;
+      } else if (titleLower.includes("#shorts") || descLower.includes("#shorts")) {
+        isShort = true;
+      }
 
-        const videoData = {
-          id: item.id,
-          title,
-          description: item.snippet?.description || "",
-          thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || "",
-          publishedAt: item.snippet?.publishedAt,
-          durationSec,
-          isShort,
-          views,
-          likes,
-          likesHidden: rawLikes < 0,
-          comments,
-          engagementRate: views > 0 
-            ? parseFloat((((likes + comments) / views) * 100).toFixed(2))
-            : 0
-        };
+      const rawLikes = Number(item.statistics?.likeCount ?? 0);
+      const likes = rawLikes < 0 ? 0 : rawLikes;
+      const views = Number(item.statistics?.viewCount || 0);
+      const comments = Number(item.statistics?.commentCount || 0);
 
-        if (isShort) {
-          shortsList.push(videoData);
-        } else {
-          videosList.push(videoData);
-        }
-      })
-    );
+      const videoData = {
+        id: item.id,
+        title,
+        description: item.snippet?.description || "",
+        thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || "",
+        publishedAt: item.snippet?.publishedAt,
+        durationSec,
+        isShort,
+        views,
+        likes,
+        likesHidden: rawLikes < 0,
+        comments,
+        engagementRate: views > 0 
+          ? parseFloat((((likes + comments) / views) * 100).toFixed(2))
+          : 0
+      };
+
+      if (isShort) {
+        shortsList.push(videoData);
+      } else {
+        videosList.push(videoData);
+      }
+    });
 
     const videoViews = videosList.reduce((acc, curr) => acc + curr.views, 0);
     const shortViews = shortsList.reduce((acc, curr) => acc + curr.views, 0);
@@ -728,8 +902,11 @@ router.get("/analytics/demographics", async (req: Request, res: Response) => {
     }
 
     const channelId = config.channelId;
-    const endDateStr = formatDateString(new Date());
-    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() - 2);
+    const endDateStr = formatDateString(endDate);
+
+    const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - 30);
     const startDateStr = formatDateString(startDate);
 

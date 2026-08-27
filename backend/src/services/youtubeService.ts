@@ -73,11 +73,10 @@ export class YouTubeService {
     return response.data.items || [];
   }
 
-  // Refresh access token using GMB's function logic to stay unified
-  public static async refreshAccessToken(organizationId: string): Promise<string> {
-    const config = await prisma.youTubeConfig.findUnique({
-      where: { organizationId }
-    });
+  public static async refreshAccessToken(organizationId: string, accountId?: string): Promise<string> {
+    const config = accountId
+      ? await (prisma as any).youTubeConfig.findFirst({ where: { id: accountId, organizationId } })
+      : await (prisma as any).youTubeConfig.findFirst({ where: { organizationId, isDefault: true } });
 
     if (!config || !config.refreshToken) {
       throw new Error("YouTube configuration or refresh token not found");
@@ -101,8 +100,8 @@ export class YouTubeService {
       const newAccessToken = response.data.access_token;
       
       // Update in DB
-      await prisma.youTubeConfig.update({
-        where: { organizationId },
+      await (prisma as any).youTubeConfig.update({
+        where: { id: config.id },
         data: { accessToken: newAccessToken }
       });
 
@@ -117,8 +116,8 @@ export class YouTubeService {
   public static async syncComments(organizationId: string, io: any) {
     console.log(`[YOUTUBE SYNC] Starting comment sync for organization ${organizationId}...`);
     try {
-      const config = await prisma.youTubeConfig.findUnique({
-        where: { organizationId }
+      const config = await (prisma as any).youTubeConfig.findFirst({
+        where: { organizationId, isDefault: true }
       });
 
       if (!config || !config.channelId) {

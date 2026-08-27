@@ -105,6 +105,14 @@ const AccountProviderContent: React.FC<{ children: ReactNode }> = ({ children })
       const updated = { ...prev, [platform]: accountId };
       if (typeof window !== "undefined") {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        // Clear old session cache keys for real-time update
+        try {
+          sessionStorage.removeItem(`session_${platform}_cache`);
+          sessionStorage.removeItem(`session_${platform}_active_id`);
+          sessionStorage.setItem(`session_${platform}_active_id`, accountId);
+        } catch (e) {
+          console.warn("Could not access sessionStorage:", e);
+        }
       }
       return updated;
     });
@@ -124,12 +132,14 @@ const AccountProviderContent: React.FC<{ children: ReactNode }> = ({ children })
       }));
     }
 
-    // Update URL query param if on the corresponding platform page
+    // Update URL query param & dispatch real-time account-changed event
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       params.set("accountId", accountId);
       const newUrl = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState({}, "", newUrl);
+
+      window.dispatchEvent(new CustomEvent("account-changed", { detail: { platform, accountId } }));
     }
   }, []);
 

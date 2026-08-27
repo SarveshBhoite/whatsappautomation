@@ -31,7 +31,8 @@ import {
   RefreshCw,
   Store,
   Menu,
-  X
+  X,
+  Calendar
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -51,6 +52,7 @@ import "reactflow/dist/style.css";
 import WhatsAppBulkBroadcastPage from "./bulk/page";
 import WhatsAppTemplatesPage from "./templates/page";
 import WhatsAppDripCampaignsModule from "./drip/WhatsAppDripCampaignsModule";
+import AppointmentsPage from "../appointments/page";
 import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
@@ -338,7 +340,7 @@ export default function Dashboard() {
     []
   );
 
-  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "drip_campaigns" | "meta_templates" | "flows">("chats_whatsapp");
+  const [activeTab, setActiveTab] = useState<"chats_whatsapp" | "chats_instagram" | "bulk_broadcast" | "drip_campaigns" | "meta_templates" | "appointments" | "flows">("chats_whatsapp");
   // Mobile: track whether user has opened a conversation (to show chat view vs list on small screens)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
@@ -346,7 +348,7 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (["chats_whatsapp", "chats_instagram", "bulk_broadcast", "drip_campaigns", "meta_templates", "flows"].includes(tab || "")) {
+      if (["chats_whatsapp", "chats_instagram", "bulk_broadcast", "drip_campaigns", "meta_templates", "appointments", "flows"].includes(tab || "")) {
         setActiveTab(tab as any);
       }
     }
@@ -746,8 +748,16 @@ export default function Dashboard() {
     fetchWaAccounts();
     fetchActiveFlow("whatsapp");
 
+    const handleAccountChange = (e: any) => {
+      if (e.detail?.platform === "whatsapp" && e.detail?.accountId) {
+        handleSwitchWaAccount(e.detail.accountId);
+      }
+    };
+    window.addEventListener("account-changed", handleAccountChange);
+
     return () => {
       socket.disconnect();
+      window.removeEventListener("account-changed", handleAccountChange);
     };
   }, []);
 
@@ -1052,6 +1062,7 @@ export default function Dashboard() {
               { id: "bulk_broadcast", label: "Bulk Broadcast", icon: Send, color: "text-teal-600", activeBg: "bg-teal-50 text-teal-800 border-teal-200" },
               { id: "drip_campaigns", label: "Drip Campaigns", icon: GitMerge, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
               { id: "meta_templates", label: "Meta Templates", icon: FileText, color: "text-purple-600", activeBg: "bg-purple-50 text-purple-800 border-purple-200" },
+              { id: "appointments", label: "Appointments", icon: Calendar, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200" },
             ].map((item) => {
               const Icon = item.icon;
               const isSelected = activeTab === item.id;
@@ -1181,6 +1192,17 @@ export default function Dashboard() {
             }`}
           >
             <FileText className="h-3.5 w-3.5" /> Meta Templates
+          </button>
+
+          <button
+            onClick={() => setActiveTab("appointments")}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "appointments"
+                ? "bg-white text-blue-800 border border-slate-200 shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
+          >
+            <Calendar className="h-3.5 w-3.5" /> Appointments
           </button>
         </div>
       </header>
@@ -1831,21 +1853,28 @@ export default function Dashboard() {
         {/* TAB 2: BULK BROADCAST CAMPAIGN */}
         {activeTab === "bulk_broadcast" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <WhatsAppBulkBroadcastPage />
+            <WhatsAppBulkBroadcastPage selectedAccountId={selectedWaAccountId} />
           </div>
         )}
 
         {/* TAB: WHATSAPP DRIP CAMPAIGN AUTOMATION MODULE */}
         {activeTab === "drip_campaigns" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <WhatsAppDripCampaignsModule />
+            <WhatsAppDripCampaignsModule selectedAccountId={selectedWaAccountId} />
           </div>
         )}
 
         {/* TAB 3: META TEMPLATES MANAGER */}
         {activeTab === "meta_templates" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <WhatsAppTemplatesPage />
+            <WhatsAppTemplatesPage selectedAccountId={selectedWaAccountId} />
+          </div>
+        )}
+
+        {/* TAB: APPOINTMENTS & GOOGLE MEET HUB */}
+        {activeTab === "appointments" && (
+          <div className="flex-1 flex flex-col h-full overflow-y-auto">
+            <AppointmentsPage />
           </div>
         )}
 

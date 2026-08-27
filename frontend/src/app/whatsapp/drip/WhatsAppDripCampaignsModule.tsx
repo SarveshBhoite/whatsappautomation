@@ -48,7 +48,7 @@ const getOrgId = (): string => {
   return "";
 };
 
-export default function WhatsAppDripCampaignsModule() {
+export default function WhatsAppDripCampaignsModule({ selectedAccountId }: { selectedAccountId?: string }) {
   const [activeSubView, setActiveSubView] = useState<"dashboard" | "create" | "details" | "ai-create">("dashboard");
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any>({});

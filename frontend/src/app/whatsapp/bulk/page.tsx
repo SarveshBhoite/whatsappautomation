@@ -35,14 +35,14 @@ const getOrgId = (): string => {
   return "";
 };
 
-export default function WhatsAppBulkBroadcastPage() {
+export default function WhatsAppBulkBroadcastPage({ selectedAccountId }: { selectedAccountId?: string }) {
   const [phoneNumbersText, setPhoneNumbersText] = useState<string>("");
   const [sendType, setSendType] = useState<"template" | "custom">("template");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("jisnu_official_welcome");
   const [fetchedTemplates, setFetchedTemplates] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
+    fetch(`${BACKEND_URL}/api/admin/whatsapp/templates?accountId=${selectedAccountId || ""}`, {
       headers: { "x-organization-id": getOrgId() }
     })
       .then((r) => r.json())
@@ -54,7 +54,7 @@ export default function WhatsAppBulkBroadcastPage() {
         }
       })
       .catch((err) => console.error("Could not fetch WABA templates:", err));
-  }, []);
+  }, [selectedAccountId]);
 
   const [messageText, setMessageText] = useState<string>(
     "Hello! 🚀 Welcome to JISNU Digital Solutions. Check out our latest services, offers, and digital marketing brochures today!"

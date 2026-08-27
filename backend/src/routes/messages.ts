@@ -33,7 +33,7 @@ router.post("/send", async (req: Request, res: Response) => {
           include: {
             waConfigs: true,
             igConfigs: true,
-            ytConfig: true,
+            ytConfigs: true,
           },
         },
       },

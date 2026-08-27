@@ -47,7 +47,7 @@ interface MetaTemplate {
   }>;
 }
 
-export default function WhatsAppTemplatesPage() {
+export default function WhatsAppTemplatesPage({ selectedAccountId }: { selectedAccountId?: string }) {
   const [templates, setTemplates] = useState<MetaTemplate[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);

@@ -44,11 +44,12 @@ router.post("/setup-manager", async (req, res) => {
     if (!managerId) return res.status(400).json({ error: "managerCustomerId is required" });
 
     // 1. Save manager ID to config (used as login-customer-id for all API calls)
-    await prisma.googleBusinessConfig.upsert({
-      where: { organizationId: orgId },
-      update: { googleAdsCustomerId: managerId },
-      create: { organizationId: orgId, googleAdsCustomerId: managerId, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4 }
-    });
+    const existingAdsConfig = await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId: orgId } });
+    if (existingAdsConfig) {
+      await (prisma as any).googleBusinessConfig.update({ where: { id: existingAdsConfig.id }, data: { googleAdsCustomerId: managerId } });
+    } else {
+      await (prisma as any).googleBusinessConfig.create({ data: { organizationId: orgId, googleAdsCustomerId: managerId, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4, isDefault: true } });
+    }
 
     // 2. Save manager account record
     await prisma.googleAdAccount.upsert({
@@ -128,11 +129,12 @@ router.post("/connect-customer", async (req, res) => {
 
     // If saving a manager account, also update the config
     if (isManager) {
-      await prisma.googleBusinessConfig.upsert({
-        where: { organizationId: orgId },
-        update: { googleAdsCustomerId: cidClean },
-        create: { organizationId: orgId, googleAdsCustomerId: cidClean, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4 }
-      });
+      const existingAdsConfig = await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId: orgId } });
+      if (existingAdsConfig) {
+        await (prisma as any).googleBusinessConfig.update({ where: { id: existingAdsConfig.id }, data: { googleAdsCustomerId: cidClean } });
+      } else {
+        await (prisma as any).googleBusinessConfig.create({ data: { organizationId: orgId, googleAdsCustomerId: cidClean, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4, isDefault: true } });
+      }
     }
 
     const saved = await prisma.googleAdAccount.upsert({
@@ -159,11 +161,12 @@ router.post("/select-account", async (req, res) => {
     if (!customerId) return res.status(400).json({ error: "customerId is required" });
     const cidClean = customerId.replace(/-/g, "");
 
-    await prisma.googleBusinessConfig.upsert({
-      where: { organizationId: orgId },
-      update: { googleAdsCustomerId: cidClean },
-      create: { organizationId: orgId, googleAdsCustomerId: cidClean, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4 }
-    });
+    const existingAdsConfig = await (prisma as any).googleBusinessConfig.findFirst({ where: { organizationId: orgId } });
+    if (existingAdsConfig) {
+      await (prisma as any).googleBusinessConfig.update({ where: { id: existingAdsConfig.id }, data: { googleAdsCustomerId: cidClean } });
+    } else {
+      await (prisma as any).googleBusinessConfig.create({ data: { organizationId: orgId, googleAdsCustomerId: cidClean, locationName: "", autoReplyEnabled: false, autoReplyMinRating: 4, isDefault: true } });
+    }
 
     res.status(200).json({ message: "Active account updated successfully", customerId: cidClean });
   } catch (error: any) {
