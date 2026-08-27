@@ -1667,10 +1667,14 @@ export default function Dashboard() {
                                       {formatMessageTime(msg.createdAt)}
                                     </span>
                                     {!isInbound && (
-                                      <span>
-                                        {msg.status === "sent" && <Check className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                        {msg.status === "delivered" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-pink-200" : "text-slate-700"}`} />}
-                                        {msg.status === "read" && <CheckCheck className={`h-3 w-3 ${activeConv?.platform === "instagram" ? "text-white" : "text-emerald-950"}`} />}
+                                      <span className="flex items-center ml-0.5" title={`Status: ${msg.status || 'sent'}`}>
+                                        {msg.status === "read" ? (
+                                          <CheckCheck className="h-3.5 w-3.5 text-[#53bdeb] stroke-[2.5]" />
+                                        ) : msg.status === "delivered" ? (
+                                          <CheckCheck className="h-3.5 w-3.5 text-slate-400 stroke-[2]" />
+                                        ) : (
+                                          <Check className="h-3.5 w-3.5 text-slate-400 stroke-[2]" />
+                                        )}
                                       </span>
                                     )}
                                   </div>

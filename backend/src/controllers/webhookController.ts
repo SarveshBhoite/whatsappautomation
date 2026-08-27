@@ -345,8 +345,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         console.log(`Updated status of message ${waMessageId} to "${status}". DB Count: ${updatedMessage.count}`);
 
-        // If message was sent by external software/dashboard (DB Count === 0), auto-create the message in CRM chat history!
-        if (updatedMessage.count === 0 && recipient_id) {
+        // If message was sent by external software/dashboard (DB Count === 0), auto-create the message in CRM chat history ONLY if statusObj has template metadata or status is "sent"
+        if (updatedMessage.count === 0 && recipient_id && statusObj.status === "sent") {
           try {
             const formattedCustomerPhone = recipient_id.replace(/\D/g, "");
             let conversation = await prisma.conversation.findFirst({
@@ -371,7 +371,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
               });
             }
 
-            // Attempt to fetch full template text (Header, Body, Footer) from Meta WABA API
+            // Attempt to fetch full template text (Header, Body, Footer) from Meta WABA API ONLY if template name is matched
             let templateBodyText = "";
             const categoryName = statusObj.pricing?.category ? ` (${statusObj.pricing.category.toUpperCase()})` : "";
             
@@ -384,10 +384,11 @@ export const handleWebhook = async (req: Request, res: Response) => {
                   const tplData = await metaTplRes.json();
                   const templatesList: any[] = tplData.data || [];
                   
-                  // Match template by pricing category or pick the latest approved template
-                  const matchedTpl = templatesList.find((t: any) =>
-                    statusObj.pricing?.category ? t.category?.toLowerCase() === statusObj.pricing.category.toLowerCase() : true
-                  ) || templatesList[0];
+                  // Match template by name if provided in status metadata, or find exact match
+                  const templateNameInStatus = statusObj.template?.name || statusObj.message?.template?.name;
+                  const matchedTpl = templateNameInStatus
+                    ? templatesList.find((t: any) => t.name === templateNameInStatus)
+                    : null;
 
                   if (matchedTpl && matchedTpl.components) {
                     const headerComp = matchedTpl.components.find((c: any) => c.type === "HEADER");
@@ -406,32 +407,27 @@ export const handleWebhook = async (req: Request, res: Response) => {
               }
             }
 
-            const finalContent = templateBodyText || `📋 Outbound WhatsApp Template Message${categoryName}`;
-
-            // Prevent race condition duplicate insertion if multiple webhooks arrive simultaneously
-            const existingMsg = await prisma.message.findFirst({ where: { waMessageId } });
             let autoMsg: any = null;
+            // Only create message if we actually resolved template content or explicitly sent status
+            if (templateBodyText) {
+              const finalContent = templateBodyText;
 
-            if (!existingMsg) {
-              autoMsg = await prisma.message.create({
-                data: {
-                  conversationId: conversation.id,
-                  direction: "outbound",
-                  messageType: "template",
-                  content: finalContent,
-                  waMessageId: waMessageId,
-                  status: status
-                }
-              });
-            } else {
-              autoMsg = await prisma.message.update({
-                where: { id: existingMsg.id },
-                data: {
-                  status,
-                  // Update content with full template body text if it was previously default placeholder
-                  content: existingMsg.content.includes("📋 Outbound") && templateBodyText ? templateBodyText : existingMsg.content
-                }
-              });
+              // Prevent race condition duplicate insertion if multiple webhooks arrive simultaneously
+              const existingMsg = await prisma.message.findFirst({ where: { waMessageId } });
+              autoMsg = existingMsg;
+              if (!existingMsg) {
+                autoMsg = await prisma.message.create({
+                  data: {
+                    conversationId: conversation.id,
+                    direction: "outbound",
+                    messageType: "template",
+                    content: finalContent,
+                    waMessageId: waMessageId,
+                    status: status
+                  }
+                });
+                console.log(`✅ Auto-synced external template message ${waMessageId} into CRM conversation ${conversation.id}`);
+              }
             }
 
             // Touch conversation timestamp and store latest snippet
