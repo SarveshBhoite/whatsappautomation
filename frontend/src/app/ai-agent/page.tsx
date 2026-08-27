@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAccount } from "@/context/AccountContext";
+import { AccountSwitcher } from "@/components/AccountSwitcher";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -52,6 +54,12 @@ interface AiAgentConfig {
   youtubeAiEnabled?: boolean;
   linkedinAiEnabled?: boolean;
   autoSendMedia: boolean;
+  linkedWhatsAppAccount?: {
+    id: string;
+    phoneNumber?: string;
+    accountName?: string;
+    wabaId?: string;
+  } | null;
 }
 
 interface KnowledgeItem {
@@ -84,14 +92,14 @@ export default function AiAgentPage() {
 
   // Config State
   const [config, setConfig] = useState<AiAgentConfig>({
-    agentName: "Jisnu AI Representative",
-    personalityPrompt: "You are a warm, polite, and highly knowledgeable representative. Listen carefully and address the user's questions directly and accurately. Maintain a natural, helpful, and courteous conversational tone. Provide genuine assistance, answer all inquiries clearly, and only suggest next steps or consultations when naturally relevant to what the user is asking.",
-    greetingMessage: "Hello! Welcome to Jisnu Digital Solutions. How can I assist you today?",
+    agentName: "",
+    personalityPrompt: "",
+    greetingMessage: "",
     activeMode: "AI_AGENT",
     isActive: true,
     groqApiKey: "",
     whatsappAiEnabled: true,
-    instagramAiEnabled: true,
+    instagramAiEnabled: false,
     youtubeAiEnabled: false,
     linkedinAiEnabled: false,
     autoSendMedia: true
@@ -134,23 +142,140 @@ export default function AiAgentPage() {
   const [editingRemarks, setEditingRemarks] = useState<{ [leadId: string]: string }>({});
   const [savingRemarkId, setSavingRemarkId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchConfig();
-    fetchKnowledge();
-    fetchLeads();
-  }, []);
+  // Account Context & Multi-WhatsApp Number Isolation
+  const { activeAccounts, setActiveAccount } = useAccount();
+  const [waAccounts, setWaAccounts] = useState<any[]>([]);
+  const [selectedWaAccountId, setSelectedWaAccountId] = useState<string>("");
 
-  const fetchConfig = async () => {
+  const fetchWaAccounts = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
+      const res = await fetch(`${BACKEND_URL}/api/whatsapp-embedded/accounts`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.config) {
-          setConfig(data.config);
-        } else if (data && typeof data === "object" && data.agentName) {
-          setConfig(data);
+        if (data.accounts && data.accounts.length > 0) {
+          setWaAccounts(data.accounts);
+          
+          let savedContextId = activeAccounts?.whatsapp;
+          if (!savedContextId && typeof window !== "undefined") {
+            try {
+              const saved = localStorage.getItem("jisnu_active_accounts_v1");
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed?.whatsapp) savedContextId = parsed.whatsapp;
+              }
+            } catch {}
+          }
+
+          const urlParamId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("accountId") : null;
+          const matchedAcc = data.accounts.find((a: any) => a.id === urlParamId) ||
+                             data.accounts.find((a: any) => a.id === savedContextId) ||
+                             data.accounts.find((a: any) => a.id === selectedWaAccountId) ||
+                             data.accounts.find((a: any) => a.isDefault) ||
+                             data.accounts[0];
+
+          if (matchedAcc) {
+            setSelectedWaAccountId(matchedAcc.id);
+            if (activeAccounts?.whatsapp !== matchedAcc.id) {
+              setActiveAccount("whatsapp", matchedAcc.id, {
+                name: matchedAcc.phoneNumber || matchedAcc.accountName || "WhatsApp",
+                identifier: matchedAcc.phoneNumberId,
+                isDefault: matchedAcc.isDefault
+              });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch WhatsApp accounts in AI Agent Studio:", err);
+    }
+  };
+
+  // Sync context changes automatically from existing WhatsApp selector
+  useEffect(() => {
+    if (activeAccounts?.whatsapp && activeAccounts.whatsapp !== selectedWaAccountId) {
+      setSelectedWaAccountId(activeAccounts.whatsapp);
+      // Reset playground chat memory and transient forms when switching WhatsApp number
+      setSandboxMessages([]);
+      resetForm();
+    }
+  }, [activeAccounts?.whatsapp]);
+
+  useEffect(() => {
+    const handleAccountChange = (e: any) => {
+      if (e.detail?.platform === "whatsapp" && e.detail?.accountId) {
+        setSelectedWaAccountId(e.detail.accountId);
+        setSandboxMessages([]);
+        resetForm();
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("account-changed", handleAccountChange);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("account-changed", handleAccountChange);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    fetchWaAccounts();
+  }, []);
+
+  useEffect(() => {
+    if (selectedWaAccountId) {
+      fetchConfig();
+      fetchKnowledge();
+      fetchLeads();
+    }
+  }, [selectedWaAccountId]);
+
+  const fetchConfig = async () => {
+    setLoadingConfig(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedWaAccountId) params.append("whatsappConfigId", selectedWaAccountId);
+
+      const res = await fetch(`${BACKEND_URL}/api/ai-agent/config?${params.toString()}`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const cfg = data.config !== undefined ? data.config : (data && data.agentName !== undefined ? data : null);
+        if (cfg) {
+          setConfig({
+            id: cfg.id,
+            agentName: cfg.agentName || "",
+            personalityPrompt: cfg.personalityPrompt || "",
+            greetingMessage: cfg.greetingMessage || "",
+            activeMode: cfg.activeMode || "AI_AGENT",
+            isActive: Boolean(cfg.isActive),
+            groqApiKey: cfg.groqApiKey || "",
+            whatsappAiEnabled: Boolean(cfg.whatsappAiEnabled),
+            instagramAiEnabled: Boolean(cfg.instagramAiEnabled),
+            youtubeAiEnabled: Boolean(cfg.youtubeAiEnabled),
+            linkedinAiEnabled: Boolean(cfg.linkedinAiEnabled),
+            autoSendMedia: cfg.autoSendMedia !== false,
+            linkedWhatsAppAccount: data.linkedWhatsAppAccount || null
+          });
+        } else {
+          setConfig({
+            id: undefined,
+            agentName: "",
+            personalityPrompt: "",
+            greetingMessage: "",
+            activeMode: "AI_AGENT",
+            isActive: false,
+            groqApiKey: "",
+            whatsappAiEnabled: false,
+            instagramAiEnabled: false,
+            youtubeAiEnabled: false,
+            linkedinAiEnabled: false,
+            autoSendMedia: false,
+            linkedWhatsAppAccount: data.linkedWhatsAppAccount || null
+          });
         }
       }
     } catch (err) {
@@ -163,7 +288,10 @@ export default function AiAgentPage() {
   const fetchKnowledge = async () => {
     setLoadingKnowledge(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/ai-agent/knowledge`, {
+      const params = new URLSearchParams();
+      if (selectedWaAccountId) params.append("whatsappConfigId", selectedWaAccountId);
+
+      const res = await fetch(`${BACKEND_URL}/api/ai-agent/knowledge?${params.toString()}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -178,6 +306,25 @@ export default function AiAgentPage() {
       console.error("Failed to fetch knowledge items:", err);
     } finally {
       setLoadingKnowledge(false);
+    }
+  };
+
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchConfig(),
+        fetchKnowledge(),
+        fetchLeads(),
+        fetchWaAccounts()
+      ]);
+    } catch (err) {
+      console.warn("Manual refresh encountered an error:", err);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -204,7 +351,12 @@ export default function AiAgentPage() {
 
   const handleSaveConfig = async (overrideParams?: Partial<AiAgentConfig>) => {
     setSavingConfig(true);
-    const updated = { ...config, ...(overrideParams || {}) };
+    const targetAccountId = selectedWaAccountId;
+    const updated = { 
+      ...config, 
+      ...(overrideParams || {}),
+      whatsappConfigId: targetAccountId || undefined
+    };
     setConfig(updated);
 
     try {
@@ -271,6 +423,7 @@ export default function AiAgentPage() {
         },
         body: JSON.stringify({
           id: editingItem?.id,
+          whatsappConfigId: selectedWaAccountId || undefined,
           category: formCategory,
           topic: formTopic,
           keywords: formKeywords,
@@ -345,7 +498,8 @@ export default function AiAgentPage() {
         },
         body: JSON.stringify({
           userMessage: userText,
-          history: sandboxMessages
+          history: sandboxMessages,
+          whatsappConfigId: selectedWaAccountId || undefined
         })
       });
 
@@ -510,32 +664,47 @@ export default function AiAgentPage() {
             </div>
           </div>
 
-          {/* Mode Switcher Card */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-1.5 flex items-center justify-between sm:justify-start gap-2 shadow-xs shrink-0 self-start md:self-auto w-full sm:w-auto">
-            <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200/60 w-full sm:w-auto">
-              <button
-                onClick={() => handleSaveConfig({ activeMode: "AI_AGENT" })}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  config.activeMode === "AI_AGENT"
-                    ? "bg-purple-600 text-white shadow-xs"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                <Bot className="h-3.5 w-3.5" />
-                <span>🤖 AI Agent</span>
-              </button>
+          {/* Refresh & Mode Switcher Controls */}
+          <div className="flex flex-wrap items-center gap-3 shrink-0 self-start md:self-auto w-full sm:w-auto">
+            {/* Real-time Refresh Button */}
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="px-3.5 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
+              title="Refresh Data & WhatsApp Accounts"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 text-purple-600 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+            </button>
 
-              <button
-                onClick={() => handleSaveConfig({ activeMode: "STATIC_FLOW" })}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  config.activeMode === "STATIC_FLOW"
-                    ? "bg-amber-500 text-slate-950 shadow-xs"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span>🌳 Static Flow</span>
-              </button>
+            {/* Mode Switcher Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-1.5 flex items-center justify-between sm:justify-start gap-2 shadow-xs shrink-0 w-full sm:w-auto">
+              <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200/60 w-full sm:w-auto">
+                <button
+                  onClick={() => handleSaveConfig({ activeMode: "AI_AGENT" })}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    config.activeMode === "AI_AGENT"
+                      ? "bg-purple-600 text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  <Bot className="h-3.5 w-3.5" />
+                  <span>🤖 AI Agent</span>
+                </button>
+
+                <button
+                  onClick={() => handleSaveConfig({ activeMode: "STATIC_FLOW" })}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    config.activeMode === "STATIC_FLOW"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>🌳 Static Flow</span>
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -621,10 +790,22 @@ export default function AiAgentPage() {
             </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xs">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 flex-wrap gap-2">
                 <div>
-                  <h2 className="text-base font-extrabold text-slate-900">AI Representative Identity</h2>
-                  <p className="text-xs text-slate-500">Name and greeting used when chatting with customers</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base font-extrabold text-slate-900">AI Representative Identity</h2>
+                    {selectedWaAccountId && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <Phone className="h-3 w-3" />
+                        <span>
+                          {waAccounts.find(a => a.id === selectedWaAccountId)?.phoneNumber ||
+                           waAccounts.find(a => a.id === selectedWaAccountId)?.accountName ||
+                           "Active Number"}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">Name and greeting used when chatting with customers on this WhatsApp line</p>
                 </div>
                 <button
                   onClick={() => handleSaveConfig({ isActive: !config.isActive })}
@@ -992,18 +1173,30 @@ export default function AiAgentPage() {
       {activeTab === "sandbox" && (
         <div className="p-4 sm:p-6 flex-1 flex flex-col max-w-4xl mx-auto w-full">
           <div className="bg-white border border-slate-200 rounded-3xl flex-1 flex flex-col min-h-[500px] overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-purple-600" />
-                <div>
-                  <h3 className="text-sm font-extrabold text-slate-900">{config.agentName} Simulator</h3>
-                  <p className="text-[10px] text-slate-500">Test how the AI answers customer questions and sends portfolio media</p>
+            <div className="p-4 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Bot className="h-5 w-5 text-purple-600 shrink-0" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-extrabold text-slate-900 truncate">{config.agentName} Simulator</h3>
+                    {selectedWaAccountId && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <Phone className="h-3 w-3" />
+                        <span>
+                          {waAccounts.find(a => a.id === selectedWaAccountId)?.phoneNumber ||
+                           waAccounts.find(a => a.id === selectedWaAccountId)?.accountName ||
+                           "Selected WhatsApp Line"}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 truncate">Test how the AI answers questions and attaches portfolio media in real-time</p>
                 </div>
               </div>
 
               <button
                 onClick={() => setSandboxMessages([])}
-                className="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs rounded-xl font-bold transition-all cursor-pointer shadow-2xs"
+                className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs rounded-xl font-bold transition-all cursor-pointer shadow-2xs shrink-0"
               >
                 Clear Chat
               </button>

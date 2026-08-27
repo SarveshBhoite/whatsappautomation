@@ -306,25 +306,14 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
     console.log(`Searching database for Phone Number ID: "${phoneNumberId}"`);
 
-    // 1. Find Organization matching the Phone Number ID
+    // 1. Find Organization matching the Phone Number ID strictly
     let waConfig = await prisma.whatsAppConfig.findFirst({
       where: { phoneNumberId },
       include: { organization: true },
     });
 
     if (!waConfig) {
-      // Fallback to default organization if matching by phoneNumberId fails
-      console.warn(`No exact match for Phone Number ID: ${phoneNumberId}. Falling back to default organization...`);
-      const defaultOrg = await prisma.organization.findFirst({
-        include: { waConfigs: true }
-      });
-      if (defaultOrg && defaultOrg.waConfigs?.length) {
-        waConfig = (defaultOrg.waConfigs.find((c: any) => c.isDefault) || defaultOrg.waConfigs[0]) as any;
-      }
-    }
-
-    if (!waConfig) {
-      console.warn(`❌ No organization configuration found for Phone Number ID: ${phoneNumberId}`);
+      console.warn(`❌ [WEBHOOK] No WhatsApp configuration found matching incoming Phone Number ID: ${phoneNumberId}. Ignoring webhook.`);
       return res.sendStatus(200);
     }
 
@@ -336,17 +325,60 @@ export const handleWebhook = async (req: Request, res: Response) => {
       console.log(`Processing ${value.statuses.length} message status updates...`);
       for (const statusObj of value.statuses) {
         const { id: waMessageId, status, recipient_id } = statusObj;
+        const eventUniqueKey = `status_${waMessageId}_${status}`;
 
-        // Update message status in the database
-        const updatedMessage = await prisma.message.updateMany({
+        // Phase 6/7: Strong DB-backed WebhookEvent persistence & Idempotency check
+        try {
+          const existingEvent = await (prisma as any).webhookEvent.findUnique({
+            where: { providerEventId: eventUniqueKey }
+          });
+          if (existingEvent) {
+            console.log(`[WEBHOOK IDEMPOTENCY] Status event ${eventUniqueKey} already processed. Skipping duplicate.`);
+            continue;
+          }
+
+          await (prisma as any).webhookEvent.create({
+            data: {
+              organizationId,
+              whatsappConfigId: waConfig.id,
+              phoneNumberId,
+              provider: "meta_whatsapp",
+              providerEventId: eventUniqueKey,
+              eventType: "status",
+              payload: statusObj,
+              status: "PROCESSED",
+              processedAt: new Date()
+            }
+          });
+        } catch (evtErr: any) {
+          // If unique constraint triggers in race condition, safely skip
+          console.warn(`[WEBHOOK DB IDEMPOTENCY]: Duplicate status event ${eventUniqueKey} caught.`);
+          continue;
+        }
+
+        // Phase 8: Message State Machine - fetch current message and enforce valid progression
+        const existingMsg = await prisma.message.findFirst({
           where: { waMessageId },
-          data: { status },
+          select: { id: true, status: true },
         });
 
-        console.log(`Updated status of message ${waMessageId} to "${status}". DB Count: ${updatedMessage.count}`);
+        let updatedCount = 0;
+        if (existingMsg) {
+          const { MessageStateMachine } = require("../services/whatsapp/outboundMessageService");
+          if (MessageStateMachine.canTransitionOutbound(existingMsg.status, status)) {
+            const updatedMessage = await prisma.message.updateMany({
+              where: { waMessageId },
+              data: { status },
+            });
+            updatedCount = updatedMessage.count;
+            console.log(`[STATE MACHINE] Updated status of message ${waMessageId} from "${existingMsg.status}" to "${status}".`);
+          } else {
+            console.log(`[STATE MACHINE REJECT] Out-of-order status "${status}" rejected because current status is "${existingMsg.status}".`);
+          }
+        }
 
         // If message was sent by external software/dashboard (DB Count === 0), auto-create the message in CRM chat history ONLY if statusObj has template metadata or status is "sent"
-        if (updatedMessage.count === 0 && recipient_id && statusObj.status === "sent") {
+        if (updatedCount === 0 && recipient_id && statusObj.status === "sent") {
           try {
             const formattedCustomerPhone = recipient_id.replace(/\D/g, "");
             let conversation = await prisma.conversation.findFirst({
@@ -455,7 +487,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
           } catch (autoErr: any) {
             console.warn(`[WEBHOOK_AUTO_SYNC_WARN] Failed to auto-sync external status message:`, autoErr.message);
           }
-        } else if (updatedMessage.count > 0) {
+        } else if (updatedCount > 0) {
           // If updated, notify the agents in real-time
           const socketIo = req.app.get("io") || io;
           if (socketIo) {
@@ -585,32 +617,36 @@ export const handleWebhook = async (req: Request, res: Response) => {
           content = `[Customer clicked Meta Ad: "${adHeadline}"] ${content}`;
         }
 
-        // Find or create the conversation using organizationId, platform, customerPhone, and phoneNumberId
-        let conversation = await prisma.conversation.findFirst({
+        // Find or create the conversation strictly scoped to this WhatsApp line (whatsappConfigId)
+        let conversation = await (prisma as any).conversation.findFirst({
           where: {
             organizationId,
             platform: "whatsapp",
             customerPhone,
-            phoneNumberId: phoneNumberId || undefined,
+            whatsappConfigId: waConfig.id,
           },
         });
 
         if (!conversation) {
-          conversation = await prisma.conversation.create({
+          conversation = await (prisma as any).conversation.create({
             data: {
               organizationId,
               platform: "whatsapp",
+              whatsappConfigId: waConfig.id,
               customerPhone,
               customerName: contactName,
               phoneNumberId: phoneNumberId || waConfig.phoneNumberId || null,
               isBotPaused: false,
             },
           });
-        } else if (conversation.customerName !== contactName && contactName !== "WhatsApp User") {
-          // Keep customer name updated with WhatsApp Profile Name
-          conversation = await prisma.conversation.update({
+        } else {
+          conversation = await (prisma as any).conversation.update({
             where: { id: conversation.id },
-            data: { customerName: contactName, phoneNumberId: phoneNumberId || (conversation as any).phoneNumberId },
+            data: {
+              customerName: (conversation.customerName !== contactName && contactName !== "WhatsApp User") ? contactName : conversation.customerName,
+              whatsappConfigId: waConfig.id,
+              phoneNumberId: phoneNumberId || waConfig.phoneNumberId
+            },
           });
         }
 
@@ -637,6 +673,46 @@ export const handleWebhook = async (req: Request, res: Response) => {
         } else if (["image", "video", "audio", "voice"].includes(type)) {
           messageContent = type === "image" ? "📷 Image" : type === "video" ? "📹 Video" : "🎵 Audio";
           messageMediaUrl = content; // the local URL
+        }
+
+        // Phase 6/7: DB-backed WebhookEvent persistence & Idempotency check
+        if (waMessageId) {
+          try {
+            const existingEvent = await (prisma as any).webhookEvent.findUnique({
+              where: { providerEventId: waMessageId }
+            });
+            if (existingEvent) {
+              console.log(`[WEBHOOK IDEMPOTENCY]: Message event ${waMessageId} already recorded. Skipping duplicate.`);
+              continue;
+            }
+
+            await (prisma as any).webhookEvent.create({
+              data: {
+                organizationId,
+                whatsappConfigId: waConfig.id,
+                phoneNumberId,
+                provider: "meta_whatsapp",
+                providerEventId: waMessageId,
+                eventType: "message",
+                payload: message,
+                status: "PROCESSING",
+              }
+            });
+          } catch (evtErr: any) {
+            console.warn(`[WEBHOOK DB IDEMPOTENCY]: Duplicate message event ${waMessageId} caught:`, evtErr.message);
+            continue;
+          }
+        }
+
+        // Additional Message Table Idempotency check: If this message ID already exists, ignore duplicate webhook delivery
+        if (waMessageId) {
+          const existing = await prisma.message.findUnique({
+            where: { waMessageId }
+          });
+          if (existing) {
+            console.log(`[WEBHOOK IDEMPOTENCY]: Message ${waMessageId} already in messages table. Skipping duplicate.`);
+            continue;
+          }
         }
 
         // Save incoming message in database

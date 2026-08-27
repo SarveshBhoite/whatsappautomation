@@ -132,14 +132,34 @@ app.get(["/health", "/api/health"], (req, res) => {
   });
 });
 
-// Socket.io Connection Logic
+// Socket.io Connection Logic with Hierarchical Multi-Account Scoping
 io.on("connection", (socket) => {
   console.log(`Agent connected: ${socket.id}`);
 
-  // Join a client-specific room so agents only get updates for their company
+  // Join organization-wide room
   socket.on("join-org", (organizationId: string) => {
-    socket.join(organizationId);
-    console.log(`Socket ${socket.id} joined organization room: ${organizationId}`);
+    if (organizationId) {
+      socket.join(`org:${organizationId}`);
+      socket.join(organizationId); // Backward compatibility
+      console.log(`Socket ${socket.id} joined organization room: org:${organizationId}`);
+    }
+  });
+
+  // Join number/account-specific room (Phase 31)
+  socket.on("join-account", (data: { organizationId: string; whatsappConfigId: string }) => {
+    if (data?.organizationId && data?.whatsappConfigId) {
+      const room = `account:${data.organizationId}:${data.whatsappConfigId}`;
+      socket.join(room);
+      console.log(`Socket ${socket.id} joined account room: ${room}`);
+    }
+  });
+
+  // Join specific conversation room (Phase 31)
+  socket.on("join-conversation", (conversationId: string) => {
+    if (conversationId) {
+      socket.join(`conv:${conversationId}`);
+      console.log(`Socket ${socket.id} joined conversation room: conv:${conversationId}`);
+    }
   });
 
   socket.on("disconnect", () => {
@@ -351,17 +371,17 @@ function startGmbSyncScheduler() {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-server.listen(Number(PORT), () => {
-  console.log(`Backend server running on port ${PORT}`);
-  // Run database column patch to ensure missing columns exist on Render/PostgreSQL
-  try {
-    require("../prisma/add_column");
-  } catch (err: any) {
-    console.warn("Auto column patch warning:", err.message);
-  }
-  startGmbSyncScheduler();
-  // Pre-upload SEO proof images to Meta and store Media IDs in active flow
-  preCacheSeoMediaIds();
-});
+if (require.main === module) {
+  server.listen(Number(PORT), () => {
+    console.log(`Backend server running on port ${PORT}`);
+    try {
+      require("../prisma/add_column");
+    } catch (err: any) {
+      console.warn("Auto column patch warning:", err.message);
+    }
+    startGmbSyncScheduler();
+    preCacheSeoMediaIds();
+  });
+}
 
 export { io };

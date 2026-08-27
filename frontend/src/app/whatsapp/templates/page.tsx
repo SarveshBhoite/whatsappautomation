@@ -59,12 +59,12 @@ export default function WhatsAppTemplatesPage({ selectedAccountId }: { selectedA
   const [category, setCategory] = useState<string>("MARKETING");
   const [language, setLanguage] = useState<string>("en_US");
   const [headerType, setHeaderType] = useState<"TEXT" | "IMAGE" | "DOCUMENT" | "VIDEO" | "NONE">("TEXT");
-  const [headerText, setHeaderText] = useState<string>("JISNU Digital Solutions");
+  const [headerText, setHeaderText] = useState<string>("");
   const [headerMediaUrl, setHeaderMediaUrl] = useState<string>("");
   const [uploadingHeaderMedia, setUploadingHeaderMedia] = useState<boolean>(false);
-  const [bodyText, setBodyText] = useState<string>("Hello {{1}}! Welcome to JISNU Digital Solutions. Use coupon code {{2}} to get 20% off.");
-  const [sampleVariables, setSampleVariables] = useState<string[]>(["Rahul", "SUMMER20"]);
-  const [footerText, setFooterText] = useState<string>("Powered by JISNU CRM");
+  const [bodyText, setBodyText] = useState<string>("");
+  const [sampleVariables, setSampleVariables] = useState<string[]>([]);
+  const [footerText, setFooterText] = useState<string>("");
 
   // Button Item Interface
   interface TemplateButton {
@@ -76,17 +76,15 @@ export default function WhatsAppTemplatesPage({ selectedAccountId }: { selectedA
   }
 
   // Button States
-  const [buttonsList, setButtonsList] = useState<TemplateButton[]>([
-    { type: "URL", text: "Visit website", url: "https://www.jisnudigital.com/" }
-  ]);
+  const [buttonsList, setButtonsList] = useState<TemplateButton[]>([]);
   const { getActiveAccountId } = useAccountContext();
-  const activeAccountId = getActiveAccountId("whatsapp");
+  const activeAccountId = selectedAccountId || getActiveAccountId("whatsapp");
 
   const fetchTemplates = async () => {
     try {
       setRefreshing(true);
       const url = activeAccountId
-        ? `${BACKEND_URL}/api/admin/whatsapp/templates?accountId=${encodeURIComponent(activeAccountId)}`
+        ? `${BACKEND_URL}/api/admin/whatsapp/templates?whatsappConfigId=${encodeURIComponent(activeAccountId)}`
         : `${BACKEND_URL}/api/admin/whatsapp/templates`;
       const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
@@ -107,7 +105,7 @@ export default function WhatsAppTemplatesPage({ selectedAccountId }: { selectedA
 
   useEffect(() => {
     fetchTemplates();
-  }, [activeAccountId]);
+  }, [activeAccountId, selectedAccountId]);
 
   // Auto-extract placeholders {{1}}, {{2}} to manage Meta mandated sample variable inputs
   useEffect(() => {
@@ -154,7 +152,7 @@ export default function WhatsAppTemplatesPage({ selectedAccountId }: { selectedA
 
     try {
       const url = activeAccountId
-        ? `${BACKEND_URL}/api/admin/whatsapp/templates?accountId=${encodeURIComponent(activeAccountId)}`
+        ? `${BACKEND_URL}/api/admin/whatsapp/templates?whatsappConfigId=${encodeURIComponent(activeAccountId)}`
         : `${BACKEND_URL}/api/admin/whatsapp/templates`;
       const res = await fetch(url, {
         method: "POST",
@@ -163,6 +161,8 @@ export default function WhatsAppTemplatesPage({ selectedAccountId }: { selectedA
           "x-organization-id": getOrgId()
         },
         body: JSON.stringify({
+          whatsappConfigId: activeAccountId || undefined,
+          accountId: activeAccountId || undefined,
           name: templateName,
           category,
           language,

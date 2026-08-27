@@ -150,9 +150,11 @@ export default function WhatsAppBulkBroadcastPage({ selectedAccountId }: { selec
     try {
       const payload: any = {
         organizationId: getOrgId(),
+        whatsappConfigId: selectedAccountId || undefined,
+        accountId: selectedAccountId || undefined,
         recipients: parsedRecipients,
         sendType,
-        message: messageText,
+        messageText,
         mediaUrl: mediaUrl.trim() || undefined,
         fileName: uploadedFileName || undefined
       };
@@ -161,7 +163,7 @@ export default function WhatsAppBulkBroadcastPage({ selectedAccountId }: { selec
         payload.templateName = selectedTemplate;
       }
 
-      const res = await fetch(`${BACKEND_URL}/api/messages/broadcast`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/bulk-broadcast`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -171,11 +173,11 @@ export default function WhatsAppBulkBroadcastPage({ selectedAccountId }: { selec
       });
 
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && (data.success || Array.isArray(data.results))) {
         setResult({
           success: true,
-          totalSent: data.totalSent || parsedRecipients.length,
-          totalFailed: data.totalFailed || 0,
+          totalSent: data.totalSent || data.results?.filter((r: any) => r.status === "SENT")?.length || parsedRecipients.length,
+          totalFailed: data.totalFailed || data.results?.filter((r: any) => r.status === "FAILED")?.length || 0,
         });
       } else {
         setResult({

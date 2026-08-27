@@ -61,30 +61,39 @@ Your tone is professional, welcoming, energetic, and highly knowledgeable.
    - Always close by offering a quick free 10-minute strategy call to audit their business and show live portfolio samples!`;
 
     // 2. Setup AI Agent Configuration
-    const aiConfig = await prisma.aiAgentConfig.upsert({
-      where: { organizationId: orgId },
-      update: {
-        isActive: true,
-        whatsappAiEnabled: true,
-        instagramAiEnabled: true,
-        agentName: "Jisnu AI Assistant",
-        personalityPrompt: jdsPrompt,
-        greetingMessage: `👋 Hello! Welcome to Jisnu Digital Solutions (JDS).\n\nHow can we help scale your business today? Please ask about our services, pricing, or request a free consultation!`,
-        activeMode: "HYBRID",
-        autoSendMedia: true,
-      },
-      create: {
-        organizationId: orgId,
-        isActive: true,
-        whatsappAiEnabled: true,
-        instagramAiEnabled: true,
-        agentName: "Jisnu AI Assistant",
-        personalityPrompt: jdsPrompt,
-        greetingMessage: `👋 Hello! Welcome to Jisnu Digital Solutions (JDS).\n\nHow can we help scale your business today? Please ask about our services, pricing, or request a free consultation!`,
-        activeMode: "HYBRID",
-        autoSendMedia: true,
-      },
+    const existingAiConfig = await (prisma as any).aiAgentConfig.findFirst({
+      where: { organizationId: orgId }
     });
+    let aiConfig;
+    if (existingAiConfig) {
+      aiConfig = await (prisma as any).aiAgentConfig.update({
+        where: { id: existingAiConfig.id },
+        data: {
+          isActive: true,
+          whatsappAiEnabled: true,
+          instagramAiEnabled: true,
+          agentName: "Jisnu AI Assistant",
+          personalityPrompt: jdsPrompt,
+          greetingMessage: `👋 Hello! Welcome to Jisnu Digital Solutions (JDS).\n\nHow can we help scale your business today? Please ask about our services, pricing, or request a free consultation!`,
+          activeMode: "HYBRID",
+          autoSendMedia: true,
+        }
+      });
+    } else {
+      aiConfig = await (prisma as any).aiAgentConfig.create({
+        data: {
+          organizationId: orgId,
+          isActive: true,
+          whatsappAiEnabled: true,
+          instagramAiEnabled: true,
+          agentName: "Jisnu AI Assistant",
+          personalityPrompt: jdsPrompt,
+          greetingMessage: `👋 Hello! Welcome to Jisnu Digital Solutions (JDS).\n\nHow can we help scale your business today? Please ask about our services, pricing, or request a free consultation!`,
+          activeMode: "HYBRID",
+          autoSendMedia: true,
+        }
+      });
+    }
 
     console.log(`✓ AI Agent Config verified (Mode: ${aiConfig.activeMode})`);
 

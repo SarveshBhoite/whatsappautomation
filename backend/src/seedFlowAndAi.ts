@@ -18,9 +18,15 @@ async function setupFlowAndAi() {
       console.log(`- Configuring Org: "${c.organization.name}" (${c.organizationId}), Phone ID: ${c.phoneNumberId}`);
 
       // 1. Create or activate AI Agent Config
-      const aiConfig = await prisma.aiAgentConfig.upsert({
-        where: { organizationId: c.organizationId },
+      const aiConfig = await (prisma as any).aiAgentConfig.upsert({
+        where: { 
+          organizationId_whatsappConfigId: {
+            organizationId: c.organizationId,
+            whatsappConfigId: c.id
+          }
+        },
         update: {
+          whatsappConfigId: c.id,
           isActive: true,
           whatsappAiEnabled: true,
           agentName: "Jisnu AI Assistant",

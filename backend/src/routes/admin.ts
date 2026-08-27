@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import axios from "axios";
 import prisma from "../utils/prisma";
-import { validateAccountOwnership } from "../utils/accountResolver";
+import { validateAccountOwnership, resolveWhatsAppConfig } from "../utils/accountResolver";
 import { WhatsAppService } from "../services/whatsappService";
 import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
@@ -431,11 +431,24 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
 router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const config = await prisma.whatsAppConfig.findFirst({
-      where: { organizationId, isActive: true },
-      orderBy: { isDefault: "desc" },
+    const requestedConfigId = (req.query.whatsappConfigId as string) || (req.query.accountId as string) || (req.headers["x-whatsapp-config-id"] as string);
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId,
+      whatsappConfigId: requestedConfigId,
     });
-    return res.status(200).json(config || {
+    return res.status(200).json(ctx ? {
+      id: ctx.whatsappConfigId,
+      organizationId: ctx.organizationId,
+      phoneNumberId: ctx.phoneNumberId,
+      wabaId: ctx.wabaId,
+      accessToken: ctx.accessToken,
+      phoneNumber: ctx.displayPhoneNumber,
+      accountName: ctx.accountName,
+      isDefault: ctx.isDefault,
+      isActive: ctx.isActive,
+      webhookVerifyToken: `verify_${organizationId.slice(0, 8)}`,
+    } : {
       phoneNumberId: "",
       wabaId: "",
       accessToken: "",
@@ -502,39 +515,26 @@ router.get("/conversations", async (req: Request, res: Response) => {
     }
 
     if (platform === "whatsapp") {
+      const targetConfigId = (req.query.whatsappConfigId as string) || (accountId as string);
       let targetPhoneId = phoneNumberId as string;
-      if (accountId) {
-        const isValid = await validateAccountOwnership(organizationId, "whatsapp", accountId as string);
-        if (!isValid) {
-          return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "Account does not belong to organization" });
+
+      if (targetConfigId && targetConfigId !== "ALL") {
+        const config = await resolveWhatsAppConfig(organizationId, targetConfigId);
+        if (!config) {
+          return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "WhatsApp account does not belong to organization" });
         }
-        const waConfig = await prisma.whatsAppConfig.findUnique({ where: { id: accountId as string } });
-        if (waConfig && waConfig.phoneNumberId) {
-          targetPhoneId = waConfig.phoneNumberId;
-        }
-      }
-      if (targetPhoneId) {
-        // Match specific phoneNumberId OR include legacy NULL records if target is the primary default number
-        const defaultConfig = await prisma.whatsAppConfig.findFirst({
-          where: { organizationId, isDefault: true }
-        });
-        if (defaultConfig && defaultConfig.phoneNumberId === targetPhoneId) {
-          whereClause.OR = [
-            { phoneNumberId: targetPhoneId },
-            { phoneNumberId: null }
-          ];
-        } else {
-          whereClause.phoneNumberId = targetPhoneId;
-        }
+        whereClause.OR = [
+          { whatsappConfigId: config.id },
+          { phoneNumberId: config.phoneNumberId }
+        ];
+      } else if (targetPhoneId) {
+        whereClause.phoneNumberId = targetPhoneId;
       } else {
-        const activeConfig = await prisma.whatsAppConfig.findFirst({
-          where: { organizationId, isActive: true },
-          orderBy: { isDefault: "desc" },
-        });
-        if (activeConfig && activeConfig.phoneNumberId) {
+        const activeConfig = await resolveWhatsAppConfig(organizationId);
+        if (activeConfig) {
           whereClause.OR = [
-            { phoneNumberId: activeConfig.phoneNumberId },
-            { phoneNumberId: null }
+            { whatsappConfigId: activeConfig.id },
+            { phoneNumberId: activeConfig.phoneNumberId }
           ];
         }
       }
@@ -573,17 +573,41 @@ router.get("/conversations", async (req: Request, res: Response) => {
   }
 });
 
-// GET: Fetch message history for a specific conversation
+// GET: Fetch message history for a specific conversation with organization ownership validation
 router.get("/conversations/:id/messages", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const organizationId = getOrgId(req);
+
+    // Verify conversation belongs to the requesting organization
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: id as string },
+      select: { id: true, organizationId: true, whatsappConfigId: true, phoneNumberId: true }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    if (organizationId && conversation.organizationId !== organizationId) {
+      return res.status(403).json({ error: "FORBIDDEN", message: "Conversation does not belong to this organization." });
+    }
+
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 50));
+    const before = req.query.before as string; // Cursor timestamp (ISO string)
+
+    const queryWhere: any = { conversationId: id as string };
+    if (before) {
+      queryWhere.createdAt = { lt: new Date(before) };
+    }
 
     const messages = await prisma.message.findMany({
-      where: { conversationId: id as string },
+      where: queryWhere,
       include: {
         quotedMessage: true,
       },
       orderBy: { createdAt: "asc" },
+      take: limit,
     });
 
     return res.status(200).json(messages);
@@ -926,29 +950,28 @@ router.post("/flows/generate", async (req: Request, res: Response) => {
   }
 });
 
-// GET: Fetch WhatsApp Config credentials
-router.get("/config", async (req: Request, res: Response) => {
+// GET: Fetch WhatsApp Config credentials (account-scoped)
+router.get("/config/account", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-
-    let config = await prisma.whatsAppConfig.findFirst({
-      where: { organizationId, isActive: true },
-      orderBy: { isDefault: "desc" },
+    const requestedConfigId = (req.query.whatsappConfigId as string) || (req.query.accountId as string);
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId,
+      whatsappConfigId: requestedConfigId,
     });
 
-    if (!config) {
-      config = await prisma.whatsAppConfig.create({
-        data: {
-          organizationId,
-          phoneNumberId: "",
-          wabaId: "",
-          accessToken: "",
-          isDefault: true,
-        },
-      });
-    }
-
-    return res.status(200).json(config);
+    return res.status(200).json(ctx ? {
+      id: ctx.whatsappConfigId,
+      organizationId: ctx.organizationId,
+      phoneNumberId: ctx.phoneNumberId,
+      wabaId: ctx.wabaId,
+      accessToken: ctx.accessToken,
+      phoneNumber: ctx.displayPhoneNumber,
+      accountName: ctx.accountName,
+      isDefault: ctx.isDefault,
+      isActive: ctx.isActive,
+    } : null);
   } catch (error: any) {
     console.error("Error fetching config:", error);
     return res.status(500).json({ error: "Failed to fetch config", details: error.message });
@@ -1488,31 +1511,11 @@ router.post("/upload", async (req: Request, res: Response) => {
 router.get("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const rawAccountId = (req.query.accountId as string) || (req.headers["x-account-id"] as string);
+    const targetConfigId = (req.query.whatsappConfigId as string) || (req.query.accountId as string) || (req.headers["x-account-id"] as string);
+    const waConfig = await resolveWhatsAppConfig(organizationId, targetConfigId);
 
-    let waConfig: any = null;
-    if (rawAccountId) {
-      const isValid = await validateAccountOwnership(organizationId, "whatsapp", rawAccountId);
-      if (isValid) {
-        waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { id: rawAccountId } })
-          || await prisma.whatsAppConfig.findUnique({ where: { id: rawAccountId } });
-      }
-    }
-
-    if (!waConfig || !waConfig.accessToken) {
-      waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { organizationId, isDefault: true } })
-        || await prisma.whatsAppConfig.findFirst({
-          where: { organizationId, isActive: true },
-          orderBy: { isDefault: "desc" },
-        });
-    }
-
-    if (!waConfig || !waConfig.accessToken) {
-      waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst() || await prisma.whatsAppConfig.findFirst();
-    }
-
-    if (!waConfig?.accessToken || !waConfig?.wabaId) {
-      return res.status(400).json({ error: "WhatsApp WABA ID or Access Token missing in configuration" });
+    if (!waConfig || !waConfig.accessToken || !waConfig.wabaId) {
+      return res.status(400).json({ error: "WhatsApp WABA ID or Access Token missing for the selected account" });
     }
 
     console.log(`[WABA TEMPLATES] Fetching templates for Org: ${organizationId}, WABA: ${waConfig.wabaId}...`);
@@ -1540,34 +1543,15 @@ router.post("/whatsapp/templates", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const { accountId: bodyAccountId, name, category, language, headerType, headerText, headerMediaUrl, bodyText, footerText, buttonText, buttonUrl, sampleVariables, buttons } = req.body;
-    const rawAccountId = (req.query.accountId as string) || bodyAccountId || (req.headers["x-account-id"] as string);
+    
+    const targetConfigId = (req.query.whatsappConfigId as string) || (req.query.accountId as string) || bodyAccountId || (req.headers["x-account-id"] as string);
+    const waConfig = await resolveWhatsAppConfig(organizationId, targetConfigId);
 
-    if (!name || !bodyText) {
-      return res.status(400).json({ error: "Template name and body text are required" });
+    if (!waConfig || !waConfig.accessToken || !waConfig.wabaId) {
+      return res.status(400).json({ error: "WhatsApp credentials not configured for selected account" });
     }
 
     const cleanName = name.toLowerCase().trim().replace(/[^a-z0-9_]/g, "_");
-
-    let waConfig: any = null;
-    if (rawAccountId) {
-      const isValid = await validateAccountOwnership(organizationId, "whatsapp", rawAccountId);
-      if (isValid) {
-        waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { id: rawAccountId } })
-          || await prisma.whatsAppConfig.findUnique({ where: { id: rawAccountId } });
-      }
-    }
-
-    if (!waConfig || !waConfig.accessToken) {
-      waConfig = await (prisma as any).whatsAppEmbeddedConfig?.findFirst({ where: { organizationId, isDefault: true } })
-        || await prisma.whatsAppConfig.findFirst({
-          where: { organizationId, isActive: true },
-          orderBy: { isDefault: "desc" },
-        });
-    }
-
-    if (!waConfig?.accessToken || !waConfig?.wabaId) {
-      return res.status(400).json({ error: "WhatsApp WABA ID or Access Token missing" });
-    }
 
     const components: any[] = [];
 
@@ -1760,10 +1744,12 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
     const targetTemplate = templateName || "jisnu_official_welcome";
     const templateLang = targetTemplate === "hello_world" ? "en_US" : "en";
 
-    const waConfig = await prisma.whatsAppConfig.findFirst({
-      where: { organizationId, isActive: true },
-      orderBy: { isDefault: "desc" },
-    });
+    const targetConfigId = req.body.whatsappConfigId || req.body.accountId || (req.query.whatsappConfigId as string) || (req.query.accountId as string);
+    const waConfig = await resolveWhatsAppConfig(organizationId, targetConfigId);
+
+    if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
+      return res.status(400).json({ error: "WhatsApp credentials not configured for selected WhatsApp number" });
+    }
 
     const results: any[] = [];
 
@@ -1782,128 +1768,77 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
       const finalName = leadName.trim() || `Lead (${cleanPhone.slice(-4)})`;
 
       try {
-        // 1. Find or create conversation
-        let conversation = await prisma.conversation.findFirst({
+        // 1. Find or create conversation scoped to the selected WhatsApp config
+        let conversation = await (prisma as any).conversation.findFirst({
           where: {
             organizationId,
             platform: "whatsapp",
-            customerPhone: cleanPhone
+            customerPhone: cleanPhone,
+            OR: [
+              { whatsappConfigId: waConfig.id },
+              { phoneNumberId: waConfig.phoneNumberId }
+            ]
           }
         });
 
         if (!conversation) {
-          conversation = await prisma.conversation.create({
+          conversation = await (prisma as any).conversation.create({
             data: {
               organizationId,
               platform: "whatsapp",
+              whatsappConfigId: waConfig.id,
+              phoneNumberId: waConfig.phoneNumberId,
               customerPhone: cleanPhone,
               customerName: finalName,
               isBotPaused: false
             }
           });
-        } else if (leadName && (conversation.customerName || "").startsWith("Lead (")) {
-          // Update customerName if name was provided
-          conversation = await prisma.conversation.update({
+        } else {
+          // Update customerName and ensure whatsappConfigId is stamped
+          conversation = await (prisma as any).conversation.update({
             where: { id: conversation.id },
-            data: { customerName: leadName.trim() }
+            data: {
+              customerName: leadName && (conversation.customerName || "").startsWith("Lead (") ? leadName.trim() : conversation.customerName,
+              whatsappConfigId: conversation.whatsappConfigId || waConfig.id,
+              phoneNumberId: conversation.phoneNumberId || waConfig.phoneNumberId
+            }
           });
         }
 
-        // 2. Dispatch via WhatsApp Cloud API service if credentials present
-        let responseData: any = null;
-        if (waConfig?.phoneNumberId && waConfig?.accessToken) {
-          if (sendType === "custom") {
-            // Send Custom CRM Portal Message (Text / PDF / Image) directly to customer
-            if (mediaUrl) {
-              const lowerMedia = mediaUrl.toLowerCase();
-              const isPdf = lowerMedia.endsWith(".pdf") || lowerMedia.includes("/pdf") || lowerMedia.includes("document");
-              const mediaType = isPdf ? "document" : "image";
-              const filename = isPdf ? "Brochure.pdf" : "broadcast.jpg";
-
-              responseData = await WhatsAppService.sendMediaMessage(
-                waConfig.phoneNumberId,
-                waConfig.accessToken,
-                cleanPhone,
-                mediaType,
-                mediaUrl,
-                filename,
-                messageText
-              );
-            } else {
-              responseData = await WhatsAppService.sendTextMessage(
-                waConfig.phoneNumberId,
-                waConfig.accessToken,
-                cleanPhone,
-                messageText
-              );
-            }
-            console.log(`Custom CRM Message SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
-          } else {
-            // Dispatch chosen Meta Approved Template per lead
-            try {
-              responseData = await WhatsAppService.sendTemplateMessage(
-                waConfig.phoneNumberId,
-                waConfig.accessToken,
-                cleanPhone,
-                targetTemplate,
-                templateLang
-              );
-              console.log(`Approved Template (${targetTemplate}) SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
-            } catch (tErr: any) {
-              const metaErrMsg = tErr.response?.data?.error?.message || tErr.message;
-              console.warn(`Template ${targetTemplate} error for ${cleanPhone}:`, metaErrMsg);
-              try {
-                responseData = await WhatsAppService.sendTemplateMessage(
-                  waConfig.phoneNumberId,
-                  waConfig.accessToken,
-                  cleanPhone,
-                  "welcome_jisnu_marketing",
-                  "en_US"
-                );
-              } catch (err: any) {
-                const fallbackErrMsg = err.response?.data?.error?.message || err.message;
-                console.warn(`Fallback template (welcome_jisnu_marketing) error for ${cleanPhone}:`, fallbackErrMsg);
-                try {
-                  // Final fallback to Meta's default pre-approved template on every WABA account
-                  responseData = await WhatsAppService.sendTemplateMessage(
-                    waConfig.phoneNumberId,
-                    waConfig.accessToken,
-                    cleanPhone,
-                    "hello_world",
-                    "en_US"
-                  );
-                  console.log(`Default Template (hello_world) SENT to ${cleanPhone}:`, responseData?.messages?.[0]?.id);
-                } catch (finalErr: any) {
-                  const finalMsg = finalErr.response?.data?.error?.message || finalErr.message;
-                  console.warn(`Final hello_world template error for ${cleanPhone}:`, finalMsg);
-                }
-              }
-            }
-          }
+        // 2. Dispatch via Centralized OutboundMessageService
+        const { OutboundMessageService } = require("../services/whatsapp/outboundMessageService");
+        
+        let dispatchType: any = "text";
+        if (sendType === "custom" && mediaUrl) {
+          dispatchType = mediaUrl.toLowerCase().endsWith(".pdf") ? "document" : "image";
+        } else if (sendType !== "custom") {
+          dispatchType = "template";
         }
 
-        const waMessageId = responseData?.messages?.[0]?.id || `bulk_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
-        // 3. Create outbound message record in database
-        const savedMessage = await prisma.message.create({
-          data: {
-            conversationId: conversation.id,
-            direction: "outbound",
-            messageType: mediaUrl ? "image" : "text",
-            content: mediaUrl ? `${mediaUrl}|caption:${messageText}` : messageText,
-            waMessageId,
-            status: "sent",
-            senderName: "Bulk Campaign"
-          }
-        });
-
-        // 4. Broadcast to frontend agents via Socket.IO
-        io.to(organizationId).emit("new-message", {
+        const dispatchRes = await OutboundMessageService.dispatch({
+          organizationId,
+          whatsappConfigId: waConfig.id,
+          phoneNumberId: waConfig.phoneNumberId,
+          accessToken: waConfig.accessToken,
+          recipientPhone: cleanPhone,
+          type: dispatchType,
+          text: messageText,
+          templateName: dispatchType === "template" ? (targetTemplate || "welcome_jisnu_marketing") : undefined,
+          languageCode: templateLang || "en_US",
+          mediaType: dispatchType === "document" || dispatchType === "image" ? dispatchType : undefined,
+          mediaUrl: mediaUrl || undefined,
           conversationId: conversation.id,
-          message: savedMessage
+          senderName: "Bulk Campaign",
+          source: "bulk",
+          priority: "P5",
+          idempotencyKey: `bulk:${organizationId}:${cleanPhone}:${Date.now()}`,
         });
 
-        results.push({ phone: cleanPhone, status: "SENT", messageId: savedMessage.id });
+        if (dispatchRes.success) {
+          results.push({ phone: cleanPhone, status: "SENT", messageId: dispatchRes.messageId });
+        } else {
+          results.push({ phone: cleanPhone, status: "FAILED", error: dispatchRes.error });
+        }
 
         // Add 500ms delay between consecutive bulk dispatches for Meta rate queue pacing
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -2069,6 +2004,48 @@ router.delete("/organizations/:id", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Error deleting organization:", error);
     return res.status(500).json({ error: "Failed to delete organization", details: error.message });
+  }
+});
+
+// GET: WhatsApp Message Trace for Admin Diagnostics (Phase 38)
+router.get("/whatsapp/traces", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { traceId, waMessageId, conversationId, limit = "25" } = req.query;
+
+    const queryWhere: any = {};
+    if (organizationId) {
+      queryWhere.organizationId = organizationId;
+    }
+    if (traceId) {
+      queryWhere.traceId = traceId as string;
+    }
+    if (waMessageId) {
+      queryWhere.waMessageId = waMessageId as string;
+    }
+    if (conversationId) {
+      queryWhere.conversationId = conversationId as string;
+    }
+
+    const traces = await (prisma as any).messageTrace.findMany({
+      where: queryWhere,
+      orderBy: { createdAt: "desc" },
+      take: Math.min(100, parseInt(limit as string, 10) || 25),
+      include: {
+        whatsappConfig: {
+          select: { id: true, phoneNumber: true, accountName: true, phoneNumberId: true }
+        }
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: traces.length,
+      traces,
+    });
+  } catch (error: any) {
+    console.error("Error querying message traces:", error);
+    return res.status(500).json({ error: "Failed to fetch message traces", details: error.message });
   }
 });
 

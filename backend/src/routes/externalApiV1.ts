@@ -113,17 +113,27 @@ router.post("/whatsapp/send-template", requirePermission("whatsapp_send"), async
       return res.status(400).json({ error: "Validation Error", message: "Missing required parameter 'template_name' or 'templateName'." });
     }
 
-    // Fetch WhatsApp Config for this organization
-    const waConfig = await (prisma as any).whatsAppConfig.findFirst({
-      where: { organizationId }
+    // Resolve WhatsApp Config strictly scoped for this organization and optional accountId
+    const requestedConfigId = (req.body?.whatsappConfigId as string) || (req.query.whatsappConfigId as string) || (req.headers["x-whatsapp-config-id"] as string);
+    const requestedPhoneId = (req.body?.phoneNumberId as string) || (req.query.phoneNumberId as string);
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId,
+      whatsappConfigId: requestedConfigId,
+      phoneNumberId: requestedPhoneId,
     });
 
-    if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
+    if (!ctx || !ctx.phoneNumberId || !ctx.accessToken) {
       return res.status(400).json({
         error: "Configuration Error",
-        message: "WhatsApp Business Account is not connected for this Organization in CRM Settings."
+        message: "WhatsApp Business Account is not connected or active for this Organization in CRM Settings."
       });
     }
+
+    const waConfig = {
+      phoneNumberId: ctx.phoneNumberId,
+      accessToken: ctx.accessToken,
+    };
 
     const formattedTo = WhatsAppService.formatPhoneNumber(recipientPhone);
     const langToUse = language || language_code || languageCode || "en";
@@ -257,16 +267,26 @@ router.post("/whatsapp/send-message", requirePermission("whatsapp_send"), async 
       return res.status(400).json({ error: "Validation Error", message: "Missing required parameter 'message' or 'text'." });
     }
 
-    const waConfig = await (prisma as any).whatsAppConfig.findFirst({
-      where: { organizationId }
+    const requestedConfigId = (req.body?.whatsappConfigId as string) || (req.query.whatsappConfigId as string) || (req.headers["x-whatsapp-config-id"] as string);
+    const requestedPhoneId = (req.body?.phoneNumberId as string) || (req.query.phoneNumberId as string);
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId,
+      whatsappConfigId: requestedConfigId,
+      phoneNumberId: requestedPhoneId,
     });
 
-    if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
+    if (!ctx || !ctx.phoneNumberId || !ctx.accessToken) {
       return res.status(400).json({
         error: "Configuration Error",
-        message: "WhatsApp Business Account is not connected for this Organization in CRM Settings."
+        message: "WhatsApp Business Account is not connected or active for this Organization in CRM Settings."
       });
     }
+
+    const waConfig = {
+      phoneNumberId: ctx.phoneNumberId,
+      accessToken: ctx.accessToken,
+    };
 
     const formattedTo = WhatsAppService.formatPhoneNumber(recipientPhone);
 
@@ -406,18 +426,21 @@ router.post("/contacts", requirePermission("contacts_write"), async (req: Authen
 router.get("/whatsapp/templates", requirePermission("whatsapp_templates"), async (req: AuthenticatedApiRequest, res: Response) => {
   try {
     const organizationId = req.organizationId;
-    const waConfig = await (prisma as any).whatsAppConfig.findFirst({
-      where: { organizationId }
+    const requestedConfigId = (req.query.whatsappConfigId as string) || (req.headers["x-whatsapp-config-id"] as string);
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId,
+      whatsappConfigId: requestedConfigId,
     });
 
-    if (!waConfig || !waConfig.wabaId || !waConfig.accessToken) {
+    if (!ctx || !ctx.wabaId || !ctx.accessToken) {
       return res.status(400).json({
         error: "Configuration Error",
-        message: "WhatsApp Business Account is not connected for this Organization."
+        message: "WhatsApp Business Account is not connected or active for this Organization."
       });
     }
 
-    const templates = await WhatsAppService.getTemplates(waConfig.wabaId, waConfig.accessToken);
+    const templates = await WhatsAppService.getTemplates(ctx.wabaId, ctx.accessToken);
     return res.status(200).json({ success: true, count: templates?.data?.length || 0, templates: templates?.data || [] });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to fetch templates", details: error.message });

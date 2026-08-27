@@ -272,6 +272,8 @@ export default function WhatsAppDripCampaignsModule({ selectedAccountId }: { sel
       }
 
       const payload = {
+        organizationId: getOrgId(),
+        whatsappConfigId: selectedAccountId || undefined,
         name: aiResult.name || "AI WhatsApp Drip Sequence",
         description: aiResult.description || "AI Generated Drip Campaign",
         timezone: aiResult.timezone || "Asia/Kolkata",
@@ -284,8 +286,8 @@ export default function WhatsAppDripCampaignsModule({ selectedAccountId }: { sel
         steps: (aiResult.steps || []).map((s: any, idx: number) => ({
           stepNumber: idx + 1,
           stepType: s.stepType || "SEND_TEMPLATE",
-          templateName: s.templateName || "welcome_jisnu_marketing",
-          languageCode: s.languageCode || "en",
+          templateName: s.templateName || (metaTemplates.length > 0 ? metaTemplates[0].name : ""),
+          languageCode: s.languageCode || (metaTemplates.length > 0 ? metaTemplates[0].language : "en_US"),
           priority: s.priority || "HIGH",
           delayUnit: s.delayUnit || "IMMEDIATE",
           delayValue: s.delayValue !== undefined ? s.delayValue : 0,
@@ -451,7 +453,8 @@ export default function WhatsAppDripCampaignsModule({ selectedAccountId }: { sel
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${BACKEND_URL}/api/whatsapp/drip/campaigns`, {
+      const url = `${BACKEND_URL}/api/whatsapp/drip/campaigns${selectedAccountId ? `?whatsappConfigId=${selectedAccountId}` : ""}`;
+      const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -469,7 +472,8 @@ export default function WhatsAppDripCampaignsModule({ selectedAccountId }: { sel
   const fetchMetaTemplates = async () => {
     try {
       setLoadingTemplates(true);
-      const res = await fetch(`${BACKEND_URL}/api/admin/whatsapp/templates`, {
+      const url = `${BACKEND_URL}/api/admin/whatsapp/templates${selectedAccountId ? `?whatsappConfigId=${selectedAccountId}` : ""}`;
+      const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -497,11 +501,12 @@ export default function WhatsAppDripCampaignsModule({ selectedAccountId }: { sel
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedAccountId]);
 
   const fetchCampaignsSilently = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/whatsapp/drip/campaigns`, {
+      const url = `${BACKEND_URL}/api/whatsapp/drip/campaigns${selectedAccountId ? `?whatsappConfigId=${selectedAccountId}` : ""}`;
+      const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -599,6 +604,8 @@ export default function WhatsAppDripCampaignsModule({ selectedAccountId }: { sel
 
       const payload = {
         ...formData,
+        whatsappConfigId: selectedAccountId || undefined,
+        accountId: selectedAccountId || undefined,
         status: statusOverride || formData.status,
         steps: dripSteps,
         audienceCriteria: {

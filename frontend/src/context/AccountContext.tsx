@@ -84,7 +84,7 @@ const AccountProviderContent: React.FC<{ children: ReactNode }> = ({ children })
         else if (pathname.startsWith("/gmb") || pathname.startsWith("/reviews")) currentPlatform = "gmb";
         else if (pathname.startsWith("/meta-ads")) currentPlatform = "meta_ads";
         else if (pathname.startsWith("/ads")) currentPlatform = "google_ads";
-        else if (pathname.startsWith("/ai-agent")) currentPlatform = "ai_agent";
+        else if (pathname.startsWith("/ai-agent")) currentPlatform = "whatsapp";
 
         if (currentPlatform) {
           setActiveAccountsState((prev) => {

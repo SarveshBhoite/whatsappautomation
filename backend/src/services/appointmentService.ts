@@ -4,6 +4,7 @@ import { WhatsAppService } from "./whatsappService";
 
 export interface CreateAppointmentDTO {
   organizationId: string;
+  whatsappConfigId?: string | null;
   conversationId?: string | null;
   customerPhone?: string | null;
   customerName: string;
@@ -41,6 +42,7 @@ export class AppointmentService {
   public static async createAppointment(dto: CreateAppointmentDTO): Promise<AppointmentResult> {
     const {
       organizationId,
+      whatsappConfigId,
       conversationId,
       customerPhone,
       customerName,
@@ -61,8 +63,7 @@ export class AppointmentService {
 
     console.log(`[APPOINTMENT SERVICE] 📅 Creating appointment for "${customerName}" (${customerPhone || 'no phone'}) in Org: ${organizationId}...`);
 
-    // 1. Check for Duplicate/Idempotent creation within the same 5-minute window for the same customer
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    // 1. Check for Duplicate/Idempotent creation within the same window for the same customer
     const existing = await (prisma as any).appointment.findFirst({
       where: {
         organizationId,
@@ -71,29 +72,29 @@ export class AppointmentService {
         startTime: {
           gte: new Date(startTime.getTime() - 2 * 60 * 1000),
           lte: new Date(startTime.getTime() + 2 * 60 * 1000)
-        },
-        createdAt: { gte: fiveMinutesAgo }
+        }
       }
     });
 
-    if (existing && existing.googleMeetUrl) {
+    if (existing) {
       console.log(`[APPOINTMENT SERVICE] ⚡ Idempotent match found! Returning existing appointment: ${existing.id}`);
       return {
         appointment: existing,
-        meetUrl: existing.googleMeetUrl,
-        calendarEventId: existing.googleCalendarEventId,
-        googleSyncStatus: existing.googleSyncStatus as any
+        meetUrl: existing.googleMeetUrl || null,
+        calendarEventId: existing.googleCalendarEventId || null,
+        googleSyncStatus: (existing.googleSyncStatus as any) || "SYNCED"
       };
     }
 
-    // 2. Insert CRM Appointment Record (Initial state: PENDING)
+    // 2. Persist appointment record immediately into DB
     let appointment = await (prisma as any).appointment.create({
       data: {
         organizationId,
-        conversationId: conversationId || null,
-        customerPhone: customerPhone || null,
+        whatsappConfigId: whatsappConfigId || null,
+        conversationId,
+        customerPhone,
         customerName,
-        customerEmail: customerEmail || null,
+        customerEmail,
         title: apptTitle,
         description: apptDescription,
         startTime,
@@ -101,7 +102,7 @@ export class AppointmentService {
         timezone,
         status: "CONFIRMED",
         googleAccountId: googleAccountId || null,
-        googleCalendarId: calendarId || null,
+        googleCalendarId: calendarId || "primary",
         googleSyncStatus: "PENDING",
         notificationSent: false
       }
@@ -275,14 +276,22 @@ export class AppointmentService {
    * Helper to format and send WhatsApp confirmation with real stored Meet URL
    */
   private static async sendAppointmentWhatsAppNotification(organizationId: string, appointment: any) {
-    const waConfig = await (prisma as any).whatsAppConfig.findFirst({
-      where: { organizationId, isActive: true },
-      orderBy: { isDefault: "desc" }
+    const { WhatsAppRuntimeContextResolver } = require("./whatsapp/whatsappRuntimeContext");
+    const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId,
+      whatsappConfigId: appointment.whatsappConfigId,
+      conversationId: appointment.conversationId,
     });
 
-    if (!waConfig?.phoneNumberId || !waConfig?.accessToken || !appointment.customerPhone) {
+    if (!ctx?.phoneNumberId || !ctx?.accessToken || !appointment.customerPhone) {
       return;
     }
+
+    const waConfig = {
+      phoneNumberId: ctx.phoneNumberId,
+      accessToken: ctx.accessToken,
+      phoneNumber: ctx.displayPhoneNumber,
+    };
 
     const startD = new Date(appointment.startTime);
     const endD = new Date(appointment.endTime);
@@ -300,12 +309,21 @@ export class AppointmentService {
       message += `\n\n🎥 Join Google Meet:\n${appointment.googleMeetUrl}`;
     }
 
-    await WhatsAppService.sendTextMessage(
-      waConfig.phoneNumberId,
-      waConfig.accessToken,
-      appointment.customerPhone,
-      message
-    );
+    const { OutboundMessageService } = require("./whatsapp/outboundMessageService");
+    await OutboundMessageService.dispatch({
+      organizationId,
+      whatsappConfigId: ctx.whatsappConfigId,
+      phoneNumberId: ctx.phoneNumberId,
+      accessToken: ctx.accessToken,
+      recipientPhone: appointment.customerPhone,
+      type: "text",
+      text: message,
+      conversationId: appointment.conversationId || undefined,
+      senderName: "Calendar Assistant",
+      source: "appointment",
+      priority: "P2",
+      idempotencyKey: `appt:${appointment.id}:confirmation`,
+    });
   }
 
   /**

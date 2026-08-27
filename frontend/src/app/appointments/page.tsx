@@ -52,6 +52,14 @@ const getOrgId = (): string => {
 interface AppointmentItem {
   id: string;
   organizationId: string;
+  whatsappConfigId?: string | null;
+  whatsappConfig?: {
+    id: string;
+    accountName?: string;
+    phoneNumber?: string;
+    phoneNumberId?: string;
+    wabaId?: string;
+  } | null;
   conversationId?: string | null;
   customerPhone?: string | null;
   customerName: string;
@@ -1248,9 +1256,11 @@ export default function AppointmentsPage() {
                 </div>
               )}
 
-              {/* Customer Metadata Card */}
+              {/* 1. CUSTOMER SECTION */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Customer Details</h4>
+                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-slate-400" /> Customer Details
+                </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <span className="text-[10px] text-slate-400 block font-medium">Customer Name</span>
@@ -1260,51 +1270,154 @@ export default function AppointmentsPage() {
                     <span className="text-[10px] text-slate-400 block font-medium">Phone Number</span>
                     <span className="font-mono font-semibold text-slate-800">{selectedAppointment.customerPhone || "Not provided"}</span>
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <span className="text-[10px] text-slate-400 block font-medium">Email Address</span>
                     <span className="font-mono text-slate-700 truncate block">{selectedAppointment.customerEmail || "Not provided"}</span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Source Channel</span>
-                    <span className="font-semibold text-emerald-700">{selectedAppointment.conversationId ? "AI WhatsApp Agent" : "Manual Dashboard"}</span>
-                  </div>
                 </div>
               </div>
 
-              {/* Schedule Metadata */}
+              {/* 2. APPOINTMENT DETAILS SECTION */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Schedule &amp; Calendar</h4>
+                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 text-slate-400" /> Appointment Details
+                </h4>
                 <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-400 block font-medium">Title &amp; Type</span>
+                    <span className="font-bold text-slate-900 text-sm">{selectedAppointment.title}</span>
+                  </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Date &amp; Start Time</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Date</span>
                     <span className="font-bold text-slate-900">
-                      {new Date(selectedAppointment.startTime).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} at {new Date(selectedAppointment.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(selectedAppointment.startTime).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">End Time &amp; Duration</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Time Window</span>
                     <span className="font-bold text-slate-900">
-                      {new Date(selectedAppointment.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (30 mins)
+                      {new Date(selectedAppointment.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {new Date(selectedAppointment.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Target Timezone</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Status</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                      selectedAppointment.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-800" :
+                      selectedAppointment.status === "RESCHEDULED" ? "bg-blue-100 text-blue-800" :
+                      selectedAppointment.status === "CANCELLED" ? "bg-red-100 text-red-800" : "bg-slate-200 text-slate-800"
+                    }`}>
+                      {selectedAppointment.status}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Timezone</span>
                     <span className="font-mono text-slate-700">{selectedAppointment.timezone || "Asia/Kolkata"}</span>
                   </div>
+                  {selectedAppointment.description && (
+                    <div className="col-span-2 pt-1 border-t border-slate-200/60">
+                      <span className="text-[10px] text-slate-400 block font-medium">Notes &amp; Topic</span>
+                      <p className="text-xs text-slate-700 leading-relaxed mt-0.5">{selectedAppointment.description}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. WHATSAPP ACCOUNT SECTION */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
+                <h4 className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 text-emerald-600" /> WhatsApp Integration
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Google Account</span>
-                    <span className="font-mono text-slate-700 truncate block">{selectedAppointment.googleCalendarConfig?.googleEmail || "Default Org Account"}</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">WhatsApp Account</span>
+                    <span className="font-semibold text-slate-800 text-xs">
+                      {selectedAppointment.whatsappConfig?.accountName || "Official Organization WhatsApp"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Sender Number</span>
+                    <span className="font-mono text-slate-800 text-xs font-semibold">
+                      {selectedAppointment.whatsappConfig?.phoneNumber || (selectedAppointment.whatsappConfigId ? "Linked via Config ID" : "Default Organization Line")}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-400 block font-medium">Conversation / Booking Source</span>
+                    <span className="font-semibold text-emerald-800 text-xs flex items-center gap-1.5 mt-0.5">
+                      {selectedAppointment.conversationId ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <span>Booked automatically via WhatsApp AI Chatbot</span>
+                        </>
+                      ) : (
+                        <>
+                          <User className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          <span>Created manually by Admin</span>
+                        </>
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Description / Notes */}
-              {selectedAppointment.description && (
-                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-1.5">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Notes &amp; Topic</h4>
-                  <p className="text-xs text-slate-700 leading-relaxed">{selectedAppointment.description}</p>
+              {/* 4. GOOGLE CALENDAR SECTION */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
+                <h4 className="text-[11px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 text-blue-600" /> Google Calendar Sync
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Google Account</span>
+                    <span className="font-mono text-slate-800 text-xs truncate block font-semibold">
+                      {selectedAppointment.googleCalendarConfig?.googleEmail || "Active Primary Calendar"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Calendar Name</span>
+                    <span className="font-medium text-slate-800 text-xs truncate block">
+                      {selectedAppointment.googleCalendarConfig?.calendarName || "Primary Calendar"}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-400 block font-medium">Google Calendar Event ID</span>
+                    <span className="font-mono text-[11px] text-slate-600 truncate block select-all bg-white px-2 py-1 rounded-md border border-slate-200">
+                      {selectedAppointment.googleCalendarEventId || "Not synced with event ID"}
+                    </span>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              {/* 5. SYSTEM METADATA SECTION */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-3">
+                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-slate-400" /> System &amp; Audit Trail
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Created By</span>
+                    <span className="font-semibold text-slate-800 text-xs">
+                      {selectedAppointment.conversationId ? "AI Agent" : "User/Admin"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Appointment ID</span>
+                    <span className="font-mono text-[10px] text-slate-600 truncate block select-all">
+                      {selectedAppointment.id}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Created Date</span>
+                    <span className="font-medium text-slate-700 text-xs">
+                      {new Date(selectedAppointment.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} at {new Date(selectedAppointment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Updated Date</span>
+                    <span className="font-medium text-slate-700 text-xs">
+                      {new Date(selectedAppointment.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} at {new Date(selectedAppointment.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Drawer Actions Footer */}

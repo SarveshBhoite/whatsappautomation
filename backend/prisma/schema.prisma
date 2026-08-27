@@ -32,7 +32,7 @@ model Organization {
   googleQuestions     GoogleQuestion[]
   googleAdCampaigns   GoogleAdCampaign[]
   googleAdAccounts    GoogleAdAccount[]
-  aiAgentConfig       AiAgentConfig?
+  aiAgentConfigs      AiAgentConfig[]
   aiKnowledgeItems    AiKnowledgeItem[]
   aiCapturedLeads     AiCapturedLead[]
   metaAdConfig        MetaAdConfig?
@@ -43,6 +43,7 @@ model Organization {
   apiKeys             ApiKey[]
   googleCalendarConfigs GoogleCalendarConfig[]
   appointments        Appointment[]
+  webhookEvents       WebhookEvent[]
 }
 
 model User {
@@ -72,7 +73,18 @@ model WhatsAppConfig {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
+  conversations      Conversation[]
+  dripCampaigns      WhatsAppDripCampaign[]
+  appointments       Appointment[]
+  aiAgentConfigs     AiAgentConfig[]
+  aiKnowledgeItems   AiKnowledgeItem[]
+  webhookEvents      WebhookEvent[]
+  flowExecutions     FlowExecution[]
+  deadLetterJobs     DeadLetterJob[]
+  messageTraces      MessageTrace[]
+
   @@index([organizationId])
+  @@index([phoneNumberId])
 }
 
 model InstagramConfig {
@@ -581,31 +593,61 @@ model Flow {
   organization   Organization @relation(fields: [organizationId], references: [id])
   flowGraph      Json?        @default("{}")
   graphJson      Json?
+  version        Int          @default(1)
   status         String?      @default("ACTIVE")
   isActive       Boolean      @default(false)
   isDefault      Boolean      @default(false)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  executions     FlowExecution[]
+
+  @@index([organizationId, platform, isActive])
+}
+
+model FlowExecution {
+  id               String          @id @default(uuid())
+  organizationId   String
+  whatsappConfigId String?
+  whatsappConfig   WhatsAppConfig? @relation(fields: [whatsappConfigId], references: [id], onDelete: SetNull)
+  conversationId   String
+  conversation     Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  flowId           String
+  flow             Flow            @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  version          Int             @default(1)
+  currentNodeId    String?
+  status           String          @default("RUNNING") // RUNNING, WAITING, COMPLETED, PAUSED, FAILED, CANCELLED
+  lastError        String?
+  startedAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([organizationId, whatsappConfigId])
+  @@index([conversationId, status])
+  @@map("flow_executions")
 }
 
 model Conversation {
-  id             String       @id @default(uuid())
-  customerPhone  String
-  customerName   String?
-  platform       String       @default("whatsapp")
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  phoneNumberId  String?
-  accountHandle  String?
-  currentStepId  String?
-  currentNodeId  String?
-  flowState      Json?
-  isBotPaused    Boolean      @default(false)
-  botPausedUntil DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  messages       Message[]
+  id               String          @id @default(uuid())
+  customerPhone    String
+  customerName     String?
+  platform         String          @default("whatsapp")
+  organizationId   String
+  organization     Organization    @relation(fields: [organizationId], references: [id])
+  whatsappConfigId String?
+  whatsappConfig   WhatsAppConfig? @relation(fields: [whatsappConfigId], references: [id], onDelete: SetNull)
+  phoneNumberId    String?
+  accountHandle    String?
+  currentStepId    String?
+  currentNodeId    String?
+  flowState        Json?
+  isBotPaused      Boolean         @default(false)
+  botPausedUntil   DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  messages         Message[]
+  flowExecutions   FlowExecution[]
 
+  @@index([organizationId, whatsappConfigId])
   @@index([organizationId, phoneNumberId])
   @@index([organizationId, platform])
 }
@@ -626,6 +668,8 @@ model Message {
   quotedMessage   Message?      @relation("QuotedReplies", fields: [quotedMessageId], references: [id], onDelete: SetNull)
   replyMessages   Message[]     @relation("QuotedReplies")
   createdAt       DateTime      @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 model GoogleAdAccount {
@@ -775,42 +819,51 @@ model GmailEmailTemplate {
 
 // ─── AI Agent Studio & Knowledge Base Training System ──────────────────────
 model AiAgentConfig {
-  id                 String       @id @default(uuid())
-  organizationId     String       @unique
-  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  agentName          String       @default("AI Sales Specialist")
-  personalityPrompt  String       @default("You are a warm, highly knowledgeable, human-like sales and customer support representative. Chat naturally in a friendly, conversational tone. Understand customer requirements, answer questions based strictly on trained company data, attach relevant portfolio screenshots or PDFs when requested, and collect contact details if they ask to be called back.")
-  greetingMessage    String?      @default("Hello! How can I assist you with our services today?")
-  activeMode         String       @default("AI_AGENT")
-  isActive           Boolean      @default(true)
+  id                 String          @id @default(uuid())
+  organizationId     String
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappConfigId   String?
+  whatsappConfig     WhatsAppConfig? @relation(fields: [whatsappConfigId], references: [id], onDelete: Cascade)
+  agentName          String          @default("AI Sales Specialist")
+  personalityPrompt  String          @default("You are a warm, highly knowledgeable, human-like sales and customer support representative. Chat naturally in a friendly, conversational tone. Understand customer requirements, answer questions based strictly on trained company data, attach relevant portfolio screenshots or PDFs when requested, and collect contact details if they ask to be called back.")
+  greetingMessage    String?         @default("Hello! How can I assist you with our services today?")
+  activeMode         String          @default("AI_AGENT")
+  isActive           Boolean         @default(true)
   groqApiKey         String?
-  whatsappAiEnabled  Boolean      @default(true)
-  instagramAiEnabled Boolean      @default(false)
-  youtubeAiEnabled   Boolean      @default(false)
-  linkedinAiEnabled  Boolean      @default(false)
-  autoSendMedia      Boolean      @default(true)
-  fallbackAction     String       @default("human_callback")
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  whatsappAiEnabled  Boolean         @default(true)
+  instagramAiEnabled Boolean         @default(false)
+  youtubeAiEnabled   Boolean         @default(false)
+  linkedinAiEnabled  Boolean         @default(false)
+  autoSendMedia      Boolean         @default(true)
+  fallbackAction     String          @default("human_callback")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
+  @@unique([organizationId, whatsappConfigId])
+  @@index([organizationId])
+  @@index([whatsappConfigId])
   @@map("ai_agent_configs")
 }
 
 model AiKnowledgeItem {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category       String       @default("SERVICES")
-  topic          String
-  keywords       String
-  content        String
-  mediaUrl       String?
-  mediaType      String?
-  mediaTitle     String?
-  isActive       Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id               String          @id @default(uuid())
+  organizationId   String
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappConfigId String?
+  whatsappConfig   WhatsAppConfig? @relation(fields: [whatsappConfigId], references: [id], onDelete: Cascade)
+  category         String          @default("SERVICES")
+  topic            String
+  keywords         String
+  content          String
+  mediaUrl         String?
+  mediaType        String?
+  mediaTitle       String?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
+  @@index([organizationId])
+  @@index([organizationId, whatsappConfigId])
   @@map("ai_knowledge_items")
 }
 
@@ -976,6 +1029,8 @@ model WhatsAppDripCampaign {
   id                 String                     @id @default(uuid())
   organizationId     String
   organization       Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappConfigId   String?
+  whatsappConfig     WhatsAppConfig?            @relation(fields: [whatsappConfigId], references: [id], onDelete: SetNull)
   name               String
   description        String?
   status             String                     @default("DRAFT") // DRAFT, SCHEDULED, ACTIVE, PAUSED, COMPLETED, ARCHIVED
@@ -1022,6 +1077,7 @@ model WhatsAppDripCampaign {
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
 
+  @@index([organizationId, whatsappConfigId])
   @@map("whatsapp_drip_campaigns")
 }
 
@@ -1127,6 +1183,8 @@ model WhatsAppDripMessageQueue {
   createdAt        DateTime                   @default(now())
   updatedAt        DateTime                   @updatedAt
 
+  @@index([status, scheduledFor])
+  @@index([organizationId, campaignId, status])
   @@map("whatsapp_drip_message_queues")
 }
 
@@ -1197,6 +1255,8 @@ model Appointment {
   id                     String                @id @default(uuid())
   organizationId         String
   organization           Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappConfigId       String?
+  whatsappConfig         WhatsAppConfig?       @relation(fields: [whatsappConfigId], references: [id], onDelete: SetNull)
   conversationId         String?
   customerPhone          String?
   customerName           String
@@ -1220,8 +1280,73 @@ model Appointment {
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
+  @@index([organizationId, whatsappConfigId])
   @@index([organizationId])
   @@index([customerPhone])
   @@map("appointments")
+}
+
+model WebhookEvent {
+  id               String          @id @default(uuid())
+  organizationId   String?
+  organization     Organization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  whatsappConfigId String?
+  whatsappConfig   WhatsAppConfig? @relation(fields: [whatsappConfigId], references: [id], onDelete: SetNull)
+  phoneNumberId    String?
+  provider         String          @default("meta_whatsapp") // meta_whatsapp, meta_instagram, youtube, google
+  providerEventId  String          @unique                   // waMessageId, statusId, or unique hash
+  messageId        String?
+  eventType        String          // messages, statuses, comments, etc.
+  payload          Json?
+  status           String          @default("RECEIVED")      // RECEIVED, QUEUED, PROCESSING, PROCESSED, IGNORED, FAILED
+  attempts         Int             @default(0)
+  receivedAt       DateTime        @default(now())
+  processedAt      DateTime?
+  lastError        String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([organizationId, whatsappConfigId])
+  @@index([provider, providerEventId])
+  @@index([status, createdAt])
+  @@map("webhook_events")
+}
+
+model DeadLetterJob {
+  id               String          @id @default(uuid())
+  organizationId   String
+  whatsappConfigId String?
+  whatsappConfig   WhatsAppConfig? @relation(fields: [whatsappConfigId], references: [id], onDelete: SetNull)
+  type             String          // OUTBOUND_DISPATCH, DRIP_STEP, FLOW_NODE, APPOINTMENT_SYNC
+  payload          Json
+  attempts         Int             @default(0)
+  lastError        String?
+  status           String          @default("DEAD") // DEAD, RETRIED, RESOLVED
+  createdAt        DateTime        @default(now())
+  failedAt         DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([organizationId, whatsappConfigId])
+  @@index([status, createdAt])
+  @@map("dead_letter_jobs")
+}
+
+model MessageTrace {
+  id               String          @id @default(uuid())
+  traceId          String          @unique
+  organizationId   String
+  whatsappConfigId String?
+  whatsappConfig   WhatsAppConfig? @relation(fields: [whatsappConfigId], references: [id], onDelete: SetNull)
+  phoneNumberId    String?
+  conversationId   String?
+  waMessageId      String?
+  stages           Json            @default("[]") // Array of { stage, timestamp, status, durationMs, error }
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([organizationId, whatsappConfigId])
+  @@index([traceId])
+  @@index([waMessageId])
+  @@map("message_traces")
 }
 

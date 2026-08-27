@@ -65,7 +65,7 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
             igConfigs: true,
             ytConfigs: true,
             linkedInConfig: true,
-            aiAgentConfig: true,
+            aiAgentConfigs: true,
           },
         },
       },
@@ -81,14 +81,40 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
     }
 
     const orgId = conversation.organizationId;
-    const aiConfig = conversation.organization.aiAgentConfig;
+    const conversationPhoneId = (conversation as any).phoneNumberId;
+    const conversationWaConfigId = (conversation as any).whatsappConfigId;
+    const waConfig = (conversationWaConfigId
+      ? conversation.organization.waConfigs?.find((c: any) => c.id === conversationWaConfigId)
+      : null) || (conversationPhoneId 
+      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversationPhoneId)
+      : null);
+    const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
+    const ytConfig = (conversation.organization as any).ytConfigs?.find((a: any) => a.isDefault) || (conversation.organization as any).ytConfigs?.[0];
+    const linkedInConfig = conversation.organization.linkedInConfig;
 
-    // Default configuration if client hasn't saved one yet
-    const agentName = aiConfig?.agentName || "AI Sales & Support Specialist";
-    const personalityPrompt = aiConfig?.personalityPrompt || 
-      "You are a warm, highly knowledgeable human sales & customer representative. Chat in a friendly, conversational tone. Answer questions based on trained company data. Attach relevant portfolio screenshots or PDFs when requested, and collect contact details if the user wants to be called back.";
-    const activeMode = aiConfig?.activeMode || "AI_AGENT";
-    const autoSendMedia = aiConfig?.autoSendMedia !== false;
+    // Resolve Account-Scoped AI Agent Config (strictly for this WhatsApp Number)
+    let aiConfig = null;
+    if (waConfig?.id) {
+      aiConfig = await (prisma as any).aiAgentConfig.findFirst({
+        where: {
+          organizationId: orgId,
+          whatsappConfigId: waConfig.id,
+          isActive: true,
+        },
+      });
+    }
+
+    // HARD GATING: If NO AI Agent is configured or active for this exact receiving WhatsApp number, STOP IMMEDIATELY
+    if (!aiConfig || aiConfig.isActive === false || aiConfig.activeMode !== "AI_AGENT") {
+      console.log(`[AI_RUNTIME] ZERO_AI: No active AI Agent configured for WhatsApp line (waConfigId: ${waConfig?.id}, phone: ${waConfig?.phoneNumber}). Aborting AI execution.`);
+      return;
+    }
+
+    // Agent personality and naming strictly scoped to this number's configuration
+    const agentName = aiConfig.agentName || waConfig?.accountName || "AI Assistant";
+    const personalityPrompt = aiConfig.personalityPrompt ? aiConfig.personalityPrompt.trim() : "";
+    const activeMode = aiConfig.activeMode;
+    const autoSendMedia = aiConfig.autoSendMedia !== false;
 
     // 2. Fetch last 15 messages for natural dialogue context (ordered chronologically)
     const recentMessagesDesc = await prisma.message.findMany({
@@ -99,10 +125,16 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
 
     const recentMessages = recentMessagesDesc.reverse(); // Chronological order (oldest to newest)
 
-    // 3. Retrieve ALL Trained Knowledge Base Items for this Organization (Full AI Brain)
-    const allKnowledgeItems = await prisma.aiKnowledgeItem.findMany({
+    const isWhatsApp = conversation.platform === "whatsapp";
+    const isInstagram = conversation.platform === "instagram";
+    const isYouTube = conversation.platform === "youtube";
+    const isLinkedIn = conversation.platform === "linkedin";
+
+    // 3. Retrieve Trained Knowledge Base Items strictly scoped to this WhatsApp Number
+    const allKnowledgeItems = await (prisma as any).aiKnowledgeItem.findMany({
       where: {
         organizationId: orgId,
+        whatsappConfigId: waConfig?.id || "UNCONFIGURED_LINE",
         isActive: true,
       },
     });
@@ -134,19 +166,21 @@ export async function processAiAgentChat(conversationId: string, incomingMessage
       customerQuery = rawContent;
     }
 
-    const companyName = conversation.organization.name || "our company";
+    // 4. Resolve Account-Specific Identity strictly from this WhatsApp line
+    const accountDisplayName = waConfig?.accountName || "our company";
+    const companyName = aiConfig?.agentName || waConfig?.accountName || "our company";
 
-    // Format Full Knowledge Base Context for THIS SPECIFIC ORGANIZATION ONLY
+    // Format Full Knowledge Base Context for THIS SPECIFIC WHATSAPP NUMBER ONLY
     let knowledgeContextText = "";
     if (allKnowledgeItems.length > 0) {
-      knowledgeContextText = allKnowledgeItems.map(k => `
+      knowledgeContextText = allKnowledgeItems.map((k: any) => `
 [KNOWLEDGE TOPIC: ${k.topic}] (Category: ${k.category})
 Keywords Tagged: ${k.keywords}
 Detailed Information: ${k.content}
 ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.mediaTitle || 'Attachment'}", URL: ${k.mediaUrl})` : 'No media asset attached'}
 ---`).join("\n");
     } else {
-      knowledgeContextText = `Company Name: ${companyName}. Answer customer questions politely based on your training and offer to have our human team reach out.`;
+      knowledgeContextText = `Answer customer questions politely and offer to have our human team reach out. No specific training data uploaded for this number yet.`;
     }
 
     // 4. Build Groq AI System Prompt with Dynamic Organization Awareness
@@ -158,58 +192,46 @@ ${k.mediaUrl ? `Media Asset ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.med
     const currentTimestamp = new Date();
     const currentDateStr = currentTimestamp.toISOString().split("T")[0];
     const currentTimeStr = currentTimestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
+    const hasKnowledge = allKnowledgeItems.length > 0;
+    const isCustomPersona = Boolean(aiConfig?.personalityPrompt && aiConfig.personalityPrompt.trim().length > 0);
+    const customGreeting = aiConfig.greetingMessage?.trim();
 
-    const systemPrompt = `You are "${agentName}", representing "${companyName}". You are a warm, highly intelligent, and human-like sales, growth and support consultant.
+    const systemPrompt = `You are "${agentName}". ${hasKnowledge ? `You represent "${companyName}".` : (isCustomPersona ? `Follow your assigned persona.` : `You are a polite, direct representative.`)}
 Current Date & Time in IST: ${currentDateStr} at ${currentTimeStr}.
 
 ### YOUR PERSONALITY & DIALOGUE GOALS:
 ${personalityPrompt}
 
 ### RESPONSE LENGTH — CRITICAL RULE:
-Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. Write plain text only — no bullet points, no markdown bold, no numbered lists. Retrieve information naturally across multiple messages like a real human conversation — never dump everything in one long reply.
+Keep every reply SHORT — maximum 2-3 sentences. This is WhatsApp, not email. Write plain text only — no bullet points, no markdown bold, no numbered lists.
 
 ### STRICT HUMAN CONVERSATIONAL RULES:
-1. **Be Warm, Natural & Conversational**: Speak as a real representative of ${companyName}. Keep messages clear, polite, and engaging.
+1. **Be Warm, Natural & Helpful**: Greet politely, listen to what the user asks, and answer naturally.
 2. **Handle Greetings & Freeform Questions Intelligently**:
-   - If the customer says "Hi", "Hey", "Hello", "Good morning", "How are you", or asks a general greeting, greet them warmly, mention ${companyName}, ask how you can help, and offer assistance.
-   - **CRITICAL RULE ON GREETINGS**: For simple greetings like 'hey' or 'hi', NEVER attach any media files. Set attachKnowledgeIds to [].
-3. **Use Trained Data strictly for ${companyName}**: Answer questions ONLY based on the trained knowledge base data provided below for ${companyName}.
+   - If the customer says "Hi", "Hey", "Hello", "Good morning", or sends a greeting:
+     ${customGreeting ? `- Reply naturally with your designated greeting: "${customGreeting}"` : (hasKnowledge ? `- Greet them warmly, mention ${companyName}, and ask how you can help.` : `- Greet them warmly: "Hello! How can I help you today?" Do NOT assume any other company name or service.`)}
+   - NEVER attach any media files for simple greetings. Set attachKnowledgeIds to [].
+3. **Strict Data Grounding**:
+   ${hasKnowledge ? `- Answer questions strictly using the trained knowledge base data provided below for ${companyName}.` : `- You have no external company products or rate cards trained for this phone line. If asked about services/pricing, state politely that a team representative will assist them.`}
 4. **Contextual Media & Asset Sending**:
-   - ONLY attach media assets if the customer explicitly asks to see sample work, portfolio, screenshots, rate cards, brochures, or proof of work.
-   - If (and ONLY if) the customer explicitly requests proof or media, return the matching asset IDs in "attachKnowledgeIds": ["ID1", "ID2"]. Otherwise, keep "attachKnowledgeIds": [].
-5. **Deal Closing & Business Lead Capture**:
-   - When the customer shows interest in custom pricing, starting a project, or getting a quote, naturally close the conversation: "I'd love to schedule a quick 10-minute consultation call with our ${companyName} team. May I have your Full Name, Phone Number, and Email so I can lock in your slot?"
-6. **JOB APPLICANTS & RECRUITMENT HANDLING (CRITICAL RULE)**:
-   - Check recent chat history. If the candidate mentions applying for a job, interviewing, or shares a resume/CV, treat all subsequent messages strictly as a job application for ${companyName}. Do NOT pitch company services to job applicants!
-   - If the candidate mentions terms like "Digital Marketing", "Meta Ads", "Google Ads", "Web Development", "Python", "SEO", etc., treat these strictly as THE JOB POSITION / ROLE THEY ARE APPLYING FOR.
-   - **ALWAYS ACKNOWLEDGE RESUME & CONFIRM CALL BACK**: Once they share their resume or specify the position, acknowledge warmly in the customer's detected language (English, Hindi, Hinglish, Marathi, etc.) and state clearly that HR will review their application and call them shortly.
-7. **AUTOMATIC MULTILINGUAL MATCHING & CONTINUITY (CRITICAL RULE)**:
-   - Detect the language of the customer's incoming message (e.g., Hindi, Marathi, Telugu, Tamil, Kannada, Gujarati, Hinglish, English, etc.).
-   - Respond strictly in the EXACT SAME LANGUAGE as the user! Maintain this detected language for all subsequent responses throughout the chat history.
-8. **OUTBOUND TEMPLATE, ADS & CAMPAIGN CONTINUITY**:
-   - If the customer clicked on a Meta Ad (e.g. contains '[Customer clicked Meta Ad]' or mentions seeing an ad/offer/promotion), immediately welcome them enthusiastically to the promotion:
-     "Welcome! You've unlocked our active Meta Ads Special Offer: 50% OFF on all Website & Mobile App Development packages (starting at ₹5,999/-) and 30% OFF on Digital Marketing & SEO! What project can we help you build today to lock in your discount?"
-   - If the template offered a preview, catalog, rate card, or brochure, and the customer replies with confirmation (*"Yes send"*, *"Sure"*, *"Send it"*, *"Okay"*), IMMEDIATELY respond warmly and include the matching asset ID in "attachKnowledgeIds".
-   - If the customer asks *"Why are you messaging me?"* or *"Who is this?"*, explain naturally: *"We reached out from ${companyName} regarding the offer/information sent above to see if it would help your business!"*
-9. **GOOGLE MEET APPOINTMENT BOOKING (CRITICAL RULE)**:
-   - For regular inquiries, greetings ('Hi', 'Hello'), questions, pricing, or casual talk:
-     - Keep "requestedAppointment": { "isBookingRequested": false }
-     - Answer the user's question naturally and conversationally.
-   - ONLY when the customer EXPLICITLY asks to book or schedule a meeting/call (e.g. 'Schedule a google meet', 'book a slot', 'send instant meeting link', 'call me tomorrow at 4pm'):
-     - **DO NOT WRITE ANY LINK OR URL IN YOUR replyText**. The system will automatically generate and attach the authentic Google Meet room.
-     - Generate a personalized, dynamic "title" based specifically on what the user wants to discuss (e.g. "Instant Strategy Meeting with [Name]", "SEO & Ads Growth Consultation", "Custom Web App Discussion", "Careers & Interview Call").
-     - If the user says "instant", "now", or "today", set dateStr to "${currentDateStr}" and timeStr to "${currentTimeStr}".
-     - Just write a short warm confirmation sentence in your replyText (e.g., "I have scheduled your consultation right away. Here are your joining details:").
+   - ONLY attach media assets if the customer explicitly asks for sample work, portfolio, screenshots, or rate cards. Keep "attachKnowledgeIds": [] otherwise.
+5. **Job Candidates & Recruitment**:
+   - If the customer mentions a resume or job application, acknowledge politely and note that the hiring team will review it.
+6. **Automatic Multilingual Matching**:
+   - Respond strictly in the EXACT SAME LANGUAGE as the user (English, Hindi, Marathi, etc.).
+7. **GOOGLE MEET APPOINTMENT BOOKING**:
+   - ONLY when the customer EXPLICITLY asks to book or schedule a meeting/call:
+     - DO NOT write links in replyText.
+     - Just write a short warm confirmation sentence in your replyText.
      - Set:
-       "requestedAppointment": {
-         "isBookingRequested": true,
-         "customerName": "<extracted_name_or_from_history>",
-         "customerEmail": "<extracted_email_or_from_history>",
-         "dateStr": "<YYYY-MM-DD>",
-         "timeStr": "<HH:MM AM/PM>",
-         "title": "<Dynamic Subject/Title Based On User Topic>"
-       }
->>>>>>> origin/feature/multi-id
+        "requestedAppointment": {
+          "isBookingRequested": true,
+          "customerName": "<extracted_name_or_from_history>",
+          "customerEmail": "<extracted_email_or_from_history>",
+          "dateStr": "<YYYY-MM-DD>",
+          "timeStr": "<HH:MM AM/PM>",
+          "title": "<Dynamic Subject/Title Based On User Topic>"
+        }
 
 ### TRAINED COMPANY KNOWLEDGE BASE DATA:
 ${knowledgeContextText}
@@ -380,6 +402,7 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
         const { AppointmentService } = require("./appointmentService");
         const apptResult = await AppointmentService.createAppointment({
           organizationId: orgId,
+          whatsappConfigId: (conversation as any).whatsappConfigId || waConfig?.id || null,
           conversationId: conversation.id,
           customerPhone,
           customerName,
@@ -432,7 +455,7 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     const attachedItems: KnowledgeItem[] = [];
     if (autoSendMedia && rawAttachIds.length > 0) {
       for (const id of rawAttachIds) {
-        const found = allKnowledgeItems.find(k => k.id === id);
+        const found = allKnowledgeItems.find((k: any) => k.id === id);
         if (found && found.mediaUrl) {
           attachedItems.push(found as KnowledgeItem);
         }
@@ -440,35 +463,42 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     }
 
     // 7. Save AI Agent Response to DB & Dispatch via Channel API
-    const isWhatsApp = conversation.platform === "whatsapp";
-    const isInstagram = conversation.platform === "instagram";
-    const isYouTube = conversation.platform === "youtube";
-    const isLinkedIn = conversation.platform === "linkedin";
-
-    const conversationPhoneId = (conversation as any).phoneNumberId;
-    const waConfig = (conversationPhoneId 
-      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversationPhoneId)
-      : null) || conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
-    const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
-    const ytConfig = (conversation.organization as any).ytConfigs?.find((a: any) => a.isDefault) || (conversation.organization as any).ytConfigs?.[0];
-    const linkedInConfig = conversation.organization.linkedInConfig;
 
     // Dispatch Text Message
     let outWaId: string | null = null;
     if (isWhatsApp && waConfig?.phoneNumberId && waConfig?.accessToken) {
-      const resData = await WhatsAppService.sendTextMessage(
-        waConfig.phoneNumberId,
-        waConfig.accessToken,
-        customerPhone,
-        replyText
-      );
-      outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
+      const { OutboundMessageService } = require("./whatsapp/outboundMessageService");
+      const dispatchRes = await OutboundMessageService.dispatch({
+        organizationId: orgId,
+        whatsappConfigId: waConfig.id,
+        phoneNumberId: waConfig.phoneNumberId,
+        accessToken: waConfig.accessToken,
+        recipientPhone: customerPhone,
+        type: "text",
+        text: replyText,
+        conversationId: conversation.id,
+        senderName: agentName,
+        source: "ai",
+        priority: "P1",
+        idempotencyKey: `ai:${conversation.id}:${incomingMessageId}`,
+      });
+      outWaId = dispatchRes.waMessageId || null;
     } else if (isInstagram && igConfig?.pageId && igConfig?.pageAccessToken) {
       await InstagramService.sendTextMessage(
         igConfig.pageAccessToken,
         customerPhone,
         replyText
       );
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "outbound",
+          messageType: "text",
+          content: replyText,
+          status: "sent",
+          senderName: agentName,
+        },
+      });
     } else if (isYouTube && ytConfig?.accessToken) {
       await YouTubeService.sendCommentReply(
         ytConfig.channelId || "",
@@ -484,26 +514,21 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
       );
     }
 
-    // Save text message in Database
-    const savedTextMessage = await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: "outbound",
-        messageType: "text",
-        content: replyText,
-        waMessageId: outWaId,
-        status: "sent",
-        senderName: agentName,
-      },
-    });
-
     // Broadcast Socket.IO event for live agent dashboard monitoring
     try {
       const { io: socketIo } = require("../index");
       if (socketIo) {
         socketIo.to(orgId).emit("new-message", {
           conversationId: conversation.id,
-          message: savedTextMessage,
+          message: {
+            conversationId: conversation.id,
+            direction: "outbound",
+            messageType: "text",
+            content: replyText,
+            waMessageId: outWaId,
+            status: "sent",
+            senderName: agentName,
+          },
         });
       }
     } catch (ioErr: any) {
@@ -663,53 +688,7 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
 
     console.log(`[AI AGENT ENGINE] Replied to ${customerPhone} with "${replyText.slice(0, 40)}..."`);
   } catch (error: any) {
-    console.error("[AI AGENT ENGINE] Error processing AI chat:", JSON.stringify(error.response?.data || error.message || error, null, 2));
-    
-    // GUARANTEED ZERO UNREPLIED MESSAGES FALLBACK
-    try {
-      const fallbackConv = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        include: { organization: { include: { waConfigs: true, igConfigs: true } } },
-      });
-      if (fallbackConv && !fallbackConv.isBotPaused) {
-        const fallbackText = "Thank you for reaching out to Jisnu Digital Solutions! Our senior representative has received your message and will guide you personally in just a moment.";
-        const waConfig = fallbackConv.organization.waConfigs?.find((c: any) => c.isDefault) || fallbackConv.organization.waConfigs?.[0];
-        const customerPhone = fallbackConv.customerPhone;
-        
-        let outWaId: string | null = null;
-        if (fallbackConv.platform === "whatsapp" && waConfig?.phoneNumberId && waConfig?.accessToken) {
-          const resData = await WhatsAppService.sendTextMessage(
-            waConfig.phoneNumberId,
-            waConfig.accessToken,
-            customerPhone,
-            fallbackText
-          );
-          outWaId = resData?.messages?.[0]?.id || resData?.message_id || null;
-        }
-
-        const savedFallback = await prisma.message.create({
-          data: {
-            conversationId: fallbackConv.id,
-            direction: "outbound",
-            messageType: "text",
-            content: fallbackText,
-            waMessageId: outWaId,
-            status: "sent",
-            senderName: "AI Sales Specialist",
-          },
-        });
-
-        const { io: socketIo } = require("../index");
-        if (socketIo) {
-          socketIo.to(fallbackConv.organizationId).emit("new-message", {
-            conversationId: fallbackConv.id,
-            message: savedFallback,
-          });
-        }
-        console.log(`[AI AGENT ENGINE] Emergency fallback reply sent to ${customerPhone}`);
-      }
-    } catch (fallbackErr: any) {
-      console.error("[AI AGENT ENGINE] Emergency fallback error:", fallbackErr.message);
-    }
+    // Error logging only — no cross-account fallback messages
+    console.error("[AI AGENT ENGINE] Chat processing halted due to error for conversation:", conversationId);
   }
 }

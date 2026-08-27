@@ -52,8 +52,14 @@ import "reactflow/dist/style.css";
 import WhatsAppBulkBroadcastPage from "./bulk/page";
 import WhatsAppTemplatesPage from "./templates/page";
 import WhatsAppDripCampaignsModule from "./drip/WhatsAppDripCampaignsModule";
+import { WhatsAppChatBackground } from "@/components/WhatsAppChatBackground";
+import dynamic from "next/dynamic";
+import { Theme, EmojiClickData } from "emoji-picker-react";
 import AppointmentsPage from "../appointments/page";
 import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
+import { useAccount } from "@/context/AccountContext";
+
+const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -369,6 +375,8 @@ export default function Dashboard() {
   const [waAccounts, setWaAccounts] = useState<any[]>([]);
   const [selectedWaAccountId, setSelectedWaAccountId] = useState<string>("");
 
+  const { activeAccounts, setActiveAccount } = useAccount();
+
   const fetchWaAccounts = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/whatsapp-embedded/accounts`, {
@@ -376,10 +384,41 @@ export default function Dashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.accounts) {
+        if (data.accounts && data.accounts.length > 0) {
           setWaAccounts(data.accounts);
-          const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
-          if (defaultAcc) setSelectedWaAccountId(defaultAcc.id);
+          
+          // 1. Check if user already has an active selection in localStorage or AccountContext
+          let savedContextId = activeAccounts?.whatsapp;
+          if (!savedContextId && typeof window !== "undefined") {
+            try {
+              const saved = localStorage.getItem("jisnu_active_accounts_v1");
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed?.whatsapp) savedContextId = parsed.whatsapp;
+              }
+            } catch {}
+          }
+
+          const urlParamId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("accountId") : null;
+          
+          // Prioritize: explicitly in URL > user's saved choice in context/storage > default account > first
+          const matchedAcc = data.accounts.find((a: any) => a.id === urlParamId) ||
+                             data.accounts.find((a: any) => a.id === savedContextId) ||
+                             data.accounts.find((a: any) => a.id === selectedWaAccountId) ||
+                             data.accounts.find((a: any) => a.isDefault) ||
+                             data.accounts[0];
+
+          if (matchedAcc) {
+            setSelectedWaAccountId(matchedAcc.id);
+            // Only update activeAccount if not already matching savedContextId
+            if (activeAccounts?.whatsapp !== matchedAcc.id) {
+              setActiveAccount("whatsapp", matchedAcc.id, {
+                name: matchedAcc.phoneNumber || matchedAcc.accountName || "WhatsApp",
+                identifier: matchedAcc.phoneNumberId,
+                isDefault: matchedAcc.isDefault
+              });
+            }
+          }
         }
       }
     } catch (err) {
@@ -389,20 +428,75 @@ export default function Dashboard() {
 
   const handleSwitchWaAccount = async (accountId: string) => {
     try {
+      setShowEmojiPicker(false);
+      setShowMediaMenu(false);
       setSelectedWaAccountId(accountId);
+      setActiveConv(null);
+      setMessages([]);
+      setLoadingConversations(true);
+
       const targetAcc = waAccounts.find(a => a.id === accountId);
-      await fetch(`${BACKEND_URL}/api/whatsapp-embedded/set-default`, {
+      if (targetAcc) {
+        setActiveAccount("whatsapp", accountId, {
+          name: targetAcc.phoneNumber || targetAcc.accountName || "WhatsApp",
+          identifier: targetAcc.phoneNumberId,
+          isDefault: targetAcc.isDefault
+        });
+      }
+
+      // Synchronize default on backend
+      fetch(`${BACKEND_URL}/api/whatsapp-embedded/set-default`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-organization-id": getOrgId()
         },
         body: JSON.stringify({ accountId })
-      });
-      fetchConversations(targetAcc?.phoneNumberId);
-      fetchWaAccounts();
+      }).catch(() => {});
+
+      // Instantly fetch conversations for the newly selected account
+      await fetchConversations(accountId, targetAcc?.phoneNumberId);
     } catch (err) {
       console.warn("Error switching WhatsApp account:", err);
+    }
+  };
+
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string>("");
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      // 1. Sync WhatsApp numbers & credentials via backend
+      await fetch(`${BACKEND_URL}/api/whatsapp-embedded/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ whatsappConfigId: selectedWaAccountId })
+      }).catch(() => {});
+
+      // 2. Refresh WhatsApp accounts list
+      await fetchWaAccounts();
+
+      // 3. Refresh conversations list for selected account
+      const activeAcc = waAccounts.find(a => a.id === selectedWaAccountId) || waAccounts.find(a => a.isDefault);
+      await fetchConversations(selectedWaAccountId, activeAcc?.phoneNumberId);
+
+      // 4. If conversation currently selected, refresh active messages & bot flow state
+      if (activeConvRef.current?.id) {
+        await fetchMessages(activeConvRef.current.id);
+      }
+
+      // 5. Update timestamp
+      const now = new Date();
+      setLastRefreshedAt(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    } catch (err) {
+      console.warn("Manual WhatsApp refresh notice:", err);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -531,11 +625,63 @@ export default function Dashboard() {
     reader.readAsDataURL(file);
   };
 
-  // Interactive UI pickers
+  // Interactive UI pickers & Refs
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+  const messageInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Close emoji picker on click outside or Escape key
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showEmojiPicker) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showEmojiPicker]);
+
+  // Insert emoji precisely at cursor position, preserve input focus
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    const emoji = emojiData.emoji;
+    const input = messageInputRef.current;
+    if (input) {
+      const start = input.selectionStart ?? inputText.length;
+      const end = input.selectionEnd ?? inputText.length;
+      const updatedText = inputText.substring(0, start) + emoji + inputText.substring(end);
+      setInputText(updatedText);
+
+      // Restore cursor position immediately after inserted emoji
+      setTimeout(() => {
+        if (messageInputRef.current) {
+          messageInputRef.current.focus();
+          const newPos = start + emoji.length;
+          messageInputRef.current.setSelectionRange(newPos, newPos);
+        }
+      }, 0);
+    } else {
+      setInputText((prev) => prev + emoji);
+    }
+  };
 
   // Quoted reply state
   const [quotedMessage, setQuotedMessage] = useState<Message | null>(null);
@@ -786,20 +932,24 @@ export default function Dashboard() {
 
   // Re-fetch conversations isolated to the selected WhatsApp account whenever selected account changes
   useEffect(() => {
-    if (selectedWaAccountId && waAccounts.length > 0) {
-      const activeAcc = waAccounts.find(a => a.id === selectedWaAccountId) || waAccounts.find(a => a.isDefault);
-      if (activeAcc && activeAcc.phoneNumberId) {
-        fetchConversations(activeAcc.phoneNumberId);
-      }
+    if (selectedWaAccountId) {
+      const activeAcc = waAccounts.find(a => a.id === selectedWaAccountId);
+      fetchConversations(selectedWaAccountId, activeAcc?.phoneNumberId);
     }
-  }, [selectedWaAccountId, waAccounts]);
+  }, [selectedWaAccountId]);
 
   // 2. HTTP API Calls
-  const fetchConversations = async (targetPhoneId?: string) => {
+  const fetchConversations = async (targetAccountId?: string, targetPhoneId?: string) => {
     try {
-      const activeAcc = waAccounts.find(a => a.id === selectedWaAccountId) || waAccounts.find(a => a.isDefault);
-      const phoneIdParam = targetPhoneId || activeAcc?.phoneNumberId || "";
-      const url = `${BACKEND_URL}/api/admin/conversations?platform=whatsapp${phoneIdParam ? `&phoneNumberId=${phoneIdParam}` : ""}`;
+      const activeAcc = waAccounts.find(a => a.id === (targetAccountId || selectedWaAccountId)) || waAccounts.find(a => a.isDefault);
+      const accId = targetAccountId || activeAcc?.id || selectedWaAccountId;
+      const phoneId = targetPhoneId || activeAcc?.phoneNumberId || "";
+      
+      const params = new URLSearchParams({ platform: "whatsapp" });
+      if (accId) params.append("whatsappConfigId", accId);
+      if (phoneId) params.append("phoneNumberId", phoneId);
+
+      const url = `${BACKEND_URL}/api/admin/conversations?${params.toString()}`;
       const res = await fetch(url, {
         headers: { "x-organization-id": getOrgId() }
       });
@@ -924,6 +1074,8 @@ export default function Dashboard() {
   // 3. User Actions
   const handleSelectConversation = (conv: Conversation) => {
     setActiveConv(conv);
+    setShowEmojiPicker(false);
+    setShowMediaMenu(false);
     fetchMessages(conv.id);
     setMobileChatOpen(true); // On mobile, open the chat panel
   };
@@ -1145,6 +1297,26 @@ export default function Dashboard() {
                 }
               }}
             />
+
+            {/* Account-Aware Refresh Button */}
+            <div className="flex items-center gap-2 pl-1">
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
+                title="Refresh WhatsApp data for selected number"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-emerald-600 ${isRefreshing ? "animate-spin" : ""}`} />
+                <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+              </button>
+
+              {lastRefreshedAt && (
+                <span className="text-[10px] text-slate-400 font-medium hidden lg:inline-block">
+                  Last refreshed: {lastRefreshedAt}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1396,118 +1568,125 @@ export default function Dashboard() {
 
                       </div>
                     </div>
-                    {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-100/60 relative scrollbar-thin">
-                      {messages.map((msg, index) => {
-                        const isInbound = msg.direction === "inbound";
-                        const msgDateHeader = formatDateHeader(msg.createdAt);
-                        const prevMsgDateHeader = index > 0 ? formatDateHeader(messages[index - 1].createdAt) : null;
-                        const showDateDivider = msgDateHeader && msgDateHeader !== prevMsgDateHeader;
-                        
-                        // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
-                        const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
-                        let quoteText = "";
-                        let messageBody = msg.content;
-                        
-                        if (msg.quotedMessage) {
-                          const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
-                          let contentSnippet = msg.quotedMessage.content.split("|")[0];
-                          if (contentSnippet.includes("📋 [Template:")) {
-                            contentSnippet = contentSnippet.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
-                          }
-                          contentSnippet = contentSnippet.replace(/_Powered by [^_]+_/g, "").trim();
-                          quoteText = `${sender}: ${contentSnippet}`;
-                        } else if (msg.content.startsWith("[Reply to: ")) {
-                          const closeBracketIndex = msg.content.indexOf("] ");
-                          if (closeBracketIndex !== -1) {
-                            let rawQuote = msg.content.substring(11, closeBracketIndex);
-                            if (rawQuote.includes("📋 [Template:")) {
-                              rawQuote = rawQuote.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
+                    {/* Messages list container with WhatsApp-style subtle wallpaper */}
+                    <div className="flex-1 overflow-hidden relative flex flex-col min-h-0">
+                      {/* Subdued WhatsApp wallpaper layer */}
+                      <WhatsAppChatBackground isInstagram={activeConv.platform === "instagram"} />
+
+                      {/* Scrollable messages layer */}
+                      <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-2.5 relative z-10 scrollbar-thin">
+                        {messages.map((msg, index) => {
+                          const isInbound = msg.direction === "inbound";
+                          const isNextSameSender = index < messages.length - 1 && messages[index + 1].direction === msg.direction;
+                          const isPrevSameSender = index > 0 && messages[index - 1].direction === msg.direction;
+                          const msgDateHeader = formatDateHeader(msg.createdAt);
+                          const prevMsgDateHeader = index > 0 ? formatDateHeader(messages[index - 1].createdAt) : null;
+                          const showDateDivider = msgDateHeader && msgDateHeader !== prevMsgDateHeader;
+                          
+                          // Check if message is a quoted reply (prefer new DB relation, fallback to old string format)
+                          const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
+                          let quoteText = "";
+                          let messageBody = msg.content;
+                          
+                          if (msg.quotedMessage) {
+                            const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
+                            let contentSnippet = msg.quotedMessage.content.split("|")[0];
+                            if (contentSnippet.includes("📋 [Template:")) {
+                              contentSnippet = contentSnippet.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
                             }
-                            quoteText = rawQuote.replace(/_Powered by [^_]+_/g, "").trim();
-                            messageBody = msg.content.substring(closeBracketIndex + 2);
+                            contentSnippet = contentSnippet.replace(/_Powered by [^_]+_/g, "").trim();
+                            quoteText = `${sender}: ${contentSnippet}`;
+                          } else if (msg.content.startsWith("[Reply to: ")) {
+                            const closeBracketIndex = msg.content.indexOf("] ");
+                            if (closeBracketIndex !== -1) {
+                              let rawQuote = msg.content.substring(11, closeBracketIndex);
+                              if (rawQuote.includes("📋 [Template:")) {
+                                rawQuote = rawQuote.replace(/📋\s*\[Template:[^\]]+\]\s*/g, "");
+                              }
+                              quoteText = rawQuote.replace(/_Powered by [^_]+_/g, "").trim();
+                              messageBody = msg.content.substring(closeBracketIndex + 2);
+                            }
                           }
-                        }
 
-                        // Check if message has interactive buttons data
-                        const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
-                        let buttonsArray: string[] = [];
-                        if (hasButtons) {
-                          const parts = messageBody.split("|buttons:");
-                          messageBody = parts[0];
-                          buttonsArray = parts[1]?.split(", ") || [];
-                        }
+                          // Check if message has interactive buttons data
+                          const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
+                          let buttonsArray: string[] = [];
+                          if (hasButtons) {
+                            const parts = messageBody.split("|buttons:");
+                            messageBody = parts[0];
+                            buttonsArray = parts[1]?.split(", ") || [];
+                          }
 
-                        // Check if message is a WhatsApp list menu
-                        const hasList = msg.messageType === "listNode" || msg.content.includes("|list:");
-                        let listButtonText = "View Menu";
-                        let listRowsArray: string[] = [];
-                        if (hasList) {
-                          const parts = messageBody.split("|list:");
-                          messageBody = parts[0];
-                          const listParts = parts[1]?.split("|rows:");
-                          listButtonText = listParts?.[0] || "View Menu";
-                          const rowsString = listParts?.[1];
-                          listRowsArray = rowsString ? rowsString.split(", ") : [];
+                          // Check if message is a WhatsApp list menu
+                          const hasList = msg.messageType === "listNode" || msg.content.includes("|list:");
+                          let listButtonText = "View Menu";
+                          let listRowsArray: string[] = [];
+                          if (hasList) {
+                            const parts = messageBody.split("|list:");
+                            messageBody = parts[0];
+                            const listParts = parts[1]?.split("|rows:");
+                            listButtonText = listParts?.[0] || "View Menu";
+                            const rowsString = listParts?.[1];
+                            listRowsArray = rowsString ? rowsString.split(", ") : [];
 
-                          // Fallback to active flow graph listNode options if rows array is empty
-                          if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
-                            const matchingNode = nodes.find(
-                              (n: any) =>
-                                n.type === "listNode" &&
-                                (n.data?.listButtonText === listButtonText ||
-                                  n.data?.text === messageBody)
-                            );
-                            if (matchingNode) {
-                              const fallbackSections = matchingNode.data?.listSections || [];
-                              const fallbackRows = fallbackSections
-                                .flatMap((s: any) => s.rows || [])
-                                .map((r: any) => r.title);
-                              if (fallbackRows.length > 0) {
-                                listRowsArray = fallbackRows;
+                            // Fallback to active flow graph listNode options if rows array is empty
+                            if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
+                              const matchingNode = nodes.find(
+                                (n: any) =>
+                                  n.type === "listNode" &&
+                                  (n.data?.listButtonText === listButtonText ||
+                                    n.data?.text === messageBody)
+                              );
+                              if (matchingNode) {
+                                const fallbackSections = matchingNode.data?.listSections || [];
+                                const fallbackRows = fallbackSections
+                                  .flatMap((s: any) => s.rows || [])
+                                  .map((r: any) => r.title);
+                                if (fallbackRows.length > 0) {
+                                  listRowsArray = fallbackRows;
+                                }
                               }
                             }
                           }
-                        }
 
-                        return (
-                          <React.Fragment key={msg.id}>
-                            {showDateDivider && (
-                              <div className="flex justify-center my-3">
-                                <span className="bg-slate-800/90 border border-slate-700/60 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full shadow-sm tracking-wide">
-                                  {msgDateHeader}
-                                </span>
-                              </div>
-                            )}
-                            <div
-                              className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
-                            >
-                            <div className="relative max-w-[85%] sm:max-w-[70%] min-w-0">
-                              {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
-                              <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
-                                <button
-                                  type="button"
-                                  onClick={() => setQuotedMessage(msg)}
-                                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 p-2 rounded-full border border-slate-700 shadow-lg transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
-                                  title="Quote Reply"
-                                >
-                                  <CornerUpLeft className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-
-                              {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-xs flex flex-col gap-1 min-w-0 max-w-full overflow-hidden break-words ${
-                                isInbound 
-                                  ? "bg-white text-slate-900 border border-slate-200/90 rounded-tl-none" 
-                                  : activeConv?.platform === "instagram"
-                                    ? "bg-gradient-to-r from-pink-500 to-rose-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                    : "bg-[#DCF8C6] text-slate-900 font-medium rounded-tr-none border border-emerald-300/80 shadow-emerald-500/5"
-                              }`}>
-                                {msg.senderName && !isInbound && (
-                                  <span className={`text-[9px] uppercase tracking-wider font-bold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/90" : "text-emerald-800"}`}>
-                                    {msg.senderName}
+                          return (
+                            <React.Fragment key={msg.id}>
+                              {showDateDivider && (
+                                <div className="flex justify-center my-3 sticky top-1 z-20 pointer-events-none">
+                                  <span className="bg-white/90 backdrop-blur-xs border border-slate-200/80 text-slate-600 text-[11px] font-semibold px-3 py-0.5 rounded-lg shadow-2xs tracking-wide">
+                                    {msgDateHeader}
                                   </span>
-                                )}
+                                </div>
+                              )}
+                              <div
+                                className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"} ${isPrevSameSender ? "mt-0.5" : "mt-2"}`}
+                              >
+                              <div className="relative max-w-[88%] sm:max-w-[72%] min-w-0">
+                                {/* Hover Quote Trigger (Positioned dynamically next to the bubble) */}
+                                <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-2" : "right-full mr-2"}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuotedMessage(msg)}
+                                    className="bg-white/95 hover:bg-white text-emerald-600 p-1.5 rounded-full border border-slate-200 shadow-md transition-all duration-150 hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+                                    title="Quote Reply"
+                                  >
+                                    <CornerUpLeft className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* WhatsApp-style Message Bubble */}
+                                <div className={`rounded-xl px-3.5 py-2 shadow-2xs flex flex-col gap-0.5 min-w-0 max-w-full overflow-hidden break-words ${
+                                  isInbound 
+                                    ? "bg-white text-slate-900 border border-black/5 rounded-tl-xs" 
+                                    : activeConv?.platform === "instagram"
+                                      ? "bg-gradient-to-r from-pink-500 to-rose-600 text-white font-medium rounded-tr-xs shadow-pink-500/10"
+                                      : "bg-[#d9fdd3] text-slate-900 font-normal rounded-tr-xs border border-emerald-600/10 shadow-black/5"
+                                }`}>
+                                  {msg.senderName && !isInbound && (
+                                    <span className={`text-[9px] uppercase tracking-wider font-bold mb-0.5 ${activeConv?.platform === "instagram" ? "text-pink-100/90" : "text-emerald-800"}`}>
+                                      {msg.senderName}
+                                    </span>
+                                  )}
                                 
                                 {/* Render Quoted Reply Box inside Bubble */}
                                 {hasQuote && (
@@ -1707,6 +1886,7 @@ export default function Dashboard() {
                         );
                       })}
                       <div ref={messageEndRef} />
+                      </div>
                     </div>
 
                     {/* Quoted Message Preview Header above input bar */}
@@ -1731,24 +1911,24 @@ export default function Dashboard() {
                     )}
 
                     {/* Message input bar */}
-                    <form onSubmit={handleSendMessage} className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2.5 sm:gap-3 relative shadow-xs">
+                    <form onSubmit={handleSendMessage} className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2.5 sm:gap-3 relative shadow-xs z-20">
                       
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50">
-                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => {
-                                setInputText((prev) => prev + emoji);
-                                setShowEmojiPicker(false);
-                              }}
-                              className="text-lg hover:scale-125 transition-transform p-1.5 cursor-pointer"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
+                        <div 
+                          ref={emojiPickerRef}
+                          className="absolute bottom-16 left-2 sm:left-4 z-50 shadow-2xl rounded-2xl overflow-hidden border border-slate-200 animate-fadeIn"
+                          style={{ maxWidth: "calc(100vw - 24px)" }}
+                        >
+                          <EmojiPicker
+                            onEmojiClick={handleEmojiClick}
+                            autoFocusSearch={false}
+                            theme={Theme.LIGHT}
+                            searchPlaceHolder="Search emojis..."
+                            width={typeof window !== "undefined" && window.innerWidth < 420 ? Math.min(window.innerWidth - 24, 340) : 350}
+                            height={400}
+                            previewConfig={{ showPreview: false }}
+                          />
                         </div>
                       )}
 
@@ -1796,6 +1976,7 @@ export default function Dashboard() {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
                         }}
+                        aria-label="Open emoji picker"
                         className={`p-2 rounded-xl transition-colors cursor-pointer ${showEmojiPicker ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Smile className="h-5 w-5" />
@@ -1806,12 +1987,14 @@ export default function Dashboard() {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
                         }}
+                        aria-label="Attach file"
                         className={`p-2 rounded-xl transition-colors cursor-pointer ${showMediaMenu ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
                       
                       <input
+                        ref={messageInputRef}
                         type="text"
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
@@ -1829,19 +2012,22 @@ export default function Dashboard() {
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50">
-                    <div className="max-w-md flex flex-col items-center gap-4">
-                      <div className={`h-20 w-20 rounded-full flex items-center justify-center shadow-sm border ${isInstagramTab ? "bg-pink-50 text-pink-600 border-pink-200" : "bg-emerald-50 text-emerald-600 border-emerald-200"}`}>
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+                    <WhatsAppChatBackground isInstagram={isInstagramTab} />
+                    <div className="max-w-md flex flex-col items-center gap-4 relative z-10 bg-white/80 backdrop-blur-md p-8 rounded-2xl border border-slate-200/80 shadow-sm">
+                      <div className={`h-16 w-16 rounded-2xl flex items-center justify-center shadow-2xs border ${isInstagramTab ? "bg-pink-50 text-pink-600 border-pink-200" : "bg-emerald-50 text-emerald-600 border-emerald-200"}`}>
                         {isInstagramTab ? (
-                          <Instagram className="h-10 w-10 stroke-1" />
+                          <Instagram className="h-8 w-8 stroke-1.5" />
                         ) : (
-                          <Bot className="h-10 w-10 stroke-1" />
+                          <WhatsApp className="h-8 w-8" />
                         )}
                       </div>
-                      <h3 className="text-xl font-extrabold text-slate-900">{isInstagramTab ? "Instagram" : "WhatsApp"} Sales &amp; Support CRM</h3>
-                      <p className="text-sm text-slate-500 leading-relaxed">
-                        Select an active conversation from the sidebar inbox to view the chat, monitor live bot flows, or reply manually to leads.
-                      </p>
+                      <div className="space-y-1">
+                        <h3 className="text-base font-bold text-slate-900">{isInstagramTab ? "Instagram" : "WhatsApp"} Web Inbox</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed max-w-xs">
+                          Select a conversation from the left to read messages, view customer media, or respond in real time.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}

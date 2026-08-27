@@ -314,16 +314,28 @@ export class WhatsAppDripEngine {
         }
       });
 
-      // Fetch organization WhatsApp credentials
-      let waConfig = await (prisma as any).whatsAppConfig.findFirst({
-        where: { organizationId: campaign.organizationId }
+      // Fetch campaign's exact WhatsApp configuration strictly scoped to organization & bound account
+      const { WhatsAppRuntimeContextResolver } = require("./whatsapp/whatsappRuntimeContext");
+      const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+        organizationId: campaign.organizationId,
+        whatsappConfigId: campaign.whatsappConfigId,
+        phoneNumberId: campaign.phoneNumberId,
       });
-      if (!waConfig || !waConfig.accessToken) {
-        waConfig = await (prisma as any).whatsAppConfig.findFirst();
+
+      if (!ctx || !ctx.accessToken) {
+        throw new Error(`[WHATSAPP DRIP RUNTIME] No active WhatsApp account configuration found for Campaign "${campaign.id}". Dispatch aborted.`);
       }
 
-      const phoneId = campaign.phoneNumberId || waConfig?.phoneNumberId || "demo-phone-id";
-      const token = waConfig?.accessToken || "demo-access-token";
+      const waConfig = {
+        id: ctx.whatsappConfigId,
+        phoneNumberId: ctx.phoneNumberId,
+        wabaId: ctx.wabaId,
+        accessToken: ctx.accessToken,
+        phoneNumber: ctx.displayPhoneNumber,
+      };
+
+      const phoneId = ctx.phoneNumberId;
+      const token = ctx.accessToken;
 
       // Build Template Send Parameters with dynamic multi-variable hydration
       let response: any = null;

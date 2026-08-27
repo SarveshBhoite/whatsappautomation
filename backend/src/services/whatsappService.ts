@@ -158,6 +158,9 @@ export class WhatsAppService {
       data.context = { message_id: contextMessageId };
     }
 
+    const stackTrace = new Error().stack?.split("\n").slice(2, 6).map(s => s.trim()).join(" -> ") || "unknown";
+    console.log(`[WA_OUTBOUND_TRACE] phoneNumberId: ${phoneNumberId} | to: ${formattedTo} | text: "${text.replace(/\n/g, ' ')}" | stack: ${stackTrace}`);
+
     const response = await axios.post(url, data, {
       headers: this.getHeaders(accessToken),
     });

@@ -58,7 +58,6 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
             igConfigs: true,
             ytConfigs: true,
             linkedInConfig: true,
-            aiAgentConfig: true,
           },
         },
       },
@@ -76,70 +75,63 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
     const isInstagram = conversation.platform === "instagram";
     const isYouTube = conversation.platform === "youtube";
     const isLinkedIn = conversation.platform === "linkedin";
-    let waConfig = conversation.phoneNumberId
-      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversation.phoneNumberId)
-      : null;
-    if (!waConfig) {
-      waConfig = conversation.organization.waConfigs?.find((c: any) => c.isDefault) || conversation.organization.waConfigs?.[0];
-    }
+    const conversationPhoneId = (conversation as any).phoneNumberId;
+    const conversationWaConfigId = (conversation as any).whatsappConfigId;
+    const waConfig = (conversationWaConfigId
+      ? conversation.organization.waConfigs?.find((c: any) => c.id === conversationWaConfigId)
+      : null) || (conversationPhoneId 
+      ? conversation.organization.waConfigs?.find((c: any) => c.phoneNumberId === conversationPhoneId)
+      : null);
     const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
-    const ytConfig = (conversation.organization as any).ytConfigs?.find((c: any) => c.isDefault) || (conversation.organization as any).ytConfigs?.[0];
+    const ytConfig = (conversation.organization as any).ytConfigs?.find((a: any) => a.isDefault) || (conversation.organization as any).ytConfigs?.[0];
     const linkedInConfig = conversation.organization.linkedInConfig;
 
     // Check Platform Checklist for AI Agent Mode vs Static Flow Mode
-    const aiConfig = conversation.organization.aiAgentConfig;
+    let aiConfig: any = null;
+    if (waConfig?.id) {
+      aiConfig = await (prisma as any).aiAgentConfig.findFirst({
+        where: {
+          organizationId: conversation.organizationId,
+          whatsappConfigId: waConfig.id,
+        },
+      });
+    }
+
     let isPlatformAiEnabled = false;
 
     if (isWhatsApp) {
-      isPlatformAiEnabled = !aiConfig || aiConfig.whatsappAiEnabled !== false;
+      // Strictly require an existing, explicitly active AI Agent Config configured for THIS specific WhatsApp number
+      isPlatformAiEnabled = Boolean(aiConfig && aiConfig.isActive === true && aiConfig.activeMode === "AI_AGENT" && aiConfig.whatsappAiEnabled !== false);
     } else if (isInstagram) {
-      isPlatformAiEnabled = aiConfig?.instagramAiEnabled === true;
+      isPlatformAiEnabled = Boolean(aiConfig && aiConfig.isActive === true && aiConfig.instagramAiEnabled === true);
     } else if (isYouTube) {
-      isPlatformAiEnabled = aiConfig?.youtubeAiEnabled === true;
+      isPlatformAiEnabled = Boolean(aiConfig && aiConfig.isActive === true && aiConfig.youtubeAiEnabled === true);
     } else if (isLinkedIn) {
-      isPlatformAiEnabled = aiConfig?.linkedinAiEnabled === true;
+      isPlatformAiEnabled = Boolean(aiConfig && aiConfig.isActive === true && aiConfig.linkedinAiEnabled === true);
     }
 
-    if (isPlatformAiEnabled && aiConfig?.isActive !== false) {
-      console.log(`[FLOW ENGINE] AI Agent enabled for platform "${conversation.platform}" (Conversation: ${conversationId}). Routing to AI Agent Engine...`);
+    if (isPlatformAiEnabled) {
+      console.log(`[AI_RUNTIME] AI Agent enabled for platform "${conversation.platform}" (waConfigId: ${waConfig?.id}). Routing to AI Agent Engine...`);
       return await processAiAgentChat(conversationId, incomingMessageId);
+    } else if (isWhatsApp && aiConfig?.activeMode !== "STATIC_FLOW") {
+      console.log(`[AI_RUNTIME] AI Agent is disabled (activeMode: ${aiConfig?.activeMode || 'NONE'}, isActive: ${aiConfig?.isActive}) for WhatsApp line ${waConfig?.phoneNumber || conversationWaConfigId}. Zero AI execution.`);
+      return;
     }
 
-    // 2. Fetch the Active Flow for the Organization and Platform (Fallback to default if no active flow)
-    let activeFlow = await prisma.flow.findFirst({
-      where: { 
-        organizationId: conversation.organizationId, 
-        platform: conversation.platform,
-        isActive: true 
-      },
-    });
-
-    if (!activeFlow) {
+    // 2. Fetch the Active Flow strictly for this platform if STATIC_FLOW mode is explicitly enabled
+    let activeFlow = null;
+    if (!isWhatsApp || aiConfig?.activeMode === "STATIC_FLOW") {
       activeFlow = await prisma.flow.findFirst({
-        where: {
-          organizationId: conversation.organizationId,
+        where: { 
+          organizationId: conversation.organizationId, 
           platform: conversation.platform,
-          isDefault: true
-        }
+          isActive: true 
+        },
       });
     }
 
     if (!activeFlow) {
-      // Fallback: Find any active or default flow for this organization
-      activeFlow = await prisma.flow.findFirst({
-        where: {
-          organizationId: conversation.organizationId,
-          isActive: true
-        }
-      }) || await prisma.flow.findFirst({
-        where: {
-          organizationId: conversation.organizationId
-        }
-      });
-    }
-
-    if (!activeFlow) {
-      console.log(`No active or default flow found for organization ${conversation.organizationId} on platform ${conversation.platform}`);
+      console.log(`[FLOW ENGINE] No active flow configured for platform "${conversation.platform}" (Conversation: ${conversationId}). No automated message sent.`);
       return;
     }
 

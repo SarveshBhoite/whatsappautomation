@@ -16,26 +16,35 @@ async function seedCompanyAiAgentData() {
   });
 
   // 1. Configure AI Agent Persona & Set Mode to AI_AGENT
-  const config = await prisma.aiAgentConfig.upsert({
-    where: { organizationId },
-    update: {
-      agentName: "Jisnu AI Growth Consultant",
-      personalityPrompt: "You are a warm, highly knowledgeable, human-like growth consultant for Jisnu Digital Solutions PVT LTD. Speak in a friendly, helpful, conversational tone. Answer questions based on trained company data. Attach relevant portfolio screenshots or PDFs when asked to show previous work or rate cards, and politely collect contact details if the user wants an outbound callback or custom quote.",
-      greetingMessage: "👋 Hello! Welcome to Jisnu Digital Solutions. How can I help you grow your business today?",
-      activeMode: "AI_AGENT",
-      isActive: true,
-      autoSendMedia: true,
-    },
-    create: {
-      organizationId,
-      agentName: "Jisnu AI Growth Consultant",
-      personalityPrompt: "You are a warm, highly knowledgeable, human-like growth consultant for Jisnu Digital Solutions PVT LTD. Speak in a friendly, helpful, conversational tone. Answer questions based on trained company data. Attach relevant portfolio screenshots or PDFs when asked to show previous work or rate cards, and politely collect contact details if the user wants an outbound callback or custom quote.",
-      greetingMessage: "👋 Hello! Welcome to Jisnu Digital Solutions. How can I help you grow your business today?",
-      activeMode: "AI_AGENT",
-      isActive: true,
-      autoSendMedia: true,
-    },
+  const existingConfig = await (prisma as any).aiAgentConfig.findFirst({
+    where: { organizationId }
   });
+  let config;
+  if (existingConfig) {
+    config = await (prisma as any).aiAgentConfig.update({
+      where: { id: existingConfig.id },
+      data: {
+        agentName: "Jisnu AI Growth Consultant",
+        personalityPrompt: "You are a warm, highly knowledgeable, human-like growth consultant for Jisnu Digital Solutions PVT LTD. Speak in a friendly, helpful, conversational tone. Answer questions based on trained company data. Attach relevant portfolio screenshots or PDFs when asked to show previous work or rate cards, and politely collect contact details if the user wants an outbound callback or custom quote.",
+        greetingMessage: "👋 Hello! Welcome to Jisnu Digital Solutions. How can I help you grow your business today?",
+        activeMode: "AI_AGENT",
+        isActive: true,
+        autoSendMedia: true,
+      }
+    });
+  } else {
+    config = await (prisma as any).aiAgentConfig.create({
+      data: {
+        organizationId,
+        agentName: "Jisnu AI Growth Consultant",
+        personalityPrompt: "You are a warm, highly knowledgeable, human-like growth consultant for Jisnu Digital Solutions PVT LTD. Speak in a friendly, helpful, conversational tone. Answer questions based on trained company data. Attach relevant portfolio screenshots or PDFs when asked to show previous work or rate cards, and politely collect contact details if the user wants an outbound callback or custom quote.",
+        greetingMessage: "👋 Hello! Welcome to Jisnu Digital Solutions. How can I help you grow your business today?",
+        activeMode: "AI_AGENT",
+        isActive: true,
+        autoSendMedia: true,
+      }
+    });
+  }
 
   console.log(`✅ Configured AI Agent: "${config.agentName}" (Active Mode: ${config.activeMode})`);
 

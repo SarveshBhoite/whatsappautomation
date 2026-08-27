@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import axios from "axios";
+import { resolveWhatsAppConfig } from "../utils/accountResolver";
 
 const router = Router();
 const DEFAULT_ORG_ID = "demo-org-123";
@@ -12,30 +13,62 @@ const getOrgId = (req: Request): string => {
 
 // ─── 1. CONFIGURATION & MODE TOGGLE ─────────────────────────────────────────
 
-// GET: Fetch AI Agent configuration for Organization
+// ─── 1. CONFIGURATION & MODE TOGGLE ─────────────────────────────────────────
+
+// GET: Fetch AI Agent configuration for Organization & WhatsApp Context
 router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const requestedWaConfigId = (req.query.whatsappConfigId as string) || undefined;
 
-    let config = await prisma.aiAgentConfig.findUnique({
-      where: { organizationId },
-    });
+    // Resolve WhatsAppConfig strictly belonging to this organization
+    const activeWaConfig = await resolveWhatsAppConfig(organizationId, requestedWaConfigId);
+    const targetWaConfigId = activeWaConfig ? activeWaConfig.id : null;
 
-    if (!config) {
-      config = await prisma.aiAgentConfig.create({
-        data: {
+    let config = null;
+    if (targetWaConfigId) {
+      config = await (prisma as any).aiAgentConfig.findFirst({
+        where: {
           organizationId,
-          agentName: "AI Sales Specialist",
-          personalityPrompt: "You are a warm, highly knowledgeable human sales & customer representative. Chat naturally in a friendly, conversational tone. Answer questions based strictly on trained company data, attach relevant portfolio screenshots or PDFs when requested, and collect contact details if they ask to be called back.",
-          greetingMessage: "Hello! How can I help you with our services today?",
-          activeMode: "AI_AGENT",
-          isActive: true,
-          autoSendMedia: true,
+          whatsappConfigId: targetWaConfigId,
         },
       });
     }
 
-    return res.status(200).json(config);
+    if (!config) {
+      return res.status(200).json({
+        config: null,
+        id: null,
+        whatsappConfigId: targetWaConfigId,
+        agentName: "",
+        personalityPrompt: "",
+        greetingMessage: "",
+        activeMode: "AI_AGENT",
+        isActive: false,
+        whatsappAiEnabled: false,
+        instagramAiEnabled: false,
+        youtubeAiEnabled: false,
+        linkedinAiEnabled: false,
+        autoSendMedia: false,
+        linkedWhatsAppAccount: activeWaConfig ? {
+          id: activeWaConfig.id,
+          phoneNumber: activeWaConfig.phoneNumber,
+          accountName: activeWaConfig.accountName,
+          wabaId: activeWaConfig.wabaId
+        } : null
+      });
+    }
+
+    return res.status(200).json({
+      ...config,
+      whatsappConfigId: targetWaConfigId,
+      linkedWhatsAppAccount: activeWaConfig ? {
+        id: activeWaConfig.id,
+        phoneNumber: activeWaConfig.phoneNumber,
+        accountName: activeWaConfig.accountName,
+        wabaId: activeWaConfig.wabaId
+      } : null
+    });
   } catch (error: any) {
     console.error("Error fetching AI Agent config:", error);
     return res.status(500).json({ error: "Failed to fetch AI Agent config", details: error.message });
@@ -47,6 +80,7 @@ router.post("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const { 
+      whatsappConfigId,
       agentName, 
       personalityPrompt, 
       greetingMessage, 
@@ -61,55 +95,100 @@ router.post("/config", async (req: Request, res: Response) => {
       fallbackAction 
     } = req.body;
 
-    const updated = await (prisma.aiAgentConfig as any).upsert({
-      where: { organizationId },
-      update: {
-        agentName: agentName !== undefined ? agentName : undefined,
-        personalityPrompt: personalityPrompt !== undefined ? personalityPrompt : undefined,
-        greetingMessage: greetingMessage !== undefined ? greetingMessage : undefined,
-        activeMode: activeMode !== undefined ? activeMode : undefined,
-        isActive: isActive !== undefined ? Boolean(isActive) : undefined,
-        groqApiKey: groqApiKey !== undefined ? (groqApiKey ? String(groqApiKey).trim() : null) : undefined,
-        whatsappAiEnabled: whatsappAiEnabled !== undefined ? Boolean(whatsappAiEnabled) : undefined,
-        instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : undefined,
-        youtubeAiEnabled: youtubeAiEnabled !== undefined ? Boolean(youtubeAiEnabled) : undefined,
-        linkedinAiEnabled: linkedinAiEnabled !== undefined ? Boolean(linkedinAiEnabled) : undefined,
-        autoSendMedia: autoSendMedia !== undefined ? Boolean(autoSendMedia) : undefined,
-        fallbackAction: fallbackAction !== undefined ? fallbackAction : undefined,
-      },
-      create: {
-        organizationId,
-        agentName: agentName || "AI Sales Specialist",
-        personalityPrompt: personalityPrompt || "You are a warm, highly knowledgeable human sales & customer representative.",
-        greetingMessage: greetingMessage || "Hello! How can I help you today?",
-        activeMode: activeMode || "AI_AGENT",
-        isActive: isActive !== undefined ? Boolean(isActive) : true,
-        groqApiKey: groqApiKey ? String(groqApiKey).trim() : null,
-        whatsappAiEnabled: whatsappAiEnabled !== undefined ? Boolean(whatsappAiEnabled) : true,
-        instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : false,
-        youtubeAiEnabled: youtubeAiEnabled !== undefined ? Boolean(youtubeAiEnabled) : false,
-        linkedinAiEnabled: linkedinAiEnabled !== undefined ? Boolean(linkedinAiEnabled) : false,
-        autoSendMedia: autoSendMedia !== undefined ? Boolean(autoSendMedia) : true,
-        fallbackAction: fallbackAction || "human_callback",
-      },
-    });
+    // Resolve WhatsAppConfig strictly belonging to this organization
+    const activeWaConfig = await resolveWhatsAppConfig(organizationId, whatsappConfigId);
+    const targetWaConfigId = activeWaConfig ? activeWaConfig.id : null;
 
-    return res.status(200).json({ success: true, config: updated });
+    let existingConfig = null;
+    if (targetWaConfigId) {
+      existingConfig = await (prisma as any).aiAgentConfig.findFirst({
+        where: {
+          organizationId,
+          whatsappConfigId: targetWaConfigId,
+        }
+      });
+    } else {
+      existingConfig = await (prisma as any).aiAgentConfig.findFirst({
+        where: { organizationId }
+      });
+    }
+
+    let updated;
+    if (existingConfig) {
+      updated = await (prisma as any).aiAgentConfig.update({
+        where: { id: existingConfig.id },
+        data: {
+          whatsappConfigId: targetWaConfigId || existingConfig.whatsappConfigId,
+          agentName: agentName !== undefined ? agentName : undefined,
+          personalityPrompt: personalityPrompt !== undefined ? personalityPrompt : undefined,
+          greetingMessage: greetingMessage !== undefined ? greetingMessage : undefined,
+          activeMode: activeMode !== undefined ? activeMode : undefined,
+          isActive: isActive !== undefined ? Boolean(isActive) : undefined,
+          groqApiKey: groqApiKey !== undefined ? (groqApiKey ? String(groqApiKey).trim() : null) : undefined,
+          whatsappAiEnabled: whatsappAiEnabled !== undefined ? Boolean(whatsappAiEnabled) : undefined,
+          instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : undefined,
+          youtubeAiEnabled: youtubeAiEnabled !== undefined ? Boolean(youtubeAiEnabled) : undefined,
+          linkedinAiEnabled: linkedinAiEnabled !== undefined ? Boolean(linkedinAiEnabled) : undefined,
+          autoSendMedia: autoSendMedia !== undefined ? Boolean(autoSendMedia) : undefined,
+          fallbackAction: fallbackAction !== undefined ? fallbackAction : undefined,
+        }
+      });
+    } else {
+      updated = await (prisma as any).aiAgentConfig.create({
+        data: {
+          organizationId,
+          whatsappConfigId: targetWaConfigId,
+          agentName: agentName || "AI Sales Specialist",
+          personalityPrompt: personalityPrompt || "You are a warm, highly knowledgeable human sales & customer representative.",
+          greetingMessage: greetingMessage || "Hello! How can I help you today?",
+          activeMode: activeMode || "AI_AGENT",
+          isActive: isActive !== undefined ? Boolean(isActive) : true,
+          groqApiKey: groqApiKey ? String(groqApiKey).trim() : null,
+          whatsappAiEnabled: whatsappAiEnabled !== undefined ? Boolean(whatsappAiEnabled) : true,
+          instagramAiEnabled: instagramAiEnabled !== undefined ? Boolean(instagramAiEnabled) : false,
+          youtubeAiEnabled: youtubeAiEnabled !== undefined ? Boolean(youtubeAiEnabled) : false,
+          linkedinAiEnabled: linkedinAiEnabled !== undefined ? Boolean(linkedinAiEnabled) : false,
+          autoSendMedia: autoSendMedia !== undefined ? Boolean(autoSendMedia) : true,
+          fallbackAction: fallbackAction || "human_callback",
+        }
+      });
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      config: updated,
+      whatsappConfigId: targetWaConfigId,
+      linkedWhatsAppAccount: activeWaConfig ? {
+        id: activeWaConfig.id,
+        phoneNumber: activeWaConfig.phoneNumber,
+        accountName: activeWaConfig.accountName,
+        wabaId: activeWaConfig.wabaId
+      } : null
+    });
   } catch (error: any) {
     console.error("Error updating AI Agent config:", error);
     return res.status(500).json({ error: "Failed to update AI Agent config", details: error.message });
   }
 });
 
-// ─── 2. KNOWLEDGE BASE TRAINING DATA ─────────────────────────────────────────
-
-// GET: List all Knowledge Base Items for Organization
+// GET: List Knowledge Base Items scoped to Organization & WhatsApp Context
 router.get("/knowledge", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const requestedWaConfigId = (req.query.whatsappConfigId as string) || undefined;
 
-    const items = await prisma.aiKnowledgeItem.findMany({
-      where: { organizationId },
+    let targetWaConfigId: string | null = null;
+    if (requestedWaConfigId) {
+      const activeWaConfig = await resolveWhatsAppConfig(organizationId, requestedWaConfigId);
+      if (activeWaConfig) targetWaConfigId = activeWaConfig.id;
+    }
+
+    // Query items strictly scoped to THIS WhatsApp number only
+    const items = await (prisma as any).aiKnowledgeItem.findMany({
+      where: {
+        organizationId,
+        whatsappConfigId: targetWaConfigId || "UNCONFIGURED_LINE",
+      },
       orderBy: { createdAt: "desc" },
     });
 
@@ -124,17 +203,32 @@ router.get("/knowledge", async (req: Request, res: Response) => {
 router.post("/knowledge", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { id, category, topic, keywords, content, mediaUrl, mediaType, mediaTitle, isActive } = req.body;
+    const { id, whatsappConfigId, category, topic, keywords, content, mediaUrl, mediaType, mediaTitle, isActive } = req.body;
 
     if (!topic || !content) {
       return res.status(400).json({ error: "Topic and Content details are required for training." });
     }
 
+    let targetWaConfigId: string | null = null;
+    if (whatsappConfigId) {
+      const activeWaConfig = await resolveWhatsAppConfig(organizationId, whatsappConfigId);
+      if (activeWaConfig) targetWaConfigId = activeWaConfig.id;
+    }
+
     let savedItem;
     if (id) {
-      savedItem = await prisma.aiKnowledgeItem.update({
+      // Security: verify item belongs to this organization
+      const existing = await (prisma as any).aiKnowledgeItem.findFirst({
+        where: { id, organizationId }
+      });
+      if (!existing) {
+        return res.status(404).json({ error: "Knowledge item not found or unauthorized" });
+      }
+
+      savedItem = await (prisma as any).aiKnowledgeItem.update({
         where: { id },
         data: {
+          whatsappConfigId: targetWaConfigId !== undefined ? targetWaConfigId : existing.whatsappConfigId,
           category: category || "SERVICES",
           topic,
           keywords: keywords || "",
@@ -146,9 +240,10 @@ router.post("/knowledge", async (req: Request, res: Response) => {
         },
       });
     } else {
-      savedItem = await prisma.aiKnowledgeItem.create({
+      savedItem = await (prisma as any).aiKnowledgeItem.create({
         data: {
           organizationId,
+          whatsappConfigId: targetWaConfigId,
           category: category || "SERVICES",
           topic,
           keywords: keywords || "",
@@ -171,9 +266,17 @@ router.post("/knowledge", async (req: Request, res: Response) => {
 // DELETE: Remove Knowledge Item
 router.delete("/knowledge/:id", async (req: Request, res: Response) => {
   try {
+    const organizationId = getOrgId(req);
     const id = req.params.id as string;
 
-    await prisma.aiKnowledgeItem.delete({
+    const existing = await (prisma as any).aiKnowledgeItem.findFirst({
+      where: { id, organizationId }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Knowledge item not found or unauthorized" });
+    }
+
+    await (prisma as any).aiKnowledgeItem.delete({
       where: { id },
     });
 
@@ -190,25 +293,50 @@ router.delete("/knowledge/:id", async (req: Request, res: Response) => {
 router.post("/test-sandbox", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { userMessage, history } = req.body;
+    const { userMessage, history, whatsappConfigId } = req.body;
 
     if (!userMessage) {
       return res.status(400).json({ error: "User message is required for testing." });
     }
 
-    // Fetch Config & Knowledge
-    const config = await prisma.aiAgentConfig.findUnique({
-      where: { organizationId },
-    });
+    // Resolve active WhatsApp Number details
+    let waAccountContext = null;
+    let targetWaConfigId: string | null = null;
+    if (whatsappConfigId) {
+      const waConfig = await resolveWhatsAppConfig(organizationId, whatsappConfigId);
+      if (waConfig) {
+        targetWaConfigId = waConfig.id;
+        waAccountContext = {
+          id: waConfig.id,
+          accountName: waConfig.accountName,
+          phoneNumber: waConfig.phoneNumber,
+          phoneNumberId: waConfig.phoneNumberId,
+          wabaId: waConfig.wabaId
+        };
+      }
+    }
 
-    const items = await prisma.aiKnowledgeItem.findMany({
-      where: { organizationId, isActive: true },
-    });
+    // Fetch account-scoped config strictly for the requested WhatsApp number
+    let config = null;
+    if (targetWaConfigId) {
+      config = await (prisma as any).aiAgentConfig.findFirst({
+        where: { organizationId, whatsappConfigId: targetWaConfigId },
+      });
+    }
+
+    // Fetch account-scoped knowledge items strictly for this WhatsApp number
+    const items = targetWaConfigId ? await (prisma as any).aiKnowledgeItem.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        whatsappConfigId: targetWaConfigId,
+      },
+    }) : [];
 
     const agentName = config?.agentName || "AI Sales Representative";
     const personalityPrompt = config?.personalityPrompt || "You are a warm human sales consultant.";
 
-    let knowledgeContextText = items.map(k => `
+    let knowledgeContextText = items.map((k: any) => `
 [TOPIC: ${k.topic}] (Category: ${k.category})
 Keywords: ${k.keywords}
 Content: ${k.content}
@@ -224,7 +352,7 @@ ${k.mediaUrl ? `Attached Media ID: "${k.id}" (Type: ${k.mediaType}, Title: "${k.
       return res.status(500).json({ error: "GROQ_KEY is missing from server env." });
     }
 
-    const systemPrompt = `You are "${agentName}", a warm, highly intelligent, and human-like sales and growth consultant for our company.
+    const systemPrompt = `You are "${agentName}", a warm, highly intelligent, and human-like sales and growth consultant for our company${waAccountContext ? ` (Replying from WhatsApp Business line ${waAccountContext.phoneNumber || waAccountContext.accountName || ''})` : ''}.
 
 ### YOUR PERSONALITY & DIALOGUE GOALS:
 ${personalityPrompt}
@@ -285,7 +413,7 @@ ${(history || []).map((h: any) => `${h.role === 'user' ? 'Customer' : 'Agent (' 
     // Resolve attached media if present
     let attachment = null;
     if (parsed.attachKnowledgeId) {
-      const match = items.find(k => k.id === parsed.attachKnowledgeId);
+      const match = items.find((k: any) => k.id === parsed.attachKnowledgeId);
       if (match && match.mediaUrl) {
         attachment = {
           url: match.mediaUrl,

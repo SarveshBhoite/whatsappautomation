@@ -47,10 +47,14 @@ import ReactFlow, {
   Handle,
   Position
 } from "reactflow";
-import "reactflow/dist/style.css";
+import dynamic from "next/dynamic";
+import { Theme, EmojiClickData } from "emoji-picker-react";
 import InstagramCommentsPage from "./comments/page";
 import InstagramProfilePage from "./profile/page";
 import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
+import { WhatsAppChatBackground } from "@/components/WhatsAppChatBackground";
+
+const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
 
 // Native SVG representation of Instagram icon for backward compatibility with older lucide-react versions
 const Instagram = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
@@ -562,10 +566,62 @@ export default function Dashboard() {
     reader.readAsDataURL(file);
   };
 
-  // Interactive UI pickers
+  // Interactive UI pickers & Refs
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [activeListMenuMsgId, setActiveListMenuMsgId] = useState<string | null>(null);
+
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+  const messageInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Close emoji picker on click outside or Escape key
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showEmojiPicker) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showEmojiPicker]);
+
+  // Insert emoji precisely at cursor position, preserve input focus
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    const emoji = emojiData.emoji;
+    const input = messageInputRef.current;
+    if (input) {
+      const start = input.selectionStart ?? inputText.length;
+      const end = input.selectionEnd ?? inputText.length;
+      const updatedText = inputText.substring(0, start) + emoji + inputText.substring(end);
+      setInputText(updatedText);
+
+      // Restore cursor position immediately after inserted emoji
+      setTimeout(() => {
+        if (messageInputRef.current) {
+          messageInputRef.current.focus();
+          const newPos = start + emoji.length;
+          messageInputRef.current.setSelectionRange(newPos, newPos);
+        }
+      }, 0);
+    } else {
+      setInputText((prev) => prev + emoji);
+    }
+  };
 
   // Settings States
   const [config, setConfig] = useState<WhatsAppConfig>({
@@ -1501,273 +1557,270 @@ export default function Dashboard() {
                         </button>
                       </div>
                     </div>
+                    {/* Messages list container with Instagram-themed subtle wallpaper */}
+                    <div className="flex-1 overflow-hidden relative flex flex-col min-h-0">
+                      {/* Subdued wallpaper layer */}
+                      <WhatsAppChatBackground isInstagram={true} />
 
-                    {/* Messages list container */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100/60 relative">
-                      {messages.map((msg) => {
-                        const isInbound = msg.direction === "inbound";
+                      {/* Scrollable messages layer */}
+                      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 relative z-10 scrollbar-thin">
+                        {messages.map((msg) => {
+                          const isInbound = msg.direction === "inbound";
 
-                        const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
-                        let quoteText = "";
-                        let messageBody = msg.content;
+                          const hasQuote = !!msg.quotedMessage || msg.content.startsWith("[Reply to: ");
+                          let quoteText = "";
+                          let messageBody = msg.content;
 
-                        if (msg.quotedMessage) {
-                          const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
-                          const contentSnippet = msg.quotedMessage.content.split("|")[0];
-                          quoteText = `${sender}: ${contentSnippet}`;
-                        } else if (msg.content.startsWith("[Reply to: ")) {
-                          const closeBracketIndex = msg.content.indexOf("] ");
-                          if (closeBracketIndex !== -1) {
-                            quoteText = msg.content.substring(11, closeBracketIndex);
-                            messageBody = msg.content.substring(closeBracketIndex + 2);
+                          if (msg.quotedMessage) {
+                            const sender = msg.quotedMessage.direction === "inbound" ? "Customer" : (msg.quotedMessage.senderName || "Bot");
+                            const contentSnippet = msg.quotedMessage.content.split("|")[0];
+                            quoteText = `${sender}: ${contentSnippet}`;
+                          } else if (msg.content.startsWith("[Reply to: ")) {
+                            const closeBracketIndex = msg.content.indexOf("] ");
+                            if (closeBracketIndex !== -1) {
+                              quoteText = msg.content.substring(11, closeBracketIndex);
+                              messageBody = msg.content.substring(closeBracketIndex + 2);
+                            }
                           }
-                        }
 
-                        const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
-                        let buttonsArray: string[] = [];
-                        if (hasButtons) {
-                          const parts = messageBody.split("|buttons:");
-                          messageBody = parts[0];
-                          buttonsArray = parts[1]?.split(", ") || [];
-                        }
+                          const hasButtons = msg.messageType === "buttonsNode" || msg.content.includes("|buttons:");
+                          let buttonsArray: string[] = [];
+                          if (hasButtons) {
+                            const parts = messageBody.split("|buttons:");
+                            messageBody = parts[0];
+                            buttonsArray = parts[1]?.split(", ") || [];
+                          }
 
-                        const hasList = msg.messageType === "listNode" || msg.content.includes("|list:");
-                        let listButtonText = "View Menu";
-                        let listRowsArray: string[] = [];
-                        if (hasList) {
-                          const parts = messageBody.split("|list:");
-                          messageBody = parts[0];
-                          const listParts = parts[1]?.split("|rows:");
-                          listButtonText = listParts?.[0] || "View Menu";
-                          const rowsString = listParts?.[1];
-                          listRowsArray = rowsString ? rowsString.split(", ") : [];
+                          const hasList = msg.messageType === "listNode" || msg.content.includes("|list:");
+                          let listButtonText = "View Menu";
+                          let listRowsArray: string[] = [];
+                          if (hasList) {
+                            const parts = messageBody.split("|list:");
+                            messageBody = parts[0];
+                            const listParts = parts[1]?.split("|rows:");
+                            listButtonText = listParts?.[0] || "View Menu";
+                            const rowsString = listParts?.[1];
+                            listRowsArray = rowsString ? rowsString.split(", ") : [];
 
-                          if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
-                            const matchingNode = nodes.find(
-                              (n: any) =>
-                                n.type === "listNode" &&
-                                (n.data?.listButtonText === listButtonText ||
-                                  n.data?.text === messageBody)
-                            );
-                            if (matchingNode) {
-                              const fallbackSections = matchingNode.data?.listSections || [];
-                              const fallbackRows = fallbackSections
-                                .flatMap((s: any) => s.rows || [])
-                                .map((r: any) => r.title);
-                              if (fallbackRows.length > 0) {
-                                listRowsArray = fallbackRows;
+                            if (listRowsArray.length === 0 || (listRowsArray.length === 1 && !listRowsArray[0])) {
+                              const matchingNode = nodes.find(
+                                (n: any) =>
+                                  n.type === "listNode" &&
+                                  (n.data?.listButtonText === listButtonText ||
+                                    n.data?.text === messageBody)
+                              );
+                              if (matchingNode) {
+                                const fallbackSections = matchingNode.data?.listSections || [];
+                                const fallbackRows = fallbackSections
+                                  .flatMap((s: any) => s.rows || [])
+                                  .map((r: any) => r.title);
+                                if (fallbackRows.length > 0) {
+                                  listRowsArray = fallbackRows;
+                                }
                               }
                             }
                           }
-                        }
 
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
-                          >
-                            <div className="relative max-w-[70%]">
-                              {/* Hover Quote Trigger */}
-                              <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-3" : "right-full mr-3"}`}>
-                                <button
-                                  type="button"
-                                  onClick={() => setQuotedMessage(msg)}
-                                  className="bg-white hover:bg-slate-50 text-slate-700 p-2 rounded-full border border-slate-200 shadow-sm transition-all hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
-                                  title="Quote Reply"
-                                >
-                                  <CornerUpLeft className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex w-full group ${isInbound ? "justify-start" : "justify-end"}`}
+                            >
+                              <div className="relative max-w-[85%] sm:max-w-[72%] min-w-0">
+                                {/* Hover Quote Trigger */}
+                                <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10 ${isInbound ? "left-full ml-2" : "right-full mr-2"}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuotedMessage(msg)}
+                                    className="bg-white hover:bg-slate-50 text-slate-700 p-1.5 rounded-full border border-slate-200 shadow-sm transition-all hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+                                    title="Quote Reply"
+                                  >
+                                    <CornerUpLeft className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
 
-                              {/* Message Bubble */}
-                              <div className={`rounded-2xl px-4 py-2.5 shadow-2xs flex flex-col gap-1 ${isInbound
-                                ? "bg-white text-slate-800 border border-slate-200/90 rounded-tl-none"
-                                : activeConv?.platform === "instagram"
-                                  ? "bg-gradient-to-r from-pink-600 to-purple-600 text-white font-medium rounded-tr-none shadow-pink-500/10"
-                                  : "bg-emerald-600 text-white font-medium rounded-tr-none shadow-emerald-500/10"
-                                }`}>
-                                {/* Render Quoted Reply Box inside Bubble */}
-                                {hasQuote && (
-                                  <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${isInbound
-                                    ? "bg-slate-900/40 border-slate-500 text-slate-400"
-                                    : activeConv?.platform === "instagram"
-                                      ? "bg-violet-950/40 border-violet-400 text-violet-200"
-                                      : "bg-emerald-600/30 border-emerald-950 text-slate-900"
-                                    }`}>
-                                    {quoteText}
-                                  </div>
-                                )}
-
-                                {/* Render media content or plain text */}
-                                {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
-                                  // Parse structured media content
-                                  let mediaUrl = msg.content;
-                                  let displayFilename = "document.pdf";
-                                  let captionText = "";
-
-                                  if (msg.messageType === "document") {
-                                    const parts = msg.content.split("|");
-                                    displayFilename = parts[0] || "document.pdf";
-                                    mediaUrl = parts[1] || "";
-                                    const capPart = parts.find(p => p.startsWith("caption:"));
-                                    if (capPart) {
-                                      captionText = capPart.substring(8);
-                                    }
-                                  } else {
-                                    const parts = msg.content.split("|");
-                                    mediaUrl = parts[0] || "";
-                                    const capPart = parts.find(p => p.startsWith("caption:"));
-                                    if (capPart) {
-                                      captionText = capPart.substring(8);
-                                    }
-                                  }
-
-                                  return (
-                                    <div className="flex flex-col gap-2">
-                                      {msg.messageType === "image" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                          <img
-                                            src={getMediaUrl(mediaUrl)}
-                                            alt="Sent Media"
-                                            className="object-cover w-full h-32 hover:scale-105 transition-all duration-300 cursor-zoom-in"
-                                            onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
-                                          />
-                                        </div>
-                                      ) : msg.messageType === "video" ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
-                                          <video
-                                            src={getMediaUrl(mediaUrl)}
-                                            controls
-                                            className="object-cover w-full h-36"
-                                          />
-                                        </div>
-                                      ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
-                                        <div className="max-w-[240px] py-1">
-                                          <audio
-                                            src={getMediaUrl(mediaUrl)}
-                                            controls
-                                            className="w-full h-10"
-                                          />
-                                        </div>
-                                      ) : (
-                                        <a
-                                          href={getMediaUrl(mediaUrl)}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
-                                        >
-                                          <FileText className="h-8 w-8 stroke-1" />
-                                          <div className="flex flex-col min-w-0">
-                                            <span className="text-xs font-semibold truncate max-w-[150px]">
-                                              {displayFilename}
-                                            </span>
-                                            <span className="text-[10px] text-slate-500">Document File</span>
-                                          </div>
-                                        </a>
-                                      )}
-                                      {captionText && (
-                                        <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-300" : "text-slate-800"}`}>{captionText}</p>
-                                      )}
+                                {/* Message Bubble */}
+                                <div className={`rounded-2xl px-4 py-2.5 shadow-2xs flex flex-col gap-1 ${isInbound
+                                  ? "bg-white text-slate-800 border border-slate-200/90 rounded-tl-xs shadow-2xs"
+                                  : "bg-gradient-to-r from-pink-600 to-purple-600 text-white font-medium rounded-tr-xs shadow-pink-500/10"
+                                  }`}>
+                                  {/* Render Quoted Reply Box inside Bubble */}
+                                  {hasQuote && (
+                                    <div className={`border-l-4 rounded px-2 py-1 mb-1.5 text-[10px] leading-snug truncate ${isInbound
+                                      ? "bg-slate-100 border-slate-400 text-slate-600"
+                                      : "bg-violet-950/40 border-violet-400 text-violet-200"
+                                      }`}>
+                                      {quoteText}
                                     </div>
-                                  );
-                                })() : (
-                                  <div className="flex flex-col gap-2">
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
+                                  )}
 
-                                    {/* Render Clickable WhatsApp-styled buttons in chat logs */}
-                                    {hasButtons && (
-                                      <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
-                                        {buttonsArray.map((btnTitle, index) => {
-                                          const isIg = activeConv?.platform === "instagram";
-                                          const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
-                                          const btnIconColor = isIg ? "text-pink-500" : "text-emerald-500";
-                                          return (
-                                            <div
-                                              key={index}
-                                              className="w-full bg-white text-slate-700 border border-slate-200/80 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
-                                            >
-                                              <Bot className={`h-3 w-3 ${btnIconColor}`} />
-                                              {btnTitle}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
+                                  {/* Render media content or plain text */}
+                                  {["image", "document", "video", "audio", "voice"].includes(msg.messageType) && !hasButtons ? (() => {
+                                    // Parse structured media content
+                                    let mediaUrl = msg.content;
+                                    let displayFilename = "document.pdf";
+                                    let captionText = "";
 
-                                    {/* Render Clickable WhatsApp-styled List Menus in chat logs */}
-                                    {hasList && (
-                                      <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActiveListMenuMsgId(
-                                              activeListMenuMsgId === msg.id ? null : msg.id
-                                            );
-                                          }}
-                                          className={`w-full bg-white hover:bg-slate-50 active:bg-slate-100 ${activeConv?.platform === "instagram" ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500"
-                                            } border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer`}
-                                        >
-                                          <span className="flex items-center gap-1.5">
-                                            <FileText className={`h-3.5 w-3.5 ${activeConv?.platform === "instagram" ? "text-pink-500" : "text-emerald-500"
-                                              }`} />
-                                            {listButtonText}
-                                          </span>
-                                          <span className="text-[10px] text-slate-400 font-normal">Select</span>
-                                        </button>
+                                    if (msg.messageType === "document") {
+                                      const parts = msg.content.split("|");
+                                      displayFilename = parts[0] || "document.pdf";
+                                      mediaUrl = parts[1] || "";
+                                      const capPart = parts.find(p => p.startsWith("caption:"));
+                                      if (capPart) {
+                                        captionText = capPart.substring(8);
+                                      }
+                                    } else {
+                                      const parts = msg.content.split("|");
+                                      mediaUrl = parts[0] || "";
+                                      const capPart = parts.find(p => p.startsWith("caption:"));
+                                      if (capPart) {
+                                        captionText = capPart.substring(8);
+                                      }
+                                    }
 
-                                        {/* Dropdown popup of options */}
-                                        {activeListMenuMsgId === msg.id && (
-                                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
-                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
-                                              <span>Menu Options</span>
-                                              <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
-                                            </div>
-                                            <div className="flex flex-col gap-1">
-                                              {listRowsArray.map((rowText, index) => (
-                                                <div
-                                                  key={index}
-                                                  className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
-                                                >
-                                                  <span className="truncate pr-2">{rowText}</span>
-                                                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                                                </div>
-                                              ))}
-                                            </div>
+                                    return (
+                                      <div className="flex flex-col gap-2">
+                                        {msg.messageType === "image" ? (
+                                          <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                            <img
+                                              src={getMediaUrl(mediaUrl)}
+                                              alt="Sent Media"
+                                              className="object-cover w-full h-32 hover:scale-105 transition-all duration-300 cursor-zoom-in"
+                                              onClick={() => window.open(getMediaUrl(mediaUrl), "_blank")}
+                                            />
                                           </div>
+                                        ) : msg.messageType === "video" ? (
+                                          <div className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-950/20 max-w-[240px]">
+                                            <video
+                                              src={getMediaUrl(mediaUrl)}
+                                              controls
+                                              className="object-cover w-full h-36"
+                                            />
+                                          </div>
+                                        ) : (msg.messageType === "audio" || msg.messageType === "voice") ? (
+                                          <div className="max-w-[240px] py-1">
+                                            <audio
+                                              src={getMediaUrl(mediaUrl)}
+                                              controls
+                                              className="w-full h-10"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <a
+                                            href={getMediaUrl(mediaUrl)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 bg-slate-950/15 p-2 rounded-lg border border-slate-800/10 hover:bg-slate-950/25 transition-colors"
+                                          >
+                                            <FileText className="h-8 w-8 stroke-1" />
+                                            <div className="flex flex-col min-w-0">
+                                              <span className="text-xs font-semibold truncate max-w-[150px]">
+                                                {displayFilename}
+                                              </span>
+                                              <span className="text-[10px] text-slate-500">Document File</span>
+                                            </div>
+                                          </a>
+                                        )}
+                                        {captionText && (
+                                          <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${isInbound ? "text-slate-600" : "text-slate-100"}`}>{captionText}</p>
                                         )}
                                       </div>
+                                    );
+                                  })() : (
+                                    <div className="flex flex-col gap-2">
+                                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{messageBody}</p>
+
+                                      {/* Render Clickable WhatsApp-styled buttons in chat logs */}
+                                      {hasButtons && (
+                                        <div className="flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                          {buttonsArray.map((btnTitle, index) => {
+                                            const isIg = activeConv?.platform === "instagram";
+                                            const btnTextColor = isIg ? "text-pink-600 hover:text-pink-500" : "text-emerald-600 hover:text-emerald-500";
+                                            const btnIconColor = isIg ? "text-pink-500" : "text-emerald-500";
+                                            return (
+                                              <div
+                                                key={index}
+                                                className="w-full bg-white text-slate-700 border border-slate-200/80 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 select-none"
+                                              >
+                                                <Bot className={`h-3 w-3 ${btnIconColor}`} />
+                                                {btnTitle}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+
+                                      {/* Render Clickable WhatsApp-styled List Menus in chat logs */}
+                                      {hasList && (
+                                        <div className="relative flex flex-col gap-1.5 mt-2 border-t border-slate-950/10 pt-2 w-full min-w-[200px]">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActiveListMenuMsgId(
+                                                activeListMenuMsgId === msg.id ? null : msg.id
+                                              );
+                                            }}
+                                            className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 text-pink-600 hover:text-pink-500 border border-slate-200 shadow-sm text-xs font-bold py-2.5 px-4 rounded-xl transition-all duration-150 text-center hover:shadow flex items-center justify-between gap-1.5 cursor-pointer"
+                                          >
+                                            <span className="flex items-center gap-1.5">
+                                              <FileText className="h-3.5 w-3.5 text-pink-500" />
+                                              {listButtonText}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-normal">Select</span>
+                                          </button>
+
+                                          {/* Dropdown popup of options */}
+                                          {activeListMenuMsgId === msg.id && (
+                                            <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-950/95 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 animate-fadeIn max-h-48 overflow-y-auto scrollbar-thin">
+                                              <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1 border-b border-slate-900 mb-1 flex justify-between items-center">
+                                                <span>Menu Options</span>
+                                                <span className="text-[8px] font-normal lowercase text-slate-400">Click to select</span>
+                                              </div>
+                                              <div className="flex flex-col gap-1">
+                                                {listRowsArray.map((rowText, index) => (
+                                                  <div
+                                                    key={index}
+                                                    className="w-full text-left bg-slate-900/60 text-slate-400 text-xs py-2 px-3 rounded-lg border border-slate-850 flex items-center justify-between select-none"
+                                                  >
+                                                    <span className="truncate pr-2">{rowText}</span>
+                                                    <ChevronRight className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Ticks status and time */}
+                                  <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${isInbound
+                                    ? "text-slate-500"
+                                    : "text-pink-100/85"
+                                    }`}>
+                                    <span>
+                                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    {!isInbound && (
+                                      <span className="flex items-center ml-0.5" title={`Status: ${msg.status || 'sent'}`}>
+                                        {msg.status === "read" ? (
+                                          <CheckCheck className="h-3.5 w-3.5 text-[#53bdeb] stroke-[2.5]" />
+                                        ) : msg.status === "delivered" ? (
+                                          <CheckCheck className="h-3.5 w-3.5 text-slate-400 stroke-[2]" />
+                                        ) : (
+                                          <Check className="h-3.5 w-3.5 text-slate-400 stroke-[2]" />
+                                        )}
+                                      </span>
                                     )}
                                   </div>
-                                )}
-
-                                {/* Ticks status and time */}
-                                <div className={`flex items-center gap-1 justify-end self-end text-[9px] mt-1 ${isInbound
-                                  ? "text-slate-500"
-                                  : activeConv?.platform === "instagram"
-                                    ? "text-pink-100/85"
-                                    : "text-slate-800/80"
-                                  }`}>
-                                  <span>
-                                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                  {!isInbound && (
-                                    <span className="flex items-center ml-0.5" title={`Status: ${msg.status || 'sent'}`}>
-                                      {msg.status === "read" ? (
-                                        <CheckCheck className="h-3.5 w-3.5 text-[#53bdeb] stroke-[2.5]" />
-                                      ) : msg.status === "delivered" ? (
-                                        <CheckCheck className="h-3.5 w-3.5 text-slate-400 stroke-[2]" />
-                                      ) : (
-                                        <Check className="h-3.5 w-3.5 text-slate-400 stroke-[2]" />
-                                      )}
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                      <div ref={messageEndRef} />
+                          );
+                        })}
+                        <div ref={messageEndRef} />
+                      </div>
                     </div>
 
                     {/* Quoted Message Preview Header above input bar */}
@@ -1792,24 +1845,24 @@ export default function Dashboard() {
                     )}
 
                     {/* Message input bar */}
-                    <form onSubmit={handleSendMessage} className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2.5 sm:gap-3 relative shadow-xs">
+                    <form onSubmit={handleSendMessage} className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center gap-2.5 sm:gap-3 relative shadow-xs z-20">
 
                       {/* EMOJI PICKER POPUP */}
                       {showEmojiPicker && (
-                        <div className="absolute bottom-16 left-4 bg-white border border-slate-200 rounded-2xl p-3 grid grid-cols-5 gap-2 shadow-xl z-50 animate-fadeIn">
-                          {["😀", "😂", "😍", "👍", "🙏", "🔥", "🚀", "❤️", "👏", "🎉"].map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => {
-                                setInputText((prev) => prev + emoji);
-                                setShowEmojiPicker(false);
-                              }}
-                              className="text-lg hover:scale-125 transition-transform p-1.5 cursor-pointer"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
+                        <div
+                          ref={emojiPickerRef}
+                          className="absolute bottom-16 left-2 sm:left-4 z-50 shadow-2xl rounded-2xl overflow-hidden border border-slate-200 animate-fadeIn"
+                          style={{ maxWidth: "calc(100vw - 24px)" }}
+                        >
+                          <EmojiPicker
+                            onEmojiClick={handleEmojiClick}
+                            autoFocusSearch={false}
+                            theme={Theme.LIGHT}
+                            searchPlaceHolder="Search emojis..."
+                            width={typeof window !== "undefined" && window.innerWidth < 420 ? Math.min(window.innerWidth - 24, 340) : 350}
+                            height={400}
+                            previewConfig={{ showPreview: false }}
+                          />
                         </div>
                       )}
 
@@ -1857,6 +1910,7 @@ export default function Dashboard() {
                           setShowEmojiPicker(!showEmojiPicker);
                           setShowMediaMenu(false);
                         }}
+                        aria-label="Open emoji picker"
                         className={`p-2 rounded-xl transition-colors cursor-pointer ${showEmojiPicker ? "bg-pink-50 text-pink-600" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Smile className="h-5 w-5" />
@@ -1867,12 +1921,14 @@ export default function Dashboard() {
                           setShowMediaMenu(!showMediaMenu);
                           setShowEmojiPicker(false);
                         }}
+                        aria-label="Attach file"
                         className={`p-2 rounded-xl transition-colors cursor-pointer ${showMediaMenu ? "bg-pink-50 text-pink-600" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
                       >
                         <Paperclip className="h-5 w-5" />
                       </button>
 
                       <input
+                        ref={messageInputRef}
                         type="text"
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
@@ -1890,15 +1946,18 @@ export default function Dashboard() {
                     </form>
                   </>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50">
-                    <div className="max-w-md flex flex-col items-center gap-4">
-                      <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-sm border bg-pink-50 text-pink-600 border-pink-200">
-                        <Instagram className="h-10 w-10 stroke-1" />
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+                    <WhatsAppChatBackground isInstagram={true} />
+                    <div className="max-w-md flex flex-col items-center gap-4 relative z-10 bg-white/80 backdrop-blur-md p-8 rounded-2xl border border-slate-200/80 shadow-sm">
+                      <div className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-2xs border bg-pink-50 text-pink-600 border-pink-200">
+                        <Instagram className="h-8 w-8 stroke-1.5" />
                       </div>
-                      <h3 className="text-xl font-extrabold text-slate-900">Instagram Direct Messaging</h3>
-                      <p className="text-sm text-slate-500 leading-relaxed">
-                        Select an active conversation from the sidebar inbox to view messages, handle comments, or reply directly.
-                      </p>
+                      <div className="space-y-1">
+                        <h3 className="text-base font-bold text-slate-900">Instagram Direct Inbox</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed max-w-xs">
+                          Select a conversation from the left to view direct messages, customer media, and story replies.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1906,8 +1965,6 @@ export default function Dashboard() {
             </div>
           );
         })()}
-
-        {/* TAB 2: COMMENT AUTOMATION */}
         {activeTab === "comments" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             <InstagramCommentsPage />

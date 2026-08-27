@@ -214,14 +214,19 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
               <span className="truncate">{selectedAccount?.label || title}</span>
               {selectedAccount?.isDefault && (
                 <span className={`px-1.5 py-0.2 text-[9px] font-extrabold tracking-wide border rounded-md shrink-0 ${themeStyles.activeBadge}`}>
-                  Active
+                  Primary
                 </span>
               )}
             </div>
             {selectedAccount?.sublabel && (
-              <span className="text-[10px] text-slate-500 font-mono truncate tracking-tight">
-                {selectedAccount.sublabel}
-              </span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[10px] text-slate-600 font-mono tracking-tight font-medium bg-slate-100/90 border border-slate-200/80 px-1.5 py-0.2 rounded-md inline-flex items-center gap-1">
+                  <span className="text-[9px] font-bold text-slate-400">WABA:</span>
+                  <span className="font-semibold text-slate-700">
+                    {selectedAccount.sublabel.replace(/^WABA:\s*/i, "")}
+                  </span>
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -290,7 +295,14 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                           )}
                         </div>
                         {acc.sublabel && (
-                          <div className="text-[10px] text-slate-500 font-mono truncate">{acc.sublabel}</div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-[10px] text-slate-600 font-mono tracking-tight bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded-md inline-flex items-center gap-1">
+                              <span className="text-[9px] font-bold text-slate-400">WABA:</span>
+                              <span className="font-semibold text-slate-700">
+                                {acc.sublabel.replace(/^WABA:\s*/i, "")}
+                              </span>
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>

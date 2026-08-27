@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { AppointmentService } from "../services/appointmentService";
 import { GoogleCalendarService } from "../services/googleCalendarService";
+import { resolveWhatsAppConfig } from "../utils/accountResolver";
 
 const router = Router();
 
@@ -18,6 +19,8 @@ router.get("/", async (req: Request, res: Response) => {
       status,
       googleMeetStatus,
       googleAccountId,
+      whatsappConfigId,
+      accountId,
       dateFilter,
       startDate,
       endDate,
@@ -56,7 +59,7 @@ router.get("/", async (req: Request, res: Response) => {
     next7DaysIST.setDate(next7DaysIST.getDate() + 7);
     next7DaysIST.setHours(23, 59, 59, 999);
 
-    // Build Prisma where conditions
+    // Build Prisma where conditions - strictly organization-scoped
     const where: any = {
       organizationId: orgId
     };
@@ -167,6 +170,15 @@ router.get("/", async (req: Request, res: Response) => {
               calendarName: true,
               selectedCalendarId: true,
               isDefault: true
+            }
+          },
+          whatsappConfig: {
+            select: {
+              id: true,
+              accountName: true,
+              phoneNumber: true,
+              phoneNumberId: true,
+              wabaId: true
             }
           }
         }

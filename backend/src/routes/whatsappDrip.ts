@@ -4,7 +4,7 @@ import prisma from "../utils/prisma";
 import { WhatsAppDripEngine } from "../services/whatsappDripService";
 import { WhatsAppService } from "../services/whatsappService";
 
-import { validateAccountOwnership } from "../utils/accountResolver";
+import { validateAccountOwnership, resolveWhatsAppConfig } from "../utils/accountResolver";
 
 const router = Router();
 
@@ -18,18 +18,21 @@ const getOrgId = (req: Request): string => {
 router.get("/campaigns", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accountId = req.query.accountId as string;
+    const targetConfigId = (req.query.whatsappConfigId as string) || (req.query.accountId as string);
 
     const whereClause: any = { organizationId };
 
-    if (accountId) {
-      const isValid = await validateAccountOwnership(organizationId, "whatsapp", accountId);
-      if (!isValid) {
-        return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "Account does not belong to organization" });
+    if (targetConfigId && targetConfigId !== "ALL") {
+      const config = await resolveWhatsAppConfig(organizationId, targetConfigId);
+      if (!config) {
+        return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "WhatsApp account does not belong to organization" });
       }
+      
+      const isDefaultConfig = !!config.isDefault;
       whereClause.OR = [
-        { whatsappConfigId: accountId },
-        { whatsappConfigId: null }
+        { whatsappConfigId: config.id },
+        { phoneNumberId: config.phoneNumberId },
+        ...(isDefaultConfig ? [{ whatsappConfigId: null, phoneNumberId: null }, { whatsappConfigId: null, phoneNumberId: "" }] : [])
       ];
     }
 
@@ -186,13 +189,17 @@ router.post("/campaigns", async (req: Request, res: Response) => {
       ...(Array.isArray(req.body.tags) ? { selectedTags: req.body.tags } : {})
     };
 
+    const targetConfigId = req.body.whatsappConfigId || req.body.accountId || (req.query.whatsappConfigId as string) || (req.query.accountId as string);
+    const waConfig = await resolveWhatsAppConfig(organizationId, targetConfigId);
+
     const campaign = await (prisma as any).whatsAppDripCampaign.create({
       data: {
         organizationId,
+        whatsappConfigId: waConfig?.id || null,
         name,
         description,
-        phoneNumberId,
-        wabaId,
+        phoneNumberId: phoneNumberId || waConfig?.phoneNumberId || null,
+        wabaId: wabaId || waConfig?.wabaId || null,
         timezone: timezone || "Asia/Kolkata",
         startDate: startDate ? new Date(startDate) : new Date(),
         startTime: startTime || "09:00",
@@ -562,9 +569,19 @@ router.post("/campaigns/:id/test", async (req: Request, res: Response) => {
     });
     if (!campaign) return res.status(404).json({ error: "Campaign not found" });
 
-    const waConfig = await prisma.whatsAppConfig.findFirst({ where: { organizationId: campaign.organizationId } });
-    const phoneId = campaign.phoneNumberId || waConfig?.phoneNumberId || "demo-phone-id";
-    const token = waConfig?.accessToken || "demo-access-token";
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId: campaign.organizationId,
+      whatsappConfigId: campaign.whatsappConfigId,
+      phoneNumberId: campaign.phoneNumberId,
+    });
+
+    if (!ctx || !ctx.accessToken) {
+      return res.status(400).json({ error: "WhatsApp credentials not configured for this campaign" });
+    }
+
+    const phoneId = ctx.phoneNumberId;
+    const token = ctx.accessToken;
 
     const templateStep = campaign.steps?.find((s: any) => s.stepType === "SEND_TEMPLATE");
     const templateName = templateStep?.templateName || campaign.steps?.[0]?.templateName || "hello_world";
@@ -672,12 +689,16 @@ router.post("/campaigns/generate-ai", async (req: Request, res: Response) => {
     const selectedTone = tone || "Friendly & Persuasive";
     const desiredSteps = stepCount ? parseInt(stepCount) : 3;
 
-    // Detect Meta templates available in DB for organization
     const orgId = req.headers["x-organization-id"] as string;
     if (!orgId) {
       return res.status(401).json({ error: "Missing x-organization-id header" });
     }
-    const waConfig = await (prisma as any).whatsAppConfig.findFirst({ where: { organizationId: orgId } });
+    const requestedConfigId = (req.query.whatsappConfigId as string) || (req.headers["x-whatsapp-config-id"] as string) || (req.body?.whatsappConfigId as string);
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const waConfig = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId: orgId,
+      whatsappConfigId: requestedConfigId,
+    });
 
     let availableTemplates: string[] = ["welcome_jisnu_marketing", "promo_discount_offer", "hello_world"];
     try {
@@ -1302,7 +1323,12 @@ router.post("/templates/submit-ai-templates", async (req: Request, res: Response
       return res.status(400).json({ error: "No templates provided" });
     }
 
-    const waConfig = await (prisma as any).whatsAppConfig.findFirst({ where: { organizationId: orgId } });
+    const requestedConfigId = (req.query.whatsappConfigId as string) || (req.headers["x-whatsapp-config-id"] as string) || (req.body?.whatsappConfigId as string);
+    const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+    const waConfig = await WhatsAppRuntimeContextResolver.resolveContext({
+      organizationId: orgId,
+      whatsappConfigId: requestedConfigId,
+    });
     const results: any[] = [];
 
     for (const rawTemplate of templates) {

@@ -49,16 +49,21 @@ router.post("/send", async (req: Request, res: Response) => {
     
     let waConfig = null;
     if (isWhatsApp) {
-      if (conversation.phoneNumberId) {
-        waConfig = await prisma.whatsAppConfig.findFirst({
-          where: { organizationId: conversation.organizationId, phoneNumberId: conversation.phoneNumberId }
-        });
-      }
-      if (!waConfig) {
-        waConfig = await prisma.whatsAppConfig.findFirst({
-          where: { organizationId: conversation.organizationId, isActive: true },
-          orderBy: { isDefault: "desc" }
-        });
+      const { WhatsAppRuntimeContextResolver } = require("../services/whatsapp/whatsappRuntimeContext");
+      const ctx = await WhatsAppRuntimeContextResolver.resolveContext({
+        conversationId: conversation.id,
+        organizationId: conversation.organizationId,
+        whatsappConfigId: conversation.whatsappConfigId,
+        phoneNumberId: conversation.phoneNumberId,
+      });
+      if (ctx) {
+        waConfig = {
+          id: ctx.whatsappConfigId,
+          phoneNumberId: ctx.phoneNumberId,
+          wabaId: ctx.wabaId,
+          accessToken: ctx.accessToken,
+          phoneNumber: ctx.displayPhoneNumber,
+        };
       }
     }
 

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import axios from "axios";
 import prisma from "../utils/prisma";
+import { resolveWhatsAppConfig } from "../utils/accountResolver";
 
 const router = Router();
 
@@ -179,20 +180,51 @@ router.get("/accounts", async (req: Request, res: Response) => {
       });
     }
 
-    // Auto-sync if an active config with access token exists
+    // Auto-sync in background asynchronously without blocking the UI response
     const tokenConfig = accounts.find((a) => a.accessToken);
     if (tokenConfig && tokenConfig.accessToken) {
-      await syncAllWhatsAppAccountsForToken(organizationId, tokenConfig.accessToken, tokenConfig.wabaId || undefined).catch(() => {});
-      // Refetch after sync to pick up newly added phone numbers
-      accounts = await prisma.whatsAppConfig.findMany({
-        where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
-        orderBy: { createdAt: "desc" },
+      syncAllWhatsAppAccountsForToken(organizationId, tokenConfig.accessToken, tokenConfig.wabaId || undefined).catch((e) => {
+        console.warn("[BG-SYNC] Non-blocking account sync warning:", e.message);
       });
     }
 
     return res.status(200).json({ success: true, accounts });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to fetch WhatsApp accounts", details: error.message });
+  }
+});
+
+// POST: Manually sync / refresh WhatsApp account data and numbers
+router.post("/sync", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { whatsappConfigId, accountId } = req.body;
+    const targetConfigId = whatsappConfigId || accountId;
+
+    const waConfig = await resolveWhatsAppConfig(organizationId, targetConfigId);
+    if (!waConfig || !waConfig.accessToken) {
+      return res.status(400).json({ error: "No active WhatsApp configuration found with valid credentials" });
+    }
+
+    // Auto-sync all numbers associated with token/WABA
+    await syncAllWhatsAppAccountsForToken(organizationId, waConfig.accessToken, waConfig.wabaId || undefined);
+
+    const refreshedAccounts = await prisma.whatsAppConfig.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "WhatsApp account data synchronized successfully",
+      syncedAccountId: waConfig.id,
+      phoneNumber: waConfig.phoneNumber,
+      accountsCount: refreshedAccounts.length,
+      syncedAt: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error("[WHATSAPP SYNC ERROR]:", error);
+    return res.status(500).json({ error: "Failed to sync WhatsApp data", details: error.message });
   }
 });
 
@@ -206,17 +238,30 @@ router.post("/set-default", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing accountId" });
     }
 
-    // Reset all to isDefault = false
-    await prisma.whatsAppConfig.updateMany({
-      where: { organizationId },
-      data: { isDefault: false },
+    // Check if target account is already default to avoid unnecessary DB locks
+    const target = await prisma.whatsAppConfig.findUnique({
+      where: { id: accountId }
     });
 
-    // Set selected to isDefault = true
-    const updated = await prisma.whatsAppConfig.update({
-      where: { id: accountId },
-      data: { isDefault: true },
-    });
+    if (!target) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    if (target.isDefault) {
+      return res.status(200).json({ success: true, message: "Account already default", activeAccount: target });
+    }
+
+    // Atomically swap default status
+    const [, updated] = await prisma.$transaction([
+      prisma.whatsAppConfig.updateMany({
+        where: { organizationId, id: { not: accountId }, isDefault: true },
+        data: { isDefault: false },
+      }),
+      prisma.whatsAppConfig.update({
+        where: { id: accountId },
+        data: { isDefault: true },
+      })
+    ]);
 
     return res.status(200).json({ success: true, message: "Default WhatsApp account updated", activeAccount: updated });
   } catch (error: any) {
@@ -406,7 +451,7 @@ router.post("/disconnect", async (req: Request, res: Response) => {
     const { accountId } = req.body;
 
     const config = accountId
-      ? await prisma.whatsAppConfig.findUnique({ where: { id: accountId } })
+      ? await prisma.whatsAppConfig.findFirst({ where: { id: accountId, organizationId } })
       : await prisma.whatsAppConfig.findFirst({ where: { organizationId, isDefault: true } });
 
     if (config) {
