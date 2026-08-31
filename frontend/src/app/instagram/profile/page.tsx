@@ -31,13 +31,16 @@ export default function InstagramProfilePage() {
     media_count?: number;
     username?: string;
     name?: string;
+    profile_picture_url?: string;
   }>({});
   const [config, setConfig] = useState<{
     instagramAccountId: string;
     accessToken: string;
+    profilePic?: string;
   }>({
     instagramAccountId: "",
     accessToken: "",
+    profilePic: "",
   });
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -54,6 +57,7 @@ export default function InstagramProfilePage() {
           setConfig({
             instagramAccountId: data.config.instagramAccountId || "",
             accessToken: data.config.pageAccessToken || "",
+            profilePic: data.config.profilePic || "",
           });
         }
         if (data.liveProfile) {
@@ -73,6 +77,8 @@ export default function InstagramProfilePage() {
   useEffect(() => {
     fetchProfileConfig();
   }, []);
+
+  const avatarSrc = liveProfile.profile_picture_url || config.profilePic;
 
   return (
     <div className="flex-1 bg-slate-50 text-slate-900 flex flex-col font-sans overflow-hidden">
@@ -114,9 +120,13 @@ export default function InstagramProfilePage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-pink-500 via-purple-500 to-amber-400 p-0.5 shadow-md shadow-pink-500/10 shrink-0">
-                <div className="h-full w-full bg-white rounded-[14px] flex items-center justify-center text-pink-600 font-black text-xl">
-                  {liveProfile.name ? liveProfile.name[0].toUpperCase() : liveProfile.username ? liveProfile.username[0].toUpperCase() : "IG"}
-                </div>
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt="Profile" className="h-full w-full object-cover rounded-[14px]" />
+                ) : (
+                  <div className="h-full w-full bg-white rounded-[14px] flex items-center justify-center text-pink-600 font-black text-xl">
+                    {liveProfile.name ? liveProfile.name[0].toUpperCase() : liveProfile.username ? liveProfile.username[0].toUpperCase() : "IG"}
+                  </div>
+                )}
               </div>
               <div className="space-y-0.5">
                 <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">

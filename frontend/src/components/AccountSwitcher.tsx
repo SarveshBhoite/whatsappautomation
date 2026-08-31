@@ -221,9 +221,8 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
             {selectedAccount?.sublabel && (
               <div className="flex items-center gap-1 mt-0.5">
                 <span className="text-[10px] text-slate-600 font-mono tracking-tight font-medium bg-slate-100/90 border border-slate-200/80 px-1.5 py-0.2 rounded-md inline-flex items-center gap-1">
-                  <span className="text-[9px] font-bold text-slate-400">WABA:</span>
                   <span className="font-semibold text-slate-700">
-                    {selectedAccount.sublabel.replace(/^WABA:\s*/i, "")}
+                    {selectedAccount.sublabel}
                   </span>
                 </span>
               </div>

@@ -405,6 +405,29 @@ router.get("/auth", handleOAuthConnect);
 router.get("/oauth/callback", handleOAuthCallback);
 router.get("/auth/callback", handleOAuthCallback);
 
+// POST: Disconnect YouTube Account
+router.post("/disconnect", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.headers["x-organization-id"] as string) || (req.body && req.body.orgId) || "demo-org-123";
+    const accountId = req.body && req.body.accountId;
+
+    if (accountId) {
+      await (prisma as any).youTubeConfig.deleteMany({
+        where: { id: accountId, organizationId: orgId }
+      });
+    } else {
+      await (prisma as any).youTubeConfig.deleteMany({
+        where: { organizationId: orgId }
+      });
+    }
+
+    return res.status(200).json({ success: true, message: "YouTube account disconnected successfully" });
+  } catch (error: any) {
+    console.error("Error disconnecting YouTube account:", error);
+    return res.status(500).json({ error: "Failed to disconnect YouTube account", details: error.message });
+  }
+});
+
 import { getGoogleAccessToken } from "../services/gmbSyncService";
 
 // Helper to format Date objects as YYYY-MM-DD strings

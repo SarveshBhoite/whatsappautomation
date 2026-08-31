@@ -1528,6 +1528,7 @@ print(res.json())`;
     }
   };
 
+
   const launchInstagramSignup = () => {
     if (typeof window === "undefined") return;
 
@@ -2071,6 +2072,13 @@ print(res.json())`;
             accessToken: cfg.accessToken || "",
             refreshToken: cfg.refreshToken || ""
           });
+        } else {
+          setYtConfig({
+            channelId: "",
+            channelTitle: "",
+            accessToken: "",
+            refreshToken: ""
+          });
         }
         if (data.accounts && Array.isArray(data.accounts)) {
           setYoutubeAccounts(data.accounts);
@@ -2078,6 +2086,8 @@ print(res.json())`;
           if (active && !targetId) {
             setSelectedYoutubeAccountId(active.id);
           }
+        } else {
+          setYoutubeAccounts([]);
         }
       }
     } catch (err) {
@@ -2262,6 +2272,8 @@ print(res.json())`;
       if (res.ok) {
         alert("✓ YouTube Channel disconnected successfully.");
         setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
+        setYoutubeAccounts([]);
+        setSelectedYoutubeAccountId("");
         fetchYoutubeConfig();
       } else {
         alert("Failed to disconnect YouTube channel.");
@@ -4975,17 +4987,27 @@ print(res.json())`;
                         </div>
 
                         <div className="space-y-2.5">
-                          {youtubeAccounts.length === 0 && !(ytConfig.channelId || ytConfig.refreshToken) ? (
-                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
-                              No YouTube channel linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with YouTube"</strong> to authorize your channel.
-                            </div>
-                          ) : (
-                            (youtubeAccounts.length > 0 ? youtubeAccounts : [{
-                              id: "default",
-                              channelTitle: ytConfig.channelTitle,
-                              channelId: ytConfig.channelId,
-                              isDefault: true
-                            }]).map((acc) => {
+                          {(() => {
+                            const validAccounts = youtubeAccounts.filter(a => a.channelId || a.refreshToken);
+                            const hasConfig = Boolean(ytConfig.channelId || ytConfig.refreshToken);
+                            const displayList = validAccounts.length > 0
+                              ? validAccounts
+                              : (hasConfig ? [{
+                                  id: "default",
+                                  channelTitle: ytConfig.channelTitle,
+                                  channelId: ytConfig.channelId,
+                                  isDefault: true
+                                }] : []);
+
+                            if (displayList.length === 0) {
+                              return (
+                                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                                  No YouTube channel linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with YouTube"</strong> to authorize your channel.
+                                </div>
+                              );
+                            }
+
+                            return displayList.map((acc) => {
                               const isPrimary = acc.isDefault || acc.id === selectedYoutubeAccountId;
                               return (
                                 <div key={acc.id} className={`flex items-center justify-between p-4 border rounded-2xl text-xs transition-all ${isPrimary ? "bg-gradient-to-r from-red-50/80 to-rose-50/40 border-red-300 shadow-2xs" : "bg-white border-slate-200 hover:border-red-200"}`}>
@@ -5024,11 +5046,18 @@ print(res.json())`;
                                         Set as Primary Channel
                                       </button>
                                     )}
+                                    <button
+                                      type="button"
+                                      onClick={handleDisconnectYoutube}
+                                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-2xs"
+                                    >
+                                      Disconnect
+                                    </button>
                                   </div>
                                 </div>
                               );
-                            })
-                          )}
+                            });
+                          })()}
                         </div>
                       </div>
                     </div>

@@ -91,11 +91,11 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
       include: {
         waConfigs: true,
         igConfigs: true,
-        ytConfig: true,
-        gmbConfig: true,
+        ytConfigs: true,
+        gmbConfigs: true,
         linkedInConfig: true,
         gmailConfigs: true,
-        aiAgentConfig: true,
+        aiAgentConfigs: true,
       }
     });
 
@@ -105,12 +105,15 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
 
     const defaultWa = org.waConfigs?.find((c: any) => c.isDefault) || org.waConfigs?.[0];
     const defaultIg = org.igConfigs?.find((c: any) => c.isDefault) || org.igConfigs?.[0];
+    const defaultYt = org.ytConfigs?.find((c: any) => c.isDefault) || org.ytConfigs?.[0];
+    const defaultGmb = org.gmbConfigs?.find((c: any) => c.isDefault) || org.gmbConfigs?.[0];
     const defaultGmail = org.gmailConfigs?.find((c: any) => c.isDefault) || org.gmailConfigs?.[0];
+    const defaultAi = org.aiAgentConfigs?.find((c: any) => c.isActive) || org.aiAgentConfigs?.[0];
 
     // 2. Compute Connected Platforms Health Status
-    const isGoogleConnected = Boolean(org.gmbConfig?.googleRefreshToken || org.gmbConfig?.accessToken || org.gmbConfig?.refreshToken);
-    const hasGoogleAds = Boolean(org.gmbConfig?.googleAdsCustomerId || org.gmbConfig?.accountId || isGoogleConnected);
-    const hasGmb = Boolean(org.gmbConfig?.googleLocationId || org.gmbConfig?.locationId || isGoogleConnected || org.gmbConfig?.locationName);
+    const isGoogleConnected = Boolean(defaultGmb?.googleRefreshToken || defaultGmb?.accessToken || defaultGmb?.refreshToken);
+    const hasGoogleAds = Boolean(defaultGmb?.googleAdsCustomerId || defaultGmb?.accountId || isGoogleConnected);
+    const hasGmb = Boolean(defaultGmb?.googleLocationId || defaultGmb?.locationId || isGoogleConnected || defaultGmb?.locationName);
 
     const platforms = {
       whatsapp: {
@@ -139,9 +142,9 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         status: org.linkedInConfig?.accessToken ? "Operational" : "Not Configured"
       },
       youtube: {
-        connected: Boolean(org.ytConfig?.accessToken),
+        connected: Boolean(defaultYt?.accessToken),
         name: "YouTube Channel",
-        status: org.ytConfig?.accessToken ? "Operational" : "Not Configured"
+        status: defaultYt?.accessToken ? "Operational" : "Not Configured"
       },
       gmb: {
         connected: hasGmb,
@@ -154,7 +157,7 @@ router.get("/dashboard/overview", async (req: Request, res: Response) => {
         status: defaultGmail?.emailAddress ? "Operational" : "Not Configured"
       },
       ai_agent: {
-        connected: Boolean(org.aiAgentConfig?.isActive !== false),
+        connected: Boolean(defaultAi?.isActive !== false),
         name: "AI Autonomous Agent",
         status: "Operational"
       }

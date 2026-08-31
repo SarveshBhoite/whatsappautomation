@@ -212,17 +212,21 @@ export const handleWebhook = async (req: Request, res: Response) => {
         },
       });
 
-      let contactName = `Instagram User (${customerPhone.substring(0, 5)}...)`;
-      if (!isEcho && igConfig.pageAccessToken) {
+      let contactName = "";
+      if (!isEcho && (igConfig.pageAccessToken || igConfig.instagramAccountId)) {
         try {
-          const profile = await InstagramService.getUserProfile(igConfig.pageAccessToken, customerPhone);
+          const tokenToUse = igConfig.pageAccessToken || "";
+          const profile = await InstagramService.getUserProfile(tokenToUse, customerPhone);
           if (profile && (profile.name || profile.username)) {
-            contactName = profile.name || `@${profile.username}`;
+            contactName = profile.name ? `${profile.name} (@${profile.username})` : `@${profile.username}`;
           }
         } catch (err: any) {
-          // Profile lookup permissions require instagram_manage_messages; fallback cleanly
           console.warn("Instagram user profile lookup skipped:", err?.message || err);
         }
+      }
+
+      if (!contactName) {
+        contactName = `Instagram User (${customerPhone.substring(0, 5)}...)`;
       }
 
       if (!conversation) {
@@ -237,8 +241,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
           },
         });
       } else {
-        // Update customerName if it was default fallback or changed
-        if (contactName !== "Instagram User" && conversation.customerName !== contactName) {
+        // Update customerName if it was default fallback and real name/username is now available
+        if (!contactName.startsWith("Instagram User") && conversation.customerName !== contactName) {
           conversation = await prisma.conversation.update({
             where: { id: conversation.id },
             data: { customerName: contactName },
@@ -246,20 +250,29 @@ export const handleWebhook = async (req: Request, res: Response) => {
         }
       }
 
-      // Save message in DB
-      const savedMessage = await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          direction: isEcho ? "outbound" : "inbound",
-          messageType,
-          content,
-          mediaMimeType: mimeType,
-          waMessageId: mid,
-          status: isEcho ? "sent" : "read",
-          createdAt: timestamp,
-          senderName: isEcho ? "Agent" : null,
-        },
-      });
+      // Save message in DB (upsert to handle duplicate Meta webhook retries safely)
+      let savedMessage;
+      try {
+        savedMessage = await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: isEcho ? "outbound" : "inbound",
+            messageType,
+            content,
+            mediaMimeType: mimeType,
+            waMessageId: mid,
+            status: isEcho ? "sent" : "read",
+            createdAt: timestamp,
+            senderName: isEcho ? "Agent" : null,
+          },
+        });
+      } catch (err: any) {
+        if (err.code === "P2002") {
+          console.log(`[WEBHOOK DUP] Duplicate message ID ${mid} ignored.`);
+          return res.status(200).send("EVENT_RECEIVED");
+        }
+        throw err;
+      }
 
       // Broadcast message to clients
       io.to(organizationId).emit("new-message", {

@@ -53,6 +53,7 @@ app.use("/uploads", express.static(publicUploadsDir));
 
 // Webhook Router
 app.use("/api/webhook", webhookRouter);
+app.use("/api/webhooks", webhookRouter);
 
 // Messages Router (Manual chat & toggles)
 app.use("/api/messages", messagesRouter);

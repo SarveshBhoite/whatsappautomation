@@ -742,29 +742,6 @@ export default function Dashboard() {
     setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
   };
 
-  const sendMockMediaMessage = async (type: "image" | "document", content: string, filename?: string) => {
-    if (!activeConv) return;
-    setShowMediaMenu(false);
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/messages/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: activeConv.id,
-          messageType: type,
-          content,
-          filename
-        })
-      });
-      if (res.ok) {
-        fetchConversations();
-        fetchMessages(activeConv.id);
-      }
-    } catch (err) {
-      console.error("Failed to send mock media message:", err);
-    }
-  };
-
 
 
   const activeConvRef = useRef<Conversation | null>(null);
@@ -779,9 +756,10 @@ export default function Dashboard() {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("Connected to Real-time WebSocket Server");
+      const orgId = getOrgId();
+      console.log("Connected to Real-time WebSocket Server, joining org room:", orgId);
       // Join Organization Room
-      socket.emit("join-org", DEFAULT_ORG_ID);
+      socket.emit("join-org", orgId);
     });
 
     // Handle Inbound/Outbound Messages
@@ -1394,7 +1372,14 @@ export default function Dashboard() {
         {/* TAB 1: REAL-TIME CHATS PANEL */}
         {((activeTab as any) === "chats_whatsapp" || activeTab === "chats_instagram") && (() => {
           const currentPlatform = (activeTab as any) === "chats_whatsapp" ? "whatsapp" : "instagram";
-          const filteredConversations = conversations.filter(c => (c.platform || "whatsapp") === currentPlatform);
+          const rawFiltered = conversations.filter(c => (c.platform || "whatsapp") === currentPlatform);
+          const seen = new Set<string>();
+          const filteredConversations = rawFiltered.filter(c => {
+            const identifier = (c.customerPhone || c.id).trim();
+            if (seen.has(identifier)) return false;
+            seen.add(identifier);
+            return true;
+          });
           const isInstagramTab = activeTab === "chats_instagram";
 
           return (
@@ -1878,20 +1863,6 @@ export default function Dashboard() {
                             className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
                           >
                             <Paperclip className="h-4 w-4 text-pink-600" /> Upload & Send File
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => sendMockMediaMessage("image", "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600")}
-                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold border-t border-slate-100 pt-1.5 cursor-pointer"
-                          >
-                            <ImageIcon className="h-4 w-4 text-purple-600" /> Sample Image Card
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => sendMockMediaMessage("document", "Jisnu_Portfolio.pdf|https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")}
-                            className="px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-semibold cursor-pointer"
-                          >
-                            <FileText className="h-4 w-4 text-pink-600" /> Sample PDF Brochure
                           </button>
                         </div>
                       )}

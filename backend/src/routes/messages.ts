@@ -67,15 +67,15 @@ router.post("/send", async (req: Request, res: Response) => {
       }
     }
 
-    const igConfig = conversation.organization.igConfig;
-    const ytConfig = conversation.organization.ytConfig;
+    const igConfig = conversation.organization.igConfigs?.find((c: any) => c.isDefault) || conversation.organization.igConfigs?.[0];
+    const ytConfig = (conversation.organization as any).ytConfigs?.find((c: any) => c.isDefault) || (conversation.organization as any).ytConfigs?.[0];
 
     if (isWhatsApp) {
       if (!waConfig || !waConfig.phoneNumberId || !waConfig.accessToken) {
         return res.status(400).json({ error: "WhatsApp credentials not configured for this organization" });
       }
     } else if (isInstagram) {
-      if (!igConfig || !igConfig.pageId || !igConfig.pageAccessToken) {
+      if (!igConfig || !igConfig.pageAccessToken) {
         return res.status(400).json({ error: "Instagram credentials not configured for this organization" });
       }
     } else if (isYouTube) {
